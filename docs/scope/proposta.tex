@@ -1,0 +1,224 @@
+% =============================================================================
+% ForensiQ — Proposta de Projecto
+% UC 21184 · Projeto de Engenharia Informática · UAb
+% =============================================================================
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[portuguese]{babel}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfauthor={João Rodrigues},
+    pdftitle={ForensiQ — Proposta de Projecto}
+}
+
+% Colunas de largura fixa para tabelas
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+\begin{center}
+    {\LARGE\bfseries Proposta de Projecto}\\[0.8em]
+    {\large ForensiQ --- Plataforma Modular de Gestão de Prova Digital\\
+    para First Responders}\\[1.2em]
+    \begin{tabular}{ll}
+        \textbf{Estudante:}   & João Rodrigues · 2203474 \\
+        \textbf{Orientador:}  & Pedro Pestana \\
+        \textbf{Data:}        & 22 de março de 2026 \\
+        \textbf{Versão:}      & 1.0 \\
+    \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\hrule
+\vspace{1.5em}
+
+% =============================================================================
+\section{Sinopse}
+% =============================================================================
+
+Os agentes que chegam primeiro a uma cena de crime --- os \emph{first responders} ---
+recorrem actualmente a métodos manuais (papel, fotografias avulsas, anotações) para
+registar e preservar a prova digital. Esta ausência de padronização traduz-se em
+vulnerabilidades processuais reais: cadeia de custódia inconsistente, prova sem
+localização verificável e procedimentos que variam de agente para agente. O problema
+é identificado da experiência directa do estudante como perito digital forense na PSP.
+
+O ForensiQ é uma aplicação web \emph{mobile-first} que digitaliza e padroniza este
+processo, do momento da apreensão no terreno até à chegada ao laboratório e remessa
+das conclusões da perícia. Distingue-se dos sistemas existentes (SAFE, Axon Evidence)
+por ser desenhado para o agente sem formação técnica avançada, por seguir os
+procedimentos da PSP, e por garantir integridade dos registos via hash SHA-256
+conforme a ISO/IEC 27037. Diferencia-se do Projecto \#38 (OSINT) por não adquirir
+prova --- apenas a gerir e controlar após apreensão.
+
+O resultado esperado é um protótipo funcional demonstrável num smartphone no terreno,
+com API REST documentada, módulo de forense digital completo e cadeia de custódia
+com log imutável verificável. O sucesso é medido pelos critérios de aceitação
+definidos para cada funcionalidade do MVP.
+
+% =============================================================================
+\section{MVP --- Definição e critérios de aceitação}
+% =============================================================================
+
+\subsection{Funcionalidade 1 --- Autenticação com perfis (agente e perito)}
+
+\textbf{Critério de aceitação:}
+Dado email e password válidos de agente, o sistema autentica e devolve token JWT em
+menos de 2 segundos; dado email inválido, devolve erro 401 sem expor informação
+interna. Perfis agente e perito têm permissões distintas verificáveis.
+
+\subsection{Funcionalidade 2 --- Registo de prova com fotografia e metadados GPS}
+
+\textbf{Critério de aceitação:}
+Um agente autenticado cria um registo de prova com fotografia, tipo, descrição e
+localização GPS capturada automaticamente pelo browser. O registo recebe
+identificador único, timestamp do servidor e hash SHA-256 dos metadados.
+Verificável em menos de 30 segundos num telemóvel.
+
+\subsection{Funcionalidade 3 --- Cadeia de custódia com máquina de estados e log imutável}
+
+\textbf{Critério de aceitação:}
+A prova percorre estados em ordem fixa sem possibilidade de retrocesso:
+\textsc{apreendida} $\rightarrow$ \textsc{em transporte} $\rightarrow$
+\textsc{recebida no laboratório} $\rightarrow$ \textsc{em perícia} $\rightarrow$
+\textsc{concluída} $\rightarrow$ \textsc{devolvida/destruída}.
+Cada transição regista agente responsável, timestamp e hash do registo nesse
+momento. Nenhuma transição pode ser saltada. O log é \emph{append-only} ---
+sem \texttt{UPDATE} nem \texttt{DELETE} na tabela de custódia. Qualquer
+tentativa de alteração directa na base de dados é detectável via hash.
+
+\subsection{Funcionalidade 4 --- Módulo de forense digital (ficha de dispositivo)}
+
+\textbf{Critério de aceitação:}
+Perito preenche ficha completa de dispositivo digital (tipo, marca, modelo, estado,
+número de série) associada a uma prova existente.
+
+\subsection{Funcionalidade 5 --- API REST documentada}
+
+\textbf{Critério de aceitação:}
+Mínimo 10 endpoints funcionais documentados e testáveis via Swagger UI
+(\texttt{drf-spectacular}).
+
+\subsection{Funcionalidade 6 --- Exportação de relatório de ocorrência em PDF}
+
+\textbf{Critério de aceitação:}
+Relatório gerado automaticamente com todos os registos de prova e histórico de
+custódia da ocorrência.
+
+% =============================================================================
+\section{Stack tecnológica}
+% =============================================================================
+
+\begin{longtable}{L{3cm} L{5cm} L{6.5cm}}
+    \toprule
+    \textbf{Componente} & \textbf{Tecnologia escolhida} & \textbf{Justificação} \\
+    \midrule
+    \endhead
+    Backend
+        & Django + Django REST Framework
+        & Estrutura convencional e previsível; autenticação built-in; ORM que escreve SQL \\[0.4em]
+    Frontend
+        & HTML + CSS + JavaScript vanilla
+        & Mobile-first sem overhead de framework; suficiente para o MVP \\[0.4em]
+    Base de dados
+        & PostgreSQL
+        & Integridade referencial crítica para cadeia de custódia; append-only para logs \\[0.4em]
+    Autenticação
+        & JWT + RBAC
+        & Dois perfis: agente (first responder) e perito forense digital \\[0.4em]
+    API docs
+        & drf-spectacular $\rightarrow$ Swagger UI
+        & Documentação automática da API REST \\[0.4em]
+    Geolocalização
+        & Browser Geolocation API + Leaflet.js
+        & Sem dependência de API externa paga; funciona no telemóvel \\[0.4em]
+    Integridade
+        & SHA-256 (\texttt{hashlib})
+        & Hash dos metadados do registo no momento de criação \\[0.4em]
+    CI/CD
+        & GitHub Actions
+        & Pipeline de testes automáticos a cada push \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Esboço de arquitectura --- C4 Nível 1}
+% =============================================================================
+
+\textbf{Sistema:} ForensiQ
+
+\textbf{Utilizadores:}
+\begin{itemize}[nosep]
+    \item Agente (first responder) --- regista provas no terreno, inicia cadeia de
+    custódia, captura fotografias e localização GPS.
+    \item Perito forense digital --- recebe provas no laboratório, preenche fichas
+    de dispositivo, avança estados da custódia, exporta relatórios.
+\end{itemize}
+
+\textbf{Sistemas externos:}
+\begin{itemize}[nosep]
+    \item Browser Geolocation API --- fornece coordenadas GPS do dispositivo do
+    agente no terreno.
+    \item Servidor de email (futuro) --- notificações de transição de custódia.
+\end{itemize}
+
+% =============================================================================
+\section{Calendário individual detalhado}
+% =============================================================================
+
+\begin{longtable}{L{1.8cm} L{3.2cm} L{7cm} L{3cm}}
+    \toprule
+    \textbf{Semanas} & \textbf{Datas} & \textbf{Conteúdo planeado} & \textbf{Marco} \\
+    \midrule
+    \endhead
+    Sem. 1--2  & 17--28 mar
+        & Proposta completa. Configuração do repositório. Sinopse, MVP e calendário ao orientador.
+        & \textbf{Proposta (25 mar)} \\[0.4em]
+    Sem. 3--4  & 31 mar--11 abr
+        & MoSCoW final, diagramas C4, modelo de dados ER, ADRs obrigatórios.
+        & \\[0.4em]
+    Sem. 5--6  & 14--25 abr
+        & Wireframes mobile-first. Início implementação: modelos Django, autenticação JWT, registo de prova.
+        & \\[0.4em]
+    Sem. 7     & 28 abr--2 mai
+        & Demo interna ao orientador (Teams). Cadeia de custódia funcional.
+        & \textbf{Demo interna} \\[0.4em]
+    Sem. 8     & 5--6 mai
+        & Relatório intercalar.
+        & \textbf{Intercalar (6 mai)} \\[0.4em]
+    Sem. 9--10 & 7--16 mai
+        & Módulo forense digital. API REST completa (10+ endpoints). Swagger UI.
+        & \\[0.4em]
+    Sem. 11--12 & 19--30 mai
+        & Exportação PDF. Testes integração (Postman/Newman). GitHub Actions CI.
+        & \\[0.4em]
+    Sem. 13    & 2--6 jun
+        & Polimento UI. Revisão relatório final (Cap. 4 e 5).
+        & \\[0.4em]
+    Sem. 14    & 9--13 jun
+        & Revisão final do relatório. Correcções de última hora.
+        & \\[0.4em]
+    Sem. 15    & 16--20 jun
+        & Preparação da defesa oral (15 min). Ensaio com simulação de perguntas.
+        & \textbf{Prep. defesa} \\[0.4em]
+    Sem. 16    & 24 jun
+        & Submissão do relatório final.
+        & \textbf{Final (24 jun)} \\
+    \bottomrule
+\end{longtable}
+
+\end{document}

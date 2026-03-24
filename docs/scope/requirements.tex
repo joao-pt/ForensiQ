@@ -1,0 +1,154 @@
+% =============================================================================
+% ForensiQ — Levantamento de Requisitos (MoSCoW)
+% UC 21184 · Projeto de Engenharia Informática · UAb
+% =============================================================================
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[portuguese]{babel}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfauthor={João Rodrigues},
+    pdftitle={ForensiQ — Levantamento de Requisitos}
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+\begin{center}
+    {\LARGE\bfseries Levantamento de Requisitos}\\[0.8em]
+    {\large ForensiQ --- Plataforma Modular de Gestão de Prova Digital\\
+    para First Responders}\\[1.2em]
+    \begin{tabular}{ll}
+        \textbf{Versão:}    & 1.0 · 22 março 2026 \\
+        \textbf{Referência MoSCoW:} &
+            \href{https://www.productplan.com/glossary/moscow-prioritization/}%
+                 {productplan.com/glossary/moscow-prioritization} \\
+    \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\hrule
+\vspace{1.5em}
+
+% =============================================================================
+\section{Método MoSCoW}
+% =============================================================================
+
+\begin{longtable}{L{3cm} L{10cm}}
+    \toprule
+    \textbf{Categoria} & \textbf{Significado} \\
+    \midrule
+    \endhead
+    \textbf{Must have}   & Obrigatório. Sem isto o projecto não é entregável. \\[0.3em]
+    \textbf{Should have} & Importante mas não crítico. Incluir se o tempo permitir. \\[0.3em]
+    \textbf{Could have}  & Desejável. Só se tudo o resto estiver concluído. \\[0.3em]
+    \textbf{Won't have}  & Explicitamente fora do âmbito desta versão. \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Requisitos funcionais}
+% =============================================================================
+
+\subsection*{Must have}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RF01 --- Autenticação JWT com perfis agente e perito forense digital
+    \item RF02 --- Criação e gestão de ocorrências com georreferenciação automática
+    \item RF03 --- Registo de prova com fotografia, metadados GPS, timestamp e hash SHA-256
+    \item RF04 --- Módulo de forense digital: ficha completa de dispositivo digital
+                   (tipo, marca, modelo, estado, número de série)
+    \item RF05 --- Cadeia de custódia com máquina de estados e log \emph{append-only} imutável
+    \item RF06 --- Exportação de relatório de ocorrência em PDF
+    \item RF07 --- API REST com mínimo 10 endpoints documentados via Swagger UI
+\end{itemize}
+
+\subsection*{Should have}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RF08 --- Dashboard de estado das provas por ocorrência
+    \item RF09 --- Pesquisa e filtragem de ocorrências e provas
+\end{itemize}
+
+\subsection*{Could have}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RF10 --- Perfis adicionais: coordenador e magistrado
+    \item RF11 --- Verificação de IMEI via API externa
+    \item RF12 --- Dashboard analítico por agente e por processo
+    \item RF13 --- Criação e associação de despachos judiciais às provas
+\end{itemize}
+
+\subsection*{Won't have (nesta versão)}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RF14 --- Integração com sistemas internos da PSP
+                   (requer autorizações não disponíveis)
+    \item RF15 --- Dados reais de processos judiciais
+                   (questões legais e de confidencialidade)
+    \item RF16 --- Módulos de Química, Biologia ou Física Forense
+                   (estrutura documentada, não implementada)
+    \item RF17 --- Aplicação móvel nativa iOS/Android
+                   (interface web \emph{mobile-first} é suficiente para MVP)
+\end{itemize}
+
+% =============================================================================
+\section{Requisitos não-funcionais}
+% =============================================================================
+
+\subsection*{Must have}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RNF01 --- \textbf{Segurança:} HTTPS obrigatório; autenticação JWT para
+          acesso a todos os endpoints protegidos; passwords com hash.
+    \item RNF02 --- \textbf{Usabilidade:} Interface \emph{mobile-first} utilizável
+          num smartphone no terreno, com uma mão, sem formação técnica prévia.
+    \item RNF03 --- \textbf{Integridade:} Hash SHA-256 dos metadados de cada registo
+          de prova no momento de criação; log de custódia \emph{append-only}.
+\end{itemize}
+
+\subsection*{Should have}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RNF04 --- \textbf{Performance:} Tempo de resposta inferior a 2 segundos
+          para operações principais.
+    \item RNF05 --- \textbf{Manutenibilidade:} Código com testes automatizados nos
+          módulos críticos (autenticação, custódia).
+\end{itemize}
+
+\subsection*{Could have}
+
+\begin{itemize}[nosep, leftmargin=*]
+    \item RNF06 --- \textbf{Disponibilidade:} Deploy acessível remotamente para
+          demonstração.
+\end{itemize}
+
+% =============================================================================
+\section{Histórico de alterações}
+% =============================================================================
+
+\begin{longtable}{L{2cm} L{3.5cm} L{5.5cm} L{3cm}}
+    \toprule
+    \textbf{Versão} & \textbf{Data} & \textbf{Alteração} & \textbf{Razão} \\
+    \midrule
+    \endhead
+    1.0 & 22 mar 2026 & Versão inicial & Proposta de projecto \\
+    \bottomrule
+\end{longtable}
+
+\end{document}

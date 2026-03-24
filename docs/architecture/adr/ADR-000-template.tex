@@ -1,0 +1,105 @@
+% =============================================================================
+% ForensiQ — Template de Architecture Decision Record (ADR)
+% UC 21184 · Projeto de Engenharia Informática · UAb
+%
+% USO: Copiar este ficheiro, incrementar o número (ADR-XXXX),
+%      preencher todos os campos e actualizar o estado.
+% =============================================================================
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[portuguese]{babel}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfauthor={João Rodrigues},
+    pdftitle={ForensiQ — ADR-001 Template}
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+\begin{center}
+    {\LARGE\bfseries ADR-001 --- [Título curto da decisão]}\\[1.2em]
+    \begin{tabular}{ll}
+        \textbf{Data:}       & [Data] \\
+        \textbf{Estado:}     & Proposto \textbar\ Aceite \textbar\ Substituído por ADR-XXX \\
+        \textbf{Decisores:}  & [Nome(s)] \\
+    \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\hrule
+\vspace{1.5em}
+
+% =============================================================================
+\section{Contexto}
+% =============================================================================
+
+% Qual é o problema ou situação que requer uma decisão?
+% Que forças estão em jogo? (técnicas, de negócio, de equipa)
+
+[Descrever o contexto que levou a esta decisão]
+
+% =============================================================================
+\section{Decisão}
+% =============================================================================
+
+% O que foi decidido, de forma afirmativa e directa.
+% "Decidimos usar X" — não "Poderemos considerar X".
+
+[Descrever a decisão tomada]
+
+% =============================================================================
+\section{Alternativas consideradas}
+% =============================================================================
+
+% Que outras opções foram avaliadas e porquê foram rejeitadas?
+
+\begin{longtable}{L{5cm} L{9cm}}
+    \toprule
+    \textbf{Alternativa} & \textbf{Razão de rejeição} \\
+    \midrule
+    \endhead
+    [Alternativa A] & [Porquê não] \\[0.4em]
+    [Alternativa B] & [Porquê não] \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Consequências}
+% =============================================================================
+
+% O que muda com esta decisão?
+% Que novas obrigações cria? Que problemas resolve? Que problemas pode criar?
+
+\textbf{Positivas:}
+\begin{itemize}[nosep, leftmargin=*]
+    \item [Consequência positiva]
+\end{itemize}
+
+\textbf{Negativas / trade-offs:}
+\begin{itemize}[nosep, leftmargin=*]
+    \item [Trade-off aceite]
+\end{itemize}
+
+\vspace{2em}
+\hrule
+\vspace{0.5em}
+{\small Para criar um novo ADR: copiar este ficheiro, incrementar o número,
+preencher e actualizar o estado.}
+
+\end{document}

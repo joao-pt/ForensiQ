@@ -1,0 +1,94 @@
+% =============================================================================
+% ForensiQ — Gestão de Riscos
+% UC 21184 · Projeto de Engenharia Informática · UAb
+% =============================================================================
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[portuguese]{babel}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{hyperref}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfauthor={João Rodrigues},
+    pdftitle={ForensiQ — Gestão de Riscos}
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+\begin{center}
+    {\LARGE\bfseries Gestão de Riscos}\\[0.8em]
+    {\large ForensiQ --- Plataforma Modular de Gestão de Prova Digital\\
+    para First Responders}\\[1.2em]
+    \begin{tabular}{ll}
+        \textbf{Versão:} & 1.0 · 22 março 2026 \\
+    \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\hrule
+\vspace{1.5em}
+
+% =============================================================================
+\section{Tabela de riscos}
+% =============================================================================
+
+\begin{longtable}{L{0.8cm} L{4.5cm} L{2.2cm} L{1.8cm} L{5.5cm}}
+    \toprule
+    \textbf{ID} & \textbf{Risco} & \textbf{Probabili\-dade} & \textbf{Impacto} & \textbf{Mitigação} \\
+    \midrule
+    \endhead
+    R01
+        & Tempo insuficiente para MVP completo (PSP + estudos)
+        & Alta
+        & Alto
+        & MVP-first rigoroso; prioridade 1-2-3 definida; funcionalidades avançadas apenas se núcleo estiver sólido \\[0.6em]
+    R02
+        & Dificuldade em aprender Django/DRF no tempo disponível
+        & Média
+        & Alto
+        & Código com revisão obrigatória; começar pelo modelo de dados (ponto forte) \\[0.6em]
+    R03
+        & Orientador rejeitar proposta
+        & Baixa
+        & Crítico
+        & Enviar elementos base com margem antes do prazo; incorporar feedback antes de 25 março \\[0.6em]
+    R04
+        & Geolocalização não funcionar em contexto de demonstração
+        & Média
+        & Baixo
+        & Fallback: coordenadas manuais; testar com telemóvel real antes da demo \\[0.6em]
+    R05
+        & Hash de integridade difícil de demonstrar em defesa
+        & Baixa
+        & Baixo
+        & Demonstração directa na BD: mostrar que alterar um campo invalida o hash \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Histórico de actualização}
+% =============================================================================
+
+\begin{longtable}{L{3cm} L{2.5cm} L{5cm} L{3cm}}
+    \toprule
+    \textbf{Data} & \textbf{Risco} & \textbf{Evento} & \textbf{Estado} \\
+    \midrule
+    \endhead
+    22 mar 2026 & --- & Versão inicial & --- \\
+    \bottomrule
+\end{longtable}
+
+\end{document}
