@@ -11,36 +11,92 @@
 
 ## Estado actual
 
-🔴 **Vermelho** — Fase 1 em curso. Proposta submetida, a aguardar aceitação do orientador.
+🟡 **Amarelo** — Fase 1 (Proposta Inicial) aprovada. Backend funcional (modelos, API REST, 45 testes), frontend em desenvolvimento.
 
 ---
 
 ## O que está implementado
 
-- [x] Estrutura do repositório a partir do template do orientador
-- [x] Proposta inicial redigida em LaTeX e compilada para PDF
+### Backend (Django + DRF)
+- [x] Django 5.2 com projecto `forensiq_project` e app `core`
+- [x] Modelo User customizado (AbstractUser, perfis AGENT/EXPERT, badge_number)
+- [x] Modelos: Occurrence, Evidence, DigitalDevice, ChainOfCustody
+- [x] Hash SHA-256 automático em Evidence (ISO/IEC 27037)
+- [x] Hashes encadeados (blockchain-like) em ChainOfCustody
+- [x] Máquina de estados para cadeia de custódia (validação de transições)
+- [x] ChainOfCustody append-only (bloqueio de update/delete)
+- [x] PostgreSQL (Neon.tech) via dj-database-url + .env
+- [x] API REST com 5 endpoints + acções personalizadas (10+ rotas)
+- [x] Serializers para todas as entidades
+- [x] Permissões por perfil (IsAgent, IsExpert, IsOwnerOrReadOnly)
+- [x] JWT authentication (SimpleJWT: login, refresh, verify)
+- [x] Swagger UI via drf-spectacular (/api/docs/)
+- [x] Django Admin configurado
+- [x] 45 testes (12 modelos + 21 API + 12 frontend) — todos passam
+
+### Frontend (HTML/CSS/JS vanilla)
+- [x] CSS mobile-first com touch targets de 48px (WCAG 2.1 AA)
+- [x] Página de login com autenticação JWT
+- [x] Dashboard com estatísticas e acções rápidas por perfil
+- [x] Módulos JS: auth.js (JWT), api.js (cliente HTTP), config.js, toast.js
+- [ ] Formulário de registo de ocorrência (em curso)
+- [ ] Formulário de registo de evidência com foto + GPS
+- [ ] Timeline de cadeia de custódia
+- [ ] Mapa com Leaflet.js
 
 ---
 
 ## O que está pendente
 
-- [ ] MoSCoW, C4 nível 1 e 2, modelo de dados ER — semana 3
-- [ ] ADRs de arquitectura — semana 4
-- [ ] Wireframes mobile-first — semana 5
-- [ ] Autenticação JWT com perfis agente e perito — semana 5
-- [ ] Registo de prova com fotografia e GPS — semana 6
-- [ ] Cadeia de custódia com máquina de estados — semana 6
-- [ ] Módulo de forense digital (ficha de dispositivo) — semana 9
-- [ ] API REST com 10+ endpoints e Swagger UI — semana 9–10
-- [ ] Exportação de relatório em PDF — semana 10
-- [ ] Testes (pytest, Postman/Newman) — semana 11
-- [ ] GitHub Actions CI — semana 11
+- [ ] Formulários de criação (ocorrência, evidência, dispositivo)
+- [ ] Timeline visual da cadeia de custódia
+- [ ] Integração Leaflet.js para mapas / geolocalização
+- [ ] Exportação de relatório em PDF (ReportLab/WeasyPrint)
+- [ ] Testes de integração com BD Neon.tech
+- [ ] GitHub Actions CI
+- [ ] Testes Postman/Newman para API
 
 ---
 
 ## Como instalar e correr
 
-A preencher na Fase 2.
+```bash
+# 1. Clonar o repositório
+git clone https://github.com/joao-pt/ForensiQ.git
+cd ForensiQ
+
+# 2. Criar virtualenv e instalar dependências
+python3 -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+pip install -r src/backend/requirements.txt
+
+# 3. Configurar variáveis de ambiente
+cp .env.example .env
+# Editar .env com DATABASE_URL, SECRET_KEY, etc.
+
+# 4. Aplicar migrations
+cd src/backend
+python manage.py migrate
+
+# 5. Criar superutilizador
+python manage.py createsuperuser
+
+# 6. Correr o servidor
+python manage.py runserver
+
+# 7. Aceder
+# Login: http://localhost:8000/login/
+# Dashboard: http://localhost:8000/dashboard/
+# Swagger UI: http://localhost:8000/api/docs/
+# Admin: http://localhost:8000/admin/
+```
+
+### Correr testes
+
+```bash
+cd src/backend
+python manage.py test core --verbosity=2
+```
 
 ---
 
@@ -52,6 +108,9 @@ A preencher na Fase 2.
 | PostgreSQL | SQLite / MongoDB | Integridade referencial; append-only para logs de custódia |
 | HTML/CSS/JS vanilla | React / Vue | Mobile-first sem overhead de framework; suficiente para MVP |
 | SHA-256 nos metadados | Hash do ficheiro completo | Conforme ISO/IEC 27037; detecta alteração de qualquer campo do registo |
+| Django Templates | SPA separado | Deploy simplificado; sem build step; fácil de manter |
+
+Decisões detalhadas em `docs/architecture/adr/`.
 
 ---
 
@@ -65,4 +124,4 @@ A preencher na Fase 2.
 
 ---
 
-*Última actualização: 22 mar 2026 · Sem. 1–2*
+*Última actualização: 28 mar 2026 · Sem. 2*

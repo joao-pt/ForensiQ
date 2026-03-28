@@ -61,11 +61,36 @@ Envio de sinopse, MVP e calendário ao orientador.
 \semana{2}{24--28 mar}
 % =============================================================================
 
-\textbf{Feito:}
+\textbf{Feito:} Proposta inicial aprovada pelo orientador (declaração de aceitação recebida).
+Setup completo do backend Django 5.2 em \texttt{src/backend/}.
+Criação do projecto \texttt{forensiq\_project} e app \texttt{core}.
+Modelo User customizado (AbstractUser com perfis AGENT/EXPERT e badge\_number).
+Modelos Occurrence, Evidence, DigitalDevice e ChainOfCustody implementados.
+Configuração de PostgreSQL (Neon.tech) via \texttt{dj-database-url} + \texttt{.env}.
+Migrations aplicadas com sucesso à BD remota.
+Integridade SHA-256 automática em Evidence e hashes encadeados em ChainOfCustody.
+Máquina de estados para cadeia de custódia com validação de transições.
+ChainOfCustody append-only (bloqueio de update e delete).
+Serializers para todas as entidades (\texttt{core/serializers.py}).
+ViewSets para User, Occurrence, Evidence, DigitalDevice, ChainOfCustody (\texttt{core/views.py}).
+Permissões personalizadas IsAgent, IsExpert, IsAgentOrExpert, IsOwnerOrReadOnly (\texttt{core/permissions.py}).
+Router DRF com 5 endpoints RESTful + \texttt{/users/me/} + \texttt{/custody/.../timeline/}.
+Agent preenchido automaticamente a partir do utilizador autenticado.
+Filtragem por ocorrência (evidências) e por evidência (dispositivos, custódia).
+Django Admin registado. JWT auth (SimpleJWT) e Swagger UI (drf-spectacular).
+Frontend: estrutura base com Django Templates em \texttt{src/frontend/}.
+CSS mobile-first com touch targets 48px, paleta de alto contraste.
+Página de login com autenticação JWT. Dashboard com estatísticas por perfil.
+Módulos JS: \texttt{config.js}, \texttt{auth.js} (JWT), \texttt{api.js} (cliente HTTP com refresh), \texttt{toast.js}.
+Prevenção XSS com \texttt{escapeHtml()} em outputs dinâmicos.
+45 testes (12 modelos + 21 API + 12 frontend) --- todos passam.
+ADR-0002 (estrutura Django), ADR-0003 (API REST), ADR-0004 (frontend).
 
-\textbf{Bloqueou:}
+\textbf{Bloqueou:} Nada.
 
-\textbf{Próxima semana:}
+\textbf{Próxima semana:} Formulários de criação (ocorrência, evidência, dispositivo).
+Timeline visual da cadeia de custódia.
+Integração Leaflet.js para mapas e geolocalização.
 
 % =============================================================================
 \semana{3}{31 mar--4 abr}
