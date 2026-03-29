@@ -47,6 +47,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Servir estáticos em produção
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -135,12 +136,20 @@ SPECTACULAR_SETTINGS = {
     'SERVE_INCLUDE_SCHEMA': False,
 }
 
-# --- CORS (desenvolvimento) ---
+# --- CORS ---
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    'https://forensiq.pt',
+    'https://www.forensiq.pt',
 ]
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # Só em desenvolvimento
+
+# --- CSRF ---
+CSRF_TRUSTED_ORIGINS = [
+    'https://forensiq.pt',
+    'https://www.forensiq.pt',
+]
 
 # --- Internacionalização ---
 LANGUAGE_CODE = 'pt-pt'
@@ -154,8 +163,23 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_DIRS = [
     BASE_DIR.parent / 'frontend' / 'static',  # src/frontend/static/
 ]
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
+    },
+}
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # --- Chave primária por defeito ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# --- Segurança em produção ---
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 ano
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
