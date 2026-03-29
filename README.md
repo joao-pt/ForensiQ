@@ -6,12 +6,13 @@
 **Orientador:** Professor Pedro Duarte Pestana
 **UC:** 21184 — Projecto de Engenharia Informática · Universidade Aberta · 2025/26
 **Repositório:** https://github.com/joao-pt/ForensiQ
+**Produção:** https://forensiq.pt
 
 ---
 
 ## Estado actual
 
-🟡 **Amarelo** — Fase 1 (Proposta Inicial) aprovada. Backend funcional (modelos, API REST, 45 testes), frontend em desenvolvimento.
+🟡 **Amarelo** — Fase 1 (Proposta Inicial) aprovada. Backend funcional (modelos, API REST, 45 testes), frontend em desenvolvimento. Aplicação deployed em produção.
 
 ---
 
@@ -25,7 +26,7 @@
 - [x] Hashes encadeados (blockchain-like) em ChainOfCustody
 - [x] Máquina de estados para cadeia de custódia (validação de transições)
 - [x] ChainOfCustody append-only (bloqueio de update/delete)
-- [x] PostgreSQL (Neon.tech) via dj-database-url + .env
+- [x] PostgreSQL (Neon.tech, Frankfurt) via dj-database-url + .env
 - [x] API REST com 5 endpoints + acções personalizadas (10+ rotas)
 - [x] Serializers para todas as entidades
 - [x] Permissões por perfil (IsAgent, IsExpert, IsOwnerOrReadOnly)
@@ -43,6 +44,14 @@
 - [ ] Formulário de registo de evidência com foto + GPS
 - [ ] Timeline de cadeia de custódia
 - [ ] Mapa com Leaflet.js
+
+### Infraestrutura
+- [x] Deploy em produção (Fly.io, Frankfurt) — `forensiq.pt`
+- [x] HTTPS com certificado Let's Encrypt (RSA + ECDSA)
+- [x] Dockerfile multi-stage (python:3.12-slim, user não-root, Gunicorn)
+- [x] WhiteNoise para servir ficheiros estáticos
+- [x] Segurança em produção (HSTS, SSL redirect, secure cookies)
+- [x] DNS com IPv4/IPv6 dedicados
 
 ---
 
@@ -109,6 +118,8 @@ python manage.py test core --verbosity=2
 | HTML/CSS/JS vanilla | React / Vue | Mobile-first sem overhead de framework; suficiente para MVP |
 | SHA-256 nos metadados | Hash do ficheiro completo | Conforme ISO/IEC 27037; detecta alteração de qualquer campo do registo |
 | Django Templates | SPA separado | Deploy simplificado; sem build step; fácil de manter |
+| Fly.io (Frankfurt) | Render / Railway | Única plataforma PaaS com região Frankfurt; latência mínima para BD Neon.tech |
+| BD separada (Neon.tech) | Fly Postgres | Neon.tech é gerido (backups automáticos); independência entre app e dados |
 
 Decisões detalhadas em `docs/architecture/adr/`.
 
@@ -124,4 +135,4 @@ Decisões detalhadas em `docs/architecture/adr/`.
 
 ---
 
-*Última actualização: 28 mar 2026 · Sem. 2*
+*Última actualização: 29 mar 2026 · Sem. 2*
