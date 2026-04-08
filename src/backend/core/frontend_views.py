@@ -45,3 +45,27 @@ def login_view(request):
 def dashboard_view(request):
     """Painel principal — requer token JWT válido."""
     return render(request, 'dashboard.html')
+
+
+@jwt_cookie_required
+def occurrences_view(request):
+    """Lista de ocorrências — requer token JWT válido."""
+    return render(request, 'occurrences.html')
+
+
+@jwt_cookie_required
+def occurrences_new_view(request):
+    """Formulário de nova ocorrência — requer token JWT válido."""
+    return render(request, 'occurrences_new.html')
+
+
+@jwt_cookie_required
+def evidences_view(request):
+    """Lista de evidências — requer token JWT válido."""
+    return render(request, 'evidences.html')
+
+
+@jwt_cookie_required
+def evidences_new_view(request):
+    """Formulário de nova evidência — requer token JWT válido."""
+    return render(request, 'evidences_new.html')

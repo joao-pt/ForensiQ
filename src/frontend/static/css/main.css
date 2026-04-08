@@ -661,3 +661,262 @@ textarea.form-input {
         max-width: 960px;
     }
 }
+
+/* ============================================================
+   PAGE HEADER (list + form pages)
+   ============================================================ */
+
+.page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+
+.page-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.page-subtitle {
+    font-size: 0.8125rem;
+    color: var(--text-light);
+    margin-top: 2px;
+}
+
+/* ============================================================
+   SEARCH BAR
+   ============================================================ */
+
+.search-bar {
+    position: relative;
+}
+
+/* ============================================================
+   FORM CARD (form pages)
+   ============================================================ */
+
+.form-card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 20px;
+}
+
+/* Alias: form-control = form-input (for new templates) */
+.form-control {
+    width: 100%;
+    min-height: var(--min-touch);
+    padding: 12px 16px;
+    font-size: 1rem;
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color var(--transition);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.form-control:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.15);
+}
+
+.form-control::placeholder {
+    color: var(--text-light);
+}
+
+select.form-control {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23757575' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 40px;
+}
+
+textarea.form-control {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.form-label.required::after {
+    content: ' *';
+    color: var(--danger);
+}
+
+.form-label-sm {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-light);
+    margin-bottom: 4px;
+}
+
+.form-hint {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    margin-top: 4px;
+}
+
+.form-error {
+    font-size: 0.8125rem;
+    color: var(--danger);
+    margin-top: 4px;
+    display: none;
+}
+
+.form-actions {
+    margin-top: 24px;
+}
+
+/* ============================================================
+   GPS STATUS
+   ============================================================ */
+
+.gps-status {
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    margin-bottom: 10px;
+}
+
+.gps-status-info    { background: #e3f2fd; color: var(--secondary); }
+.gps-status-success { background: #e8f5e9; color: var(--success); }
+.gps-status-warning { background: #fff3e0; color: var(--accent); }
+.gps-status-error   { background: #ffebee; color: var(--danger); }
+
+/* ============================================================
+   TYPE SELECTOR (evidence type)
+   ============================================================ */
+
+.type-selector {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.type-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 72px;
+    padding: 12px;
+    background: var(--surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+    font-size: 0.8125rem;
+    color: var(--text);
+    text-align: center;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.type-btn:hover {
+    border-color: var(--primary);
+}
+
+.type-btn.selected {
+    border-color: var(--primary);
+    background: #e8eaf6;
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.type-icon {
+    font-size: 1.5rem;
+}
+
+/* ============================================================
+   PHOTO CAPTURE
+   ============================================================ */
+
+.photo-capture {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.photo-preview {
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 2px solid var(--border);
+}
+
+.photo-preview img {
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    display: block;
+}
+
+.photo-preview .btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    border-color: transparent;
+    font-size: 0.75rem;
+    min-height: 32px;
+    padding: 4px 12px;
+}
+
+/* ============================================================
+   INFO BOX
+   ============================================================ */
+
+.info-box {
+    background: #e8eaf6;
+    color: var(--primary);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+/* ============================================================
+   BADGE — additional colours
+   ============================================================ */
+
+.badge-blue   { background: #e3f2fd; color: var(--secondary); }
+.badge-orange { background: #fff3e0; color: var(--accent); }
+.badge-red    { background: #ffebee; color: var(--danger); }
+.badge-green  { background: #e8f5e9; color: var(--success); }
+.badge-default { background: #f5f5f5; color: var(--text-light); }
+
+/* ============================================================
+   PAGINATION BAR
+   ============================================================ */
+
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 0;
+}
+
+/* ============================================================
+   BUTTON SIZES
+   ============================================================ */
+
+.btn-lg {
+    min-height: 56px;
+    font-size: 1.0625rem;
+    padding: 14px 28px;
+}
+
+.spinner-sm {
+    width: 18px;
+    height: 18px;
+    border-width: 2px;
+}
+
+.mt-4 { margin-top: 4px; }
+

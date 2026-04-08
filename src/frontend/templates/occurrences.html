@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Ocorrências{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho com botão de acção -->
+<div class="page-header">
+    <div>
+        <h2 class="page-title">Ocorrências</h2>
+        <p class="page-subtitle" id="occurrences-count">A carregar...</p>
+    </div>
+    <a href="/occurrences/new/" class="btn btn-primary" id="btn-new-occurrence">
+        + Nova
+    </a>
+</div>
+
+<!-- Barra de pesquisa -->
+<div class="search-bar mb-16">
+    <input
+        type="search"
+        id="search-input"
+        class="form-control"
+        placeholder="Pesquisar por número ou descrição..."
+        autocomplete="off"
+    >
+</div>
+
+<!-- Lista de ocorrências -->
+<div id="occurrences-list">
+    <div class="loading-overlay">
+        <div class="spinner spinner-dark"></div>
+    </div>
+</div>
+
+<!-- Paginação -->
+<div id="pagination" class="pagination-bar hidden"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script>
+'use strict';
+
+let currentPage = 1;
+let searchTimeout = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const authenticated = await Auth.requireAuth();
+    if (!authenticated) return;
+
+    const user = Auth.getUser();
+    if (user) {
+        document.getElementById('navbar-user').textContent = user.first_name || user.username;
+        // Só agentes podem criar ocorrências
+        if (user.profile !== 'AGENT') {
+            const btnNew = document.getElementById('btn-new-occurrence');
+            if (btnNew) btnNew.style.display = 'none';
+        }
+    }
+
+    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+
+    // Pesquisa com debounce
+    document.getElementById('search-input').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentPage = 1;
+            loadOccurrences(e.target.value.trim());
+        }, 400);
+    });
+
+    loadOccurrences();
+});
+
+async function loadOccurrences(search = '') {
+    const container = document.getElementById('occurrences-list');
+    const countEl = document.getElementById('occurrences-count');
+
+    container.innerHTML = '<div class="loading-overlay"><div class="spinner spinner-dark"></div></div>';
+
+    try {
+        const params = { page: currentPage, page_size: 20 };
+        if (search) params.search = search;
+
+        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, params);
+        const occurrences = data.results || [];
+
+        // Atualizar contador
+        const total = data.count || 0;
+        countEl.textContent = `${total} ocorrência${total !== 1 ? 's' : ''}`;
+
+        if (occurrences.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">&#128203;</div>
+                    <p>${search ? 'Sem resultados para "' + escapeHtml(search) + '".' : 'Sem ocorrências registadas.'}</p>
+                    ${!search ? '<a href="/occurrences/new/" class="btn btn-primary mt-16">Registar primeira ocorrência</a>' : ''}
+                </div>
+            `;
+            document.getElementById('pagination').classList.add('hidden');
+            return;
+        }
+
+        container.innerHTML = occurrences.map(occ => renderOccurrenceItem(occ)).join('');
+        renderPagination(data);
+
+    } catch (err) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p class="text-danger">Erro ao carregar ocorrências. Tente novamente.</p>
+            </div>
+        `;
+        console.error('Erro:', err);
+    }
+}
+
+function renderOccurrenceItem(occ) {
+    const date = new Date(occ.date_time).toLocaleDateString('pt-PT', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+    const hasGps = occ.gps_lat && occ.gps_lon;
+
+    return `
+        <div class="list-item" onclick="window.location.href='/occurrences/${occ.id}/'">
+            <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <strong>${escapeHtml(occ.number)}</strong>
+                    ${hasGps ? '<span class="badge badge-success" title="GPS disponível">📍 GPS</span>' : ''}
+                </div>
+                <div class="text-muted mt-4" style="font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${escapeHtml((occ.description || '').substring(0, 100))}${(occ.description || '').length > 100 ? '...' : ''}
+                </div>
+                ${occ.address ? `<div class="text-muted" style="font-size: 0.75rem;">📌 ${escapeHtml(occ.address)}</div>` : ''}
+            </div>
+            <div style="text-align: right; flex-shrink: 0; margin-left: 12px;">
+                <div class="text-muted" style="font-size: 0.75rem; white-space: nowrap;">${date}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">&#62;</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPagination(data) {
+    const container = document.getElementById('pagination');
+    if (!data.next && !data.previous) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <button class="btn btn-outline ${!data.previous ? 'disabled' : ''}"
+                onclick="changePage(-1)" ${!data.previous ? 'disabled' : ''}>
+            ← Anterior
+        </button>
+        <span class="text-muted" style="font-size: 0.875rem;">Página ${currentPage}</span>
+        <button class="btn btn-outline ${!data.next ? 'disabled' : ''}"
+                onclick="changePage(1)" ${!data.next ? 'disabled' : ''}>
+            Seguinte →
+        </button>
+    `;
+}
+
+function changePage(delta) {
+    currentPage += delta;
+    const search = document.getElementById('search-input').value.trim();
+    loadOccurrences(search);
+    window.scrollTo(0, 0);
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

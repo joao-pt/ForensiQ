@@ -24,7 +24,14 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
-from core.frontend_views import dashboard_view, login_view
+from core.frontend_views import (
+    dashboard_view,
+    evidences_new_view,
+    evidences_view,
+    login_view,
+    occurrences_new_view,
+    occurrences_view,
+)
 
 urlpatterns = [
     # Django Admin
@@ -46,6 +53,10 @@ urlpatterns = [
     path('', login_view, name='home'),
     path('login/', login_view, name='login'),
     path('dashboard/', dashboard_view, name='dashboard'),
+    path('occurrences/', occurrences_view, name='occurrences'),
+    path('occurrences/new/', occurrences_new_view, name='occurrences_new'),
+    path('evidences/', evidences_view, name='evidences'),
+    path('evidences/new/', evidences_new_view, name='evidences_new'),
 ]
 
 # Servir ficheiros media em desenvolvimento

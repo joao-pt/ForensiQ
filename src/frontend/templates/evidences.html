@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Evidências{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho -->
+<div class="page-header">
+    <div>
+        <h2 class="page-title">Evidências</h2>
+        <p class="page-subtitle" id="evidences-count">A carregar...</p>
+    </div>
+    <a href="/evidences/new/" class="btn btn-primary" id="btn-new-evidence">
+        + Nova
+    </a>
+</div>
+
+<!-- Barra de pesquisa e filtro -->
+<div class="search-bar mb-16">
+    <input
+        type="search"
+        id="search-input"
+        class="form-control"
+        placeholder="Pesquisar por descrição ou ocorrência..."
+        autocomplete="off"
+    >
+</div>
+
+<!-- Lista de evidências -->
+<div id="evidences-list">
+    <div class="loading-overlay">
+        <div class="spinner spinner-dark"></div>
+    </div>
+</div>
+
+<!-- Paginação -->
+<div id="pagination" class="pagination-bar hidden"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script>
+'use strict';
+
+let currentPage = 1;
+let searchTimeout = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const authenticated = await Auth.requireAuth();
+    if (!authenticated) return;
+
+    const user = Auth.getUser();
+    if (user) {
+        document.getElementById('navbar-user').textContent = user.first_name || user.username;
+        // Só agentes podem criar evidências
+        if (user.profile !== 'AGENT') {
+            const btnNew = document.getElementById('btn-new-evidence');
+            if (btnNew) btnNew.style.display = 'none';
+        }
+    }
+
+    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+
+    document.getElementById('search-input').addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentPage = 1;
+            loadEvidences(e.target.value.trim());
+        }, 400);
+    });
+
+    loadEvidences();
+});
+
+async function loadEvidences(search = '') {
+    const container = document.getElementById('evidences-list');
+    const countEl = document.getElementById('evidences-count');
+
+    container.innerHTML = '<div class="loading-overlay"><div class="spinner spinner-dark"></div></div>';
+
+    try {
+        const params = { page: currentPage, page_size: 20 };
+        if (search) params.search = search;
+
+        const data = await API.get(CONFIG.ENDPOINTS.EVIDENCES, params);
+        const evidences = data.results || [];
+
+        const total = data.count || 0;
+        countEl.textContent = `${total} evidência${total !== 1 ? 's' : ''}`;
+
+        if (evidences.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">&#128270;</div>
+                    <p>${search ? 'Sem resultados para "' + escapeHtml(search) + '".' : 'Sem evidências registadas.'}</p>
+                    ${!search ? '<a href="/evidences/new/" class="btn btn-primary mt-16" id="btn-empty-new">Registar primeira evidência</a>' : ''}
+                </div>
+            `;
+            // Ocultar botão de novo também no estado vazio se não for agente
+            const user = Auth.getUser();
+            if (user && user.profile !== 'AGENT') {
+                const btnEmptyNew = document.getElementById('btn-empty-new');
+                if (btnEmptyNew) btnEmptyNew.style.display = 'none';
+            }
+            document.getElementById('pagination').classList.add('hidden');
+            return;
+        }
+
+        container.innerHTML = evidences.map(ev => renderEvidenceItem(ev)).join('');
+        renderPagination(data);
+
+    } catch (err) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <p class="text-danger">Erro ao carregar evidências. Tente novamente.</p>
+            </div>
+        `;
+        console.error('Erro:', err);
+    }
+}
+
+function renderEvidenceItem(ev) {
+    const date = new Date(ev.timestamp_seizure).toLocaleDateString('pt-PT', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+    const typeName = CONFIG.EVIDENCE_TYPES[ev.type] || ev.type;
+    const hasGps = ev.gps_lat && ev.gps_lon;
+    const hasPhoto = ev.photo;
+
+    const typeColors = {
+        'DIGITAL_DEVICE': 'blue',
+        'DOCUMENT': 'orange',
+        'STORAGE_MEDIA': 'green',
+        'PHOTO': 'red',
+        'OTHER': 'default',
+    };
+    const color = typeColors[ev.type] || 'default';
+
+    return `
+        <div class="list-item" onclick="window.location.href='/evidences/${ev.id}/'">
+            <div style="flex: 1; min-width: 0;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span class="badge badge-${color}">${escapeHtml(typeName)}</span>
+                    ${hasPhoto ? '<span class="badge badge-success">📷</span>' : ''}
+                    ${hasGps ? '<span class="badge badge-success">📍</span>' : ''}
+                    <small class="text-muted">#${ev.id}</small>
+                </div>
+                <div class="mt-4" style="font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${escapeHtml((ev.description || '').substring(0, 80))}${(ev.description || '').length > 80 ? '...' : ''}
+                </div>
+                <div class="text-muted" style="font-size: 0.75rem;">
+                    Ocorrência: ${ev.occurrence ? escapeHtml(String(ev.occurrence)) : '—'}
+                </div>
+            </div>
+            <div style="text-align: right; flex-shrink: 0; margin-left: 12px;">
+                <div class="text-muted" style="font-size: 0.75rem; white-space: nowrap;">${date}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">&#62;</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderPagination(data) {
+    const container = document.getElementById('pagination');
+    if (!data.next && !data.previous) {
+        container.classList.add('hidden');
+        return;
+    }
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <button class="btn btn-outline ${!data.previous ? 'disabled' : ''}"
+                onclick="changePage(-1)" ${!data.previous ? 'disabled' : ''}>← Anterior</button>
+        <span class="text-muted" style="font-size: 0.875rem;">Página ${currentPage}</span>
+        <button class="btn btn-outline ${!data.next ? 'disabled' : ''}"
+                onclick="changePage(1)" ${!data.next ? 'disabled' : ''}>Seguinte →</button>
+    `;
+}
+
+function changePage(delta) {
+    currentPage += delta;
+    const search = document.getElementById('search-input').value.trim();
+    loadEvidences(search);
+    window.scrollTo(0, 0);
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

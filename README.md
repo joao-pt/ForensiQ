@@ -12,7 +12,7 @@
 
 ## Estado actual
 
-🟡 **Amarelo** — Fase 1 (Proposta Inicial) aprovada. Backend funcional (modelos, API REST, 45 testes), frontend em desenvolvimento. Aplicação deployed em produção.
+🟡 **Amarelo** — Fase 1 (Proposta Inicial) aprovada. Backend funcional (modelos, API REST), frontend com páginas de listagem e criação de ocorrências e evidências (GPS + foto). 70 testes a passar. Aplicação deployed em produção.
 
 ---
 
@@ -33,17 +33,21 @@
 - [x] JWT authentication (SimpleJWT: login, refresh, verify)
 - [x] Swagger UI via drf-spectacular (/api/docs/)
 - [x] Django Admin configurado
-- [x] 45 testes (12 modelos + 21 API + 12 frontend) — todos passam
+- [x] 70 testes (12 modelos + 21 API + 35 frontend) — todos passam
+- [x] `test_settings.py` — configuração de testes isolada (SQLite em memória)
 
 ### Frontend (HTML/CSS/JS vanilla)
 - [x] CSS mobile-first com touch targets de 48px (WCAG 2.1 AA)
 - [x] Página de login com autenticação JWT
 - [x] Dashboard com estatísticas e acções rápidas por perfil
 - [x] Módulos JS: auth.js (JWT), api.js (cliente HTTP), config.js, toast.js
-- [ ] Formulário de registo de ocorrência (em curso)
-- [ ] Formulário de registo de evidência com foto + GPS
-- [ ] Timeline de cadeia de custódia
+- [x] Página de listagem de ocorrências (`/occurrences/`) com pesquisa e paginação
+- [x] Formulário de nova ocorrência (`/occurrences/new/`) com GPS automático + reverse geocoding
+- [x] Página de listagem de evidências (`/evidences/`) com filtros por tipo
+- [x] Formulário de nova evidência (`/evidences/new/`) com captura de foto e GPS
+- [ ] Timeline visual da cadeia de custódia
 - [ ] Mapa com Leaflet.js
+- [ ] Exportação PDF de relatório forense
 
 ### Infraestrutura
 - [x] Deploy em produção (Fly.io, Frankfurt) — `forensiq.pt`
@@ -57,7 +61,6 @@
 
 ## O que está pendente
 
-- [ ] Formulários de criação (ocorrência, evidência, dispositivo)
 - [ ] Timeline visual da cadeia de custódia
 - [ ] Integração Leaflet.js para mapas / geolocalização
 - [ ] Exportação de relatório em PDF (ReportLab/WeasyPrint)
@@ -104,6 +107,10 @@ python manage.py runserver
 
 ```bash
 cd src/backend
+# Testes isolados (SQLite em memória — sem necessidade de Neon.tech)
+python manage.py test core --settings=forensiq_project.test_settings --verbosity=2
+
+# Testes com BD real (requer .env configurado)
 python manage.py test core --verbosity=2
 ```
 
@@ -135,4 +142,4 @@ Decisões detalhadas em `docs/architecture/adr/`.
 
 ---
 
-*Última actualização: 29 mar 2026 · Sem. 2*
+*Última actualização: 7 abr 2026 · Sem. 4*

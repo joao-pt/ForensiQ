@@ -1,0 +1,335 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Nova Ocorrência{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho -->
+<div class="page-header">
+    <div>
+        <h2 class="page-title">Nova Ocorrência</h2>
+        <p class="page-subtitle">Registar cena de crime</p>
+    </div>
+    <a href="/occurrences/" class="btn btn-outline">← Voltar</a>
+</div>
+
+<!-- Formulário -->
+<form id="occurrence-form" class="form-card" novalidate>
+
+    <!-- Número da ocorrência -->
+    <div class="form-group">
+        <label for="number" class="form-label required">Número / Referência</label>
+        <input
+            type="text"
+            id="number"
+            name="number"
+            class="form-control"
+            placeholder="Ex.: NUIPC 2024/000123 ou INT-2024-001"
+            required
+            autocomplete="off"
+            autocapitalize="characters"
+        >
+        <div class="form-hint">Identificador único da ocorrência (NUIPC ou referência interna).</div>
+        <div class="form-error" id="number-error"></div>
+    </div>
+
+    <!-- Descrição -->
+    <div class="form-group">
+        <label for="description" class="form-label required">Descrição</label>
+        <textarea
+            id="description"
+            name="description"
+            class="form-control"
+            rows="4"
+            placeholder="Descrição sumária da ocorrência / cena de crime..."
+            required
+        ></textarea>
+        <div class="form-error" id="description-error"></div>
+    </div>
+
+    <!-- Data e hora -->
+    <div class="form-group">
+        <label for="date_time" class="form-label required">Data e hora</label>
+        <input
+            type="datetime-local"
+            id="date_time"
+            name="date_time"
+            class="form-control"
+            required
+        >
+        <div class="form-hint">Data e hora da ocorrência (pré-preenchida com o momento atual).</div>
+        <div class="form-error" id="date_time-error"></div>
+    </div>
+
+    <!-- Localização GPS -->
+    <div class="form-group">
+        <label class="form-label">Localização GPS</label>
+        <div id="gps-status" class="gps-status" style="display: none;"></div>
+        <div class="gps-fields" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 120px;">
+                <label for="gps_lat" class="form-label-sm">Latitude</label>
+                <input
+                    type="number"
+                    id="gps_lat"
+                    name="gps_lat"
+                    class="form-control"
+                    placeholder="38.7169"
+                    step="0.0000001"
+                    min="-90"
+                    max="90"
+                    readonly
+                >
+            </div>
+            <div style="flex: 1; min-width: 120px;">
+                <label for="gps_lon" class="form-label-sm">Longitude</label>
+                <input
+                    type="number"
+                    id="gps_lon"
+                    name="gps_lon"
+                    class="form-control"
+                    placeholder="-9.1395"
+                    step="0.0000001"
+                    min="-180"
+                    max="180"
+                    readonly
+                >
+            </div>
+        </div>
+        <button type="button" id="btn-gps" class="btn btn-outline mt-8" style="width: 100%;">
+            📍 Capturar localização atual
+        </button>
+        <div class="form-hint">A localização é capturada automaticamente — toque no botão para atualizar.</div>
+    </div>
+
+    <!-- Morada -->
+    <div class="form-group">
+        <label for="address" class="form-label">Morada aproximada</label>
+        <input
+            type="text"
+            id="address"
+            name="address"
+            class="form-control"
+            placeholder="Ex.: Rua da República, Lisboa"
+            autocomplete="street-address"
+        >
+        <div class="form-hint">Opcional. Preenchido automaticamente se GPS disponível.</div>
+    </div>
+
+    <!-- Botões de acção -->
+    <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-submit">
+            <span id="btn-text">Registar Ocorrência</span>
+            <div class="spinner spinner-sm hidden" id="btn-spinner"></div>
+        </button>
+        <a href="/occurrences/" class="btn btn-outline btn-lg btn-block mt-8">Cancelar</a>
+    </div>
+
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script>
+'use strict';
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const authenticated = await Auth.requireAuth();
+    if (!authenticated) return;
+
+    const user = Auth.getUser();
+    if (user) {
+        document.getElementById('navbar-user').textContent = user.first_name || user.username;
+
+        // Só agentes podem registar ocorrências
+        if (user.profile !== 'AGENT') {
+            Toast.show('Sem permissão para registar ocorrências.', 'error');
+            setTimeout(() => { window.location.href = '/occurrences/'; }, 1500);
+            return;
+        }
+    }
+
+    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+
+    // Pré-preencher data/hora com o momento atual
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    document.getElementById('date_time').value = local.toISOString().slice(0, 16);
+
+    // Tentar obter GPS automaticamente ao carregar
+    captureGPS();
+
+    // Botão GPS manual
+    document.getElementById('btn-gps').addEventListener('click', captureGPS);
+
+    // Submissão do formulário
+    document.getElementById('occurrence-form').addEventListener('submit', handleSubmit);
+});
+
+/**
+ * Captura a localização GPS atual do dispositivo.
+ */
+function captureGPS() {
+    const btn = document.getElementById('btn-gps');
+    const status = document.getElementById('gps-status');
+
+    if (!navigator.geolocation) {
+        showGpsStatus('GPS não disponível neste dispositivo.', 'warning');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '⏳ A obter localização...';
+    showGpsStatus('A aguardar sinal GPS...', 'info');
+    status.style.display = 'block';
+
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            const lat = pos.coords.latitude.toFixed(7);
+            const lon = pos.coords.longitude.toFixed(7);
+            document.getElementById('gps_lat').value = lat;
+            document.getElementById('gps_lon').value = lon;
+
+            btn.disabled = false;
+            btn.textContent = '📍 Atualizar localização';
+            showGpsStatus(`✅ GPS capturado (±${Math.round(pos.coords.accuracy)}m) — ${lat}, ${lon}`, 'success');
+
+            // Reverse geocoding via Nominatim (gratuito, sem API key)
+            reverseGeocode(lat, lon);
+        },
+        (err) => {
+            btn.disabled = false;
+            btn.textContent = '📍 Tentar novamente';
+            const msgs = {
+                1: 'Permissão de localização negada.',
+                2: 'Posição indisponível. Verifique o GPS.',
+                3: 'Tempo de espera excedido. Tente novamente.',
+            };
+            showGpsStatus('⚠️ ' + (msgs[err.code] || 'Erro desconhecido.'), 'warning');
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+}
+
+/**
+ * Reverse geocoding via Nominatim (OpenStreetMap).
+ */
+async function reverseGeocode(lat, lon) {
+    try {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+            { headers: { 'Accept-Language': 'pt' } }
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.display_name) {
+            const addressEl = document.getElementById('address');
+            if (!addressEl.value) {
+                // Simplificar: rua + localidade
+                const parts = [
+                    data.address?.road,
+                    data.address?.house_number,
+                    data.address?.city || data.address?.town || data.address?.village,
+                    data.address?.country,
+                ].filter(Boolean);
+                addressEl.value = parts.join(', ');
+            }
+        }
+    } catch (e) {
+        // Silencioso — reverse geocoding é opcional
+    }
+}
+
+function showGpsStatus(message, type) {
+    const el = document.getElementById('gps-status');
+    el.style.display = 'block';
+    el.className = `gps-status gps-status-${type}`;
+    el.textContent = message;
+}
+
+/**
+ * Submissão do formulário.
+ */
+async function handleSubmit(e) {
+    e.preventDefault();
+
+    clearErrors();
+
+    const form = e.target;
+    const data = {
+        number: form.number.value.trim(),
+        description: form.description.value.trim(),
+        date_time: new Date(form.date_time.value).toISOString(),
+        address: form.address.value.trim() || '',
+    };
+
+    const lat = form.gps_lat.value;
+    const lon = form.gps_lon.value;
+    if (lat) data.gps_lat = parseFloat(lat);
+    if (lon) data.gps_lon = parseFloat(lon);
+
+    // Validação client-side básica
+    let hasErrors = false;
+    if (!data.number) {
+        showError('number-error', 'O número da ocorrência é obrigatório.');
+        hasErrors = true;
+    }
+    if (!data.description) {
+        showError('description-error', 'A descrição é obrigatória.');
+        hasErrors = true;
+    }
+    if (!form.date_time.value) {
+        showError('date_time-error', 'A data e hora são obrigatórias.');
+        hasErrors = true;
+    }
+    if (hasErrors) return;
+
+    setSubmitting(true);
+
+    try {
+        const result = await API.post(CONFIG.ENDPOINTS.OCCURRENCES, data);
+        Toast.show('Ocorrência registada com sucesso!', 'success');
+        setTimeout(() => {
+            window.location.href = '/occurrences/';
+        }, 1200);
+    } catch (err) {
+        setSubmitting(false);
+        if (err.data && typeof err.data === 'object') {
+            // Erros de validação da API
+            Object.entries(err.data).forEach(([field, messages]) => {
+                const errorId = `${field}-error`;
+                const msg = Array.isArray(messages) ? messages.join(' ') : String(messages);
+                showError(errorId, msg);
+            });
+            Toast.show('Corrija os erros assinalados.', 'error');
+        } else {
+            Toast.show('Erro ao registar a ocorrência. Tente novamente.', 'error');
+        }
+    }
+}
+
+function setSubmitting(loading) {
+    const btn = document.getElementById('btn-submit');
+    const text = document.getElementById('btn-text');
+    const spinner = document.getElementById('btn-spinner');
+
+    btn.disabled = loading;
+    text.textContent = loading ? 'A registar...' : 'Registar Ocorrência';
+    spinner.classList.toggle('hidden', !loading);
+}
+
+function showError(id, message) {
+    const el = document.getElementById(id);
+    if (el) {
+        el.textContent = message;
+        el.style.display = 'block';
+    }
+}
+
+function clearErrors() {
+    document.querySelectorAll('.form-error').forEach(el => {
+        el.textContent = '';
+        el.style.display = 'none';
+    });
+}
+</script>
+{% endblock %}
