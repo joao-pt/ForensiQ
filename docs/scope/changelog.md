@@ -4,6 +4,38 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 4 · 7–13 abr
+
+**Feito:**
+- feat: Página de listagem de ocorrências (`occurrences.html`) — pesquisa, paginação, link para detalhes
+- feat: Formulário de nova ocorrência (`occurrences_new.html`) — GPS automático, reverse geocoding via Nominatim, validação client-side
+- feat: Página de listagem de evidências (`evidences.html`) — pesquisa, badges por tipo, paginação
+- feat: Formulário de nova evidência (`evidences_new.html`) — captura de foto (câmara/ficheiro), GPS, tipo selector, upload multipart
+- feat: 4 novas views Django com `@jwt_cookie_required` (occurrences, occurrences_new, evidences, evidences_new)
+- feat: CSS — novos componentes: `.page-header`, `.form-card`, `.form-control`, `.gps-status`, `.type-selector`, `.photo-capture`, `.info-box`, `.pagination-bar`
+- feat: `forensiq_project/test_settings.py` — configuração de testes com SQLite em memória e sem manifesto de estáticos
+- feat: `AuthenticatedFrontendTestCase` — classe base para testes de páginas protegidas por JWT
+- test: 25 novos testes frontend — todos passam (70 testes total)
+- fix: Testes das views protegidas agora injectam JWT cookie válido (anteriormente falhavam silenciosamente)
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Timeline visual da cadeia de custódia, Leaflet.js para mapas de ocorrências, início da estrutura LaTeX do Relatório Intercalar (prazo: 6 mai).
+
+---
+
+## Sem. 3 · 31 mar – 6 abr
+
+**Feito:**
+- chore: Pausa Páscoa (30 mar – 5 abr) — sem desenvolvimento activo
+- chore: Verificação de estado do projecto — 45 testes a passar, deploy estável
+
+**Bloqueou:** Pausa académica programada.
+
+**Próxima semana:** Retomar desenvolvimento frontend — formulários de ocorrência e evidência.
+
+---
+
 ## Sem. 2 · 24–28 mar
 
 **Feito:**
