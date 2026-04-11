@@ -4,6 +4,22 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 6 · 21–27 abr
+
+**Feito:**
+- feat: Módulo de exportação PDF (`core/pdf_export.py`) — relatório forense completo com ReportLab: ocorrência, evidência, dispositivos digitais, cadeia de custódia, hash SHA-256, declaração de integridade (ISO/IEC 27037)
+- feat: Endpoint API `GET /api/evidences/<id>/pdf/` integrado no EvidenceViewSet — devolve `application/pdf` com `Content-Disposition: attachment`
+- test: 14 novos testes PDF — geração, endpoint REST, content-type, content-disposition, assinatura `%PDF`, 404 para ID inexistente, PDF com/sem dispositivos/custódia — **94 testes total, todos passam**
+- fix: `forensiq_project/test_settings.py` — exclusão dinâmica do middleware whitenoise para compatibilidade com ambientes de teste sem esse pacote
+- docs: `src_latex/intercalar.tex` — preenchidas secções [TODO]: motivação (contexto PSP), requisitos, estado de desenvolvimento, ADRs, calendário, ética/RGPD, conclusão; RF09 marcado como Implementado; contagem de testes actualizada (94)
+- chore: `requirements.txt` — dependência `reportlab>=4.0,<5.0` adicionada (descomentada)
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Completar e submeter Relatório Intercalar (prazo eliminatório: 6 mai); inserir diagramas C4/ER em `src_latex/figures/`; guião da demo interna Teams (28 abr–2 mai); botão de download PDF no frontend.
+
+---
+
 ## Sem. 5 · 14–20 abr
 
 **Feito:**
