@@ -166,11 +166,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 /**
+ * Obtém o token CSRF dos cookies.
+ */
+function getCsrfToken() {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1] : '';
+}
+
+/**
  * Captura a localização GPS atual do dispositivo.
  */
 function captureGPS() {
     const btn = document.getElementById('btn-gps');
     const status = document.getElementById('gps-status');
+
+    if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+        showGpsStatus('GPS requer HTTPS. Em desenvolvimento, use localhost ou ngrok.', 'warning');
+        return;
+    }
 
     if (!navigator.geolocation) {
         showGpsStatus('GPS não disponível neste dispositivo.', 'warning');
@@ -286,6 +299,7 @@ async function handleSubmit(e) {
     setSubmitting(true);
 
     try {
+        // API.post handles CSRF token via wrapper, but ensuring CSRF is protected
         const result = await API.post(CONFIG.ENDPOINTS.OCCURRENCES, data);
         Toast.show('Ocorrência registada com sucesso!', 'success');
         setTimeout(() => {
