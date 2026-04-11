@@ -4,6 +4,22 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 5 · 14–20 abr
+
+**Feito:**
+- feat: Timeline visual da cadeia de custódia (`custody_timeline.html`) — barra de progresso de estados, timeline cronológica com hashes SHA-256, modal de nova transição
+- feat: View `custody_timeline_view` em `core/frontend_views.py` + URL `/evidence/<id>/custody/`
+- feat: Mapa interactivo Leaflet.js + OpenStreetMap em `occurrences.html` — aba de alternância Lista/Mapa, marcadores com popup (número, descrição, data, link para detalhe), centrado em Portugal por omissão
+- docs: Estrutura LaTeX do Relatório Intercalar (`src_latex/intercalar.tex`) — capa, índice, secções completas (introdução, requisitos, arquitectura, implementação, calendário, ética, conclusão)
+- test: 10 novos testes frontend — todos passam (78 testes total: 12 modelos + 21 API + 45 frontend)
+- fix: `occurrences.html` mantém compatibilidade total com testes anteriores
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** PDF export (ReportLab/WeasyPrint), guião demo interna Teams (28 abr), completar e submeter Relatório Intercalar (6 mai — PRAZO ELIMINATÓRIO).
+
+---
+
 ## Sem. 4 · 7–13 abr
 
 **Feito:**

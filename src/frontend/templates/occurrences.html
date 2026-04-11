@@ -3,6 +3,104 @@
 
 {% block title %}ForensiQ — Ocorrências{% endblock %}
 
+{% block extra_css %}
+<!-- Leaflet.js CSS -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+      integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3Q=="
+      crossorigin="anonymous" referrerpolicy="no-referrer">
+<style>
+/* ── Vista de mapa ──────────────────────────────────────────────────── */
+#map-container {
+    height: calc(100vh - 220px);
+    min-height: 360px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+.view-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.view-tab {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.view-tab.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.view-tab:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+/* Popup do Leaflet */
+.leaflet-popup-content {
+    font-family: inherit;
+    font-size: 0.875rem;
+    min-width: 180px;
+}
+.leaflet-popup-content strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--primary);
+}
+.leaflet-popup-content .popup-desc {
+    color: #555;
+    font-size: 0.8125rem;
+    margin-bottom: 6px;
+}
+.leaflet-popup-content .popup-date {
+    font-size: 0.75rem;
+    color: #888;
+}
+.leaflet-popup-content a {
+    display: inline-block;
+    margin-top: 8px;
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+/* Legenda do mapa */
+.map-legend {
+    position: absolute;
+    bottom: 24px;
+    right: 8px;
+    background: rgba(255,255,255,0.95);
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    z-index: 1000;
+    pointer-events: none;
+}
+.map-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+.map-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+</style>
+{% endblock %}
+
 {% block content %}
 <!-- Cabeçalho com botão de acção -->
 <div class="page-header">
@@ -15,35 +113,74 @@
     </a>
 </div>
 
-<!-- Barra de pesquisa -->
-<div class="search-bar mb-16">
-    <input
-        type="search"
-        id="search-input"
-        class="form-control"
-        placeholder="Pesquisar por número ou descrição..."
-        autocomplete="off"
-    >
+<!-- Abas de vista: Lista / Mapa -->
+<div class="view-tabs" role="tablist" aria-label="Vista de ocorrências">
+    <button class="view-tab active" id="tab-list" role="tab" aria-selected="true"
+            aria-controls="panel-list" onclick="switchView('list')">
+        📋 Lista
+    </button>
+    <button class="view-tab" id="tab-map" role="tab" aria-selected="false"
+            aria-controls="panel-map" onclick="switchView('map')">
+        🗺️ Mapa
+    </button>
 </div>
 
-<!-- Lista de ocorrências -->
-<div id="occurrences-list">
-    <div class="loading-overlay">
-        <div class="spinner spinner-dark"></div>
+<!-- Painel Lista -->
+<div id="panel-list" role="tabpanel" aria-labelledby="tab-list">
+    <!-- Barra de pesquisa -->
+    <div class="search-bar mb-16">
+        <input
+            type="search"
+            id="search-input"
+            class="form-control"
+            placeholder="Pesquisar por número ou descrição..."
+            autocomplete="off"
+        >
+    </div>
+
+    <!-- Lista de ocorrências -->
+    <div id="occurrences-list">
+        <div class="loading-overlay">
+            <div class="spinner spinner-dark"></div>
+        </div>
+    </div>
+
+    <!-- Paginação -->
+    <div id="pagination" class="pagination-bar hidden"></div>
+</div>
+
+<!-- Painel Mapa (Leaflet.js) -->
+<div id="panel-map" role="tabpanel" aria-labelledby="tab-map" style="display:none; position:relative;">
+    <div id="map-container" aria-label="Mapa de ocorrências"></div>
+    <!-- Legenda -->
+    <div class="map-legend">
+        <div class="map-legend-item">
+            <div class="map-legend-dot" style="background:#1565c0;"></div>
+            <span>Com GPS</span>
+        </div>
+        <div class="map-legend-item">
+            <div class="map-legend-dot" style="background:#9e9e9e;"></div>
+            <span>Sem GPS</span>
+        </div>
     </div>
 </div>
-
-<!-- Paginação -->
-<div id="pagination" class="pagination-bar hidden"></div>
 {% endblock %}
 
 {% block extra_js %}
+<!-- Leaflet.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+        integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="{% static 'js/toast.js' %}"></script>
 <script>
 'use strict';
 
 let currentPage = 1;
 let searchTimeout = null;
+let allOccurrences = [];  // cache para o mapa
+let leafletMap = null;
+let mapInitialized = false;
+let currentView = 'list';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const authenticated = await Auth.requireAuth();
@@ -71,7 +208,137 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     loadOccurrences();
+    loadAllOccurrencesForMap();
 });
+
+/* ── Vista: alternar entre lista e mapa ──────────────────────────────── */
+
+function switchView(view) {
+    currentView = view;
+    const panelList = document.getElementById('panel-list');
+    const panelMap  = document.getElementById('panel-map');
+    const tabList   = document.getElementById('tab-list');
+    const tabMap    = document.getElementById('tab-map');
+
+    if (view === 'map') {
+        panelList.style.display = 'none';
+        panelMap.style.display  = '';
+        tabList.classList.remove('active');
+        tabList.setAttribute('aria-selected', 'false');
+        tabMap.classList.add('active');
+        tabMap.setAttribute('aria-selected', 'true');
+
+        // Inicializar mapa na primeira abertura (evitar erro de div oculta)
+        if (!mapInitialized) {
+            initMap();
+        } else {
+            leafletMap.invalidateSize();
+        }
+    } else {
+        panelList.style.display = '';
+        panelMap.style.display  = 'none';
+        tabList.classList.add('active');
+        tabList.setAttribute('aria-selected', 'true');
+        tabMap.classList.remove('active');
+        tabMap.setAttribute('aria-selected', 'false');
+    }
+}
+
+/* ── Mapa Leaflet.js ─────────────────────────────────────────────────── */
+
+function initMap() {
+    mapInitialized = true;
+
+    // Centrar em Portugal por omissão
+    leafletMap = L.map('map-container', {
+        center: [39.5, -8.0],
+        zoom: 7,
+        zoomControl: true,
+    });
+
+    // Camada de tiles OpenStreetMap (gratuita, sem chave API)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+    }).addTo(leafletMap);
+
+    // Adicionar marcadores se os dados já estiverem carregados
+    if (allOccurrences.length > 0) {
+        addMarkersToMap(allOccurrences);
+    }
+}
+
+async function loadAllOccurrencesForMap() {
+    try {
+        // Carregar todas as ocorrências (até 200) para o mapa
+        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 200 });
+        allOccurrences = data.results || [];
+
+        if (mapInitialized) {
+            addMarkersToMap(allOccurrences);
+        }
+    } catch (err) {
+        console.error('Erro ao carregar ocorrências para mapa:', err);
+    }
+}
+
+function addMarkersToMap(occurrences) {
+    if (!leafletMap) return;
+
+    // Ícone personalizado — azul (com GPS)
+    const iconWithGps = L.divIcon({
+        html: '<div style="width:14px;height:14px;background:#1565c0;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>',
+        className: '',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+    });
+
+    const bounds = [];
+    let markersAdded = 0;
+
+    occurrences.forEach(occ => {
+        if (!occ.gps_lat || !occ.gps_lon) return;
+
+        const lat = parseFloat(occ.gps_lat);
+        const lon = parseFloat(occ.gps_lon);
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        const dt = new Date(occ.date_time).toLocaleDateString('pt-PT', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+        });
+
+        const desc = (occ.description || '').substring(0, 80);
+        const popupHtml = `
+            <strong>${escapeHtml(occ.number)}</strong>
+            <div class="popup-desc">${escapeHtml(desc)}${(occ.description || '').length > 80 ? '…' : ''}</div>
+            ${occ.address ? `<div class="popup-date">📌 ${escapeHtml(occ.address)}</div>` : ''}
+            <div class="popup-date">🕑 ${dt}</div>
+            <a href="/occurrences/${occ.id}/">Ver detalhes →</a>
+        `;
+
+        const marker = L.marker([lat, lon], { icon: iconWithGps })
+            .bindPopup(popupHtml, { maxWidth: 260 });
+
+        marker.addTo(leafletMap);
+        bounds.push([lat, lon]);
+        markersAdded++;
+    });
+
+    // Ajustar vista para incluir todos os marcadores
+    if (bounds.length > 0) {
+        leafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
+    }
+
+    // Actualizar contador no subtítulo
+    const withGps = occurrences.filter(o => o.gps_lat && o.gps_lon).length;
+    const total = occurrences.length;
+    const countEl = document.getElementById('occurrences-count');
+    if (countEl && currentView === 'map') {
+        countEl.textContent = `${markersAdded} de ${total} ocorrência${total !== 1 ? 's' : ''} com GPS`;
+    }
+}
+
+/* ── Lista de ocorrências ─────────────────────────────────────────────── */
 
 async function loadOccurrences(search = '') {
     const container = document.getElementById('occurrences-list');
@@ -88,7 +355,9 @@ async function loadOccurrences(search = '') {
 
         // Atualizar contador
         const total = data.count || 0;
-        countEl.textContent = `${total} ocorrência${total !== 1 ? 's' : ''}`;
+        if (currentView === 'list') {
+            countEl.textContent = `${total} ocorrência${total !== 1 ? 's' : ''}`;
+        }
 
         if (occurrences.length === 0) {
             container.innerHTML = `

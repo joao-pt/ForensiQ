@@ -1,0 +1,538 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Cadeia de Custódia{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Timeline de custódia ─────────────────────────────────────────────── */
+.evidence-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 24px;
+}
+.evidence-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 1rem;
+    color: var(--text);
+}
+.evidence-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+/* Timeline */
+.timeline {
+    position: relative;
+    padding-left: 32px;
+    margin-top: 8px;
+}
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 24px;
+}
+.timeline-item:last-child {
+    margin-bottom: 0;
+}
+
+/* Ícone circular no eixo */
+.timeline-dot {
+    position: absolute;
+    left: -26px;
+    top: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 0 0 3px var(--bg);
+    z-index: 1;
+}
+.timeline-dot.state-APREENDIDA        { background: #1565c0; }
+.timeline-dot.state-EM_TRANSPORTE     { background: #6a1b9a; }
+.timeline-dot.state-RECEBIDA_LABORATORIO { background: #0277bd; }
+.timeline-dot.state-EM_PERICIA        { background: #e65100; }
+.timeline-dot.state-CONCLUIDA         { background: #2e7d32; }
+.timeline-dot.state-DEVOLVIDA         { background: #37474f; }
+.timeline-dot.state-DESTRUIDA         { background: #b71c1c; }
+
+/* Card do registo */
+.timeline-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+}
+.timeline-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.timeline-state-label {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text);
+}
+.timeline-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+.timeline-agent {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+.timeline-obs {
+    font-size: 0.875rem;
+    color: var(--text);
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+.timeline-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+    word-break: break-all;
+    opacity: 0.7;
+}
+.hash-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Barra de progresso de estados */
+.state-progress {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+.state-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 64px;
+    position: relative;
+}
+.state-step::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+}
+.state-step:last-child::after { display: none; }
+
+.state-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #fff;
+}
+.state-step.done .state-step-dot   { background: var(--primary); }
+.state-step.current .state-step-dot { background: #2e7d32; box-shadow: 0 0 0 3px rgba(46,125,50,0.25); }
+
+.state-step-label {
+    font-size: 0.6rem;
+    text-align: center;
+    margin-top: 4px;
+    color: var(--text-muted);
+    max-width: 64px;
+    line-height: 1.2;
+}
+.state-step.done .state-step-label,
+.state-step.current .state-step-label {
+    color: var(--text);
+    font-weight: 500;
+}
+
+/* Botão de nova transição */
+.new-transition-btn {
+    margin-bottom: 24px;
+}
+
+/* Modal de nova transição */
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+.modal-overlay.open {
+    display: flex;
+}
+.modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.modal h3 {
+    margin: 0 0 16px 0;
+    font-size: 1rem;
+}
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: flex-end;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho da página -->
+<div class="page-header">
+    <div>
+        <h2 class="page-title">Cadeia de Custódia</h2>
+        <p class="page-subtitle" id="evidence-subtitle">A carregar...</p>
+    </div>
+    <a href="/evidences/" class="btn btn-outline">← Evidências</a>
+</div>
+
+<!-- Cabeçalho da evidência -->
+<div class="evidence-header" id="evidence-header" style="display:none">
+    <h3 id="evidence-description">—</h3>
+    <div class="evidence-meta">
+        <span class="meta-item">📋 <span id="evidence-type">—</span></span>
+        <span class="meta-item">🕑 <span id="evidence-timestamp">—</span></span>
+        <span class="meta-item">🔐 <span class="badge badge-outline" id="evidence-hash" title="Hash SHA-256 de integridade" style="font-family:monospace;font-size:0.65rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span></span>
+    </div>
+</div>
+
+<!-- Barra de progresso dos estados -->
+<div class="state-progress" id="state-progress"></div>
+
+<!-- Botão de nova transição (apenas agentes com permissão) -->
+<div class="new-transition-btn" id="new-transition-container" style="display:none">
+    <button class="btn btn-primary" id="btn-new-transition" onclick="openTransitionModal()">
+        + Registar Transição
+    </button>
+</div>
+
+<!-- Timeline -->
+<div id="timeline-container">
+    <div class="loading-overlay">
+        <div class="spinner spinner-dark"></div>
+    </div>
+</div>
+
+<!-- Modal: nova transição de custódia -->
+<div class="modal-overlay" id="transition-modal">
+    <div class="modal">
+        <h3>Registar Transição de Custódia</h3>
+        <div class="form-group">
+            <label class="form-label" for="new-state">Novo Estado</label>
+            <select class="form-control" id="new-state"></select>
+        </div>
+        <div class="form-group mt-12">
+            <label class="form-label" for="observations">Observações</label>
+            <textarea class="form-control" id="observations" rows="3"
+                placeholder="Ex.: Entregue ao laboratório com lacre intacto..."></textarea>
+        </div>
+        <div id="transition-error" class="text-danger" style="font-size:0.875rem;margin-top:8px;display:none;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeTransitionModal()">Cancelar</button>
+            <button class="btn btn-primary" id="btn-submit-transition" onclick="submitTransition()">Confirmar</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script>
+'use strict';
+
+// Estado do módulo
+const evidenceId = parseInt(window.location.pathname.match(/\/evidence\/(\d+)\//)?.[1]);
+let currentState = null;
+let allowedNextStates = [];
+
+// Etiquetas dos estados por ordem da máquina de estados
+const STATE_FLOW = [
+    { key: 'APREENDIDA',           label: 'Apreendida',         icon: '🔒' },
+    { key: 'EM_TRANSPORTE',        label: 'Em Transporte',      icon: '🚐' },
+    { key: 'RECEBIDA_LABORATORIO', label: 'No Laboratório',     icon: '🏛️' },
+    { key: 'EM_PERICIA',           label: 'Em Perícia',         icon: '🔬' },
+    { key: 'CONCLUIDA',            label: 'Concluída',          icon: '✅' },
+    { key: 'DEVOLVIDA',            label: 'Devolvida',          icon: '↩️' },
+    { key: 'DESTRUIDA',            label: 'Destruída',          icon: '🗑️' },
+];
+
+const VALID_TRANSITIONS = {
+    '':                    ['APREENDIDA'],
+    'APREENDIDA':          ['EM_TRANSPORTE'],
+    'EM_TRANSPORTE':       ['RECEBIDA_LABORATORIO'],
+    'RECEBIDA_LABORATORIO':['EM_PERICIA'],
+    'EM_PERICIA':          ['CONCLUIDA'],
+    'CONCLUIDA':           ['DEVOLVIDA', 'DESTRUIDA'],
+    'DEVOLVIDA':           [],
+    'DESTRUIDA':           [],
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const authenticated = await Auth.requireAuth();
+    if (!authenticated) return;
+
+    const user = Auth.getUser();
+    if (user) {
+        document.getElementById('navbar-user').textContent = user.first_name || user.username;
+    }
+    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+
+    if (!evidenceId) {
+        document.getElementById('timeline-container').innerHTML =
+            '<div class="empty-state"><p class="text-danger">ID de evidência inválido.</p></div>';
+        return;
+    }
+
+    await loadEvidenceAndTimeline(user);
+});
+
+async function loadEvidenceAndTimeline(user) {
+    try {
+        // Carregar evidência e timeline em paralelo
+        const [evidence, timelineData] = await Promise.all([
+            API.get(`${CONFIG.ENDPOINTS.EVIDENCES}${evidenceId}/`),
+            API.get(`${CONFIG.ENDPOINTS.CUSTODY}evidence/${evidenceId}/timeline/`),
+        ]);
+
+        renderEvidenceHeader(evidence);
+        const records = Array.isArray(timelineData) ? timelineData : (timelineData.results || []);
+        renderStateProgress(records);
+        renderTimeline(records);
+        renderTransitionUI(user, records);
+
+    } catch (err) {
+        document.getElementById('timeline-container').innerHTML =
+            '<div class="empty-state"><p class="text-danger">Erro ao carregar dados. Tente novamente.</p></div>';
+        console.error('Erro:', err);
+    }
+}
+
+function renderEvidenceHeader(evidence) {
+    const header = document.getElementById('evidence-header');
+    const typeMap = {
+        DIGITAL_DEVICE:  'Dispositivo Digital',
+        DOCUMENT:        'Documento',
+        STORAGE_MEDIA:   'Suporte de Armazenamento',
+        PHOTO:           'Fotografia',
+        OTHER:           'Outro',
+    };
+    const dt = new Date(evidence.timestamp_seizure).toLocaleString('pt-PT', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+
+    document.getElementById('evidence-subtitle').textContent = `Evidência #${evidence.id}`;
+    document.getElementById('evidence-description').textContent = evidence.description || '—';
+    document.getElementById('evidence-type').textContent = typeMap[evidence.type] || evidence.type;
+    document.getElementById('evidence-timestamp').textContent = dt;
+    document.getElementById('evidence-hash').textContent = evidence.integrity_hash || '—';
+    document.getElementById('evidence-hash').title = `SHA-256: ${evidence.integrity_hash}`;
+    header.style.display = '';
+}
+
+function renderStateProgress(records) {
+    const container = document.getElementById('state-progress');
+
+    // Determinar último estado
+    const lastRecord = records.length > 0 ? records[records.length - 1] : null;
+    currentState = lastRecord ? lastRecord.new_state : '';
+
+    // Escolher subconjunto do fluxo (fluxo principal — excluir terminais alternativos)
+    const mainFlow = STATE_FLOW.filter(s => s.key !== 'DESTRUIDA');
+    // Adicionar DESTRUIDA apenas se for o estado atual
+    const flow = currentState === 'DESTRUIDA'
+        ? [...STATE_FLOW.filter(s => !['DEVOLVIDA','DESTRUIDA'].includes(s.key)),
+           STATE_FLOW.find(s => s.key === 'DESTRUIDA')]
+        : mainFlow;
+
+    const doneKeys = new Set(records.map(r => r.new_state));
+
+    container.innerHTML = flow.map(step => {
+        const isDone    = doneKeys.has(step.key);
+        const isCurrent = step.key === currentState;
+        const cls = isCurrent ? 'current' : (isDone ? 'done' : '');
+        return `
+            <div class="state-step ${cls}">
+                <div class="state-step-dot">${step.icon}</div>
+                <div class="state-step-label">${step.label}</div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderTimeline(records) {
+    const container = document.getElementById('timeline-container');
+
+    if (records.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <p>Sem registos de custódia. Registe a primeira transição.</p>
+            </div>
+        `;
+        return;
+    }
+
+    const stateMap = Object.fromEntries(STATE_FLOW.map(s => [s.key, s]));
+
+    container.innerHTML = `
+        <h3 style="margin:0 0 16px 0;font-size:0.9375rem;">Histórico de Custódia</h3>
+        <div class="timeline" id="custody-timeline">
+            ${records.map((rec, idx) => renderTimelineItem(rec, idx, stateMap)).join('')}
+        </div>
+    `;
+}
+
+function renderTimelineItem(rec, idx, stateMap) {
+    const state = stateMap[rec.new_state] || { label: rec.new_state, icon: '●' };
+    const dt = new Date(rec.timestamp).toLocaleString('pt-PT', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+    const agentName = rec.agent_name || `Utilizador #${rec.agent}`;
+
+    return `
+        <div class="timeline-item" id="timeline-item-${idx}">
+            <div class="timeline-dot state-${escapeHtml(rec.new_state)}" title="${escapeHtml(state.label)}">
+                ${state.icon}
+            </div>
+            <div class="timeline-card">
+                <div class="timeline-card-header">
+                    <span class="timeline-state-label">${escapeHtml(state.label)}</span>
+                    <span class="timeline-date">🕑 ${dt}</span>
+                </div>
+                <div class="timeline-agent">👤 ${escapeHtml(agentName)}</div>
+                ${rec.observations ? `<div class="timeline-obs">${escapeHtml(rec.observations)}</div>` : ''}
+                <div class="hash-label">SHA-256 do registo</div>
+                <div class="timeline-hash">${escapeHtml(rec.record_hash || '—')}</div>
+            </div>
+        </div>
+    `;
+}
+
+function renderTransitionUI(user, records) {
+    // Apenas agentes podem registar transições
+    if (!user || user.profile !== 'AGENT') return;
+
+    // Calcular próximos estados permitidos
+    allowedNextStates = VALID_TRANSITIONS[currentState] || [];
+    if (allowedNextStates.length === 0) return; // Estado terminal
+
+    const container = document.getElementById('new-transition-container');
+    container.style.display = '';
+
+    // Popular select de estados
+    const select = document.getElementById('new-state');
+    const stateMap = Object.fromEntries(STATE_FLOW.map(s => [s.key, s]));
+    select.innerHTML = allowedNextStates.map(key => {
+        const s = stateMap[key] || { label: key };
+        return `<option value="${escapeHtml(key)}">${escapeHtml(s.label)}</option>`;
+    }).join('');
+}
+
+function openTransitionModal() {
+    document.getElementById('transition-error').style.display = 'none';
+    document.getElementById('observations').value = '';
+    document.getElementById('transition-modal').classList.add('open');
+}
+
+function closeTransitionModal() {
+    document.getElementById('transition-modal').classList.remove('open');
+}
+
+async function submitTransition() {
+    const btn = document.getElementById('btn-submit-transition');
+    const errorEl = document.getElementById('transition-error');
+    const newState = document.getElementById('new-state').value;
+    const observations = document.getElementById('observations').value.trim();
+
+    btn.disabled = true;
+    btn.textContent = 'A registar...';
+    errorEl.style.display = 'none';
+
+    try {
+        await API.post(CONFIG.ENDPOINTS.CUSTODY, {
+            evidence: evidenceId,
+            new_state: newState,
+            observations,
+        });
+
+        closeTransitionModal();
+        Toast.success('Transição registada com sucesso.');
+        // Recarregar timeline
+        const user = Auth.getUser();
+        await loadEvidenceAndTimeline(user);
+
+    } catch (err) {
+        const msg = err?.detail || err?.new_state?.[0] || 'Erro ao registar transição.';
+        errorEl.textContent = msg;
+        errorEl.style.display = '';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Confirmar';
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

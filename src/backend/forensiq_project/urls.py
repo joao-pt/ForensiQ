@@ -25,6 +25,7 @@ from rest_framework_simplejwt.views import (
 )
 
 from core.frontend_views import (
+    custody_timeline_view,
     dashboard_view,
     evidences_new_view,
     evidences_view,
@@ -57,6 +58,7 @@ urlpatterns = [
     path('occurrences/new/', occurrences_new_view, name='occurrences_new'),
     path('evidences/', evidences_view, name='evidences'),
     path('evidences/new/', evidences_new_view, name='evidences_new'),
+    path('evidence/<int:evidence_id>/custody/', custody_timeline_view, name='custody_timeline'),
 ]
 
 # Servir ficheiros media em desenvolvimento
