@@ -14,11 +14,14 @@ Endpoints:
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.http import HttpResponse
 from rest_framework import serializers as drf_serializers  # Para converter ValidationError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
+
+from .pdf_export import generate_evidence_pdf
 
 from .models import (
     ChainOfCustody,
@@ -89,6 +92,15 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     serializer_class = OccurrenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff:
+            return qs
+        if hasattr(user, 'profile') and user.profile == 'AGENT':
+            return qs.filter(agent=user)
+        return qs
+
     def perform_create(self, serializer):
         serializer.save(agent=self.request.user)
 
@@ -115,6 +127,9 @@ class EvidenceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
+            qs = qs.filter(occurrence__agent=user)
         occurrence_id = self.request.query_params.get('occurrence')
         if occurrence_id:
             qs = qs.filter(occurrence_id=occurrence_id)
@@ -122,6 +137,32 @@ class EvidenceViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(agent=self.request.user)
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def export_pdf(self, request, pk=None):
+        """
+        Gera e devolve o relatório forense da evidência em formato PDF.
+
+        GET /api/evidences/<id>/pdf/
+
+        Conformidade: ISO/IEC 27037 — inclui hash SHA-256, timestamp UTC,
+        cadeia de custódia completa e declaração de integridade.
+        """
+        evidence = self.get_object()  # 404 automático se não existir
+        # Pré-carregar relações para evitar N+1 queries
+        evidence.occurrence  # noqa: B018 — força o load da FK
+        try:
+            pdf_bytes = generate_evidence_pdf(evidence)
+        except Exception as exc:
+            return Response(
+                {'error': f'Erro ao gerar PDF: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        filename = f'ForensiQ_Evidencia_{evidence.pk:04d}.pdf'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = len(pdf_bytes)
+        return response
 
 
 # ---------------------------------------------------------------------------
@@ -140,9 +181,13 @@ class DigitalDeviceViewSet(viewsets.ModelViewSet):
     queryset = DigitalDevice.objects.select_related('evidence').all()
     serializer_class = DigitalDeviceSerializer
     permission_classes = [IsAuthenticated, IsAgent]
+    http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
 
     def get_queryset(self):
         qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
+            qs = qs.filter(evidence__occurrence__agent=user)
         evidence_id = self.request.query_params.get('evidence')
         if evidence_id:
             qs = qs.filter(evidence_id=evidence_id)
@@ -171,6 +216,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
+            qs = qs.filter(evidence__occurrence__agent=user)
         evidence_id = self.request.query_params.get('evidence')
         if evidence_id:
             qs = qs.filter(evidence_id=evidence_id)
