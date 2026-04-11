@@ -69,3 +69,9 @@ def evidences_view(request):
 def evidences_new_view(request):
     """Formulário de nova evidência — requer token JWT válido."""
     return render(request, 'evidences_new.html')
+
+
+@jwt_cookie_required
+def custody_timeline_view(request, evidence_id):
+    """Timeline visual da cadeia de custódia de uma evidência — requer token JWT válido."""
+    return render(request, 'custody_timeline.html', {'evidence_id': evidence_id})

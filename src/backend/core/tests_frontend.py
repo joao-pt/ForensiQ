@@ -145,6 +145,24 @@ class OccurrencesPageTest(AuthenticatedFrontendTestCase):
         content = response.content.decode('utf-8')
         self.assertIn('id="occurrences-list"', content)
 
+    def test_occurrences_page_contains_map_tab(self):
+        """A página de ocorrências deve conter a aba de mapa."""
+        response = self.client.get(reverse('occurrences'))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="tab-map"', content)
+
+    def test_occurrences_page_contains_map_container(self):
+        """A página de ocorrências deve conter o contentor do mapa Leaflet."""
+        response = self.client.get(reverse('occurrences'))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="map-container"', content)
+
+    def test_occurrences_page_loads_leaflet(self):
+        """A página de ocorrências deve carregar o Leaflet.js."""
+        response = self.client.get(reverse('occurrences'))
+        content = response.content.decode('utf-8')
+        self.assertIn('leaflet', content.lower())
+
 
 class OccurrencesNewPageTest(AuthenticatedFrontendTestCase):
     """Testes para a página de criação de ocorrência (requer JWT cookie)."""
@@ -258,3 +276,47 @@ class EvidencesNewPageTest(AuthenticatedFrontendTestCase):
         response = self.client.get(reverse('evidences_new'))
         content = response.content.decode('utf-8')
         self.assertIn('SHA-256', content)
+
+
+class CustodyTimelinePageTest(AuthenticatedFrontendTestCase):
+    """Testes para a página de timeline da cadeia de custódia (requer JWT cookie)."""
+
+    def test_custody_timeline_page_returns_200(self):
+        """A página de timeline deve retornar HTTP 200."""
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        self.assertEqual(response.status_code, 200)
+
+    def test_custody_timeline_page_uses_correct_template(self):
+        """A página de timeline deve usar o template custody_timeline.html."""
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        self.assertTemplateUsed(response, 'custody_timeline.html')
+
+    def test_custody_timeline_page_contains_progress_bar(self):
+        """A página de timeline deve conter a barra de progresso de estados."""
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="state-progress"', content)
+
+    def test_custody_timeline_page_contains_timeline_container(self):
+        """A página de timeline deve conter o contentor da timeline."""
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="timeline-container"', content)
+
+    def test_custody_timeline_page_contains_transition_modal(self):
+        """A página de timeline deve conter o modal de transição."""
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="transition-modal"', content)
+
+    def test_custody_timeline_page_contains_evidence_header(self):
+        """A página de timeline deve conter o cabeçalho da evidência."""
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="evidence-header"', content)
+
+    def test_custody_timeline_page_redirects_without_auth(self):
+        """A página de timeline deve redirecionar para login sem JWT cookie."""
+        self.client.cookies.clear()
+        response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
+        self.assertRedirects(response, '/login/', fetch_redirect_response=False)
