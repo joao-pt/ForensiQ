@@ -231,6 +231,8 @@ function switchView(view) {
         // Inicializar mapa na primeira abertura (evitar erro de div oculta)
         if (!mapInitialized) {
             initMap();
+            // Forçar recálculo de tamanho após o browser fazer reflow
+            setTimeout(() => leafletMap.invalidateSize(), 150);
         } else {
             leafletMap.invalidateSize();
         }
