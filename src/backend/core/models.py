@@ -17,6 +17,7 @@ import uuid
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
 
@@ -95,6 +96,7 @@ class Occurrence(models.Model):
         decimal_places=7,
         null=True,
         blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
         verbose_name='Latitude GPS',
     )
     gps_lon = models.DecimalField(
@@ -102,6 +104,7 @@ class Occurrence(models.Model):
         decimal_places=7,
         null=True,
         blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
         verbose_name='Longitude GPS',
     )
     address = models.CharField(
@@ -127,6 +130,13 @@ class Occurrence(models.Model):
     def __str__(self):
         return f'Ocorrência {self.number}'
 
+    def clean(self):
+        super().clean()
+        if (self.gps_lat is not None) != (self.gps_lon is not None):
+            raise ValidationError(
+                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+            )
+
 
 # ---------------------------------------------------------------------------
 # Evidência
@@ -149,7 +159,7 @@ class Evidence(models.Model):
 
     occurrence = models.ForeignKey(
         Occurrence,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='evidences',
         verbose_name='Ocorrência',
     )
@@ -172,6 +182,7 @@ class Evidence(models.Model):
         decimal_places=7,
         null=True,
         blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
         verbose_name='Latitude GPS (apreensão)',
     )
     gps_lon = models.DecimalField(
@@ -179,6 +190,7 @@ class Evidence(models.Model):
         decimal_places=7,
         null=True,
         blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
         verbose_name='Longitude GPS (apreensão)',
     )
     timestamp_seizure = models.DateTimeField(
@@ -252,6 +264,13 @@ class Evidence(models.Model):
             'Não é permitido eliminar registos de prova.'
         )
 
+    def clean(self):
+        super().clean()
+        if (self.gps_lat is not None) != (self.gps_lon is not None):
+            raise ValidationError(
+                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+            )
+
 
 # ---------------------------------------------------------------------------
 # Dispositivo Digital
@@ -282,7 +301,7 @@ class DigitalDevice(models.Model):
 
     evidence = models.ForeignKey(
         Evidence,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='digital_devices',
         verbose_name='Evidência associada',
     )
@@ -313,6 +332,7 @@ class DigitalDevice(models.Model):
         max_length=20,
         blank=True,
         default='',
+        validators=[RegexValidator(regex=r'^(\d{15})?$', message='IMEI deve conter exactamente 15 dígitos.')],
         verbose_name='IMEI',
         help_text='International Mobile Equipment Identity (15 dígitos).',
     )
