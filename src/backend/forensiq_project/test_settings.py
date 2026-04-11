@@ -10,6 +10,9 @@ Utilização:
 
 from .settings import *  # noqa: F401, F403
 
+# Remover whitenoise do middleware (não necessário em testes e não instalado neste ambiente)
+MIDDLEWARE = [m for m in MIDDLEWARE if 'whitenoise' not in m.lower()]
+
 # Base de dados SQLite em memória (sem necessidade de Neon.tech)
 DATABASES = {
     'default': {
