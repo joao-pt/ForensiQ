@@ -10,6 +10,8 @@ Inclui:
 - /login/, /dashboard/ — Frontend (templates HTML)
 """
 
+import os
+
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
@@ -35,8 +37,8 @@ from core.frontend_views import (
 )
 
 urlpatterns = [
-    # Django Admin
-    path('admin/', admin.site.urls),
+    # Django Admin (hidden behind environment variable prefix)
+    path(os.environ.get('ADMIN_URL_PREFIX', 'admin') + '/', admin.site.urls),
 
     # JWT Authentication
     path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
