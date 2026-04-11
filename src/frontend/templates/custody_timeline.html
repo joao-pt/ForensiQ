@@ -300,6 +300,14 @@ const evidenceId = parseInt(window.location.pathname.match(/\/evidence\/(\d+)\//
 let currentState = null;
 let allowedNextStates = [];
 
+/**
+ * Obtém o token CSRF dos cookies.
+ */
+function getCsrfToken() {
+    const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+    return cookie ? cookie.split('=')[1] : '';
+}
+
 // Etiquetas dos estados por ordem da máquina de estados
 const STATE_FLOW = [
     { key: 'APREENDIDA',           label: 'Apreendida',         icon: '🔒' },
@@ -506,6 +514,7 @@ async function submitTransition() {
     errorEl.style.display = 'none';
 
     try {
+        // API.post should handle CSRF, ensuring token is included
         await API.post(CONFIG.ENDPOINTS.CUSTODY, {
             evidence: evidenceId,
             new_state: newState,

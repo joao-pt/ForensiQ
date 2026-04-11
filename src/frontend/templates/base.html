@@ -14,6 +14,10 @@
     <!-- CSS principal -->
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     {% block extra_css %}{% endblock %}
+
+    <!-- Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; connect-src 'self' https://nominatim.openstreetmap.org; img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; font-src 'self' https://cdnjs.cloudflare.com; base-uri 'self';">
 </head>
 <body>
     <!-- Barra de navegação (oculta na página de login) -->
