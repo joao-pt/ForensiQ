@@ -23,7 +23,19 @@ User = get_user_model()
 # ---------------------------------------------------------------------------
 
 class UserSerializer(serializers.ModelSerializer):
-    """Serializer público de utilizador (sem password)."""
+    """Serializer público de utilizador (sem PII sensível)."""
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'first_name', 'last_name',
+            'profile', 'badge_number',
+        ]
+        read_only_fields = ['id']
+
+
+class UserDetailSerializer(serializers.ModelSerializer):
+    """Serializer privado — apenas para o utilizador autenticado (/me/)."""
 
     class Meta:
         model = User
@@ -31,7 +43,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'profile', 'badge_number', 'phone',
         ]
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'profile', 'badge_number']
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
@@ -108,7 +120,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'agent', 'integrity_hash', 'created_at', 'updated_at',
+            'id', 'agent', 'timestamp_seizure', 'integrity_hash', 'created_at', 'updated_at',
         ]
 
 
