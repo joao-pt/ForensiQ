@@ -18,7 +18,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator, RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.utils import timezone
 
 
@@ -496,6 +496,9 @@ class ChainOfCustody(models.Model):
         registo da evidência — nunca confiamos no valor enviado pelo cliente.
         O timestamp usa timezone.now() do servidor (NTP-synced).
         Calcula hash e valida transição antes de gravar.
+
+        A lógica é envolvida em transaction.atomic() com select_for_update()
+        para evitar race conditions entre a leitura do último registo e a escrita.
         """
         if self.pk is not None:
             raise ValidationError(
@@ -503,21 +506,25 @@ class ChainOfCustody(models.Model):
                 'Não é permitido atualizar registos existentes.'
             )
 
-        # Auto-determinar previous_state a partir do último registo
-        last_record = (
-            ChainOfCustody.objects
-            .filter(evidence=self.evidence)
-            .order_by('-timestamp')
-            .first()
-        )
-        self.previous_state = last_record.new_state if last_record else ''
+        with transaction.atomic():
+            # Auto-determinar previous_state a partir do último registo
+            # select_for_update() garante que nenhum outro processo insere
+            # registos concorrentes enquanto estamos a processar este
+            last_record = (
+                ChainOfCustody.objects
+                .select_for_update()
+                .filter(evidence=self.evidence)
+                .order_by('-timestamp')
+                .first()
+            )
+            self.previous_state = last_record.new_state if last_record else ''
 
-        # Timestamp sempre do servidor (NTP-synced) — nunca do cliente
-        self.timestamp = timezone.now()
+            # Timestamp sempre do servidor (NTP-synced) — nunca do cliente
+            self.timestamp = timezone.now()
 
-        self.full_clean()
-        self.record_hash = self.compute_record_hash()
-        super().save(*args, **kwargs)
+            self.full_clean()
+            self.record_hash = self.compute_record_hash()
+            super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de custódia."""
