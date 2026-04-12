@@ -58,6 +58,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'core.middleware.CorrelationIDMiddleware',  # Gera UUID correlation_id
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -204,9 +205,14 @@ if not DEBUG:
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {
+        'correlation_id': {
+            '()': 'core.logging_utils.CorrelationIDFilter',
+        },
+    },
     'formatters': {
         'verbose': {
-            'format': '[{asctime}] {levelname} {name} {module}.{funcName}:{lineno} — {message}',
+            'format': '[{asctime}] [{correlation_id}] {levelname} {name} {module}.{funcName}:{lineno} — {message}',
             'style': '{',
         },
     },
@@ -214,6 +220,7 @@ LOGGING = {
         'console': {
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+            'filters': ['correlation_id'],
         },
     },
     'root': {
