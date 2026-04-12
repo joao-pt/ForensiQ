@@ -45,3 +45,16 @@ CSRF_COOKIE_SECURE = False
 # Suprimir warnings de diretórios estáticos inexistentes
 STATICFILES_DIRS = []
 STATIC_ROOT = '/tmp/forensiq_static_test'
+
+# Desactivar throttling em testes (evita 429 em sequências rápidas)
+REST_FRAMEWORK_THROTTLE_OVERRIDE = True
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 50,
+    'DEFAULT_THROTTLE_CLASSES': [],
+    'DEFAULT_THROTTLE_RATES': {},
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
