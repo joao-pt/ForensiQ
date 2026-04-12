@@ -1035,3 +1035,135 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
                 new_state=next_state,
                 agent=responsible_user,
             )
+
+
+# ---------------------------------------------------------------------------
+# Testes End-to-End
+# ---------------------------------------------------------------------------
+
+class EndToEndFlowTest(BaseAPITestCase):
+    """
+    Teste end-to-end: fluxo completo desde a criação de ocorrência
+    até à exportação do relatório PDF.
+    Simula o ciclo operacional real de um first responder.
+    """
+
+    def test_full_operational_flow(self):
+        """
+        Fluxo completo operacional:
+        1. Autenticação como agente
+        2. Criar ocorrência com coordenadas GPS
+        3. Criar evidência ligada à ocorrência
+        4. Criar dispositivo digital ligado à evidência
+        5. Criar registo de custódia: '' → APREENDIDA (agente)
+        6. Criar registo de custódia: APREENDIDA → EM_TRANSPORTE (agente)
+        7. Trocar para utilizador perito
+        8. Criar registo de custódia: EM_TRANSPORTE → RECEBIDA_LABORATORIO (perito)
+        9. Exportar PDF da evidência
+        10. Verificar resposta PDF (status 200, tipo, header %PDF)
+        11. Consultar timeline de custódia (3 registos em ordem)
+        12. Verificar integridade: todos os hashes são 64 caracteres hex
+        """
+        # --- STEP 1: Autenticação como agente ---
+        self.authenticate_as(self.agent)
+
+        # --- STEP 2: Criar ocorrência com GPS ---
+        occurrence_url = reverse('core:occurrence-list')
+        occurrence_response = self.client.post(occurrence_url, {
+            'number': 'NUIPC-2026-E2E-001',
+            'description': 'Ocorrência end-to-end: roubo com dispositivo digital.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(occurrence_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(occurrence_response.data['number'], 'NUIPC-2026-E2E-001')
+        occurrence_id = occurrence_response.data['id']
+
+        # --- STEP 3: Criar evidência ---
+        evidence_url = reverse('core:evidence-list')
+        evidence_response = self.client.post(evidence_url, {
+            'occurrence': occurrence_id,
+            'type': 'DIGITAL_DEVICE',
+            'description': 'iPhone 13 Pro encontrado no local do crime.',
+        })
+        self.assertEqual(evidence_response.status_code, status.HTTP_201_CREATED)
+        evidence_id = evidence_response.data['id']
+        # Verificar hash de integridade
+        self.assertEqual(len(evidence_response.data['integrity_hash']), 64)
+        self.assertRegex(evidence_response.data['integrity_hash'], r'^[a-f0-9]{64}$')
+
+        # --- STEP 4: Criar dispositivo digital ---
+        device_url = reverse('core:device-list')
+        device_response = self.client.post(device_url, {
+            'evidence': evidence_id,
+            'type': 'SMARTPHONE',
+            'model': 'Apple iPhone 13 Pro',
+            'serial_number': 'MGLN3LL/A',
+            'imei': '358623072123456',
+        })
+        self.assertEqual(device_response.status_code, status.HTTP_201_CREATED)
+        device_id = device_response.data['id']
+
+        # --- STEP 5: Criar primeiro registo de custódia ('' → APREENDIDA) ---
+        custody_url = reverse('core:custody-list')
+        custody_response_1 = self.client.post(custody_url, {
+            'evidence': evidence_id,
+            'previous_state': '',
+            'new_state': 'APREENDIDA',
+            'observations': 'Apreensão no local do crime. Dispositivo selado.',
+        })
+        self.assertEqual(custody_response_1.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(custody_response_1.data['new_state'], 'APREENDIDA')
+        # Verificar hash do registo
+        self.assertEqual(len(custody_response_1.data['record_hash']), 64)
+        self.assertRegex(custody_response_1.data['record_hash'], r'^[a-f0-9]{64}$')
+
+        # --- STEP 6: Criar segundo registo (APREENDIDA → EM_TRANSPORTE) ---
+        custody_response_2 = self.client.post(custody_url, {
+            'evidence': evidence_id,
+            'previous_state': 'APREENDIDA',
+            'new_state': 'EM_TRANSPORTE',
+            'observations': 'Transporte para o laboratório. Transportado por PSP.',
+        })
+        self.assertEqual(custody_response_2.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(custody_response_2.data['new_state'], 'EM_TRANSPORTE')
+        self.assertEqual(len(custody_response_2.data['record_hash']), 64)
+
+        # --- STEP 7: Trocar para utilizador perito ---
+        self.authenticate_as(self.expert)
+
+        # --- STEP 8: Criar terceiro registo (EM_TRANSPORTE → RECEBIDA_LABORATORIO) ---
+        custody_response_3 = self.client.post(custody_url, {
+            'evidence': evidence_id,
+            'previous_state': 'EM_TRANSPORTE',
+            'new_state': 'RECEBIDA_LABORATORIO',
+            'observations': 'Recepção no laboratório. Catalogado e armazenado.',
+        })
+        self.assertEqual(custody_response_3.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(custody_response_3.data['new_state'], 'RECEBIDA_LABORATORIO')
+        self.assertEqual(len(custody_response_3.data['record_hash']), 64)
+
+        # --- STEP 9-10: Exportar PDF da evidência e verificar ---
+        pdf_url = reverse('core:evidence-export-pdf', kwargs={'pk': evidence_id})
+        pdf_response = self.client.get(pdf_url)
+        self.assertEqual(pdf_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(pdf_response['Content-Type'], 'application/pdf')
+        # PDF deve começar com %PDF
+        self.assertTrue(pdf_response.content.startswith(b'%PDF'))
+
+        # --- STEP 11: Consultar timeline de custódia ---
+        timeline_url = reverse('core:custody-list') + f'?evidence={evidence_id}'
+        timeline_response = self.client.get(timeline_url)
+        self.assertEqual(timeline_response.status_code, status.HTTP_200_OK)
+        # Deve haver 3 registos
+        self.assertEqual(len(timeline_response.data['results']), 3)
+        # Verificar ordem: '', APREENDIDA, EM_TRANSPORTE, RECEBIDA_LABORATORIO
+        self.assertEqual(timeline_response.data['results'][0]['new_state'], 'APREENDIDA')
+        self.assertEqual(timeline_response.data['results'][1]['new_state'], 'EM_TRANSPORTE')
+        self.assertEqual(timeline_response.data['results'][2]['new_state'], 'RECEBIDA_LABORATORIO')
+
+        # --- STEP 12: Verificar integridade de todos os hashes ---
+        for record in timeline_response.data['results']:
+            # Todos os hashes devem ser 64 caracteres hexadecimais
+            self.assertEqual(len(record['record_hash']), 64)
+            self.assertRegex(record['record_hash'], r'^[a-f0-9]{64}$')
