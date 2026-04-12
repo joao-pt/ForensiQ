@@ -532,3 +532,147 @@ class ChainOfCustody(models.Model):
             'Registos de cadeia de custódia são imutáveis. '
             'Não é permitido eliminar registos.'
         )
+
+
+# ---------------------------------------------------------------------------
+# AuditLog — Registo imutável de acessos (append-only)
+# ---------------------------------------------------------------------------
+
+class AuditLog(models.Model):
+    """
+    Registo de auditoria imutável (append-only) que documenta cada acesso a recursos.
+
+    Conformidade: ISO/IEC 27037 — rastreia QUEM, QUANDO, O QUÊ e COM QUE CONTEXTO.
+
+    Campos:
+    - user: utilizador que efetuou a ação (nullable para acessos anónimos)
+    - action: tipo de ação (VIEW, CREATE, EXPORT_PDF)
+    - resource_type: tipo de recurso (OCCURRENCE, EVIDENCE, DEVICE, CUSTODY)
+    - resource_id: ID da instância do recurso
+    - ip_address: endereço IP do cliente (GenericIPAddressField suporta IPv4 e IPv6)
+    - correlation_id: UUID da requisição (para rastrear entre logs)
+    - timestamp: momento exato (sempre do servidor, UTC)
+    - details: JSONField com contexto adicional (ex: hash, tamanho, metadados)
+
+    Imutabilidade:
+    - save() — bloqueia atualizações (só permite inserts)
+    - delete() — bloqueia eliminações
+    """
+
+    class Action(models.TextChoices):
+        """Ações que são auditadas."""
+        VIEW = 'VIEW', 'Visualização'
+        CREATE = 'CREATE', 'Criação'
+        EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
+
+    class ResourceType(models.TextChoices):
+        """Tipos de recursos auditados."""
+        OCCURRENCE = 'OCCURRENCE', 'Ocorrência'
+        EVIDENCE = 'EVIDENCE', 'Evidência'
+        DEVICE = 'DEVICE', 'Dispositivo Digital'
+        CUSTODY = 'CUSTODY', 'Cadeia de Custódia'
+
+    # Relação com o utilizador (nullable para acessos anónimos)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name='Utilizador',
+        help_text='Utilizador que efetuou a ação (nulo para anónimos).',
+    )
+
+    # Tipo de ação realizada
+    action = models.CharField(
+        max_length=20,
+        choices=Action.choices,
+        db_index=True,
+        verbose_name='Ação',
+        help_text='VIEW: visualização; CREATE: criação; EXPORT_PDF: exportação.',
+    )
+
+    # Tipo de recurso acedido
+    resource_type = models.CharField(
+        max_length=20,
+        choices=ResourceType.choices,
+        db_index=True,
+        verbose_name='Tipo de Recurso',
+        help_text='OCCURRENCE, EVIDENCE, DEVICE, CUSTODY.',
+    )
+
+    # ID da instância do recurso
+    resource_id = models.IntegerField(
+        db_index=True,
+        verbose_name='ID do Recurso',
+        help_text='Chave primária do recurso acedido.',
+    )
+
+    # Endereço IP do cliente
+    ip_address = models.GenericIPAddressField(
+        verbose_name='Endereço IP',
+        help_text='IPv4 ou IPv6 do cliente (extraído de X-Forwarded-For ou REMOTE_ADDR).',
+    )
+
+    # UUID de correlação da requisição
+    correlation_id = models.CharField(
+        max_length=36,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='ID de Correlação',
+        help_text='UUID da requisição para rastreamento entre logs.',
+    )
+
+    # Timestamp (sempre do servidor em UTC)
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        verbose_name='Timestamp',
+        help_text='Momento exato do acesso (UTC, auto-preenchido).',
+    )
+
+    # Contexto adicional em JSON
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name='Detalhes',
+        help_text='Contexto adicional: hash, tamanho, metadados, etc.',
+    )
+
+    class Meta:
+        verbose_name = 'Registo de Auditoria'
+        verbose_name_plural = 'Registos de Auditoria'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['action', '-timestamp']),
+            models.Index(fields=['resource_type', 'resource_id', '-timestamp']),
+            models.Index(fields=['correlation_id']),
+        ]
+
+    def __str__(self):
+        return (
+            f'{self.action} {self.resource_type}({self.resource_id}) '
+            f'por {self.user or "anónimo"} em {self.timestamp}'
+        )
+
+    def save(self, *args, **kwargs):
+        """
+        Override: AuditLog é append-only.
+
+        Permite apenas inserts (pk é None). Bloqueia atualizações.
+        """
+        if self.pk is not None:
+            raise ValidationError(
+                'Registos de auditoria são imutáveis. '
+                'Não é permitido atualizar registos existentes.'
+            )
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        """Override: NUNCA permite eliminação de registos de auditoria."""
+        raise ValidationError(
+            'Registos de auditoria são imutáveis. '
+            'Não é permitido eliminar registos.'
+        )

@@ -22,8 +22,10 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from .pdf_export import generate_evidence_pdf
+from .audit import log_access
 
 from .models import (
+    AuditLog,
     ChainOfCustody,
     DigitalDevice,
     Evidence,
@@ -101,8 +103,25 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             return qs.filter(agent=user)
         return qs
 
+    def retrieve(self, request, *args, **kwargs):
+        """Override: auditoria de visualização."""
+        occurrence = self.get_object()
+        log_access(
+            request=request,
+            action=AuditLog.Action.VIEW,
+            resource_type=AuditLog.ResourceType.OCCURRENCE,
+            resource_id=occurrence.pk,
+        )
+        return super().retrieve(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        serializer.save(agent=self.request.user)
+        occurrence = serializer.save(agent=self.request.user)
+        log_access(
+            request=self.request,
+            action=AuditLog.Action.CREATE,
+            resource_type=AuditLog.ResourceType.OCCURRENCE,
+            resource_id=occurrence.pk,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -135,8 +154,27 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(occurrence_id=occurrence_id)
         return qs
 
+    def retrieve(self, request, *args, **kwargs):
+        """Override: auditoria de visualização."""
+        evidence = self.get_object()
+        log_access(
+            request=request,
+            action=AuditLog.Action.VIEW,
+            resource_type=AuditLog.ResourceType.EVIDENCE,
+            resource_id=evidence.pk,
+            details={'hash': evidence.integrity_hash},
+        )
+        return super().retrieve(request, *args, **kwargs)
+
     def perform_create(self, serializer):
-        serializer.save(agent=self.request.user)
+        evidence = serializer.save(agent=self.request.user)
+        log_access(
+            request=self.request,
+            action=AuditLog.Action.CREATE,
+            resource_type=AuditLog.ResourceType.EVIDENCE,
+            resource_id=evidence.pk,
+            details={'hash': evidence.integrity_hash},
+        )
 
     @action(detail=True, methods=['get'], url_path='pdf')
     def export_pdf(self, request, pk=None):
@@ -151,6 +189,16 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         evidence = self.get_object()  # 404 automático se não existir
         # Pré-carregar relações para evitar N+1 queries
         evidence.occurrence  # noqa: B018 — força o load da FK
+
+        # Auditoria: exportação PDF
+        log_access(
+            request=request,
+            action=AuditLog.Action.EXPORT_PDF,
+            resource_type=AuditLog.ResourceType.EVIDENCE,
+            resource_id=evidence.pk,
+            details={'hash': evidence.integrity_hash},
+        )
+
         try:
             pdf_bytes = generate_evidence_pdf(evidence)
         except Exception as exc:
@@ -226,7 +274,14 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         try:
-            serializer.save(agent=self.request.user)
+            custody_record = serializer.save(agent=self.request.user)
+            log_access(
+                request=self.request,
+                action=AuditLog.Action.CREATE,
+                resource_type=AuditLog.ResourceType.CUSTODY,
+                resource_id=custody_record.pk,
+                details={'evidence_id': custody_record.evidence_id, 'new_state': custody_record.new_state},
+            )
         except DjangoValidationError as exc:
             # Converter ValidationError do Django para DRF (retorna 400)
             raise drf_serializers.ValidationError(exc.message_dict)
