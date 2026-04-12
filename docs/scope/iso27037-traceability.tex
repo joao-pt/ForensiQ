@@ -1,0 +1,217 @@
+% =============================================================================
+% ForensiQ — Mapeamento de Requisitos ISO/IEC 27037
+% UC 21184 · Projeto de Engenharia Informática · UAb
+% =============================================================================
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{hyperref}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfauthor={João Rodrigues},
+    pdftitle={ForensiQ — Mapeamento ISO/IEC 27037}
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+\begin{center}
+    {\LARGE\bfseries Mapeamento de Requisitos ISO/IEC 27037}\\[0.8em]
+    {\large ForensiQ --- Plataforma Modular de Gestão de Prova Digital\\
+    para First Responders}\\[1.2em]
+    \begin{tabular}{ll}
+        \textbf{Versão:} & 1.1 · 12 abril 2026 \\
+        \textbf{Norma:} & ISO/IEC 27037:2012 \\
+    \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\hrule
+\vspace{1.5em}
+
+% =============================================================================
+\section{Introdução}
+% =============================================================================
+
+Este documento apresenta a matriz de rastreabilidade entre os requisitos da norma
+ISO/IEC 27037:2012 (\emph{Guidelines for identification, collection, acquisition
+and preservation of digital evidence}) e as funcionalidades implementadas na
+plataforma ForensiQ.
+
+ISO/IEC 27037 é a norma internacional que estabelece práticas comuns para o
+manuseamento de prova digital, desde a identificação até à preservação, com ênfase
+em garantir integridade, cadeia de custódia e rastreabilidade. ForensiQ foi
+concebida com base nestes princípios, incorporando controlos técnicos e
+organizacionais em todas as camadas da aplicação.
+
+% =============================================================================
+\section{Matriz de Rastreabilidade}
+% =============================================================================
+
+\subsection*{Secção 5 --- Princípios gerais de manuseamento de prova digital}
+
+\subsubsection*{§5.1 — Princípios gerais}
+
+Implementação: Controlo de acesso baseado em papéis (RBAC) com dois perfis principais:
+AGENT (recolha de prova no terreno) e EXPERT (perito forense). Tokens JWT com
+rotação automática e blacklist. Endpoints protegidos por autorização granular.
+Todas as operações auditadas com correlation IDs.
+
+\subsubsection*{§5.2 — Identificação de prova digital}
+
+Implementação: Modelo Evidence com campos obrigatórios: tipo (STORAGE\_MEDIA, USB\_DRIVE,
+HARD\_DRIVE, SD\_CARD, etc.), descrição textual, número de série único,
+georreferenciação GPS, e timestamp UTC registados no servidor. Cada evidência tem
+ID único e código de barras gerado automaticamente.
+
+\subsubsection*{§5.3 — Recolha e aquisição de prova}
+
+Implementação: Registro fotográfico obrigatório com upload de imagens. Metadados GPS
+capturados automaticamente via API de localização do navegador. Timestamp UTC do
+servidor garante origem confiável. Exportação de PDF com cadeia de custódia completa
+e evidências referenciadas.
+
+\subsubsection*{§5.4 — Preservação de integridade}
+
+Implementação: Hash SHA-256 calculado automaticamente no momento de criação de cada
+evidência. Imutabilidade implementada em 3 camadas:
+\begin{enumerate}
+    \item Read-only no modelo Django após criação
+    \item Validação no serializador DRF
+    \item Triggers PostgreSQL que rejeitam atualizações de campos críticos
+\end{enumerate}
+Qualquer tentativa de modificação é registada no AuditLog.
+
+\subsubsection*{§5.5 — Cadeia de custódia}
+
+Implementação: Modelo ChainOfCustody com registo append-only imutável. Máquina de
+estados com 7 estados: RECEIVED, IN\_EXAMINATION, EXAMINED, STORED, ARCHIVED,
+DESTROYED, RELEASED. Hash encadeado tipo blockchain: cada transição referencia o
+hash da anterior, impedindo inserção retroativa de registos.
+
+\subsection*{Secção 6 --- Competência de pessoal e processo}
+
+\subsubsection*{§6.1 — Competência do pessoal}
+
+Implementação: Sistema de papéis diferenciados. AGENT pode criar ocorrências e
+evidências, mas sem acesso a dados de outros agentes. EXPERT tem acesso completo
+para análise e relatórios. Dashboard mostra apenas dados relevantes ao perfil.
+Permissões aplicadas ao nível de queryset (filtragem automática por agent-id).
+
+\subsubsection*{§6.2 — Documentação do processo}
+
+Implementação: Exportação de PDF em conformidade com ISO, incluindo: dados da
+ocorrência, lista de evidências com metadados, cadeia de custódia com transições
+datadas, assinatura digital do perito e carimbo temporal. Registo de todas as
+transições de estado com observações opcionais do utilizador. Auditoria completa
+descarregável em formato estruturado.
+
+\subsection*{Secção 7 --- Tipos de prova digital}
+
+\subsubsection*{§7.1 — Dispositivos digitais}
+
+Implementação: Modelo DigitalDevice com ficha completa: tipo (smartphone, computador,
+tablet, servidor, etc.), marca, modelo, IMEI (se aplicável), estado de origem,
+número de série, data de aquisição, notas técnicas. Possibilita rastreamento
+completo e identificação única de cada dispositivo.
+
+\subsubsection*{§7.2 — Suportes de armazenamento}
+
+Implementação: Modelo Evidence com taxonomia de tipos: STORAGE\_MEDIA, USB\_DRIVE,
+HARD\_DRIVE, SD\_CARD, MEMORY\_CARD, SIM\_CARD, MICRO\_SD, CLOUD\_STORAGE.
+Cada tipo tem campos específicos e validações apropriadas.
+
+\subsection*{Segurança e auditabilidade do sistema}
+
+\subsubsection*{Auditabilidade}
+
+Implementação: Módulo AuditLog estruturado registando: utilizador, ação, recurso,
+parâmetros, timestamp, IP, correlation ID, resultado. Logs consultáveis via Django
+Admin protegido e via endpoint GET com permissões apropriadas. Impossível modificar
+histórico após registo.
+
+\subsubsection*{Segurança da infraestrutura}
+
+Implementação: CSP (Content Security Policy) restritiva. HSTS para forçar HTTPS.
+Rate limiting (10 requisições/minuto para utilizadores anónimos). CSRF via token
+csrftoken. select-for-update() para evitar race conditions na cadeia de custódia.
+Django Admin em URL aleatória, não em /admin. Passwords com hash PBKDF2.
+
+\subsubsection*{Proteção contra acesso não autorizado (IDOR)}
+
+Implementação: Filtro automático de querysets por agent-id do utilizador
+autenticado. Cada agente vê apenas suas ocorrências e provas. Testes de IDOR
+executados para endpoints críticos. Validação ao nível do serializador confirma
+que o agente tem permissão de escrita/leitura.
+
+% =============================================================================
+\section{Tabela de Cobertura de Requisitos}
+% =============================================================================
+
+\begin{longtable}{L{2cm} L{10cm} L{2.5cm}}
+    \toprule
+    \textbf{Req. ISO} & \textbf{Descrição} & \textbf{Cobertura} \\
+    \midrule
+    \endhead
+    §5.1 & Princípios gerais de manuseamento & [OK] \\
+    §5.2 & Identificação de prova digital & [OK] \\
+    §5.3 & Recolha e aquisição de prova & [OK] \\
+    §5.4 & Preservação de integridade & [OK] \\
+    §5.5 & Cadeia de custódia & [OK] \\
+    §6.1 & Competência de pessoal & [OK] \\
+    §6.2 & Documentação de processo & [OK] \\
+    §7.1 & Dispositivos digitais & [OK] \\
+    §7.2 & Suportes de armazenamento & [OK] \\
+    --- & Auditabilidade do sistema & [OK] \\
+    --- & Segurança de infraestrutura & [OK] \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Notas de Implementação}
+% =============================================================================
+
+\begin{itemize}
+    \item \textbf{Imutabilidade multicamada:} A implementação em 3 camadas
+          (aplicação + API + base de dados) garante que mesmo um atacante com
+          acesso à base de dados não consegue modificar retroativamente uma evidência
+          sem deixar vestígios.
+
+    \item \textbf{Rastreabilidade granular:} Cada operação é registada com ID de
+          correlação, permitindo auditar toda a cadeia de acontecimentos num processo.
+
+    \item \textbf{Conformidade com ISO:} Embora ForensiQ não seja certificada ISO/IEC
+          27037, segue os princípios e controlos definidos pela norma, em particular
+          no que respeita a integridade, cadeia de custódia e competência de pessoal.
+
+    \item \textbf{Extensibilidade:} A arquitetura permite adicionar novas camadas de
+          forense digital (Química, Biologia, Física) sem comprometer a estrutura base
+          de prova digital.
+\end{itemize}
+
+% =============================================================================
+\section{Histórico de Alterações}
+% =============================================================================
+
+\begin{longtable}{L{2cm} L{3cm} L{7.5cm} L{2.5cm}}
+    \toprule
+    \textbf{Versão} & \textbf{Data} & \textbf{Alteração} & \textbf{Referência} \\
+    \midrule
+    \endhead
+    1.0 & 12 abr 2026 & Documento inicial com mapeamento completo & --- \\
+    \bottomrule
+\end{longtable}
+
+\end{document}

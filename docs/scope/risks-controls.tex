@@ -1,0 +1,295 @@
+% =============================================================================
+% ForensiQ — Gestão de Riscos com Controlos
+% UC 21184 · Projeto de Engenharia Informática · UAb
+% =============================================================================
+\documentclass[a4paper,11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[top=2.5cm, bottom=2.5cm, left=3cm, right=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{enumitem}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    pdfauthor={João Rodrigues},
+    pdftitle={ForensiQ — Gestão de Riscos com Controlos}
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+\begin{center}
+    {\LARGE\bfseries Gestão de Riscos com Controlos}\\[0.8em]
+    {\large ForensiQ --- Plataforma Modular de Gestão de Prova Digital\\
+    para First Responders}\\[1.2em]
+    \begin{tabular}{ll}
+        \textbf{Versão:} & 2.0 · 12 abril 2026 \\
+        \textbf{Referência:} & ISO/IEC 27005:2018 (Risk management) \\
+    \end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\hrule
+\vspace{1.5em}
+
+% =============================================================================
+\section{Introdução}
+% =============================================================================
+
+Este documento estende a análise de riscos do projeto ForensiQ com uma matriz
+formal de risco-para-controlo. Para cada risco identificado, descreve-se a
+probabilidade, impacto, controlo(s) implementado(s) e estado atual de mitigação.
+
+A metodologia segue os princípios de ISO/IEC 27005 para gestão de riscos de
+segurança da informação, adaptados ao contexto de um projeto académico de
+engenharia informática.
+
+% =============================================================================
+\section{Riscos do Projeto (Gestão)}
+% =============================================================================
+
+\subsection*{R01 — Tempo insuficiente para MVP completo}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Alta (> 75\%)
+    \item \textbf{Impacto:} Alto (atraso crítico)
+    \item \textbf{Controlo:} MVP-first rigoroso com prioridade 1-2-3 (MoSCoW).
+          Funcionalidades avançadas apenas se núcleo sólido. Plano de entrega em fases.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R02 — Dificuldade em aprender Django/DRF}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média (25--75\%)
+    \item \textbf{Impacto:} Alto
+    \item \textbf{Controlo:} Código com revisão obrigatória. Começar pelo modelo
+          de dados (ponto forte). Reutilização de padrões DRF. Documentação interna.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R03 — Orientador rejeitar proposta}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Baixa (< 25\%)
+    \item \textbf{Impacto:} Crítico (projeto não segue)
+    \item \textbf{Controlo:} Enviar elementos base com margem antes do prazo.
+          Incorporar feedback iterativamente. Reuniões semanais com orientador e tutor.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R04 — Geolocalização não funcionar em demonstração}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média
+    \item \textbf{Impacto:} Baixo (fallback manual disponível)
+    \item \textbf{Controlo:} Fallback: coordenadas manuais (texto livre).
+          Testar com telemóvel real antes de demo. GPS simulado em dev.
+    \item \textbf{Estado:} Aceite
+\end{itemize}
+
+\subsection*{R05 — Hash de integridade difícil de demonstrar}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Baixa
+    \item \textbf{Impacto:} Baixo
+    \item \textbf{Controlo:} Demonstração directa na BD: alterar campo invalida hash.
+          Exportação PDF mostra hash. Testes automatizados para integridade.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+% =============================================================================
+\section{Riscos de Segurança (Implementação)}
+% =============================================================================
+
+\subsection*{R06 — Alteração maliciosa de prova digital}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Baixa
+    \item \textbf{Impacto:} Crítico (compromete integridade jurídica)
+    \item \textbf{Controlo:} Imutabilidade em 3 camadas:
+    \begin{enumerate}[nosep, leftmargin=*]
+        \item Django: \texttt{read-only=True} no model
+        \item API: validação no serializador DRF rejeita UPDATE
+        \item PostgreSQL: \emph{triggers} rejeitam UPDATE a campos críticos
+    \end{enumerate}
+    Hash SHA-256 recalculado valida integridade em cada acesso.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R07 — Acesso não autorizado a dados de outro agente (IDOR)}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média
+    \item \textbf{Impacto:} Alto (compromete confidencialidade)
+    \item \textbf{Controlo:} Filtro automático de queryset por \texttt{agent-id}.
+          Cada AGENT vê apenas suas ocorrências. Testes IDOR em endpoints críticos.
+          Validação ao nível do serializador.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R08 — Brute-force em credenciais JWT}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média
+    \item \textbf{Impacto:} Alto (acesso não autorizado)
+    \item \textbf{Controlo:} Rate limiting (10 req/min anónimos). JWT com rotação
+          automática e blacklist. Falha de autenticação registada em AuditLog.
+          Senha com hash PBKDF2.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R09 — Race condition na cadeia de custódia}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Baixa
+    \item \textbf{Impacto:} Alto (inconsistência de estado)
+    \item \textbf{Controlo:} \texttt{select-for-update()} na view para lock
+          exclusivo. \texttt{transaction.atomic()} encapsula operação. Testes com
+          concorrência.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R10 — Perda de rastreabilidade de acessos}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média
+    \item \textbf{Impacto:} Alto (impossibilidade de auditoria)
+    \item \textbf{Controlo:} Módulo AuditLog estruturado com: utilizador, ação,
+          recurso, parâmetros, timestamp, IP, correlation ID, resultado. Auditoria
+          consultável e descarregável. Impossível modificar histórico.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+% =============================================================================
+\section{Riscos de Operação (Infraestrutura)}
+% =============================================================================
+
+\subsection*{R11 — Exposição de credenciais em logs ou URLs}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média
+    \item \textbf{Impacto:} Crítico (roubo de credenciais)
+    \item \textbf{Controlo:} Sanitização de logs (password, token nunca em plaintext).
+          JWT nunca em URL (header \texttt{Authorization} obrigatório). Admin Django
+          em URL aleatória, não em \texttt{/admin}. Scan de código para secrets.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+\subsection*{R12 — Falha de disponibilidade durante defesa}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Média
+    \item \textbf{Impacto:} Médio (demo não funciona)
+    \item \textbf{Controlo:} Deploy em plataforma cloud com SLA. Monitoramento
+          de uptime. Teste de carga antes de defesa. Documentação de rollback.
+    \item \textbf{Estado:} Aceite
+\end{itemize}
+
+\subsection*{R13 — Injeção de SQL ou XSS em formulários}
+
+\begin{itemize}[nosep]
+    \item \textbf{Probabilidade:} Baixa
+    \item \textbf{Impacto:} Crítico (compromete integridade de BD)
+    \item \textbf{Controlo:} Django ORM previne SQL injection. Serialização DRF
+          com validação de tipo. Template escapes HTML automaticamente. CSP header
+          restritiva.
+    \item \textbf{Estado:} Mitigado
+\end{itemize}
+
+% =============================================================================
+\section{Tabela Resumida de Riscos}
+% =============================================================================
+
+\begin{longtable}{L{0.7cm} L{4cm} L{1.2cm} L{1.2cm} L{3.5cm} L{1.2cm}}
+    \toprule
+    \textbf{ID} & \textbf{Risco} & \textbf{Prob.} & \textbf{Imp.} & \textbf{Controlo Principal} & \textbf{Estado} \\
+    \midrule
+    \endhead
+    R01 & Tempo insuficiente & Alta & Alto & MVP-first & Mitigado \\
+    R02 & Curva Django & Média & Alto & Revisão código & Mitigado \\
+    R03 & Rejeição proposta & Baixa & Crítico & Feedback iterativo & Mitigado \\
+    R04 & GPS falha & Média & Baixo & Fallback manual & Aceite \\
+    R05 & Demo de hash & Baixa & Baixo & Testes automatizados & Mitigado \\
+    R06 & Alteração prova & Baixa & Crítico & Imutabilidade 3x & Mitigado \\
+    R07 & IDOR & Média & Alto & Filtro queryset & Mitigado \\
+    R08 & Brute-force & Média & Alto & Rate limiting & Mitigado \\
+    R09 & Race condition & Baixa & Alto & select-for-update & Mitigado \\
+    R10 & Perda auditoria & Média & Alto & AuditLog estruturado & Mitigado \\
+    R11 & Exposição credenciais & Média & Crítico & Sanitização logs & Mitigado \\
+    R12 & Downtime & Média & Médio & Cloud SLA & Aceite \\
+    R13 & Injeção SQL/XSS & Baixa & Crítico & Django + CSP & Mitigado \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Escalas de Avaliação}
+% =============================================================================
+
+\textbf{Probabilidade:}
+\begin{itemize}[nosep]
+    \item Baixa: < 25\%
+    \item Média: 25--75\%
+    \item Alta: > 75\%
+\end{itemize}
+
+\textbf{Impacto:}
+\begin{itemize}[nosep]
+    \item Baixo: Atraso menor, sem impacto em entrega
+    \item Médio: Atraso significativo ou funcionalidade comprometida
+    \item Alto: Atraso crítico ou funcionalidade crítica em risco
+    \item Crítico: Projeto não entregar ou compromisso legal/segurança
+\end{itemize}
+
+\textbf{Estado de Mitigação:}
+\begin{itemize}[nosep]
+    \item \textbf{Mitigado:} Controlo implementado, probabilidade residual < 10\%
+    \item \textbf{Aceite:} Risco tolerável (baixa probabilidade ou baixo impacto)
+    \item \textbf{Em monitorização:} Controlo parcial, monitorização contínua
+\end{itemize}
+
+% =============================================================================
+\section{Plano de Monitorização}
+% =============================================================================
+
+\begin{longtable}{L{0.7cm} L{2.5cm} L{4cm} L{2.5cm}}
+    \toprule
+    \textbf{ID} & \textbf{Risco} & \textbf{Indicador} & \textbf{Frequência} \\
+    \midrule
+    \endhead
+    R01 & Tempo & Progresso de requisitos (\%) & Semanal \\
+    R07 & IDOR & Testes de IDOR, tentativas crossagent em AuditLog & Mensal \\
+    R08 & Brute-force & Taxa de falhas de autenticação & Diário \\
+    R10 & Auditoria & Integridade de AuditLog & Mensal \\
+    R11 & Credenciais & Scan de código para secrets & Semanal \\
+    R12 & Downtime & Uptime do servidor & Diário \\
+    \bottomrule
+\end{longtable}
+
+% =============================================================================
+\section{Histórico de Actualização}
+% =============================================================================
+
+\begin{longtable}{L{2cm} L{2.5cm} L{5.5cm} L{2cm}}
+    \toprule
+    \textbf{Data} & \textbf{Versão} & \textbf{Alteração} & \textbf{Estado} \\
+    \midrule
+    \endhead
+    22 mar 2026 & 1.0 & Versão inicial com 5 riscos de projeto & --- \\
+    12 abr 2026 & 2.0 & Adicionados 8 riscos de segurança/operação + controlos & Atualizado \\
+    \bottomrule
+\end{longtable}
+
+\end{document}
