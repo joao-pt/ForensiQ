@@ -14,6 +14,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from .models import (
     ChainOfCustody,
@@ -1167,3 +1168,377 @@ class EndToEndFlowTest(BaseAPITestCase):
             # Todos os hashes devem ser 64 caracteres hexadecimais
             self.assertEqual(len(record['record_hash']), 64)
             self.assertRegex(record['record_hash'], r'^[a-f0-9]{64}$')
+
+
+# ---------------------------------------------------------------------------
+# Testes de Validação de Entrada (Input Validation)
+# ---------------------------------------------------------------------------
+
+class InputValidationTest(BaseAPITestCase):
+    """
+    Testa validação de entrada para campos GPS, números duplicados,
+    strings muito longas, Unicode e injeção HTML.
+    """
+
+    def test_gps_latitude_above_90_rejected(self):
+        """GPS latitude acima de 90 deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LAT-HIGH',
+            'description': 'Teste de latitude inválida.',
+            'gps_lat': '200.0000000',  # Fora do intervalo [-90, 90]
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gps_latitude_below_minus_90_rejected(self):
+        """GPS latitude abaixo de -90 deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LAT-LOW',
+            'description': 'Teste de latitude inválida.',
+            'gps_lat': '-150.0000000',  # Fora do intervalo [-90, 90]
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gps_longitude_above_180_rejected(self):
+        """GPS longitude acima de 180 deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LON-HIGH',
+            'description': 'Teste de longitude inválida.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '200.0000000',  # Fora do intervalo [-180, 180]
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gps_longitude_below_minus_180_rejected(self):
+        """GPS longitude abaixo de -180 deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LON-LOW',
+            'description': 'Teste de longitude inválida.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-200.0000000',  # Fora do intervalo [-180, 180]
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_gps_valid_boundaries_accepted(self):
+        """GPS nos limites válidos (90, -90, 180, -180) deve ser aceito."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        # Teste com latitudes nos limites
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LIMIT-1',
+            'description': 'Latitude em +90.',
+            'gps_lat': '90.0000000',
+            'gps_lon': '0.0000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LIMIT-2',
+            'description': 'Latitude em -90.',
+            'gps_lat': '-90.0000000',
+            'gps_lon': '0.0000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LIMIT-3',
+            'description': 'Longitude em +180.',
+            'gps_lat': '0.0000000',
+            'gps_lon': '180.0000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-LIMIT-4',
+            'description': 'Longitude em -180.',
+            'gps_lat': '0.0000000',
+            'gps_lon': '-180.0000000',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_duplicate_occurrence_number_rejected(self):
+        """Número de ocorrência duplicado deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        # Criar primeira ocorrência
+        response1 = self.client.post(url, {
+            'number': 'NUIPC-2026-DUP-001',
+            'description': 'Primeira ocorrência.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+
+        # Tentar criar segunda com mesmo número
+        response2 = self.client.post(url, {
+            'number': 'NUIPC-2026-DUP-001',  # Número duplicado
+            'description': 'Segunda ocorrência com número duplicado.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_very_long_description_accepted(self):
+        """Descrição com 100.000 caracteres deve ser aceita."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        # Criar string com 100.000 caracteres
+        long_description = 'A' * 100000
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-LONG-DESC',
+            'description': long_description,
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verificar que a descrição foi armazenada corretamente
+        occ = Occurrence.objects.get(number='NUIPC-2026-LONG-DESC')
+        self.assertEqual(len(occ.description), 100000)
+
+    def test_unicode_description_accepted(self):
+        """Descrição com caracteres Unicode deve ser aceita."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        unicode_description = (
+            'Ocorrência com caracteres especiais: '
+            'português (ç, ã, õ), '
+            'grego (α, β, γ), '
+            'árabe (العربية), '
+            'chinês (中文), '
+            'emoji (😀🎉🚀)'
+        )
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-UNICODE',
+            'description': unicode_description,
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verificar que a descrição foi armazenada corretamente
+        occ = Occurrence.objects.get(number='NUIPC-2026-UNICODE')
+        self.assertIn('português', occ.description)
+        self.assertIn('العربية', occ.description)
+        self.assertIn('中文', occ.description)
+
+    def test_html_injection_in_description_stored_safely(self):
+        """HTML/script injection em descrição deve ser armazenado de forma segura."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        injection_payload = (
+            '<script>alert("XSS")</script>'
+            '<img src=x onerror="alert(\'XSS\')">'
+            '<svg onload="alert(\'XSS\')">'
+            '<?php echo "dangerous"; ?>'
+        )
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-XSS-TEST',
+            'description': injection_payload,
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        # Deve ser aceito (não rejeitar injeção, apenas escapar na saída)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verificar que foi armazenado
+        occ = Occurrence.objects.get(number='NUIPC-2026-XSS-TEST')
+        self.assertEqual(occ.description, injection_payload)
+
+    def test_null_byte_in_description(self):
+        """Strings com null bytes devem ser rejeitadas ou tratadas com segurança."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        # Null byte pode causar problemas de segurança
+        description_with_null = 'Normal description\x00dangerous data'
+
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-NULL-BYTE',
+            'description': description_with_null,
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        # Deve ser rejeitado ou o null byte deve ser removido
+        # Se aceito, verificar que foi tratado corretamente
+        if response.status_code == status.HTTP_201_CREATED:
+            occ = Occurrence.objects.get(number='NUIPC-2026-NULL-BYTE')
+            # Null byte não deve estar presente
+            self.assertNotIn('\x00', occ.description)
+
+    def test_very_long_occurrence_number_rejected(self):
+        """Número de ocorrência que excede max_length deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        # Campo number tem max_length=50
+        long_number = 'NUIPC-' + 'A' * 100
+
+        response = self.client.post(url, {
+            'number': long_number,
+            'description': 'Ocorrência com número muito longo.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_empty_number_field_rejected(self):
+        """Campo number vazio deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        response = self.client.post(url, {
+            'number': '',
+            'description': 'Ocorrência sem número.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_missing_required_field_rejected(self):
+        """Campo obrigatório ausente deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        # number é obrigatório
+        response = self.client.post(url, {
+            'description': 'Ocorrência sem número.',
+            'gps_lat': '38.7223340',
+            'gps_lon': '-9.1393366',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_partial_gps_coordinates_accepted(self):
+        """GPS parcial é aceite — ambos os campos são opcionais (nullable)."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+
+        # Apenas latitude (longitude omissa → null)
+        response = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-PARTIAL-1',
+            'description': 'Ocorrência com apenas latitude.',
+            'gps_lat': '38.7223340',
+        })
+        # GPS parcial é aceite — campos são independentes e opcionais
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class ImageUploadValidationTest(BaseAPITestCase):
+    """
+    Testa validação de uploads de imagens (tamanho máximo, tipo de ficheiro).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.occurrence = Occurrence.objects.create(
+            number='NUIPC-2026-IMG',
+            description='Ocorrência para testes de imagem.',
+            agent=self.agent,
+        )
+
+    def _make_valid_jpeg(self, size_bytes):
+        """Gera um JPEG válido (mínimo) padded até size_bytes."""
+        import io
+        from PIL import Image
+        img = Image.new('RGB', (1, 1), color='red')
+        buf = io.BytesIO()
+        img.save(buf, format='JPEG')
+        header = buf.getvalue()
+        # Pad com zeros até ao tamanho desejado (JPEG ignora trailing bytes)
+        if len(header) < size_bytes:
+            header += b'\x00' * (size_bytes - len(header))
+        return header
+
+    def test_image_upload_valid_size(self):
+        """Upload de imagem com tamanho válido (< 25MB) deve ser aceito."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:evidence-list')
+
+        image_content = self._make_valid_jpeg(1024)  # 1KB JPEG válido
+        image_file = SimpleUploadedFile(
+            name='test_image_valid.jpg',
+            content=image_content,
+            content_type='image/jpeg'
+        )
+
+        response = self.client.post(url, {
+            'occurrence': self.occurrence.pk,
+            'type': 'DIGITAL_DEVICE',
+            'description': 'Evidência com imagem.',
+            'photo': image_file,
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_image_upload_too_large_rejected(self):
+        """Upload de imagem > 25MB deve ser rejeitado pelo validador."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:evidence-list')
+
+        image_content = self._make_valid_jpeg(26 * 1024 * 1024)  # 26MB
+        image_file = SimpleUploadedFile(
+            name='test_image_large.jpg',
+            content=image_content,
+            content_type='image/jpeg'
+        )
+
+        response = self.client.post(url, {
+            'occurrence': self.occurrence.pk,
+            'type': 'DIGITAL_DEVICE',
+            'description': 'Evidência com imagem muito grande.',
+            'photo': image_file,
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_file_type_rejected(self):
+        """Upload de ficheiro não-imagem deve ser rejeitado pelo ImageField."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:evidence-list')
+
+        invalid_file = SimpleUploadedFile(
+            name='not_an_image.txt',
+            content=b'This is plain text, not an image.',
+            content_type='text/plain'
+        )
+
+        response = self.client.post(url, {
+            'occurrence': self.occurrence.pk,
+            'type': 'DIGITAL_DEVICE',
+            'description': 'Evidência com ficheiro de texto.',
+            'photo': invalid_file,
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_empty_file_upload_rejected(self):
+        """Upload de ficheiro vazio deve ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:evidence-list')
+
+        empty_file = SimpleUploadedFile(
+            name='empty_file.jpg',
+            content=b'',
+            content_type='image/jpeg'
+        )
+
+        response = self.client.post(url, {
+            'occurrence': self.occurrence.pk,
+            'type': 'DIGITAL_DEVICE',
+            'description': 'Evidência com ficheiro vazio.',
+            'photo': empty_file,
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
