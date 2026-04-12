@@ -23,6 +23,25 @@ from django.utils import timezone
 
 
 # ---------------------------------------------------------------------------
+# Validadores customizados
+# ---------------------------------------------------------------------------
+
+def validate_image_max_size(value):
+    """
+    Limita o tamanho da foto a 25 MB (proteção contra DoS).
+
+    Levanta ValidationError se o ficheiro exceder o limite.
+    Conforme OWASP — validação de upload de ficheiros.
+    """
+    max_size = 25 * 1024 * 1024  # 25 MB
+    if value.size > max_size:
+        raise ValidationError(
+            f'O ficheiro excede o tamanho máximo permitido de 25 MB '
+            f'(tamanho actual: {value.size / (1024*1024):.1f} MB).'
+        )
+
+
+# ---------------------------------------------------------------------------
 # Utilizador personalizado
 # ---------------------------------------------------------------------------
 
@@ -175,6 +194,7 @@ class Evidence(models.Model):
         upload_to=evidence_photo_path,
         blank=True,
         null=True,
+        validators=[validate_image_max_size],
         verbose_name='Fotografia da evidência',
     )
     gps_lat = models.DecimalField(
