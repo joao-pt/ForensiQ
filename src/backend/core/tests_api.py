@@ -1542,3 +1542,203 @@ class ImageUploadValidationTest(BaseAPITestCase):
             'photo': empty_file,
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+# ---------------------------------------------------------------------------
+# Testes de Segurança — Token JWT tampered/expirado
+# ---------------------------------------------------------------------------
+
+class JWTSecurityTest(BaseAPITestCase):
+    """
+    Testa que tokens JWT tampered ou inválidos são rejeitados.
+
+    Conformidade: OWASP — validação de integridade de tokens.
+    """
+
+    def test_tampered_token_rejected(self):
+        """Token JWT alterado deve ser rejeitado com 401."""
+        # Obter token válido via login
+        login_url = reverse('token_obtain_pair')
+        login_response = self.client.post(login_url, {
+            'username': 'agente_api',
+            'password': 'TestPass123!',
+        })
+        valid_token = login_response.data['access']
+        # Alterar o último carácter do token
+        tampered = valid_token[:-1] + ('X' if valid_token[-1] != 'X' else 'Y')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tampered}')
+
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_empty_token_rejected(self):
+        """Token vazio deve ser rejeitado com 401."""
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer ')
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_malformed_authorization_header_rejected(self):
+        """Header de autorização mal formado deve ser rejeitado."""
+        self.client.credentials(HTTP_AUTHORIZATION='InvalidScheme abc123')
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_random_string_token_rejected(self):
+        """String aleatória como token deve ser rejeitada."""
+        self.client.credentials(HTTP_AUTHORIZATION='Bearer eyJhbGciOiJIUzI1NiJ9.fake.payload')
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# ---------------------------------------------------------------------------
+# Testes de Segurança — CSP Header
+# ---------------------------------------------------------------------------
+
+class CSPHeaderTest(BaseAPITestCase):
+    """
+    Testa que o middleware CSP adiciona o header Content-Security-Policy.
+
+    Conformidade: OWASP — mitigação de XSS via CSP.
+    """
+
+    def test_csp_header_present_on_api_response(self):
+        """Respostas da API devem incluir CSP header."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        # Em test (DEBUG=True), deve ser Report-Only
+        has_csp = (
+            'Content-Security-Policy' in response
+            or 'Content-Security-Policy-Report-Only' in response
+        )
+        self.assertTrue(has_csp, 'Response deve incluir CSP header')
+
+    def test_csp_header_contains_default_src(self):
+        """CSP header deve conter directiva default-src."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        csp = response.get('Content-Security-Policy-Report-Only', '') or response.get('Content-Security-Policy', '')
+        self.assertIn("default-src 'self'", csp)
+
+    def test_csp_header_contains_frame_ancestors(self):
+        """CSP header deve conter frame-ancestors 'none' (anti-clickjacking)."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:occurrence-list')
+        response = self.client.get(url)
+        csp = response.get('Content-Security-Policy-Report-Only', '') or response.get('Content-Security-Policy', '')
+        self.assertIn("frame-ancestors 'none'", csp)
+
+
+# ---------------------------------------------------------------------------
+# Testes de Segurança — Rate Limiting nos endpoints de auth
+# ---------------------------------------------------------------------------
+
+class AuthRateLimitingTest(TestCase):
+    """
+    Testa que os endpoints de autenticação JWT têm rate limiting aplicado.
+
+    Verifica a configuração estrutural (classe de throttle aplicada).
+    """
+
+    def test_auth_endpoint_has_throttle_class(self):
+        """
+        Verifica que os endpoints de auth usam AuthRateThrottle.
+        """
+        from forensiq_project.urls import ThrottledTokenObtainPairView
+        from core.throttles import AuthRateThrottle
+
+        view = ThrottledTokenObtainPairView()
+        throttle_classes = [type(t) for t in view.get_throttles()]
+        self.assertIn(AuthRateThrottle, throttle_classes)
+
+    def test_auth_refresh_endpoint_has_throttle_class(self):
+        """Verifica que o endpoint de refresh usa AuthRateThrottle."""
+        from forensiq_project.urls import ThrottledTokenRefreshView
+        from core.throttles import AuthRateThrottle
+
+        view = ThrottledTokenRefreshView()
+        throttle_classes = [type(t) for t in view.get_throttles()]
+        self.assertIn(AuthRateThrottle, throttle_classes)
+
+
+# ---------------------------------------------------------------------------
+# Testes de Imutabilidade — ChainOfCustody via API
+# ---------------------------------------------------------------------------
+
+class CustodyImmutabilityAPITest(BaseAPITestCase):
+    """
+    Testa que registos de cadeia de custódia são imutáveis via API.
+    PUT, PATCH e DELETE devem retornar 405 Method Not Allowed.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.occurrence = Occurrence.objects.create(
+            number='NUIPC-2026-IMMUT-COC',
+            description='Ocorrência para teste de imutabilidade CoC.',
+            agent=self.agent,
+        )
+        self.evidence = Evidence.objects.create(
+            occurrence=self.occurrence,
+            type='DIGITAL_DEVICE',
+            description='Evidência para teste de imutabilidade CoC.',
+            agent=self.agent,
+        )
+        # Criar registo de custódia
+        self.custody = ChainOfCustody.objects.create(
+            evidence=self.evidence,
+            new_state='APREENDIDA',
+            agent=self.agent,
+        )
+
+    def test_custody_put_returns_405(self):
+        """PUT num registo de custódia deve retornar 405."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
+        response = self.client.put(url, {
+            'evidence': self.evidence.pk,
+            'new_state': 'EM_TRANSPORTE',
+            'observations': 'Tentativa de PUT.',
+        })
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_custody_patch_returns_405(self):
+        """PATCH num registo de custódia deve retornar 405."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
+        response = self.client.patch(url, {'observations': 'Alteração.'})
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_custody_delete_returns_405(self):
+        """DELETE num registo de custódia deve retornar 405."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_custody_data_unchanged_after_put_attempt(self):
+        """Dados de custódia permanecem inalterados após tentativa de PUT."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
+        self.client.put(url, {
+            'evidence': self.evidence.pk,
+            'new_state': 'EM_TRANSPORTE',
+            'observations': 'Adulteração.',
+        })
+        self.custody.refresh_from_db()
+        self.assertEqual(self.custody.new_state, 'APREENDIDA')
+        self.assertNotEqual(self.custody.observations, 'Adulteração.')
+
+    def test_custody_hash_integrity_preserved(self):
+        """Hash do registo de custódia não pode ser alterado via API."""
+        self.authenticate_as(self.agent)
+        original_hash = self.custody.record_hash
+        url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
+        self.client.patch(url, {'record_hash': 'a' * 64})
+        self.custody.refresh_from_db()
+        self.assertEqual(self.custody.record_hash, original_hash)
