@@ -499,8 +499,12 @@ class ChainOfCustody(models.Model):
         )
         previous_hash = previous_record.record_hash if previous_record else '0' * 64
 
+        # Gera nonce único para evitar colisão de hash (replay attack)
+        # Nota: self.pk é None antes do save(), por isso usamos uuid4
+        nonce = uuid.uuid4().hex
         data = (
             f'{previous_hash}|'
+            f'{nonce}|'
             f'{self.evidence_id}|'
             f'{self.previous_state}|{self.new_state}|'
             f'{self.agent_id}|'
