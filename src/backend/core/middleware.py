@@ -1,14 +1,16 @@
 """
-ForensiQ — Middleware de correlação de requisições.
+ForensiQ — Middleware customizado.
 
-Gera um UUID único (correlation_id) para cada requisição HTTP e o adiciona
-ao contexto thread-local via contextvars. O correlation_id está disponível
-para o sistema de logging e para a auditoria.
+Inclui:
+- CorrelationIDMiddleware: gera UUID único por requisição para logging/auditoria
+- ContentSecurityPolicyMiddleware: define CSP header para mitigar XSS
 """
 
 import uuid
 import logging
 from contextvars import ContextVar
+
+from django.conf import settings
 
 # Variável de contexto para armazenar o correlation_id thread-safe
 _correlation_id: ContextVar[str] = ContextVar('correlation_id', default='')
@@ -58,5 +60,54 @@ class CorrelationIDMiddleware:
 
         # Adiciona correlation_id ao response header
         response['X-Correlation-ID'] = correlation_id
+
+        return response
+
+
+class ContentSecurityPolicyMiddleware:
+    """
+    Middleware que adiciona o header Content-Security-Policy a todas as respostas.
+
+    Política CSP:
+    - default-src 'self': bloqueia todos os recursos externos por defeito
+    - script-src: permite scripts do próprio domínio e CDN Cloudflare (Leaflet)
+    - style-src: permite estilos inline (necessário para Leaflet) e CDN
+    - connect-src: permite AJAX ao próprio domínio e geocoding OSM
+    - img-src: permite imagens do domínio, data URIs e tiles OSM
+    - font-src: permite fontes do domínio e CDN
+    - base-uri: restringe <base> ao próprio domínio
+    - frame-ancestors: bloqueia embedding em iframes (clickjacking)
+    - form-action: restringe destino de formulários
+
+    Conformidade OWASP: mitigação de XSS via CSP Level 2.
+    Em desenvolvimento, a política é mais permissiva (report-only).
+    """
+
+    # Política CSP para produção
+    CSP_POLICY = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "connect-src 'self' https://nominatim.openstreetmap.org; "
+        "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
+        "font-src 'self' https://cdnjs.cloudflare.com; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'"
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        response = self.get_response(request)
+
+        # Não sobrescrever se já definido (ex: por decorator específico)
+        if 'Content-Security-Policy' not in response:
+            if settings.DEBUG:
+                # Em desenvolvimento: apenas reportar, não bloquear
+                response['Content-Security-Policy-Report-Only'] = self.CSP_POLICY
+            else:
+                response['Content-Security-Policy'] = self.CSP_POLICY
 
         return response
