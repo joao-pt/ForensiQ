@@ -59,6 +59,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'core.middleware.CorrelationIDMiddleware',  # Gera UUID correlation_id
+    'core.middleware.ContentSecurityPolicyMiddleware',  # CSP header (OWASP)
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -122,6 +123,7 @@ REST_FRAMEWORK = {
     'DEFAULT_THROTTLE_RATES': {
         'anon': '10/minute',
         'user': '60/minute',
+        'auth': '5/minute',
     },
 }
 
