@@ -198,6 +198,7 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
     SESSION_COOKIE_SAMESITE = 'Strict'
     CSRF_COOKIE_SAMESITE = 'Strict'
 
