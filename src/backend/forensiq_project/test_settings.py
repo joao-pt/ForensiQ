@@ -52,7 +52,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_THROTTLE_CLASSES': [],
-    'DEFAULT_THROTTLE_RATES': {},
+    'DEFAULT_THROTTLE_RATES': {
+        'auth': '100/minute',  # Limite alto para não interferir com testes
+    },
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],

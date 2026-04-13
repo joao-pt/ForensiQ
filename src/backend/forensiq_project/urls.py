@@ -26,6 +26,24 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from core.throttles import AuthRateThrottle
+
+
+# Vistas JWT com rate limiting específico (5/min por IP)
+class ThrottledTokenObtainPairView(TokenObtainPairView):
+    """Login JWT com rate limiting contra brute-force."""
+    throttle_classes = [AuthRateThrottle]
+
+
+class ThrottledTokenRefreshView(TokenRefreshView):
+    """Refresh JWT com rate limiting."""
+    throttle_classes = [AuthRateThrottle]
+
+
+class ThrottledTokenVerifyView(TokenVerifyView):
+    """Verificação JWT com rate limiting."""
+    throttle_classes = [AuthRateThrottle]
+
 from core.frontend_views import (
     custody_timeline_view,
     dashboard_view,
@@ -40,10 +58,10 @@ urlpatterns = [
     # Django Admin (hidden behind environment variable prefix)
     path(os.environ.get('ADMIN_URL_PREFIX', 'admin') + '/', admin.site.urls),
 
-    # JWT Authentication
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('api/auth/token/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # JWT Authentication (com rate limiting — 5 tentativas/minuto por IP)
+    path('api/auth/token/', ThrottledTokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/auth/token/refresh/', ThrottledTokenRefreshView.as_view(), name='token_refresh'),
+    path('api/auth/token/verify/', ThrottledTokenVerifyView.as_view(), name='token_verify'),
 
     # API REST (core)
     path('api/', include('core.urls')),
