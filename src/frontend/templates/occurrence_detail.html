@@ -1,0 +1,776 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Ocorrência{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+      integrity="sha512-Zcn6bjR/8RZbLEDCR/+2bMkbVIA0hUfM/0tBF5cdraMvRsBP2kJ0naJeJxMBCRGRmDTYWBOBiuLMYC/8B6EpQ=="
+      crossorigin="anonymous" referrerpolicy="no-referrer" />
+<style>
+/* ── Hub da Ocorrência ────────────────────────────────────────────── */
+
+/* Cabeçalho do caso */
+.case-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+}
+.case-number {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+}
+.case-description {
+    font-size: 1rem;
+    color: var(--text);
+    line-height: 1.5;
+    margin: 8px 0;
+}
+.case-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+}
+.case-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    color: var(--text-light);
+}
+.case-meta-item strong {
+    color: var(--text);
+}
+
+/* Mapa */
+.case-map {
+    height: 200px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    margin-bottom: 16px;
+}
+.case-map-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: #f9f9f9;
+    color: var(--text-light);
+    font-size: 0.875rem;
+    margin-bottom: 16px;
+}
+
+/* Resumo de custódia */
+.custody-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.custody-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 8px;
+    text-align: center;
+}
+.custody-stat-count {
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+.custody-stat-label {
+    font-size: 0.625rem;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-top: 2px;
+}
+
+/* Secções */
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 24px 0 12px 0;
+}
+.section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: 11px;
+}
+
+/* Cards de evidência */
+.evidence-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.evidence-card:hover {
+    border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(26,35,126,0.1);
+}
+.evidence-card:active {
+    background: rgba(0,0,0,0.02);
+}
+.evidence-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.evidence-card-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.evidence-card-body {
+    font-size: 0.8125rem;
+    color: var(--text-light);
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+.evidence-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.evidence-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+}
+.evidence-actions {
+    display: flex;
+    gap: 6px;
+}
+.evidence-actions .btn-sm {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    min-height: 30px;
+}
+
+/* Estado de custódia inline */
+.custody-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2px;
+}
+.custody-badge.state-APREENDIDA        { background: #e3f2fd; color: #1565c0; }
+.custody-badge.state-EM_TRANSPORTE     { background: #f3e5f5; color: #6a1b9a; }
+.custody-badge.state-RECEBIDA_LABORATORIO { background: #e1f5fe; color: #0277bd; }
+.custody-badge.state-EM_PERICIA        { background: #fff3e0; color: #e65100; }
+.custody-badge.state-CONCLUIDA         { background: #e8f5e9; color: #2e7d32; }
+.custody-badge.state-DEVOLVIDA         { background: #eceff1; color: #37474f; }
+.custody-badge.state-DESTRUIDA         { background: #ffebee; color: #b71c1c; }
+.custody-badge.state-none              { background: #f5f5f5; color: #9e9e9e; }
+
+/* Dispositivos agrupados por evidência */
+.device-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    background: #f5f5f5;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    font-size: 0.75rem;
+    color: var(--text);
+    margin: 2px;
+}
+.device-chip-icon {
+    font-size: 0.875rem;
+}
+
+/* Hash truncado */
+.hash-inline {
+    font-family: 'Courier New', monospace;
+    font-size: 0.625rem;
+    color: var(--text-light);
+    opacity: 0.7;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+/* Loading */
+.loading-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Cabeçalho da página -->
+<div class="page-header">
+    <div>
+        <h2 class="page-title">Detalhe da Ocorrência</h2>
+        <p class="page-subtitle" id="page-subtitle">A carregar...</p>
+    </div>
+    <a href="/occurrences/" class="btn btn-outline">← Ocorrências</a>
+</div>
+
+<!-- Cabeçalho do caso -->
+<div class="case-header" id="case-header" style="display:none">
+    <div class="case-number" id="case-number">—</div>
+    <div class="case-description" id="case-description">—</div>
+    <div class="case-meta">
+        <div class="case-meta-item">🕑 <span id="case-datetime">—</span></div>
+        <div class="case-meta-item">👤 <span id="case-agent">—</span></div>
+        <div class="case-meta-item" id="case-address-item" style="display:none">📍 <span id="case-address">—</span></div>
+        <div class="case-meta-item" id="case-gps-item" style="display:none">🌐 <span id="case-gps">—</span></div>
+    </div>
+</div>
+
+<!-- Mapa (mostrado apenas se há GPS) -->
+<div id="case-map" class="case-map" style="display:none"></div>
+<div id="case-map-empty" class="case-map-empty" style="display:none">
+    📍 Sem coordenadas GPS registadas
+</div>
+
+<!-- Resumo de custódia -->
+<div id="custody-summary-section" style="display:none">
+    <div class="section-header">
+        <div class="section-title">📊 Estado do Caso</div>
+    </div>
+    <div class="custody-summary" id="custody-summary"></div>
+</div>
+
+<!-- Evidências -->
+<div class="section-header">
+    <div class="section-title">
+        📋 Evidências <span class="section-count" id="evidence-count">0</span>
+    </div>
+    <a href="/evidences/new/" class="btn btn-primary btn-sm" id="btn-new-evidence" style="display:none">+ Nova</a>
+</div>
+<div id="evidence-container">
+    <div class="loading-container">
+        <div class="spinner spinner-dark"></div>
+    </div>
+</div>
+
+<!-- Dispositivos digitais -->
+<div id="devices-section" style="display:none">
+    <div class="section-header">
+        <div class="section-title">
+            💻 Dispositivos Digitais <span class="section-count" id="device-count">0</span>
+        </div>
+    </div>
+    <div id="devices-container"></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+        integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjfQbst1BN4YP26XGNtC/B6hg89lKA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="{% static 'js/toast.js' %}"></script>
+<script>
+'use strict';
+
+/* ── Configuração ──────────────────────────────────────────────────── */
+
+const occurrenceId = {{ occurrence_id }};
+
+const TYPE_LABELS = {
+    DIGITAL_DEVICE: 'Dispositivo Digital',
+    DOCUMENT:       'Documento',
+    STORAGE_MEDIA:  'Suporte de Armazenamento',
+    PHOTO:          'Fotografia',
+    OTHER:          'Outro',
+};
+const TYPE_COLORS = {
+    DIGITAL_DEVICE: 'blue',
+    DOCUMENT:       'orange',
+    STORAGE_MEDIA:  'green',
+    PHOTO:          'red',
+    OTHER:          'default',
+};
+
+const STATE_LABELS = {
+    APREENDIDA:           'Apreendida',
+    EM_TRANSPORTE:        'Em Transporte',
+    RECEBIDA_LABORATORIO: 'No Laboratório',
+    EM_PERICIA:           'Em Perícia',
+    CONCLUIDA:            'Concluída',
+    DEVOLVIDA:            'Devolvida',
+    DESTRUIDA:            'Destruída',
+};
+const STATE_ICONS = {
+    APREENDIDA: '🔒', EM_TRANSPORTE: '🚐', RECEBIDA_LABORATORIO: '🏛️',
+    EM_PERICIA: '🔬', CONCLUIDA: '✅', DEVOLVIDA: '↩️', DESTRUIDA: '🗑️',
+};
+
+const DEVICE_ICONS = {
+    SMARTPHONE: '📱', TABLET: '📱', LAPTOP: '💻', DESKTOP: '🖥️',
+    USB_DRIVE: '💾', HARD_DRIVE: '💿', SIM_CARD: '📶', SD_CARD: '💾',
+    CAMERA: '📷', DRONE: '🛩️', OTHER: '🔧',
+};
+const CONDITION_LABELS = {
+    FUNCTIONAL: 'Funcional', DAMAGED: 'Danificado', LOCKED: 'Bloqueado',
+    OFF: 'Desligado', UNKNOWN: 'Desconhecido',
+};
+
+let map = null;
+
+/* ── Inicialização ─────────────────────────────────────────────────── */
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const authenticated = await Auth.requireAuth();
+    if (!authenticated) return;
+
+    const user = Auth.getUser();
+    if (user) {
+        document.getElementById('navbar-user').textContent = user.first_name || user.username;
+        // Mostrar botão "Nova Evidência" apenas para agentes
+        if (user.profile === 'AGENT') {
+            document.getElementById('btn-new-evidence').style.display = '';
+        }
+    }
+    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+
+    await loadOccurrenceHub();
+});
+
+/* ── Carregamento principal ────────────────────────────────────────── */
+
+async function loadOccurrenceHub() {
+    try {
+        // 1. Carregar ocorrência
+        const occurrence = await API.get(`${CONFIG.ENDPOINTS.OCCURRENCES}${occurrenceId}/`);
+        renderCaseHeader(occurrence);
+
+        // 2. Carregar evidências da ocorrência
+        const evidenceData = await API.get(CONFIG.ENDPOINTS.EVIDENCES, {
+            occurrence: occurrenceId,
+            page_size: 200,
+        });
+        const evidences = evidenceData.results || [];
+
+        // 3. Carregar custódia e dispositivos para cada evidência em paralelo
+        const evidenceIds = evidences.map(e => e.id);
+
+        const [custodyByEvidence, devicesByEvidence] = await Promise.all([
+            loadCustodyForEvidences(evidenceIds),
+            loadDevicesForEvidences(evidenceIds),
+        ]);
+
+        // 4. Render tudo
+        renderEvidences(evidences, custodyByEvidence, devicesByEvidence);
+        renderCustodySummary(evidences, custodyByEvidence);
+        renderDevices(evidences, devicesByEvidence);
+        renderMap(occurrence, evidences);
+
+    } catch (err) {
+        console.error('Erro ao carregar ocorrência:', err);
+        document.getElementById('evidence-container').innerHTML =
+            '<div class="empty-state"><p class="text-danger">Erro ao carregar dados. Verifique se a ocorrência existe.</p></div>';
+    }
+}
+
+/* ── Carregamento de dados relacionados ────────────────────────────── */
+
+async function loadCustodyForEvidences(evidenceIds) {
+    const map = {};
+    if (evidenceIds.length === 0) return map;
+
+    // Carregar timeline de cada evidência em paralelo
+    const promises = evidenceIds.map(async (id) => {
+        try {
+            const data = await API.get(`${CONFIG.ENDPOINTS.CUSTODY}evidence/${id}/timeline/`);
+            map[id] = Array.isArray(data) ? data : (data.results || []);
+        } catch {
+            map[id] = [];
+        }
+    });
+    await Promise.all(promises);
+    return map;
+}
+
+async function loadDevicesForEvidences(evidenceIds) {
+    const map = {};
+    if (evidenceIds.length === 0) return map;
+
+    // Carregar dispositivos de cada evidência em paralelo
+    const promises = evidenceIds.map(async (id) => {
+        try {
+            const data = await API.get(CONFIG.ENDPOINTS.DEVICES, { evidence: id, page_size: 100 });
+            map[id] = data.results || [];
+        } catch {
+            map[id] = [];
+        }
+    });
+    await Promise.all(promises);
+    return map;
+}
+
+/* ── Render: Cabeçalho do Caso ─────────────────────────────────────── */
+
+function renderCaseHeader(occ) {
+    document.getElementById('page-subtitle').textContent = occ.number;
+    document.getElementById('case-number').textContent = occ.number;
+    document.getElementById('case-description').textContent = occ.description || '—';
+
+    const dt = new Date(occ.date_time).toLocaleString('pt-PT', {
+        day: '2-digit', month: 'long', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+    });
+    document.getElementById('case-datetime').textContent = dt;
+    document.getElementById('case-agent').innerHTML =
+        `<strong>${escapeHtml(occ.agent_name)}</strong>`;
+
+    if (occ.address) {
+        document.getElementById('case-address').textContent = occ.address;
+        document.getElementById('case-address-item').style.display = '';
+    }
+    if (occ.gps_lat && occ.gps_lon) {
+        document.getElementById('case-gps').textContent =
+            `${parseFloat(occ.gps_lat).toFixed(5)}, ${parseFloat(occ.gps_lon).toFixed(5)}`;
+        document.getElementById('case-gps-item').style.display = '';
+    }
+    document.getElementById('case-header').style.display = '';
+}
+
+/* ── Render: Mapa ──────────────────────────────────────────────────── */
+
+function renderMap(occ, evidences) {
+    const hasOccGps = occ.gps_lat && occ.gps_lon;
+    const evidencesWithGps = evidences.filter(e => e.gps_lat && e.gps_lon);
+
+    if (!hasOccGps && evidencesWithGps.length === 0) {
+        document.getElementById('case-map-empty').style.display = '';
+        return;
+    }
+
+    const mapEl = document.getElementById('case-map');
+    mapEl.style.display = '';
+
+    map = L.map('case-map', {
+        center: [39.5, -8.0],
+        zoom: 7,
+        zoomControl: true,
+    });
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap',
+        maxZoom: 19,
+    }).addTo(map);
+
+    const markers = [];
+
+    // Marcador da ocorrência (azul grande)
+    if (hasOccGps) {
+        const occMarker = L.marker(
+            [parseFloat(occ.gps_lat), parseFloat(occ.gps_lon)],
+            {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="background:#1a237e;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;">📍</div>',
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16],
+                }),
+            }
+        ).addTo(map);
+        occMarker.bindPopup(`<strong>${escapeHtml(occ.number)}</strong><br>${escapeHtml(occ.address || 'Local da ocorrência')}`);
+        markers.push(occMarker);
+    }
+
+    // Marcadores de evidências com GPS diferente do da ocorrência
+    evidencesWithGps.forEach(ev => {
+        const isDistinct = !hasOccGps ||
+            Math.abs(parseFloat(ev.gps_lat) - parseFloat(occ.gps_lat)) > 0.0001 ||
+            Math.abs(parseFloat(ev.gps_lon) - parseFloat(occ.gps_lon)) > 0.0001;
+
+        if (isDistinct) {
+            const evMarker = L.marker(
+                [parseFloat(ev.gps_lat), parseFloat(ev.gps_lon)],
+                {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div style="background:#ff6f00;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,0.3);border:2px solid #fff;">📋</div>',
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12],
+                    }),
+                }
+            ).addTo(map);
+            evMarker.bindPopup(`<strong>Evidência #${ev.id}</strong><br>${escapeHtml((ev.description || '').substring(0, 60))}`);
+            markers.push(evMarker);
+        }
+    });
+
+    if (markers.length > 0) {
+        const group = L.featureGroup(markers);
+        map.fitBounds(group.getBounds().pad(0.3));
+        if (markers.length === 1) {
+            map.setZoom(15);
+        }
+    }
+}
+
+/* ── Render: Evidências ────────────────────────────────────────────── */
+
+function renderEvidences(evidences, custodyMap, devicesMap) {
+    const container = document.getElementById('evidence-container');
+    document.getElementById('evidence-count').textContent = evidences.length;
+
+    if (evidences.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-icon">📋</div>
+                <p>Sem evidências registadas nesta ocorrência.</p>
+            </div>
+        `;
+        return;
+    }
+
+    container.innerHTML = evidences.map(ev => {
+        const custodyRecords = custodyMap[ev.id] || [];
+        const devices = devicesMap[ev.id] || [];
+        const lastCustody = custodyRecords.length > 0
+            ? custodyRecords[custodyRecords.length - 1] : null;
+        const currentState = lastCustody ? lastCustody.new_state : null;
+
+        const stateLabel = currentState ? STATE_LABELS[currentState] : 'Sem custódia';
+        const stateIcon = currentState ? STATE_ICONS[currentState] : '—';
+        const stateClass = currentState ? `state-${currentState}` : 'state-none';
+
+        const typeBadgeColor = TYPE_COLORS[ev.type] || 'default';
+        const typeLabel = TYPE_LABELS[ev.type] || ev.type;
+
+        const dt = new Date(ev.timestamp_seizure).toLocaleString('pt-PT', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+
+        const descTruncated = (ev.description || '').length > 100
+            ? ev.description.substring(0, 100) + '…' : (ev.description || '—');
+
+        // Chips de dispositivos
+        const deviceChips = devices.slice(0, 3).map(d => {
+            const icon = DEVICE_ICONS[d.type] || '🔧';
+            const label = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
+            return `<span class="device-chip"><span class="device-chip-icon">${icon}</span> ${escapeHtml(label)}</span>`;
+        }).join('');
+        const moreDevices = devices.length > 3
+            ? `<span class="device-chip">+${devices.length - 3}</span>` : '';
+
+        return `
+            <div class="evidence-card" onclick="window.location='/evidence/${ev.id}/custody/'">
+                <div class="evidence-card-header">
+                    <span class="evidence-card-title">#${ev.id} — ${escapeHtml(typeLabel)}</span>
+                    <span class="custody-badge ${stateClass}">${stateIcon} ${escapeHtml(stateLabel)}</span>
+                </div>
+                <div class="evidence-card-body">${escapeHtml(descTruncated)}</div>
+                <div class="evidence-card-footer">
+                    <div class="evidence-badges">
+                        <span class="badge badge-${typeBadgeColor}">${escapeHtml(typeLabel)}</span>
+                        <span class="badge badge-neutral">🕑 ${dt}</span>
+                        ${ev.gps_lat ? '<span class="badge badge-success">📍 GPS</span>' : ''}
+                        ${ev.photo ? '<span class="badge badge-success">📷 Foto</span>' : ''}
+                        ${devices.length > 0 ? `<span class="badge badge-primary">💻 ${devices.length}</span>` : ''}
+                    </div>
+                    <div class="evidence-actions">
+                        <a href="/evidence/${ev.id}/custody/" class="btn btn-sm btn-outline"
+                           onclick="event.stopPropagation()">📜 Custódia</a>
+                        <button class="btn btn-sm btn-outline" onclick="event.stopPropagation(); exportPDF(${ev.id})">📄 PDF</button>
+                    </div>
+                </div>
+                ${deviceChips ? `<div style="margin-top:8px">${deviceChips}${moreDevices}</div>` : ''}
+                <div style="margin-top:6px">
+                    <span class="hash-inline" title="SHA-256: ${escapeHtml(ev.integrity_hash)}">
+                        🔐 ${escapeHtml((ev.integrity_hash || '').substring(0, 16))}…
+                    </span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/* ── Render: Resumo de Custódia ────────────────────────────────────── */
+
+function renderCustodySummary(evidences, custodyMap) {
+    if (evidences.length === 0) return;
+
+    const stateCounts = {};
+    let withoutCustody = 0;
+
+    evidences.forEach(ev => {
+        const records = custodyMap[ev.id] || [];
+        if (records.length === 0) {
+            withoutCustody++;
+            return;
+        }
+        const lastState = records[records.length - 1].new_state;
+        stateCounts[lastState] = (stateCounts[lastState] || 0) + 1;
+    });
+
+    // Só mostrar se há dados relevantes
+    const hasData = Object.keys(stateCounts).length > 0 || withoutCustody > 0;
+    if (!hasData) return;
+
+    const container = document.getElementById('custody-summary');
+    const section = document.getElementById('custody-summary-section');
+    section.style.display = '';
+
+    let html = '';
+
+    // Total de evidências
+    html += `
+        <div class="custody-stat">
+            <div class="custody-stat-count" style="color:var(--primary)">${evidences.length}</div>
+            <div class="custody-stat-label">Total</div>
+        </div>
+    `;
+
+    // Contadores por estado (apenas estados que existem)
+    Object.entries(stateCounts).forEach(([state, count]) => {
+        const label = STATE_LABELS[state] || state;
+        const icon = STATE_ICONS[state] || '●';
+        html += `
+            <div class="custody-stat">
+                <div class="custody-stat-count">${icon} ${count}</div>
+                <div class="custody-stat-label">${escapeHtml(label)}</div>
+            </div>
+        `;
+    });
+
+    if (withoutCustody > 0) {
+        html += `
+            <div class="custody-stat">
+                <div class="custody-stat-count" style="color:var(--text-light)">⚠️ ${withoutCustody}</div>
+                <div class="custody-stat-label">Sem custódia</div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+/* ── Render: Dispositivos Digitais ─────────────────────────────────── */
+
+function renderDevices(evidences, devicesMap) {
+    const allDevices = [];
+    evidences.forEach(ev => {
+        (devicesMap[ev.id] || []).forEach(d => {
+            allDevices.push({ ...d, evidenceId: ev.id, evidenceDesc: ev.description });
+        });
+    });
+
+    if (allDevices.length === 0) return;
+
+    const section = document.getElementById('devices-section');
+    const container = document.getElementById('devices-container');
+    section.style.display = '';
+    document.getElementById('device-count').textContent = allDevices.length;
+
+    container.innerHTML = allDevices.map(d => {
+        const icon = DEVICE_ICONS[d.type] || '🔧';
+        const name = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
+        const condition = CONDITION_LABELS[d.condition] || d.condition;
+
+        const conditionColor = d.condition === 'FUNCTIONAL' ? 'success'
+            : d.condition === 'DAMAGED' ? 'danger'
+            : d.condition === 'LOCKED' ? 'warning'
+            : 'neutral';
+
+        return `
+            <div class="evidence-card" onclick="window.location='/evidence/${d.evidenceId}/custody/'" style="cursor:pointer">
+                <div class="evidence-card-header">
+                    <span class="evidence-card-title">${icon} ${escapeHtml(name)}</span>
+                    <span class="badge badge-${conditionColor}">${escapeHtml(condition)}</span>
+                </div>
+                <div class="evidence-card-body">
+                    Evidência #${d.evidenceId}${d.serial_number ? ` · S/N: ${escapeHtml(d.serial_number)}` : ''}${d.imei ? ` · IMEI: ${escapeHtml(d.imei)}` : ''}
+                </div>
+                ${d.notes ? `<div style="font-size:0.8125rem;color:var(--text-light);font-style:italic;">"${escapeHtml(d.notes)}"</div>` : ''}
+            </div>
+        `;
+    }).join('');
+}
+
+/* ── Exportar PDF ──────────────────────────────────────────────────── */
+
+async function exportPDF(evidenceId) {
+    try {
+        Toast.info('A gerar PDF...');
+        const token = Auth.getAccessToken();
+        const response = await fetch(`${CONFIG.ENDPOINTS.EVIDENCES}${evidenceId}/pdf/`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error(`Erro ${response.status}`);
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ForensiQ_Evidencia_${String(evidenceId).padStart(4, '0')}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        Toast.success('PDF descarregado.');
+    } catch (err) {
+        Toast.error('Erro ao gerar PDF.');
+        console.error(err);
+    }
+}
+
+/* ── Utilitários ───────────────────────────────────────────────────── */
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

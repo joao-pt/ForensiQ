@@ -54,6 +54,12 @@ def occurrences_view(request):
 
 
 @jwt_cookie_required
+def occurrence_detail_view(request, occurrence_id):
+    """Detalhe de uma ocorrência — hub central do caso. Requer token JWT válido."""
+    return render(request, 'occurrence_detail.html', {'occurrence_id': occurrence_id})
+
+
+@jwt_cookie_required
 def occurrences_new_view(request):
     """Formulário de nova ocorrência — requer token JWT válido."""
     return render(request, 'occurrences_new.html')

@@ -50,6 +50,7 @@ from core.frontend_views import (
     evidences_new_view,
     evidences_view,
     login_view,
+    occurrence_detail_view,
     occurrences_new_view,
     occurrences_view,
 )
@@ -75,6 +76,7 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('dashboard/', dashboard_view, name='dashboard'),
     path('occurrences/', occurrences_view, name='occurrences'),
+    path('occurrences/<int:occurrence_id>/', occurrence_detail_view, name='occurrence_detail'),
     path('occurrences/new/', occurrences_new_view, name='occurrences_new'),
     path('evidences/', evidences_view, name='evidences'),
     path('evidences/new/', evidences_new_view, name='evidences_new'),

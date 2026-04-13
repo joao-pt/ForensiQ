@@ -278,6 +278,62 @@ class EvidencesNewPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('SHA-256', content)
 
 
+class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
+    """Testes para a página de detalhe da ocorrência (requer JWT cookie)."""
+
+    def test_occurrence_detail_returns_200(self):
+        """A página de detalhe da ocorrência deve retornar HTTP 200."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        self.assertEqual(response.status_code, 200)
+
+    def test_occurrence_detail_uses_correct_template(self):
+        """A página de detalhe deve usar o template occurrence_detail.html."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        self.assertTemplateUsed(response, 'occurrence_detail.html')
+
+    def test_occurrence_detail_contains_case_header(self):
+        """A página de detalhe deve conter o cabeçalho do caso."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="case-header"', content)
+
+    def test_occurrence_detail_contains_evidence_container(self):
+        """A página de detalhe deve conter o contentor de evidências."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="evidence-container"', content)
+
+    def test_occurrence_detail_contains_map(self):
+        """A página de detalhe deve conter o elemento do mapa."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="case-map"', content)
+
+    def test_occurrence_detail_contains_devices_section(self):
+        """A página de detalhe deve conter a secção de dispositivos."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="devices-section"', content)
+
+    def test_occurrence_detail_contains_custody_summary(self):
+        """A página de detalhe deve conter o resumo de custódia."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('id="custody-summary"', content)
+
+    def test_occurrence_detail_loads_leaflet(self):
+        """A página de detalhe deve carregar o Leaflet.js."""
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        content = response.content.decode('utf-8')
+        self.assertIn('leaflet', content.lower())
+
+    def test_occurrence_detail_redirects_without_auth(self):
+        """A página de detalhe deve redirecionar para login sem JWT cookie."""
+        self.client.cookies.clear()
+        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
+        self.assertRedirects(response, '/login/', fetch_redirect_response=False)
+
+
 class CustodyTimelinePageTest(AuthenticatedFrontendTestCase):
     """Testes para a página de timeline da cadeia de custódia (requer JWT cookie)."""
 
