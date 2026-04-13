@@ -69,6 +69,6 @@ Aplicaria a política apenas à página de ocorrências em vez de globalmente. *
 
 ### Mitigações
 
-- **Monitorização de SRI:** O pipeline de autopilot diário pode incluir uma verificação dos hashes SRI contra o CDN, alertando se divergirem.
+- **Monitorização de SRI:** O pipeline de CI/CD pode incluir uma verificação periódica dos hashes SRI contra o CDN, alertando se divergirem.
 - **Fallback futuro:** Se a estabilidade dos hashes se revelar um problema recorrente, migrar para self-hosting (alternativa A2) sem impacto na arquitectura.
-- **Documentação:** Este ADR serve como referência para diagnóstico caso o problema reapareça — o sintoma (`L is not defined`) e a causa (hash SRI desactualizado) ficam documentados.
+- **Documentação:** Este ADR serve como referência para diagnóstico caso o problema reapareça — o sintoma (`L 
