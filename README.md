@@ -12,7 +12,7 @@
 
 ## Estado actual
 
-🟢 **Verde** — Fase 2 em curso. Backend funcional e reforçado com segurança (CSP, HSTS, rate limiting, IDOR protection, immutability triggers, select_for_update). API REST completa com 10+ rotas. Frontend completo com timeline de custódia e mapa Leaflet. 124 testes a passar (61% cobertura). Código review concluída (11 abr). Aplicação deployed em produção.
+🟢 **Verde** — Fase 2 em curso. Backend funcional e reforçado com segurança (CSP, HSTS, rate limiting, IDOR protection, immutability triggers, select_for_update). API REST completa com 10+ rotas. Frontend completo com timeline de custódia e mapa Leaflet. 142 testes a passar. Código review concluída (11 abr). Aplicação deployed em produção.
 
 ---
 
@@ -29,13 +29,13 @@
 - [x] PostgreSQL (Neon.tech, Frankfurt) via dj-database-url + .env
 - [x] API REST com 5 endpoints + acções personalizadas (10+ rotas)
 - [x] Serializers para todas as entidades
-- [x] Permissões por perfil (IsAgent, IsExpert, IsOwnerOrReadOnly, IsBiologist)
+- [x] Permissões por perfil (IsAgent, IsExpert, IsAgentOrExpert, IsOwnerOrReadOnly)
 - [x] JWT authentication (SimpleJWT: login, refresh, verify)
 - [x] Swagger UI via drf-spectacular (/api/docs/)
 - [x] Django Admin configurado (com prefixo secreto)
-- [x] 124 testes (33 modelos + 42 API + 49 frontend) — todos passam
+- [x] 142 testes (14 modelos + 69 API + 45 frontend + 14 PDF) — todos passam
 - [x] `test_settings.py` — configuração de testes isolada (SQLite em memória)
-- [x] Cobertura de testes ~61% (backend + frontend)
+- [x] Cobertura de testes (backend + frontend)
 
 ### Frontend (HTML/CSS/JS vanilla)
 - [x] CSS mobile-first com touch targets de 48px (WCAG 2.1 AA)
@@ -47,7 +47,7 @@
 - [x] Página de listagem de evidências (`/evidences/`) com filtros por tipo
 - [x] Formulário de nova evidência (`/evidences/new/`) com captura de foto e GPS
 - [x] Timeline visual da cadeia de custódia (`/evidences/<id>/chain_of_custody/`)
-- [x] Mapa com Leaflet.js (marcadores de ocorrências com clustering)
+- [x] Mapa com Leaflet.js (marcadores de ocorrências)
 - [x] Exportação PDF de relatório forense (`/api/evidences/{id}/pdf/`)
 
 ### Infraestrutura
@@ -63,24 +63,21 @@
 - [x] **Integridade de metadados:** SHA-256 automático em cada Evidence
 - [x] **Cadeia de custódia encadeada:** Hash anterior referenciado (blockchain-like)
 - [x] **Autenticação JWT:** SimpleJWT com tokens acessíveis apenas via HTTPS
-- [x] **RBAC granular:** Permissões por perfil (Agent, Expert, Biologist, etc.)
+- [x] **RBAC granular:** Permissões por perfil (Agent, Expert)
 - [x] **Proteção IDOR:** Filtro de queryset por utilizador (`get_queryset()`)
 - [x] **Rate limiting:** 5 requisições/minuto em endpoints de auth (JWT token, refresh, verify)
 - [x] **HSTS:** 1 ano + preload (HTTP Strict-Transport-Security)
 - [x] **Content Security Policy (CSP):** default-src 'self'; script-src 'self' cdn.leafletjs.com; img-src 'self' data: https:
-- [x] **Proteção select_for_update:** Race condition em ChainOfCustody (concorrência)
-- [x] **Race condition:** Lock pessimista na transição de custódia
+- [x] **Race condition:** Lock pessimista (select_for_update) na transição de custódia
 - [x] **Admin Django secreto:** Prefixo aleatório via variável de ambiente
 - [x] **Auditoria transversal:** AuditLog com correlation_id em cada requisição
 - [x] **Logging seguro:** Sem PII em logs (mascarar email, IP anónimo)
 
 ### Testes
-- [x] **Testes de modelos:** 33 casos (User, Occurrence, Evidence, DigitalDevice, ChainOfCustody, AuditLog)
-- [x] **Testes de API:** 42 casos (autenticação, CRUD, permissões, paginação, filtros)
-- [x] **Testes de frontend:** 49 casos (dashboard, formulários, cache de GPS, validação)
-- [x] **Testes de PDF:** 8 casos (geração, sanitização, metadados)
-- [x] **Testes de estado máquina:** Transições válidas e inválidas de custódia
-- [x] **Cobertura total:** ~61% (backend + frontend)
+- [x] **Testes de modelos:** 14 casos (User, Occurrence, Evidence, DigitalDevice, ChainOfCustody)
+- [x] **Testes de API:** 69 casos (autenticação, CRUD, permissões, IDOR, imutabilidade, validação de entrada, transições de estado)
+- [x] **Testes de frontend:** 45 casos (dashboard, formulários, templates)
+- [x] **Testes de PDF:** 14 casos (geração, sanitização, metadados, endpoints)
 - [x] **Comando:** `python manage.py test core --settings=forensiq_project.test_settings --verbosity=2`
 
 ### Conformidade
@@ -92,13 +89,8 @@
 
 ## O que está pendente
 
-- [ ] **Novo tipo de prova:** Exemplar de extensibilidade (ex: prova biológica com DNAProfile)
-- [ ] **Testes de integração com BD Neon.tech:** Pipeline CI/CD
-- [ ] **GitHub Actions CI:** Executar testes em cada push
-- [ ] **Testes Postman/Newman:** Validação API em produção
-- [ ] **Dashboard de auditoria:** Página admin para visualizar AuditLog com filtros
-- [ ] **Exportação Excel:** Novo formato além de PDF
-- [ ] **Documentação de API:** OpenAPI 3.0 em `docs/api/openapi.yaml`
+- [ ] **GitHub Actions CI:** Executar testes automaticamente em cada push
+- [ ] **Dashboard de auditoria:** Página para visualizar AuditLog com filtros e pesquisa
 
 ---
 
@@ -176,11 +168,11 @@ Decisões detalhadas em `docs/architecture/adr/`.
 
 ## Documentação Adicional
 
-- **Arquitectura:** `docs/architecture/adr/` — 6 decisões documentadas (DB, estrutura Django, API REST, frontend, deployment, extensibilidade)
+- **Arquitectura:** `docs/architecture/adr/` — 7 decisões documentadas (DB, estrutura Django, API REST, frontend, deployment, extensibilidade, SRI/Referrer-Policy)
 - **Plano de Teste:** `docs/scope/` — scope de testes, changelog de versões
 - **Código Review:** `docs/code-review-2026-04-11.md` — análise de segurança completa
 - **Guia de Deploy:** `docs/deployment/deploy-guide.md` — procedimento de produção em Fly.io
 
 ---
 
-*Última actualização: 12 abr 2026 · Sem. 6*
+*Última actualização: 13 abr 2026 · Sem. 7*
