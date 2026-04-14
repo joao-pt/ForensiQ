@@ -1,0 +1,73 @@
+name: CI — Testes Django
+
+# Pipeline de integração contínua do ForensiQ.
+# Executa a suite de testes Django em cada push/PR para main.
+# Usa SQLite em memória (test_settings) — sem necessidade de PostgreSQL externo.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Django tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12']
+
+    env:
+      # SECRET_KEY dummy — exigida pelo settings.py mas não sensível em CI
+      SECRET_KEY: ci-dummy-secret-key-not-used-in-production
+      DEBUG: 'True'
+      ALLOWED_HOSTS: 'localhost,127.0.0.1'
+      # DATABASE_URL dummy — test_settings.py usa SQLite em memória
+      DATABASE_URL: 'sqlite:///dummy.sqlite3'
+      ADMIN_URL_PREFIX: 'admin'
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
+
+      - name: Instalar dependências
+        working-directory: src/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage
+
+      - name: Verificar configurações de deploy (Django check)
+        working-directory: src/backend
+        run: |
+          python manage.py check --settings=forensiq_project.test_settings
+
+      - name: Correr testes com cobertura
+        working-directory: src/backend
+        run: |
+          coverage run --source='core' manage.py test core \
+            --settings=forensiq_project.test_settings \
+            --verbosity=2
+          coverage report --show-missing
+          coverage xml -o coverage.xml
+
+      - name: Upload do relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-py${{ matrix.python-version }}
+          path: src/backend/coverage.xml
+          retention-days: 14
