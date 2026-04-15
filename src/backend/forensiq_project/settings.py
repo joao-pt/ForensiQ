@@ -6,11 +6,21 @@ UC 21184 — Projeto de Engenharia Informática · Universidade Aberta
 """
 
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
 from dotenv import load_dotenv
+
+# Deteção de modo de teste — activa automaticamente quando
+# `manage.py test` ou `pytest` corre. Usado abaixo para desactivar
+# mecanismos que interferem com testes (throttling, SSL redirect).
+TESTING = (
+    'test' in sys.argv
+    or 'pytest' in sys.argv[0]
+    or os.environ.get('DJANGO_TESTING', '').lower() == 'true'
+)
 
 # Carregar variáveis de ambiente do ficheiro .env na raiz do projecto
 # O .env está em ForensiQ/.env (dois níveis acima de src/backend/)
@@ -127,6 +137,21 @@ REST_FRAMEWORK = {
     },
 }
 
+# Em modo de teste, esvaziar as classes de throttle globais e subir
+# drasticamente os rates (mantendo os scopes válidos) para evitar
+# 429 em suites que fazem muitas chamadas seguidas. Os throttles
+# per-view (e.g. AuthRateThrottle) continuam configurados mas com
+# orçamento suficiente para não dispararem em CI. O throttling real
+# é validado por testes dedicados que o reactivam com
+# @override_settings.
+if TESTING:
+    REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []
+    REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
+        'anon': '10000/minute',
+        'user': '10000/minute',
+        'auth': '10000/minute',
+    }
+
 # --- SimpleJWT ---
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
@@ -180,10 +205,21 @@ STATICFILES_DIRS = [
     BASE_DIR.parent / 'frontend' / 'static',  # src/frontend/static/
 ]
 STORAGES = {
+    # Storage por omissão (para ImageField/FileField nos modelos).
+    # Sem esta chave, Django 5.x lança InvalidStorageError ao gravar media.
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
     'staticfiles': {
         'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
     },
 }
+# Em testes, usar armazenamento simples de estáticos (sem manifest
+# hashing) para evitar dependência de `collectstatic` na suite.
+if TESTING:
+    STORAGES['staticfiles'] = {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    }
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
@@ -191,7 +227,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # --- Segurança em produção ---
-if not DEBUG:
+# Em modo de teste, nunca activar hardening de produção mesmo que
+# DEBUG=False esteja presente — os testes correm com o runner de testes
+# e não devem ser forçados para HTTPS nem emitir HSTS.
+if not DEBUG and not TESTING:
     SECURE_SSL_REDIRECT = True
     SECURE_HSTS_SECONDS = 31536000  # 1 ano
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
