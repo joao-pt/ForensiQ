@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#283593"/>
+      <stop offset="100%" stop-color="#1a237e"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 2 L58 10 V30 C58 46 46 58 32 62 C18 58 6 46 6 30 V10 Z"
+        fill="url(#g)" stroke="#0d1453" stroke-width="1.5"/>
+  <path d="M32 2 L58 10 V30 C58 46 46 58 32 62 C18 58 6 46 6 30 V10 Z"
+        fill="none" stroke="#ffffff" stroke-width="1" opacity="0.15"
+        transform="translate(0 2) scale(0.93) translate(2 0)"/>
+  <text x="32" y="42" text-anchor="middle" font-family="Arial, Helvetica, sans-serif"
+        font-weight="700" font-size="28" fill="#ffffff" letter-spacing="-1">FQ</text>
+</svg>
