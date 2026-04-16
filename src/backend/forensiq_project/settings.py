@@ -63,6 +63,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Servir estáticos em produção
+    'django.middleware.gzip.GZipMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -124,6 +125,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_THROTTLE_CLASSES': [
@@ -134,6 +136,9 @@ REST_FRAMEWORK = {
         'anon': '10/minute',
         'user': '60/minute',
         'auth': '5/minute',
+        'evidence_upload': '20/minute',
+        'pdf_export': '30/minute',
+        'schema': '30/minute',
     },
 }
 
@@ -150,6 +155,9 @@ if TESTING:
         'anon': '10000/minute',
         'user': '10000/minute',
         'auth': '10000/minute',
+        'evidence_upload': '10000/minute',
+        'pdf_export': '10000/minute',
+        'schema': '10000/minute',
     }
 
 # --- SimpleJWT ---
@@ -163,6 +171,7 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
+    'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', SECRET_KEY),
 }
 
 # --- drf-spectacular (Swagger / OpenAPI) ---
@@ -184,7 +193,7 @@ CORS_ALLOWED_ORIGINS = [
     'https://forensiq.pt',
     'https://www.forensiq.pt',
 ]
-CORS_ALLOW_ALL_ORIGINS = DEBUG  # Só em desenvolvimento
+CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() == 'true'
 
 # --- CSRF ---
 CSRF_TRUSTED_ORIGINS = [
@@ -237,7 +246,8 @@ if not DEBUG and not TESTING:
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    if os.environ.get('TRUSTED_PROXIES', '').strip():
+        SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
     SESSION_COOKIE_SAMESITE = 'Strict'
