@@ -499,9 +499,8 @@ function renderDevices(evidences, devicesMap) {
 async function exportPDF(evidenceId) {
     try {
         Toast.info('A gerar PDF...');
-        const token = Auth.getAccessToken();
         const response = await fetch(`${CONFIG.ENDPOINTS.EVIDENCES}${evidenceId}/pdf/`, {
-            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include',
         });
         if (!response.ok) throw new Error(`Erro ${response.status}`);
 

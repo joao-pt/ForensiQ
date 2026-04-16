@@ -10,11 +10,11 @@ const CONFIG = Object.freeze({
     // URL base da API (ajustar em produção)
     API_BASE: '/api',
 
-    // Endpoints de autenticação
+    // Endpoints de autenticação (cookies HttpOnly — sem exposição ao JS)
     AUTH: {
-        TOKEN: '/api/auth/token/',
-        REFRESH: '/api/auth/token/refresh/',
-        VERIFY: '/api/auth/token/verify/',
+        LOGIN: '/api/auth/login/',
+        REFRESH: '/api/auth/refresh/',
+        LOGOUT: '/api/auth/logout/',
     },
 
     // Endpoints REST
@@ -25,13 +25,6 @@ const CONFIG = Object.freeze({
         EVIDENCES: '/api/evidences/',
         DEVICES: '/api/devices/',
         CUSTODY: '/api/custody/',
-    },
-
-    // Chaves de localStorage para tokens JWT
-    STORAGE: {
-        ACCESS_TOKEN: 'forensiq_access_token',
-        REFRESH_TOKEN: 'forensiq_refresh_token',
-        USER_DATA: 'forensiq_user_data',
     },
 
     // Estados da cadeia de custódia (correspondem ao backend)
