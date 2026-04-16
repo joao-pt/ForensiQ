@@ -21,11 +21,11 @@ from rest_framework_simplejwt.tokens import AccessToken
 def jwt_cookie_required(view_func):
     """
     Decorator que verifica a presença de um token JWT válido no cookie
-    'forensiq_access'. Redireciona para /login/ se ausente ou inválido.
+    'fq_access'. Redireciona para /login/ se ausente ou inválido.
     """
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        token = request.COOKIES.get('forensiq_access')
+        token = request.COOKIES.get('fq_access')
         if not token:
             return HttpResponseRedirect('/login/')
         try:
