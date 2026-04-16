@@ -123,6 +123,23 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'id', 'agent', 'timestamp_seizure', 'integrity_hash', 'created_at', 'updated_at',
         ]
 
+    def validate_occurrence(self, occurrence):
+        """
+        AGENT só pode criar evidências em ocorrências de que é o responsável.
+        EXPERT e staff não são restringidos por este serializer.
+        """
+        request = self.context.get('request')
+        if request is None or not request.user.is_authenticated:
+            return occurrence
+        user = request.user
+        if user.is_staff:
+            return occurrence
+        if getattr(user, 'profile', None) == 'AGENT' and occurrence.agent_id != user.id:
+            raise serializers.ValidationError(
+                'Não pode criar evidências em ocorrências de outros agentes.'
+            )
+        return occurrence
+
 
 # ---------------------------------------------------------------------------
 # DigitalDevice
@@ -163,8 +180,10 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
     class Meta:
         model = ChainOfCustody
         fields = [
-            'id', 'evidence', 'previous_state', 'new_state',
+            'id', 'evidence', 'sequence', 'previous_state', 'new_state',
             'agent', 'agent_name', 'timestamp', 'observations',
             'record_hash',
         ]
-        read_only_fields = ['id', 'agent', 'previous_state', 'timestamp', 'record_hash']
+        read_only_fields = [
+            'id', 'agent', 'sequence', 'previous_state', 'timestamp', 'record_hash',
+        ]

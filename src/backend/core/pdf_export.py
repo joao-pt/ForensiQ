@@ -295,7 +295,7 @@ def generate_evidence_pdf(evidence):
 
     # ── Cadeia de Custódia ───────────────────────────────────────────────────
     custody_records = list(
-        evidence.custody_chain.select_related('agent').order_by('timestamp')
+        evidence.custody_chain.select_related('agent').order_by('sequence')
     )
     section_num = 4
     story.append(Paragraph(f'{section_num}. Cadeia de Custódia', styles['section']))
