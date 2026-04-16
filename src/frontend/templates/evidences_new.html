@@ -7,166 +7,225 @@
 <a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Evidências</a><span class="breadcrumb-sep">›</span><span>Nova</span>
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/wizard.css' %}">
+{% endblock %}
+
 {% block content %}
-<!-- Cabeçalho -->
-<div class="page-header">
-    <div>
-        <h2 class="page-title">Nova Evidência</h2>
-        <p class="page-subtitle">Registar prova digital</p>
-    </div>
-</div>
+<form id="evidence-form" novalidate enctype="multipart/form-data">
+<div class="wizard" id="evidence-wizard">
+    <div class="wizard-track">
 
-<!-- Formulário -->
-<form id="evidence-form" class="form-card" novalidate enctype="multipart/form-data">
+        <!-- STEP 0 — Ocorrência -->
+        <section class="wizard-step" data-step="0">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 1 de 5</div>
+                <h2 class="wizard-step-title">Ocorrência associada</h2>
+                <p class="wizard-step-hint">A que ocorrência pertence esta evidência?</p>
+            </div>
+            <div class="form-group">
+                <select id="occurrence" name="occurrence" class="form-control" required>
+                    <option value="">— Selecionar ocorrência —</option>
+                </select>
+                <div class="form-error" id="occurrence-error"></div>
+            </div>
+        </section>
 
-    <!-- Ocorrência associada -->
-    <div class="form-group">
-        <label for="occurrence" class="form-label required">Ocorrência</label>
-        <select id="occurrence" name="occurrence" class="form-control" required>
-            <option value="">— Selecionar ocorrência —</option>
-        </select>
-        <div class="form-hint">Ocorrência à qual esta evidência pertence.</div>
-        <div class="form-error" id="occurrence-error"></div>
-    </div>
-
-    <!-- Tipo de evidência -->
-    <div class="form-group">
-        <label class="form-label required">Tipo de evidência</label>
-        <div class="type-selector" id="type-selector">
-            <button type="button" class="type-btn" data-value="DIGITAL_DEVICE">
-                <span class="type-icon">📱</span>
-                <span>Dispositivo Digital</span>
-            </button>
-            <button type="button" class="type-btn" data-value="STORAGE_MEDIA">
-                <span class="type-icon">💾</span>
-                <span>Suporte Armazenamento</span>
-            </button>
-            <button type="button" class="type-btn" data-value="DOCUMENT">
-                <span class="type-icon">📄</span>
-                <span>Documento</span>
-            </button>
-            <button type="button" class="type-btn" data-value="PHOTO">
-                <span class="type-icon">🖼️</span>
-                <span>Fotografia</span>
-            </button>
-            <button type="button" class="type-btn" data-value="OTHER">
-                <span class="type-icon">📦</span>
-                <span>Outro</span>
-            </button>
-        </div>
-        <input type="hidden" id="type" name="type" required>
-        <div class="form-error" id="type-error"></div>
-    </div>
-
-    <!-- Descrição -->
-    <div class="form-group">
-        <label for="description" class="form-label required">Descrição</label>
-        <textarea
-            id="description"
-            name="description"
-            class="form-control"
-            rows="3"
-            placeholder="Descreva a evidência: aspecto, estado, localização exacta onde foi encontrada..."
-            required
-        ></textarea>
-        <div class="form-error" id="description-error"></div>
-    </div>
-
-    <!-- Fotografia -->
-    <div class="form-group">
-        <label class="form-label">Fotografia</label>
-        <div class="photo-capture" id="photo-capture">
-            <div id="photo-preview" class="photo-preview hidden">
-                <img id="preview-img" src="" alt="Pré-visualização da fotografia">
-                <button type="button" id="btn-remove-photo" class="btn btn-sm btn-outline">
-                    ✕ Remover
+        <!-- STEP 1 — Tipo de evidência -->
+        <section class="wizard-step" data-step="1">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 2 de 5</div>
+                <h2 class="wizard-step-title">Tipo de evidência</h2>
+                <p class="wizard-step-hint">Selecione o tipo — avança automaticamente.</p>
+            </div>
+            <div class="type-selector" id="type-selector">
+                <button type="button" class="type-btn" data-value="DIGITAL_DEVICE">
+                    <span class="type-icon">📱</span>
+                    <span>Dispositivo Digital</span>
+                </button>
+                <button type="button" class="type-btn" data-value="STORAGE_MEDIA">
+                    <span class="type-icon">💾</span>
+                    <span>Suporte Armazenamento</span>
+                </button>
+                <button type="button" class="type-btn" data-value="DOCUMENT">
+                    <span class="type-icon">📄</span>
+                    <span>Documento</span>
+                </button>
+                <button type="button" class="type-btn" data-value="PHOTO">
+                    <span class="type-icon">🖼️</span>
+                    <span>Fotografia</span>
+                </button>
+                <button type="button" class="type-btn" data-value="OTHER">
+                    <span class="type-icon">📦</span>
+                    <span>Outro</span>
                 </button>
             </div>
-            <div id="photo-buttons">
-                <!-- Câmara directa (mobile) -->
-                <label class="btn btn-outline btn-lg" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    📷 Tirar fotografia
-                    <input type="file" id="photo-camera" accept="image/*" capture="environment" style="display: none;">
-                </label>
-                <!-- Ficheiro (desktop) -->
-                <label class="btn btn-outline" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                    📁 Selecionar ficheiro
-                    <input type="file" id="photo-file" accept="image/*" style="display: none;">
-                </label>
+            <input type="hidden" id="type" name="type" required>
+            <div class="form-error" id="type-error"></div>
+        </section>
+
+        <!-- STEP 2 — Detalhes -->
+        <section class="wizard-step" data-step="2">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 3 de 5</div>
+                <h2 class="wizard-step-title">Detalhes da evidência</h2>
             </div>
-        </div>
-        <div class="form-hint">Opcional. JPEG/PNG até 10 MB. A foto é parte do registo forense.</div>
-    </div>
 
-    <!-- Número de série -->
-    <div class="form-group">
-        <label for="serial_number" class="form-label">Número de série</label>
-        <input
-            type="text"
-            id="serial_number"
-            name="serial_number"
-            class="form-control"
-            placeholder="Ex.: SN123456789"
-            autocomplete="off"
-        >
-        <div class="form-hint">Opcional. Para dispositivos com número de série identificável.</div>
-    </div>
-
-    <!-- Data e hora de apreensão -->
-    <div class="form-group">
-        <label for="timestamp_seizure" class="form-label required">Data/hora da apreensão</label>
-        <input
-            type="datetime-local"
-            id="timestamp_seizure"
-            name="timestamp_seizure"
-            class="form-control"
-            required
-        >
-        <div class="form-error" id="timestamp_seizure-error"></div>
-    </div>
-
-    <!-- Localização GPS -->
-    <div class="form-group">
-        <label class="form-label">Localização GPS (local de apreensão)</label>
-        <div id="gps-status" class="gps-status" style="display: none;"></div>
-        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 120px;">
-                <label for="gps_lat" class="form-label-sm">Latitude</label>
-                <input type="number" id="gps_lat" name="gps_lat" class="form-control"
-                       placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
+            <div class="form-group">
+                <label for="description" class="form-label required">Descrição</label>
+                <textarea
+                    id="description"
+                    name="description"
+                    class="form-control"
+                    rows="3"
+                    placeholder="Descreva a evidência: aspecto, estado, localização exacta..."
+                    required
+                ></textarea>
+                <div class="form-error" id="description-error"></div>
             </div>
-            <div style="flex: 1; min-width: 120px;">
-                <label for="gps_lon" class="form-label-sm">Longitude</label>
-                <input type="number" id="gps_lon" name="gps_lon" class="form-control"
-                       placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
+
+            <div class="form-group">
+                <label for="serial_number" class="form-label">Número de série</label>
+                <input
+                    type="text"
+                    id="serial_number"
+                    name="serial_number"
+                    class="form-control"
+                    placeholder="Ex.: SN123456789"
+                    autocomplete="off"
+                >
+                <div class="form-hint">Opcional. Para dispositivos com número de série.</div>
             </div>
-        </div>
-        <button type="button" id="btn-gps" class="btn btn-outline mt-8" style="width: 100%;">
-            📍 Capturar localização atual
-        </button>
-    </div>
 
-    <!-- Integridade (informativo) -->
-    <div class="form-group">
-        <div class="info-box">
-            🔒 <strong>Integridade garantida</strong> — O sistema calcula automaticamente um hash SHA-256
-            dos metadados desta evidência no momento do registo (ISO/IEC 27037). O registo é imutável após criação.
-        </div>
-    </div>
+            <div class="form-group">
+                <label for="timestamp_seizure" class="form-label required">Data/hora da apreensão</label>
+                <input
+                    type="datetime-local"
+                    id="timestamp_seizure"
+                    name="timestamp_seizure"
+                    class="form-control"
+                    required
+                >
+                <div class="form-error" id="timestamp_seizure-error"></div>
+            </div>
+        </section>
 
-    <!-- Botões -->
-    <div class="form-actions">
-        <button type="submit" class="btn btn-primary btn-lg btn-block" id="btn-submit">
-            <span id="btn-text">Registar Evidência</span>
-            <div class="spinner spinner-sm hidden" id="btn-spinner"></div>
-        </button>
-        <a href="/evidences/" class="btn btn-outline btn-lg btn-block mt-8">Cancelar</a>
-    </div>
+        <!-- STEP 3 — Fotografia + GPS -->
+        <section class="wizard-step" data-step="3">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 4 de 5</div>
+                <h2 class="wizard-step-title">Fotografia e localização</h2>
+                <p class="wizard-step-hint">Ambos opcionais, mas recomendados para a cadeia de custódia.</p>
+            </div>
 
+            <div class="form-group">
+                <label class="form-label">Fotografia</label>
+                <div class="photo-capture" id="photo-capture">
+                    <div id="photo-preview" class="photo-preview hidden">
+                        <img id="preview-img" src="" alt="Pré-visualização da fotografia">
+                        <button type="button" id="btn-remove-photo" class="btn btn-sm btn-outline">
+                            ✕ Remover
+                        </button>
+                    </div>
+                    <div id="photo-buttons">
+                        <label class="btn btn-outline btn-lg" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                            📷 Tirar fotografia
+                            <input type="file" id="photo-camera" accept="image/*" capture="environment" style="display:none;">
+                        </label>
+                        <label class="btn btn-outline" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                            📁 Selecionar ficheiro
+                            <input type="file" id="photo-file" accept="image/*" style="display:none;">
+                        </label>
+                    </div>
+                </div>
+                <div class="form-hint">Opcional. JPEG/PNG até 10 MB.</div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Localização GPS</label>
+                <div id="gps-status" class="gps-status" style="display:none;"></div>
+                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                    <div style="flex:1; min-width:120px;">
+                        <label for="gps_lat" class="form-label-sm">Latitude</label>
+                        <input type="number" id="gps_lat" name="gps_lat" class="form-control"
+                               placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
+                    </div>
+                    <div style="flex:1; min-width:120px;">
+                        <label for="gps_lon" class="form-label-sm">Longitude</label>
+                        <input type="number" id="gps_lon" name="gps_lon" class="form-control"
+                               placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
+                    </div>
+                </div>
+                <button type="button" id="btn-gps" class="btn btn-outline mt-8" style="width:100%;">
+                    📍 Capturar localização atual
+                </button>
+            </div>
+        </section>
+
+        <!-- STEP 4 — Resumo -->
+        <section class="wizard-step" data-step="4">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 5 de 5</div>
+                <h2 class="wizard-step-title">Confirmar registo</h2>
+                <p class="wizard-step-hint">Verifique os dados antes de submeter.</p>
+            </div>
+
+            <div class="info-box mb-16">
+                🔒 <strong>Integridade garantida</strong> — O sistema calcula um hash SHA-256
+                dos metadados no momento do registo (ISO/IEC 27037). O registo é imutável.
+            </div>
+
+            <div class="wizard-summary" id="summary">
+                <div class="wizard-summary-item">
+                    <span class="wizard-summary-label">Ocorrência</span>
+                    <span class="wizard-summary-value" id="sum-occurrence">—</span>
+                </div>
+                <div class="wizard-summary-item">
+                    <span class="wizard-summary-label">Tipo</span>
+                    <span class="wizard-summary-value" id="sum-type">—</span>
+                </div>
+                <div class="wizard-summary-item">
+                    <span class="wizard-summary-label">Descrição</span>
+                    <span class="wizard-summary-value" id="sum-description">—</span>
+                </div>
+                <div class="wizard-summary-item">
+                    <span class="wizard-summary-label">Nº série</span>
+                    <span class="wizard-summary-value" id="sum-serial">—</span>
+                </div>
+                <div class="wizard-summary-item">
+                    <span class="wizard-summary-label">Apreensão</span>
+                    <span class="wizard-summary-value mono" id="sum-timestamp">—</span>
+                </div>
+                <div class="wizard-summary-item">
+                    <span class="wizard-summary-label">GPS</span>
+                    <span class="wizard-summary-value mono" id="sum-gps">—</span>
+                </div>
+                <div class="wizard-summary-item" id="sum-photo-row" style="display:none;">
+                    <span class="wizard-summary-label">Foto</span>
+                    <span class="wizard-summary-value">
+                        <img id="sum-photo" class="wizard-summary-photo" src="" alt="Foto da evidência">
+                    </span>
+                </div>
+            </div>
+
+            <div id="submit-error" class="form-error mt-8"></div>
+            <div class="spinner spinner-dark hidden mt-16" id="submit-spinner" style="display:none; margin:16px auto;"></div>
+        </section>
+
+    </div><!-- /wizard-track -->
+
+    <!-- Navegação fixa no fundo -->
+    <nav class="wizard-nav">
+        <button type="button" class="wizard-back" aria-label="Voltar">‹</button>
+        <div class="wizard-dots"></div>
+        <button type="button" class="wizard-next">Seguinte</button>
+    </nav>
+</div><!-- /wizard -->
 </form>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{% static 'js/toast.js' %}"></script>
+<script src="{% static 'js/wizard.js' %}"></script>
 <script src="{% static 'js/pages/evidences_new.js' %}"></script>
 {% endblock %}
