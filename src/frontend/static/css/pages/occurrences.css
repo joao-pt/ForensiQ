@@ -1,0 +1,102 @@
+/* ForensiQ — página /occurrences/ (lista + mapa) */
+
+#map-container {
+    height: calc(100vh - 220px);
+    min-height: 360px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.view-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.view-tab {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background 0.15s, color 0.15s;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.view-tab.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+.view-tab:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Popup do Leaflet */
+.leaflet-popup-content {
+    font-family: inherit;
+    font-size: 0.875rem;
+    min-width: 180px;
+}
+
+.leaflet-popup-content strong {
+    display: block;
+    margin-bottom: 4px;
+    color: var(--primary);
+}
+
+.leaflet-popup-content .popup-desc {
+    color: #555;
+    font-size: 0.8125rem;
+    margin-bottom: 6px;
+}
+
+.leaflet-popup-content .popup-date {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.leaflet-popup-content a {
+    display: inline-block;
+    margin-top: 8px;
+    color: var(--primary);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+/* Legenda do mapa */
+.map-legend {
+    position: absolute;
+    bottom: 24px;
+    right: 8px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.75rem;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+.map-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.map-legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}

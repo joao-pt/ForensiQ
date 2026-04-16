@@ -1,0 +1,248 @@
+/* ForensiQ — timeline de cadeia de custódia (/evidence/<id>/custody/) */
+
+.evidence-header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 24px;
+}
+
+.evidence-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.evidence-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+.timeline {
+    position: relative;
+    padding-left: 32px;
+    margin-top: 8px;
+}
+
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 24px;
+}
+
+.timeline-item:last-child {
+    margin-bottom: 0;
+}
+
+.timeline-dot {
+    position: absolute;
+    left: -26px;
+    top: 14px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: var(--primary);
+    color: #fff;
+    box-shadow: 0 0 0 3px var(--bg);
+    z-index: 1;
+}
+
+.timeline-dot.state-APREENDIDA           { background: #1565c0; }
+.timeline-dot.state-EM_TRANSPORTE        { background: #6a1b9a; }
+.timeline-dot.state-RECEBIDA_LABORATORIO { background: #0277bd; }
+.timeline-dot.state-EM_PERICIA           { background: #e65100; }
+.timeline-dot.state-CONCLUIDA            { background: #2e7d32; }
+.timeline-dot.state-DEVOLVIDA            { background: #37474f; }
+.timeline-dot.state-DESTRUIDA            { background: #b71c1c; }
+
+.timeline-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+}
+
+.timeline-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.timeline-state-label {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text);
+}
+
+.timeline-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.timeline-agent {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.timeline-obs {
+    font-size: 0.875rem;
+    color: var(--text);
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+}
+
+.timeline-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+    word-break: break-all;
+    opacity: 0.7;
+}
+
+.hash-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.state-progress {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 24px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.state-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    min-width: 64px;
+    position: relative;
+}
+
+.state-step::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    right: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+}
+
+.state-step:last-child::after {
+    display: none;
+}
+
+.state-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #fff;
+}
+
+.state-step.done .state-step-dot {
+    background: var(--primary);
+}
+
+.state-step.current .state-step-dot {
+    background: #2e7d32;
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.25);
+}
+
+.state-step-label {
+    font-size: 0.6rem;
+    text-align: center;
+    margin-top: 4px;
+    color: var(--text-muted);
+    max-width: 64px;
+    line-height: 1.2;
+}
+
+.state-step.done .state-step-label,
+.state-step.current .state-step-label {
+    color: var(--text);
+    font-weight: 500;
+}
+
+.new-transition-btn {
+    margin-bottom: 24px;
+}
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.modal-overlay.open {
+    display: flex;
+}
+
+.modal {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 24px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.modal h3 {
+    margin: 0 0 16px 0;
+    font-size: 1rem;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+    justify-content: flex-end;
+}
