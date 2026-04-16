@@ -251,7 +251,12 @@ if not DEBUG and not TESTING:
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-    if os.environ.get('TRUSTED_PROXIES', '').strip():
+    # Atrás de TLS terminator (Fly.io, nginx, etc.): activar leitura do
+    # X-Forwarded-Proto sem exigir TRUSTED_PROXIES. Sem esta flag, Django
+    # nunca sabe que o pedido chegou por HTTPS ao edge e entra em loop de
+    # redireção com SECURE_SSL_REDIRECT.
+    if os.environ.get('USE_X_FORWARDED_PROTO', '').lower() == 'true' \
+            or os.environ.get('TRUSTED_PROXIES', '').strip():
         SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
