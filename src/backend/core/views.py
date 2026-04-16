@@ -14,12 +14,15 @@ Endpoints:
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db.models import Count
 from django.http import HttpResponse
+from rest_framework.views import APIView
 from rest_framework import serializers as drf_serializers  # Para converter ValidationError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 
 from .pdf_export import generate_evidence_pdf
 from .audit import log_access
@@ -38,6 +41,7 @@ from .serializers import (
     EvidenceSerializer,
     OccurrenceSerializer,
     UserCreateSerializer,
+    UserDetailSerializer,
     UserSerializer,
 )
 
@@ -72,8 +76,8 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='me')
     def me(self, request):
-        """Retorna o perfil do utilizador autenticado."""
-        serializer = self.get_serializer(request.user)
+        """Retorna o perfil do utilizador autenticado (inclui email e phone)."""
+        serializer = UserDetailSerializer(request.user, context={'request': request})
         return Response(serializer.data)
 
 
@@ -144,6 +148,15 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
 
+    def get_throttles(self):
+        if self.action == 'create':
+            self.throttle_scope = 'evidence_upload'
+            return [ScopedRateThrottle()]
+        if self.action == 'export_pdf':
+            self.throttle_scope = 'pdf_export'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
+
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
@@ -186,9 +199,15 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         Conformidade: ISO/IEC 27037 — inclui hash SHA-256, timestamp UTC,
         cadeia de custódia completa e declaração de integridade.
         """
-        evidence = self.get_object()  # 404 automático se não existir
-        # Pré-carregar relações para evitar N+1 queries
-        evidence.occurrence  # noqa: B018 — força o load da FK
+        # get_object() aplica permissões e 404. Substituímos o queryset pela
+        # versão optimizada (select_related + prefetch_related) para evitar
+        # N+1 no corpo do PDF e na cadeia de custódia.
+        self.queryset = (
+            Evidence.objects
+            .select_related('occurrence__agent', 'agent')
+            .prefetch_related('custody_chain__agent')
+        )
+        evidence = self.get_object()
 
         # Auditoria: exportação PDF
         log_access(
@@ -289,6 +308,56 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='evidence/(?P<evidence_id>[0-9]+)/timeline')
     def timeline(self, request, evidence_id=None):
         """Retorna a timeline completa de custódia para uma evidência."""
-        records = self.queryset.filter(evidence_id=evidence_id).order_by('timestamp')
+        records = (
+            ChainOfCustody.objects
+            .select_related('agent', 'evidence__occurrence')
+            .filter(evidence_id=evidence_id)
+            .order_by('sequence')
+        )
         serializer = self.get_serializer(records, many=True)
         return Response(serializer.data)
+
+
+# ---------------------------------------------------------------------------
+# Stats (dashboard) — endpoint agregado para evitar round-trips do frontend
+# ---------------------------------------------------------------------------
+
+class StatsView(APIView):
+    """
+    GET /api/stats/ — devolve contagens agregadas para o dashboard.
+
+    Ao expor um único endpoint evitamos N round-trips (ocorrências, evidências,
+    dispositivos, cadeia de custódia) e beneficiamos de uma única transacção
+    coerente. AGENT vê apenas os seus; staff/EXPERT vêem totais globais.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        occ_qs = Occurrence.objects.all()
+        ev_qs = Evidence.objects.all()
+        dev_qs = DigitalDevice.objects.all()
+        coc_qs = ChainOfCustody.objects.all()
+
+        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+            occ_qs = occ_qs.filter(agent=user)
+            ev_qs = ev_qs.filter(occurrence__agent=user)
+            dev_qs = dev_qs.filter(evidence__occurrence__agent=user)
+            coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
+
+        evidence_by_type = dict(
+            ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
+        )
+        custody_by_state = dict(
+            coc_qs.values_list('new_state').annotate(n=Count('id')).values_list('new_state', 'n')
+        )
+
+        return Response({
+            'occurrences': occ_qs.count(),
+            'evidences': ev_qs.count(),
+            'devices': dev_qs.count(),
+            'custody_records': coc_qs.count(),
+            'evidence_by_type': evidence_by_type,
+            'custody_by_state': custody_by_state,
+        })

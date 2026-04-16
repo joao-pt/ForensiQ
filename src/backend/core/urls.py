@@ -11,6 +11,7 @@ Router DRF com os seguintes endpoints:
 - /api/custody/evidence/<id>/timeline/ — timeline de custódia
 """
 
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
@@ -18,6 +19,7 @@ from .views import (
     DigitalDeviceViewSet,
     EvidenceViewSet,
     OccurrenceViewSet,
+    StatsView,
     UserViewSet,
 )
 
@@ -30,4 +32,6 @@ router.register(r'evidences', EvidenceViewSet, basename='evidence')
 router.register(r'devices', DigitalDeviceViewSet, basename='device')
 router.register(r'custody', ChainOfCustodyViewSet, basename='custody')
 
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    path('stats/', StatsView.as_view(), name='stats'),
+]
