@@ -5,7 +5,9 @@ Funções utilitárias para registar acessos (VIEW, CREATE, EXPORT_PDF) em log i
 com rastreamento via correlation_id.
 """
 
+import ipaddress
 import logging
+import os
 
 from django.http import HttpRequest
 
@@ -15,25 +17,67 @@ from .models import AuditLog
 logger = logging.getLogger(__name__)
 
 
+def _trusted_proxies():
+    """
+    Lista de IPs/redes de proxies confiáveis, a partir de TRUSTED_PROXIES
+    (CSV no .env). Suporta prefixos CIDR (ex: '10.0.0.0/8,127.0.0.1').
+    """
+    raw = os.environ.get('TRUSTED_PROXIES', '')
+    networks = []
+    for token in raw.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(token, strict=False))
+        except ValueError:
+            logger.warning('TRUSTED_PROXIES entrada inválida ignorada: %s', token)
+    return networks
+
+
+def _remote_addr_trusted(remote_addr: str) -> bool:
+    if not remote_addr:
+        return False
+    try:
+        addr = ipaddress.ip_address(remote_addr)
+    except ValueError:
+        return False
+    return any(addr in net for net in _trusted_proxies())
+
+
 def get_client_ip(request: HttpRequest) -> str:
     """
-    Extrai o endereço IP do cliente da requisição.
+    Extrai o endereço IP do cliente de forma segura.
 
-    Prioridade:
-    1. X-Forwarded-For (para proxies/load balancers)
-    2. X-Real-IP (nginx)
-    3. REMOTE_ADDR (direto)
+    Só confia em X-Forwarded-For / X-Real-IP se REMOTE_ADDR pertencer
+    à whitelist TRUSTED_PROXIES. Caso contrário devolve REMOTE_ADDR
+    (o cliente não pode falsificar a origem TCP).
+
+    Fallback final '0.0.0.0' para nunca devolver string vazia
+    (AuditLog.ip_address é NOT NULL).
     """
-    # X-Forwarded-For pode conter múltiplos IPs, pegarmos o primeiro
-    forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
-    if forwarded_for:
-        return forwarded_for.split(',')[0].strip()
+    remote_addr = request.META.get('REMOTE_ADDR', '') or ''
 
-    real_ip = request.META.get('HTTP_X_REAL_IP')
-    if real_ip:
-        return real_ip.strip()
+    if _remote_addr_trusted(remote_addr):
+        forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if forwarded_for:
+            # Primeiro IP da cadeia = cliente original
+            candidate = forwarded_for.split(',')[0].strip()
+            try:
+                ipaddress.ip_address(candidate)
+                return candidate
+            except ValueError:
+                pass
+        real_ip = request.META.get('HTTP_X_REAL_IP')
+        if real_ip:
+            candidate = real_ip.strip()
+            try:
+                ipaddress.ip_address(candidate)
+                return candidate
+            except ValueError:
+                pass
 
-    return request.META.get('REMOTE_ADDR', '')
+    return remote_addr or '0.0.0.0'
 
 
 def log_access(
