@@ -26,18 +26,50 @@ from django.utils import timezone
 # Validadores customizados
 # ---------------------------------------------------------------------------
 
+ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'WEBP'}
+MAX_IMAGE_BYTES = 25 * 1024 * 1024  # 25 MB
+
+
 def validate_image_max_size(value):
     """
-    Limita o tamanho da foto a 25 MB (proteção contra DoS).
+    Validação de upload conforme OWASP:
+    - Tamanho <= 25 MB (proteção DoS).
+    - MIME real via Pillow.verify() (protege contra SVG/polyglots).
+    - Formato na whitelist (JPEG/PNG/WEBP).
 
-    Levanta ValidationError se o ficheiro exceder o limite.
-    Conforme OWASP — validação de upload de ficheiros.
+    Nota: Pillow.verify() fecha o ficheiro; o stream é reposicionado
+    no fim para que o Django possa voltar a gravar.
     """
-    max_size = 25 * 1024 * 1024  # 25 MB
-    if value.size > max_size:
+    if value.size > MAX_IMAGE_BYTES:
         raise ValidationError(
             f'O ficheiro excede o tamanho máximo permitido de 25 MB '
             f'(tamanho actual: {value.size / (1024*1024):.1f} MB).'
+        )
+
+    try:
+        from PIL import Image  # lazy import
+    except ImportError:  # pragma: no cover
+        return
+
+    try:
+        value.seek(0)
+        with Image.open(value) as img:
+            img.verify()
+            fmt = (img.format or '').upper()
+    except Exception as exc:
+        raise ValidationError(
+            'O ficheiro não é uma imagem válida ou está corrompido.'
+        ) from exc
+    finally:
+        try:
+            value.seek(0)
+        except Exception:
+            pass
+
+    if fmt not in ALLOWED_IMAGE_FORMATS:
+        raise ValidationError(
+            f'Formato de imagem não permitido: {fmt or "desconhecido"}. '
+            f'Permitidos: {", ".join(sorted(ALLOWED_IMAGE_FORMATS))}.'
         )
 
 
@@ -151,10 +183,22 @@ class Occurrence(models.Model):
 
     def clean(self):
         super().clean()
+        # Normalizar número da ocorrência (collapse spaces + strip)
+        if self.number:
+            self.number = ' '.join(self.number.split())
         if (self.gps_lat is not None) != (self.gps_lon is not None):
             raise ValidationError(
                 'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
             )
+        if self.date_time and self.date_time > timezone.now():
+            raise ValidationError({
+                'date_time': 'A data da ocorrência não pode estar no futuro.'
+            })
+
+    def save(self, *args, **kwargs):
+        """Chama full_clean para garantir que validadores de campo correm."""
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -243,15 +287,36 @@ class Evidence(models.Model):
         verbose_name = 'Evidência'
         verbose_name_plural = 'Evidências'
         ordering = ['-timestamp_seizure']
+        indexes = [
+            models.Index(fields=['occurrence', '-timestamp_seizure'], name='ev_occ_ts_idx'),
+            models.Index(fields=['agent', '-timestamp_seizure'], name='ev_agent_ts_idx'),
+        ]
 
     def __str__(self):
         return f'Evidência #{self.pk} — {self.get_type_display()} ({self.occurrence.number})'
 
+    def _compute_photo_hash(self):
+        """SHA-256 do conteúdo binário da fotografia (ou '' se não houver)."""
+        if not self.photo:
+            return ''
+        try:
+            self.photo.open('rb')
+            hasher = hashlib.sha256()
+            for chunk in self.photo.chunks():
+                hasher.update(chunk)
+            return hasher.hexdigest()
+        finally:
+            try:
+                self.photo.close()
+            except Exception:
+                pass
+
     def compute_integrity_hash(self):
         """
-        Calcula hash SHA-256 dos metadados da evidência.
-        Conforme ISO/IEC 27037 — integridade de metadados no momento do registo.
+        Calcula hash SHA-256 dos metadados + bytes da fotografia da evidência.
+        Conforme ISO/IEC 27037 — integridade total (metadados e artefacto).
         """
+        photo_hash = self._compute_photo_hash()
         data = (
             f'{self.occurrence_id}|'
             f'{self.type}|'
@@ -259,7 +324,8 @@ class Evidence(models.Model):
             f'{self.gps_lat}|{self.gps_lon}|'
             f'{self.timestamp_seizure.isoformat()}|'
             f'{self.serial_number}|'
-            f'{self.agent_id}'
+            f'{self.agent_id}|'
+            f'photo={photo_hash}'
         )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
@@ -274,6 +340,8 @@ class Evidence(models.Model):
                 'Registos de evidência são imutáveis após criação. '
                 'Não é permitido alterar metadados de prova.'
             )
+        # full_clean garante que validadores de campo (GPS, etc.) correm
+        self.full_clean()
         self.integrity_hash = self.compute_integrity_hash()
         super().save(*args, **kwargs)
 
@@ -290,6 +358,10 @@ class Evidence(models.Model):
             raise ValidationError(
                 'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
             )
+        if self.timestamp_seizure and self.timestamp_seizure > timezone.now():
+            raise ValidationError({
+                'timestamp_seizure': 'A data da apreensão não pode estar no futuro.'
+            })
 
 
 # ---------------------------------------------------------------------------
@@ -459,11 +531,30 @@ class ChainOfCustody(models.Model):
         verbose_name='Hash SHA-256 do registo',
         help_text='Hash que encadeia com o registo anterior (integridade).',
     )
+    sequence = models.PositiveIntegerField(
+        default=0,
+        verbose_name='Sequência',
+        help_text=(
+            'Número sequencial (1..N) por evidência. Determina a ordem '
+            'canónica da cadeia de custódia, independente de resolução '
+            'temporal do timestamp.'
+        ),
+    )
 
     class Meta:
         verbose_name = 'Registo de Custódia'
         verbose_name_plural = 'Registos de Custódia'
-        ordering = ['evidence', 'timestamp']
+        ordering = ['evidence', 'sequence']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['evidence', 'sequence'],
+                name='unique_custody_sequence_per_evidence',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['evidence', 'sequence'], name='coc_ev_seq_idx'),
+            models.Index(fields=['agent', '-timestamp'], name='coc_agent_ts_idx'),
+        ]
 
     def __str__(self):
         prev = self.get_previous_state_display() or '(início)'
@@ -488,23 +579,25 @@ class ChainOfCustody(models.Model):
     def compute_record_hash(self):
         """
         Calcula hash SHA-256 encadeando com o registo anterior.
-        Garante integridade tipo blockchain na cadeia de custódia.
+
+        Determinístico: qualquer perito independente pode recalcular o hash
+        a partir dos campos públicos do registo e do hash do registo anterior,
+        verificando a integridade da cadeia (ISO/IEC 27037).
+
+        Fórmula: SHA-256(previous_hash | evidence_id | previous_state | new_state |
+                         agent_id | timestamp_iso | observations)
         """
-        # Obter hash do registo anterior (se existir)
         previous_record = (
             ChainOfCustody.objects
             .filter(evidence=self.evidence)
-            .order_by('-timestamp')
+            .order_by('-sequence')
             .first()
         )
         previous_hash = previous_record.record_hash if previous_record else '0' * 64
 
-        # Gera nonce único para evitar colisão de hash (replay attack)
-        # Nota: self.pk é None antes do save(), por isso usamos uuid4
-        nonce = uuid.uuid4().hex
         data = (
             f'{previous_hash}|'
-            f'{nonce}|'
+            f'seq={self.sequence}|'
             f'{self.evidence_id}|'
             f'{self.previous_state}|{self.new_state}|'
             f'{self.agent_id}|'
@@ -531,17 +624,18 @@ class ChainOfCustody(models.Model):
             )
 
         with transaction.atomic():
-            # Auto-determinar previous_state a partir do último registo
-            # select_for_update() garante que nenhum outro processo insere
-            # registos concorrentes enquanto estamos a processar este
+            # Auto-determinar previous_state e sequence a partir do último registo.
+            # select_for_update() garante serialização entre escritores concorrentes
+            # na mesma evidência.
             last_record = (
                 ChainOfCustody.objects
                 .select_for_update()
                 .filter(evidence=self.evidence)
-                .order_by('-timestamp')
+                .order_by('-sequence')
                 .first()
             )
             self.previous_state = last_record.new_state if last_record else ''
+            self.sequence = (last_record.sequence + 1) if last_record else 1
 
             # Timestamp sempre do servidor (NTP-synced) — nunca do cliente
             self.timestamp = timezone.now()
