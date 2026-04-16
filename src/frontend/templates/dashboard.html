@@ -36,28 +36,28 @@
         Acções rápidas
     </h3>
     <div class="quick-actions">
-        <button class="action-btn" onclick="navigateTo('/occurrences/new/')">
+        <button class="action-btn" data-nav="/occurrences/new/">
             <div class="action-icon blue">+</div>
             <div class="action-text">
                 <strong>Nova Ocorrência</strong>
                 <small>Registar cena de crime</small>
             </div>
         </button>
-        <button class="action-btn" onclick="navigateTo('/evidences/new/')">
+        <button class="action-btn" data-nav="/evidences/new/">
             <div class="action-icon green">+</div>
             <div class="action-text">
                 <strong>Nova Evidência</strong>
                 <small>Apreender prova digital</small>
             </div>
         </button>
-        <button class="action-btn" onclick="navigateTo('/occurrences/')">
+        <button class="action-btn" data-nav="/occurrences/">
             <div class="action-icon orange">&#128269;</div>
             <div class="action-text">
                 <strong>Ocorrências</strong>
                 <small>Ver todas as ocorrências</small>
             </div>
         </button>
-        <button class="action-btn" onclick="navigateTo('/evidences/')">
+        <button class="action-btn" data-nav="/evidences/">
             <div class="action-icon red">&#128270;</div>
             <div class="action-text">
                 <strong>Evidências</strong>
@@ -73,21 +73,21 @@
         Acções rápidas
     </h3>
     <div class="quick-actions">
-        <button class="action-btn" onclick="navigateTo('/custody/')">
+        <button class="action-btn" data-nav="/custody/">
             <div class="action-icon blue">&#128279;</div>
             <div class="action-text">
                 <strong>Cadeia de Custódia</strong>
                 <small>Gerir transferências</small>
             </div>
         </button>
-        <button class="action-btn" onclick="navigateTo('/evidences/')">
+        <button class="action-btn" data-nav="/evidences/">
             <div class="action-icon green">&#128269;</div>
             <div class="action-text">
                 <strong>Evidências</strong>
                 <small>Consultar evidências em perícia</small>
             </div>
         </button>
-        <button class="action-btn" onclick="navigateTo('/occurrences/')">
+        <button class="action-btn" data-nav="/occurrences/">
             <div class="action-icon orange">&#128196;</div>
             <div class="action-text">
                 <strong>Ocorrências</strong>
@@ -115,138 +115,5 @@
 
 {% block extra_js %}
 <script src="{% static 'js/toast.js' %}"></script>
-<script>
-'use strict';
-
-document.addEventListener('DOMContentLoaded', async () => {
-    // Verificar autenticação
-    const authenticated = await Auth.requireAuth();
-    if (!authenticated) return;
-
-    const user = Auth.getUser();
-    initDashboard(user);
-    loadStats();
-    loadRecentOccurrences();
-
-    // Logout
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
-});
-
-/**
- * Inicializa o dashboard com base no perfil do utilizador.
- */
-function initDashboard(user) {
-    if (!user) return;
-
-    // Nome na navbar
-    const navbarUser = document.getElementById('navbar-user');
-    navbarUser.textContent = user.first_name || user.username;
-
-    // Saudação
-    const greeting = document.getElementById('greeting');
-    const hour = new Date().getHours();
-    let salutation = 'Bom dia';
-    if (hour >= 13 && hour < 20) salutation = 'Boa tarde';
-    else if (hour >= 20 || hour < 6) salutation = 'Boa noite';
-
-    greeting.textContent = `${salutation}, ${user.first_name || user.username}`;
-
-    // Perfil
-    const profileInfo = document.getElementById('profile-info');
-    profileInfo.textContent = CONFIG.PROFILES[user.profile] || user.profile;
-
-    // Mostrar acções do perfil correspondente
-    if (user.profile === 'AGENT') {
-        document.getElementById('agent-actions').classList.remove('hidden');
-    } else if (user.profile === 'EXPERT') {
-        document.getElementById('expert-actions').classList.remove('hidden');
-    }
-}
-
-/**
- * Carrega contadores rápidos (total de cada entidade).
- */
-async function loadStats() {
-    try {
-        const [occurrences, evidences, devices, custody] = await Promise.all([
-            API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 1 }),
-            API.get(CONFIG.ENDPOINTS.EVIDENCES, { page_size: 1 }),
-            API.get(CONFIG.ENDPOINTS.DEVICES, { page_size: 1 }),
-            API.get(CONFIG.ENDPOINTS.CUSTODY, { page_size: 1 }),
-        ]);
-
-        document.getElementById('stat-occurrences').textContent = occurrences.count || 0;
-        document.getElementById('stat-evidences').textContent = evidences.count || 0;
-        document.getElementById('stat-devices').textContent = devices.count || 0;
-        document.getElementById('stat-custody').textContent = custody.count || 0;
-    } catch (err) {
-        console.error('Erro ao carregar estatísticas:', err);
-    }
-}
-
-/**
- * Carrega as últimas ocorrências.
- */
-async function loadRecentOccurrences() {
-    const container = document.getElementById('recent-occurrences');
-
-    try {
-        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 5 });
-        const occurrences = data.results || [];
-
-        if (occurrences.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">&#128203;</div>
-                    <p>Sem ocorrências registadas.</p>
-                </div>
-            `;
-            return;
-        }
-
-        container.innerHTML = occurrences.map(occ => {
-            const date = new Date(occ.date_time).toLocaleDateString('pt-PT', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit',
-            });
-            return `
-                <div class="list-item" onclick="navigateTo('/occurrences/${occ.id}/')">
-                    <div style="flex: 1;">
-                        <strong>${escapeHtml(occ.number)}</strong>
-                        <div class="text-muted" style="font-size: 0.8125rem;">
-                            ${escapeHtml(occ.description.substring(0, 80))}${occ.description.length > 80 ? '...' : ''}
-                        </div>
-                    </div>
-                    <div class="text-muted" style="font-size: 0.75rem; white-space: nowrap;">
-                        ${date}
-                    </div>
-                </div>
-            `;
-        }).join('');
-    } catch (err) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <p class="text-danger">Erro ao carregar ocorrências.</p>
-            </div>
-        `;
-        console.error('Erro:', err);
-    }
-}
-
-/**
- * Navegar para outra página.
- */
-function navigateTo(path) {
-    window.location.href = path;
-}
-
-/**
- * Escapar HTML para prevenir XSS.
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-</script>
+<script src="{% static 'js/pages/dashboard.js' %}"></script>
 {% endblock %}
