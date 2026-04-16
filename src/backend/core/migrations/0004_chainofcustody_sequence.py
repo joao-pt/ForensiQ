@@ -9,23 +9,43 @@ existente) para registos existentes, garantindo que o constraint único
 from django.db import migrations, models
 
 
+# SQL constantes (identificadores não são parametrizáveis em DDL).
+# Nome da tabela é o db_table fixo do modelo core.ChainOfCustody.
+_DISABLE_TRIGGER_SQL = 'ALTER TABLE "core_chainofcustody" DISABLE TRIGGER trg_custody_no_update'
+_ENABLE_TRIGGER_SQL = 'ALTER TABLE "core_chainofcustody" ENABLE TRIGGER trg_custody_no_update'
+
+
 def backfill_sequences(apps, schema_editor):
     ChainOfCustody = apps.get_model('core', 'ChainOfCustody')
-    # Evidências com registos
-    evidence_ids = (
-        ChainOfCustody.objects.values_list('evidence_id', flat=True).distinct()
-    )
-    for evidence_id in evidence_ids:
-        records = list(
-            ChainOfCustody.objects
-            .filter(evidence_id=evidence_id)
-            .order_by('timestamp', 'id')
+    connection = schema_editor.connection
+
+    # O trigger trg_custody_no_update (0002) bloqueia qualquer UPDATE.
+    # Durante o backfill desactivamos o trigger — a imutabilidade é
+    # reposta logo a seguir. Só suportado em PostgreSQL; em sqlite
+    # (testes) o trigger não existe e o ALTER é saltado.
+    is_postgres = connection.vendor == 'postgresql'
+
+    if is_postgres:
+        with connection.cursor() as cursor:
+            cursor.execute(_DISABLE_TRIGGER_SQL)  # nosemgrep: python.django.security.injection.raw-query.raw-query
+
+    try:
+        evidence_ids = (
+            ChainOfCustody.objects.values_list('evidence_id', flat=True).distinct()
         )
-        for idx, record in enumerate(records, start=1):
-            if record.sequence != idx:
-                record.sequence = idx
-                # .save() do modelo real tem o override restritivo; usar update()
-                ChainOfCustody.objects.filter(pk=record.pk).update(sequence=idx)
+        for evidence_id in evidence_ids:
+            records = list(
+                ChainOfCustody.objects
+                .filter(evidence_id=evidence_id)
+                .order_by('timestamp', 'id')
+            )
+            for idx, record in enumerate(records, start=1):
+                if record.sequence != idx:
+                    ChainOfCustody.objects.filter(pk=record.pk).update(sequence=idx)
+    finally:
+        if is_postgres:
+            with connection.cursor() as cursor:
+                cursor.execute(_ENABLE_TRIGGER_SQL)  # nosemgrep: python.django.security.injection.raw-query.raw-query
 
 
 def noop_reverse(apps, schema_editor):
