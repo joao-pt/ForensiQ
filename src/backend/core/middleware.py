@@ -91,10 +91,25 @@ class ContentSecurityPolicyMiddleware:
         "connect-src 'self' https://nominatim.openstreetmap.org; "
         "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
         "font-src 'self' https://cdnjs.cloudflare.com; "
+        "object-src 'none'; "
+        "frame-src 'none'; "
         "base-uri 'self'; "
         "frame-ancestors 'none'; "
-        "form-action 'self'"
+        "form-action 'self'; "
+        "upgrade-insecure-requests"
     )
+
+    # Cabeçalhos auxiliares de segurança (OWASP Secure Headers Project)
+    EXTRA_SECURITY_HEADERS = {
+        'Permissions-Policy': (
+            'accelerometer=(), camera=(), geolocation=(self), gyroscope=(), '
+            'magnetometer=(), microphone=(), payment=(), usb=()'
+        ),
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+    }
 
     def __init__(self, get_response):
         self.get_response = get_response
@@ -102,12 +117,13 @@ class ContentSecurityPolicyMiddleware:
     def __call__(self, request):
         response = self.get_response(request)
 
-        # Não sobrescrever se já definido (ex: por decorator específico)
         if 'Content-Security-Policy' not in response:
             if settings.DEBUG:
-                # Em desenvolvimento: apenas reportar, não bloquear
                 response['Content-Security-Policy-Report-Only'] = self.CSP_POLICY
             else:
                 response['Content-Security-Policy'] = self.CSP_POLICY
+
+        for header, value in self.EXTRA_SECURITY_HEADERS.items():
+            response.setdefault(header, value)
 
         return response
