@@ -86,7 +86,7 @@ class ContentSecurityPolicyMiddleware:
     # Política CSP para produção
     CSP_POLICY = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "script-src 'self' https://cdnjs.cloudflare.com; "
         "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
         "connect-src 'self' https://nominatim.openstreetmap.org; "
         "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
