@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     # Terceiros
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'drf_spectacular',
     # ForensiQ
@@ -119,7 +120,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # --- Django REST Framework ---
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'core.auth.JWTCookieAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -200,6 +201,10 @@ CSRF_TRUSTED_ORIGINS = [
     'https://forensiq.pt',
     'https://www.forensiq.pt',
 ]
+# Cookie CSRF lido pelo JS para enviar em X-CSRFToken. SameSite=Strict
+# já bloqueia requests cross-site, e o cookie JWT é HttpOnly.
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SAMESITE = 'Strict'
 
 # --- Internacionalização ---
 LANGUAGE_CODE = 'pt-pt'
