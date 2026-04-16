@@ -87,10 +87,10 @@ class ContentSecurityPolicyMiddleware:
     CSP_POLICY = (
         "default-src 'self'; "
         "script-src 'self' https://cdnjs.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
         "connect-src 'self' https://nominatim.openstreetmap.org; "
         "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
-        "font-src 'self' https://cdnjs.cloudflare.com; "
+        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
         "object-src 'none'; "
         "frame-src 'none'; "
         "base-uri 'self'; "

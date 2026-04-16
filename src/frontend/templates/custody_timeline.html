@@ -3,6 +3,10 @@
 
 {% block title %}ForensiQ — Cadeia de Custódia{% endblock %}
 
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Evidências</a><span class="breadcrumb-sep">›</span><span id="breadcrumb-title">Custódia</span>
+{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="{% static "css/pages/custody_timeline.css" %}">
 {% endblock %}

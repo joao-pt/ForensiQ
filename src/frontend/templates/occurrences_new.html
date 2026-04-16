@@ -3,6 +3,10 @@
 
 {% block title %}ForensiQ — Nova Ocorrência{% endblock %}
 
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/occurrences/">Ocorrências</a><span class="breadcrumb-sep">›</span><span>Nova</span>
+{% endblock %}
+
 {% block content %}
 <!-- Cabeçalho -->
 <div class="page-header">
@@ -10,7 +14,6 @@
         <h2 class="page-title">Nova Ocorrência</h2>
         <p class="page-subtitle">Registar cena de crime</p>
     </div>
-    <a href="/occurrences/" class="btn btn-outline">← Voltar</a>
 </div>
 
 <!-- Formulário -->

@@ -7,16 +7,11 @@
  * - Contraste elevado para uso em exteriores
  * - Uma mão só quando possível
  *
- * Paleta:
- * --primary:   #1a237e (azul escuro — autoridade, confiança)
- * --secondary:  #0d47a1 (azul médio)
- * --accent:    #ff6f00 (laranja — alertas, CTAs)
- * --success:   #2e7d32 (verde)
- * --danger:    #c62828 (vermelho)
- * --bg:        #f5f5f5
- * --surface:   #ffffff
- * --text:      #212121
- * --text-light: #757575
+ * Tema "forensic precision" — selecionável pelo utilizador:
+ *   midnight (default)  — navy profundo + teal forense + amber alert
+ *   indigo              — paleta clássica preservada
+ *
+ * Troca-se via <html data-theme="midnight|indigo">.
  */
 
 /* ============================================================
@@ -29,25 +24,92 @@
     padding: 0;
 }
 
+/* Tokens estruturais — independentes de tema */
 :root {
-    --primary: #1a237e;
-    --primary-light: #3949ab;
-    --secondary: #0d47a1;
-    --accent: #ff6f00;
-    --success: #2e7d32;
-    --danger: #c62828;
-    --warning: #f57f17;
-    --bg: #f5f5f5;
-    --surface: #ffffff;
-    --text: #212121;
-    --text-light: #757575;
-    --border: #e0e0e0;
     --radius: 8px;
     --radius-lg: 12px;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.16);
+    --radius-pill: 999px;
     --transition: 0.2s ease;
-    --min-touch: 48px; /* Mínimo recomendado para touch targets (WCAG) */
+    --min-touch: 48px; /* Mínimo WCAG para touch targets */
+
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                 Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono',
+                 Consolas, 'Courier New', monospace;
+}
+
+/*
+ * Tema MIDNIGHT (default)
+ * - navy #0B1220 como autoridade sóbria
+ * - teal #2DD4BF como signal técnico/forense (evoca ferramentas de
+ *   análise digital: Wireshark, Sleuthkit, IDA)
+ * - amber #F59E0B para CTAs e alertas (evidence-tag)
+ */
+:root,
+[data-theme="midnight"] {
+    --primary:        #0B1220;
+    --primary-light:  #1E293B;
+    --primary-dark:   #05080F;
+    --secondary:      #2DD4BF;
+    --secondary-dark: #0F9488;
+    --accent:         #F59E0B;
+    --accent-dark:    #D97706;
+    --success:        #10B981;
+    --danger:         #E11D48;
+    --warning:        #F59E0B;
+
+    --bg:             #F4F6F8;
+    --surface:        #FFFFFF;
+    --surface-muted:  #F8FAFC;
+    --text:           #0F172A;
+    --text-light:     #64748B;
+    --border:         #E2E8F0;
+
+    /* Tintas pastel semânticas — fundo suave com texto na cor */
+    --tint-primary:   #E2E8F0;
+    --tint-secondary: #CCFBF1;
+    --tint-accent:    #FEF3C7;
+    --tint-success:   #D1FAE5;
+    --tint-danger:    #FFE4E6;
+    --tint-neutral:   #F1F5F9;
+
+    --ring:           rgba(45, 212, 191, 0.35);
+    --shadow:         0 2px 8px rgba(11, 18, 32, 0.08);
+    --shadow-lg:      0 8px 24px rgba(11, 18, 32, 0.14);
+}
+
+/*
+ * Tema INDIGO — paleta clássica ForensiQ preservada
+ */
+[data-theme="indigo"] {
+    --primary:        #1a237e;
+    --primary-light:  #3949ab;
+    --primary-dark:   #0d1453;
+    --secondary:      #0d47a1;
+    --secondary-dark: #0a3880;
+    --accent:         #ff6f00;
+    --accent-dark:    #e65100;
+    --success:        #2e7d32;
+    --danger:         #c62828;
+    --warning:        #f57f17;
+
+    --bg:             #f5f5f5;
+    --surface:        #ffffff;
+    --surface-muted:  #fafafa;
+    --text:           #212121;
+    --text-light:     #757575;
+    --border:         #e0e0e0;
+
+    --tint-primary:   #e8eaf6;
+    --tint-secondary: #e3f2fd;
+    --tint-accent:    #fff3e0;
+    --tint-success:   #e8f5e9;
+    --tint-danger:    #ffebee;
+    --tint-neutral:   #f5f5f5;
+
+    --ring:           rgba(26, 35, 126, 0.18);
+    --shadow:         0 2px 8px rgba(0, 0, 0, 0.12);
+    --shadow-lg:      0 4px 16px rgba(0, 0, 0, 0.16);
 }
 
 html {
@@ -56,13 +118,23 @@ html {
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
-                 'Helvetica Neue', Arial, sans-serif;
+    font-family: var(--font-sans);
     background: var(--bg);
     color: var(--text);
     line-height: 1.5;
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* Semântica tipográfica: hashes, IDs de evidência, timestamps, coordenadas */
+.mono,
+code,
+kbd,
+samp {
+    font-family: var(--font-mono);
+    font-variant-ligatures: none;
 }
 
 /* ============================================================
@@ -83,40 +155,101 @@ body {
     box-shadow: var(--shadow);
 }
 
-.navbar-brand {
+.navbar-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    min-width: 0;
 }
 
 .navbar-logo {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: var(--accent);
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 0.875rem;
-    border-radius: 6px;
+    flex-shrink: 0;
+    text-decoration: none;
 }
 
-.navbar-title {
+.seal-logo {
+    width: 32px;
+    height: 32px;
+    display: block;
+}
+
+.seal-logo-lg {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 12px;
+}
+
+/* Breadcrumb contextual */
+.breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.65);
+    min-width: 0;
+    overflow: hidden;
+}
+
+.breadcrumb a {
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color var(--transition);
+}
+
+.breadcrumb a:hover {
+    color: #ffffff;
+}
+
+.breadcrumb > span:last-child {
+    color: #ffffff;
     font-weight: 600;
-    font-size: 1.125rem;
-    letter-spacing: 0.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.breadcrumb-sep {
+    opacity: 0.4;
+    font-size: 0.75rem;
+    flex-shrink: 0;
 }
 
 .navbar-actions {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    flex-shrink: 0;
 }
 
 .navbar-user {
-    font-size: 0.875rem;
-    opacity: 0.9;
+    font-size: 0.8125rem;
+    opacity: 0.85;
+}
+
+/* Theme toggle */
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background: none;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    color: rgba(255, 255, 255, 0.75);
+    cursor: pointer;
+    transition: all var(--transition);
+}
+
+.theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
 }
 
 /* ============================================================
@@ -172,7 +305,7 @@ body {
 }
 
 .btn-accent:hover {
-    background: #e65100;
+    background: var(--accent-dark);
 }
 
 .btn-success {
@@ -244,7 +377,7 @@ body {
 .form-input:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.15);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .form-input::placeholder {
@@ -332,19 +465,7 @@ textarea.form-input {
     margin-bottom: 24px;
 }
 
-.login-logo-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 64px;
-    height: 64px;
-    background: var(--primary);
-    color: #ffffff;
-    font-weight: 700;
-    font-size: 1.5rem;
-    border-radius: 16px;
-    margin-bottom: 12px;
-}
+/* .login-logo-icon substituído por .seal-logo-lg no template */
 
 .login-logo h1 {
     font-size: 1.5rem;
@@ -358,7 +479,7 @@ textarea.form-input {
 }
 
 .login-error {
-    background: #ffebee;
+    background: var(--tint-danger);
     color: var(--danger);
     padding: 12px 16px;
     border-radius: var(--radius);
@@ -462,10 +583,10 @@ textarea.form-input {
     flex-shrink: 0;
 }
 
-.action-icon.blue { background: #e3f2fd; color: var(--secondary); }
-.action-icon.green { background: #e8f5e9; color: var(--success); }
-.action-icon.orange { background: #fff3e0; color: var(--accent); }
-.action-icon.red { background: #ffebee; color: var(--danger); }
+.action-icon.blue   { background: var(--tint-secondary); color: var(--secondary-dark); }
+.action-icon.green  { background: var(--tint-success);   color: var(--success); }
+.action-icon.orange { background: var(--tint-accent);    color: var(--accent-dark); }
+.action-icon.red    { background: var(--tint-danger);    color: var(--danger); }
 
 .action-text {
     display: flex;
@@ -518,11 +639,11 @@ textarea.form-input {
     letter-spacing: 0.3px;
 }
 
-.badge-primary { background: #e3f2fd; color: var(--primary); }
-.badge-success { background: #e8f5e9; color: var(--success); }
-.badge-warning { background: #fff3e0; color: var(--accent); }
-.badge-danger { background: #ffebee; color: var(--danger); }
-.badge-neutral { background: #f5f5f5; color: var(--text-light); }
+.badge-primary { background: var(--tint-primary);   color: var(--primary); }
+.badge-success { background: var(--tint-success);   color: var(--success); }
+.badge-warning { background: var(--tint-accent);    color: var(--accent-dark); }
+.badge-danger  { background: var(--tint-danger);    color: var(--danger); }
+.badge-neutral { background: var(--tint-neutral);   color: var(--text-light); }
 
 /* ============================================================
    TOAST / NOTIFICATIONS
@@ -722,7 +843,7 @@ textarea.form-input {
 .form-control:focus {
     outline: none;
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(26, 35, 126, 0.15);
+    box-shadow: 0 0 0 3px var(--ring);
 }
 
 .form-control::placeholder {
@@ -782,10 +903,10 @@ textarea.form-control {
     margin-bottom: 10px;
 }
 
-.gps-status-info    { background: #e3f2fd; color: var(--secondary); }
-.gps-status-success { background: #e8f5e9; color: var(--success); }
-.gps-status-warning { background: #fff3e0; color: var(--accent); }
-.gps-status-error   { background: #ffebee; color: var(--danger); }
+.gps-status-info    { background: var(--tint-secondary); color: var(--secondary-dark); }
+.gps-status-success { background: var(--tint-success);   color: var(--success); }
+.gps-status-warning { background: var(--tint-accent);    color: var(--accent-dark); }
+.gps-status-error   { background: var(--tint-danger);    color: var(--danger); }
 
 /* ============================================================
    TYPE SELECTOR (evidence type)
@@ -822,7 +943,7 @@ textarea.form-control {
 
 .type-btn.selected {
     border-color: var(--primary);
-    background: #e8eaf6;
+    background: var(--tint-primary);
     color: var(--primary);
     font-weight: 600;
 }
@@ -872,7 +993,7 @@ textarea.form-control {
    ============================================================ */
 
 .info-box {
-    background: #e8eaf6;
+    background: var(--tint-primary);
     color: var(--primary);
     padding: 12px 16px;
     border-radius: var(--radius);
@@ -884,11 +1005,11 @@ textarea.form-control {
    BADGE — additional colours
    ============================================================ */
 
-.badge-blue   { background: #e3f2fd; color: var(--secondary); }
-.badge-orange { background: #fff3e0; color: var(--accent); }
-.badge-red    { background: #ffebee; color: var(--danger); }
-.badge-green  { background: #e8f5e9; color: var(--success); }
-.badge-default { background: #f5f5f5; color: var(--text-light); }
+.badge-blue    { background: var(--tint-secondary); color: var(--secondary-dark); }
+.badge-orange  { background: var(--tint-accent);    color: var(--accent-dark); }
+.badge-red     { background: var(--tint-danger);    color: var(--danger); }
+.badge-green   { background: var(--tint-success);   color: var(--success); }
+.badge-default { background: var(--tint-neutral);   color: var(--text-light); }
 
 /* ============================================================
    PAGINATION BAR
