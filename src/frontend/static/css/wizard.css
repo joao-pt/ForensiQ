@@ -1,0 +1,214 @@
+/* ForensiQ — Wizard component (Revolut-style full-screen steps) */
+
+.wizard {
+    position: relative;
+    overflow: hidden;
+    min-height: calc(100vh - 56px - 80px); /* viewport - navbar - nav dots */
+}
+
+.wizard-track {
+    display: flex;
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    will-change: transform;
+}
+
+.wizard-step {
+    min-width: 100%;
+    flex-shrink: 0;
+    padding: 24px 0 100px; /* bottom space for dots nav */
+    opacity: 0.4;
+    transition: opacity 0.35s ease;
+    pointer-events: none;
+}
+
+.wizard-step.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Step header */
+.wizard-step-header {
+    margin-bottom: 24px;
+}
+
+.wizard-step-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--secondary-dark, var(--text-light));
+    margin-bottom: 4px;
+}
+
+.wizard-step-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.wizard-step-hint {
+    font-size: 0.8125rem;
+    color: var(--text-light);
+    margin-top: 4px;
+}
+
+/* Navigation bar at bottom */
+.wizard-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 12px 16px;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.wizard-dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.wizard-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--border);
+    transition: all 0.3s ease;
+}
+
+.wizard-dot.active {
+    width: 24px;
+    border-radius: var(--radius-pill, 999px);
+    background: var(--accent);
+}
+
+.wizard-dot.done {
+    background: var(--success);
+}
+
+/* Back button in wizard nav */
+.wizard-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all var(--transition);
+    flex-shrink: 0;
+}
+
+.wizard-back:hover {
+    background: var(--tint-neutral, #f5f5f5);
+}
+
+.wizard-back:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Next / submit button in wizard nav */
+.wizard-next {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 20px;
+    border: none;
+    border-radius: var(--radius-pill, 999px);
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all var(--transition);
+    flex-shrink: 0;
+    gap: 6px;
+}
+
+.wizard-next:hover {
+    background: var(--accent-dark, #e65100);
+}
+
+.wizard-next:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Auto-advance cards (e.g. type selector in wizard context) */
+.wizard-step .type-selector {
+    gap: 12px;
+}
+
+.wizard-step .type-btn {
+    min-height: 80px;
+    font-size: 0.875rem;
+}
+
+/* Summary step */
+.wizard-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.wizard-summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+}
+
+.wizard-summary-item:last-child {
+    border-bottom: none;
+}
+
+.wizard-summary-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    color: var(--text-light);
+    flex-shrink: 0;
+    min-width: 90px;
+}
+
+.wizard-summary-value {
+    font-size: 0.9375rem;
+    color: var(--text);
+    text-align: right;
+    word-break: break-word;
+}
+
+.wizard-summary-photo {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    border-radius: var(--radius);
+    margin-top: 8px;
+}
+
+/* Responsive tweaks */
+@media (min-width: 768px) {
+    .wizard-nav {
+        max-width: 720px;
+        left: 50%;
+        transform: translateX(-50%);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+}
