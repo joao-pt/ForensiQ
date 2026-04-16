@@ -122,7 +122,7 @@
 }
 
 .timeline-hash {
-    font-family: 'Courier New', monospace;
+    font-family: var(--font-mono);
     font-size: 0.65rem;
     color: var(--text-muted);
     margin-top: 8px;
@@ -188,8 +188,8 @@
 }
 
 .state-step.current .state-step-dot {
-    background: #2e7d32;
-    box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.25);
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 25%, transparent);
 }
 
 .state-step-label {
