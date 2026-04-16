@@ -205,14 +205,11 @@ async function handleSubmit(e) {
         if (lon) formData.append('gps_lon', lon);
         if (selectedPhoto) formData.append('photo', selectedPhoto);
 
-        // Enviar via fetch com Authorization header e CSRF token (sem Content-Type — o browser define multipart boundary)
-        const token = localStorage.getItem(CONFIG.STORAGE.ACCESS_TOKEN);
+        // Multipart: Content-Type é definido pelo browser; cookie HttpOnly + CSRF
         const res = await fetch(CONFIG.ENDPOINTS.EVIDENCES, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'X-CSRFToken': getCsrfToken(),
-            },
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() },
             body: formData,
         });
 
