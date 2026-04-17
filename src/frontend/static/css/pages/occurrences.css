@@ -100,3 +100,29 @@
     border-radius: 50%;
     flex-shrink: 0;
 }
+
+/* ---- Desktop ---- */
+
+@media (min-width: 768px) {
+    #map-container {
+        height: calc(100vh - 180px);
+        min-height: 480px;
+    }
+
+    .view-tabs {
+        gap: 12px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .occurrences-split {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        align-items: start;
+    }
+
+    .occurrences-split #map-container {
+        height: 560px;
+    }
+}

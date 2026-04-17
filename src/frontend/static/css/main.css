@@ -759,6 +759,10 @@ textarea.form-input {
         padding: 24px;
     }
 
+    .navbar {
+        padding: 0 24px;
+    }
+
     .stats-grid {
         grid-template-columns: repeat(4, 1fr);
     }
@@ -775,11 +779,29 @@ textarea.form-input {
     .login-card {
         padding: 40px 32px;
     }
+
+    .list-item {
+        padding: 16px 0;
+    }
 }
 
 @media (min-width: 1024px) {
     .container {
         max-width: 960px;
+    }
+
+    .navbar {
+        padding: 0 32px;
+    }
+
+    .breadcrumb {
+        font-size: 0.875rem;
+    }
+}
+
+@media (min-width: 1280px) {
+    .container {
+        max-width: 1120px;
     }
 }
 

@@ -246,3 +246,42 @@
     margin-top: 16px;
     justify-content: flex-end;
 }
+
+/* ---- Desktop ---- */
+
+@media (min-width: 768px) {
+    .evidence-header {
+        padding: 20px 24px;
+    }
+
+    .timeline {
+        padding-left: 40px;
+    }
+
+    .timeline-card {
+        padding: 16px 20px;
+    }
+
+    .state-step {
+        min-width: 80px;
+    }
+
+    .state-step-label {
+        font-size: 0.6875rem;
+        max-width: 80px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .custody-layout {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+
+    .custody-layout .evidence-header {
+        position: sticky;
+        top: 72px;
+    }
+}

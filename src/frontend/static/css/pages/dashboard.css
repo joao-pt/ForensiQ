@@ -141,3 +141,32 @@
 .recent-list {
     padding: 0 16px;
 }
+
+/* ---- Desktop ---- */
+
+@media (min-width: 768px) {
+    .dashboard-header h2 {
+        font-size: 1.5rem;
+    }
+
+    .stat-card {
+        padding: 20px;
+    }
+
+    .stat-card .stat-icon {
+        font-size: 1.75rem;
+    }
+}
+
+@media (min-width: 1024px) {
+    .dashboard-layout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        align-items: start;
+    }
+
+    .dashboard-layout > .card {
+        margin-bottom: 0;
+    }
+}

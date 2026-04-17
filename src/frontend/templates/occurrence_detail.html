@@ -24,22 +24,24 @@
     <a href="/occurrences/" class="btn btn-outline">← Ocorrências</a>
 </div>
 
-<!-- Cabeçalho do caso -->
-<div class="case-header" id="case-header" style="display:none">
-    <div class="case-number" id="case-number">—</div>
-    <div class="case-description" id="case-description">—</div>
-    <div class="case-meta">
-        <div class="case-meta-item">🕑 <span id="case-datetime">—</span></div>
-        <div class="case-meta-item">👤 <span id="case-agent">—</span></div>
-        <div class="case-meta-item" id="case-address-item" style="display:none">📍 <span id="case-address">—</span></div>
-        <div class="case-meta-item" id="case-gps-item" style="display:none">🌐 <span id="case-gps">—</span></div>
+<!-- Case header + map (side-by-side on desktop) -->
+<div class="case-layout">
+    <div class="case-header" id="case-header" style="display:none">
+        <div class="case-number" id="case-number">—</div>
+        <div class="case-description" id="case-description">—</div>
+        <div class="case-meta">
+            <div class="case-meta-item">🕑 <span id="case-datetime">—</span></div>
+            <div class="case-meta-item">👤 <span id="case-agent">—</span></div>
+            <div class="case-meta-item" id="case-address-item" style="display:none">📍 <span id="case-address">—</span></div>
+            <div class="case-meta-item" id="case-gps-item" style="display:none">🌐 <span id="case-gps">—</span></div>
+        </div>
     </div>
-</div>
-
-<!-- Mapa (mostrado apenas se há GPS) -->
-<div id="case-map" class="case-map" style="display:none"></div>
-<div id="case-map-empty" class="case-map-empty" style="display:none">
-    📍 Sem coordenadas GPS registadas
+    <div>
+        <div id="case-map" class="case-map" style="display:none"></div>
+        <div id="case-map-empty" class="case-map-empty" style="display:none">
+            📍 Sem coordenadas GPS registadas
+        </div>
+    </div>
 </div>
 
 <!-- Resumo de custódia -->
@@ -57,7 +59,7 @@
     </div>
     <a href="/evidences/new/" class="btn btn-primary btn-sm" id="btn-new-evidence" style="display:none">+ Nova</a>
 </div>
-<div id="evidence-container">
+<div id="evidence-container" class="evidence-grid">
     <div class="loading-container">
         <div class="spinner spinner-dark"></div>
     </div>
