@@ -1,186 +1,212 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', async () => {
-    const authenticated = await Auth.requireAuth();
+var wizard = null;
+
+document.addEventListener('DOMContentLoaded', async function () {
+    var authenticated = await Auth.requireAuth();
     if (!authenticated) return;
 
-    const user = Auth.getUser();
+    var user = Auth.getUser();
     if (user) {
-        document.getElementById('navbar-user').textContent = user.first_name || user.username;
+        var navUser = document.getElementById('navbar-user');
+        if (navUser) navUser.textContent = user.first_name || user.username;
 
-        // Só agentes podem registar ocorrências
         if (user.profile !== 'AGENT') {
             Toast.show('Sem permissão para registar ocorrências.', 'error');
-            setTimeout(() => { window.location.href = '/occurrences/'; }, 1500);
+            setTimeout(function () { window.location.href = '/occurrences/'; }, 1500);
             return;
         }
     }
 
     document.getElementById('btn-logout').addEventListener('click', Auth.logout);
 
-    // Pré-preencher data/hora com o momento atual
-    const now = new Date();
-    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-    document.getElementById('date_time').value = local.toISOString().slice(0, 16);
-
-    // Tentar obter GPS automaticamente ao carregar
+    setDefaultTimestamp();
     captureGPS();
-
-    // Botão GPS manual
     document.getElementById('btn-gps').addEventListener('click', captureGPS);
 
-    // Submissão do formulário
-    document.getElementById('occurrence-form').addEventListener('submit', handleSubmit);
+    initWizard();
 });
 
-/**
- * Obtém o token CSRF dos cookies.
- */
-function getCsrfToken() {
-    const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
-    return cookie ? cookie.split('=')[1] : '';
+/* ---- Wizard ---- */
+
+function initWizard() {
+    var el = document.getElementById('occurrence-wizard');
+    wizard = new Wizard(el, {
+        onStep: onStepChange,
+        onComplete: handleSubmit
+    });
+
+    wizard.setValidator(0, function () {
+        if (!document.getElementById('number').value.trim()) {
+            showError('number-error', 'O número da ocorrência é obrigatório.');
+            return false;
+        }
+        return true;
+    });
+    wizard.setValidator(1, function () {
+        if (!document.getElementById('description').value.trim()) {
+            showError('description-error', 'A descrição é obrigatória.');
+            return false;
+        }
+        return true;
+    });
+    wizard.setValidator(2, function () {
+        if (!document.getElementById('date_time').value) {
+            showError('date_time-error', 'A data e hora são obrigatórias.');
+            return false;
+        }
+        return true;
+    });
+
+    var skipBtns = document.querySelectorAll('[data-skip]');
+    skipBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (wizard) wizard.next();
+        });
+    });
 }
 
-/**
- * Captura a localização GPS atual do dispositivo.
- */
+function onStepChange(step) {
+    clearErrors();
+    if (step === 5) buildSummary();
+}
+
+/* ---- Timestamp ---- */
+
+function setDefaultTimestamp() {
+    var now = new Date();
+    var local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    document.getElementById('date_time').value = local.toISOString().slice(0, 16);
+}
+
+/* ---- GPS ---- */
+
 function captureGPS() {
-    const btn = document.getElementById('btn-gps');
-    const status = document.getElementById('gps-status');
+    var btn = document.getElementById('btn-gps');
 
     if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        showGpsStatus('GPS requer HTTPS. Em desenvolvimento, use localhost ou ngrok.', 'warning');
+        showGpsStatus('GPS requer HTTPS.', 'warning');
         return;
     }
-
     if (!navigator.geolocation) {
         showGpsStatus('GPS não disponível neste dispositivo.', 'warning');
         return;
     }
 
     btn.disabled = true;
-    btn.textContent = '⏳ A obter localização...';
+    btn.textContent = '\u23F3 A obter localização...';
     showGpsStatus('A aguardar sinal GPS...', 'info');
-    status.style.display = 'block';
 
     navigator.geolocation.getCurrentPosition(
-        (pos) => {
-            const lat = pos.coords.latitude.toFixed(7);
-            const lon = pos.coords.longitude.toFixed(7);
+        function (pos) {
+            var lat = pos.coords.latitude.toFixed(7);
+            var lon = pos.coords.longitude.toFixed(7);
             document.getElementById('gps_lat').value = lat;
             document.getElementById('gps_lon').value = lon;
-
             btn.disabled = false;
-            btn.textContent = '📍 Atualizar localização';
-            showGpsStatus(`✅ GPS capturado (±${Math.round(pos.coords.accuracy)}m) — ${lat}, ${lon}`, 'success');
-
-            // Reverse geocoding via Nominatim (gratuito, sem API key)
+            btn.textContent = '\uD83D\uDCCD Atualizar localização';
+            showGpsStatus('\u2705 GPS capturado (\u00B1' + Math.round(pos.coords.accuracy) + 'm)', 'success');
             reverseGeocode(lat, lon);
         },
-        (err) => {
+        function (err) {
             btn.disabled = false;
-            btn.textContent = '📍 Tentar novamente';
-            const msgs = {
-                1: 'Permissão de localização negada.',
-                2: 'Posição indisponível. Verifique o GPS.',
-                3: 'Tempo de espera excedido. Tente novamente.',
-            };
-            showGpsStatus('⚠️ ' + (msgs[err.code] || 'Erro desconhecido.'), 'warning');
+            btn.textContent = '\uD83D\uDCCD Tentar novamente';
+            var msgs = { 1: 'Permissão negada.', 2: 'Posição indisponível.', 3: 'Tempo excedido.' };
+            showGpsStatus('\u26A0\uFE0F ' + (msgs[err.code] || 'Erro GPS.'), 'warning');
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
     );
 }
 
-/**
- * Reverse geocoding via Nominatim (OpenStreetMap).
- */
-async function reverseGeocode(lat, lon) {
-    try {
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
-            { headers: { 'Accept-Language': 'pt' } }
-        );
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data.display_name) {
-            const addressEl = document.getElementById('address');
-            if (!addressEl.value) {
-                // Simplificar: rua + localidade
-                const parts = [
-                    data.address?.road,
-                    data.address?.house_number,
-                    data.address?.city || data.address?.town || data.address?.village,
-                    data.address?.country,
-                ].filter(Boolean);
-                addressEl.value = parts.join(', ');
-            }
-        }
-    } catch (e) {
-        // Silencioso — reverse geocoding é opcional
-    }
-}
-
 function showGpsStatus(message, type) {
-    const el = document.getElementById('gps-status');
+    var el = document.getElementById('gps-status');
     el.style.display = 'block';
-    el.className = `gps-status gps-status-${type}`;
+    el.className = 'gps-status gps-status-' + type;
     el.textContent = message;
 }
 
-/**
- * Submissão do formulário.
- */
-async function handleSubmit(e) {
-    e.preventDefault();
+/* ---- Reverse geocoding (Nominatim) ---- */
 
+function reverseGeocode(lat, lon) {
+    fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon + '&format=json', {
+        headers: { 'Accept-Language': 'pt' }
+    })
+    .then(function (res) { return res.ok ? res.json() : null; })
+    .then(function (data) {
+        if (!data || !data.address) return;
+        var addressEl = document.getElementById('address');
+        if (!addressEl.value) {
+            var parts = [
+                data.address.road,
+                data.address.house_number,
+                data.address.city || data.address.town || data.address.village,
+                data.address.country
+            ].filter(Boolean);
+            addressEl.value = parts.join(', ');
+        }
+    })
+    .catch(function () {});
+}
+
+/* ---- Summary (step 5) ---- */
+
+function buildSummary() {
+    setText('sum-number', document.getElementById('number').value.trim() || '\u2014');
+    setText('sum-description', document.getElementById('description').value.trim() || '\u2014');
+    setText('sum-datetime', document.getElementById('date_time').value || '\u2014');
+
+    var lat = document.getElementById('gps_lat').value;
+    var lon = document.getElementById('gps_lon').value;
+    setText('sum-gps', lat && lon ? lat + ', ' + lon : 'Não capturado');
+
+    var address = document.getElementById('address').value.trim();
+    setText('sum-address', address || 'N/A');
+}
+
+function setText(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+}
+
+/* ---- Submit ---- */
+
+function getCsrfToken() {
+    var cookie = document.cookie.split('; ').find(function (row) {
+        return row.startsWith('csrftoken=');
+    });
+    return cookie ? cookie.split('=')[1] : '';
+}
+
+async function handleSubmit() {
     clearErrors();
-
-    const form = e.target;
-    const data = {
-        number: form.number.value.trim(),
-        description: form.description.value.trim(),
-        date_time: new Date(form.date_time.value).toISOString(),
-        address: form.address.value.trim() || '',
-    };
-
-    const lat = form.gps_lat.value;
-    const lon = form.gps_lon.value;
-    if (lat) data.gps_lat = parseFloat(lat);
-    if (lon) data.gps_lon = parseFloat(lon);
-
-    // Validação client-side básica
-    let hasErrors = false;
-    if (!data.number) {
-        showError('number-error', 'O número da ocorrência é obrigatório.');
-        hasErrors = true;
-    }
-    if (!data.description) {
-        showError('description-error', 'A descrição é obrigatória.');
-        hasErrors = true;
-    }
-    if (!form.date_time.value) {
-        showError('date_time-error', 'A data e hora são obrigatórias.');
-        hasErrors = true;
-    }
-    if (hasErrors) return;
-
     setSubmitting(true);
 
     try {
-        // API.post handles CSRF token via wrapper, but ensuring CSRF is protected
-        const result = await API.post(CONFIG.ENDPOINTS.OCCURRENCES, data);
+        var form = document.getElementById('occurrence-form');
+        var data = {
+            number: form.number.value.trim(),
+            description: form.description.value.trim(),
+            date_time: new Date(form.date_time.value).toISOString(),
+            address: form.address.value.trim() || ''
+        };
+
+        var lat = form.gps_lat.value;
+        var lon = form.gps_lon.value;
+        if (lat) data.gps_lat = parseFloat(lat);
+        if (lon) data.gps_lon = parseFloat(lon);
+
+        var result = await API.post(CONFIG.ENDPOINTS.OCCURRENCES, data);
         Toast.show('Ocorrência registada com sucesso!', 'success');
-        setTimeout(() => {
-            window.location.href = '/occurrences/';
-        }, 1200);
+        setTimeout(function () { window.location.href = '/occurrences/'; }, 1200);
+
     } catch (err) {
         setSubmitting(false);
         if (err.data && typeof err.data === 'object') {
-            // Erros de validação da API
-            Object.entries(err.data).forEach(([field, messages]) => {
-                const errorId = `${field}-error`;
-                const msg = Array.isArray(messages) ? messages.join(' ') : String(messages);
-                showError(errorId, msg);
+            Object.entries(err.data).forEach(function (entry) {
+                var field = entry[0];
+                var messages = entry[1];
+                var msg = Array.isArray(messages) ? messages.join(' ') : String(messages);
+                showError(field + '-error', msg);
             });
             Toast.show('Corrija os erros assinalados.', 'error');
         } else {
@@ -190,25 +216,25 @@ async function handleSubmit(e) {
 }
 
 function setSubmitting(loading) {
-    const btn = document.getElementById('btn-submit');
-    const text = document.getElementById('btn-text');
-    const spinner = document.getElementById('btn-spinner');
+    var nextBtn = wizard.nextBtn;
+    var spinner = document.getElementById('submit-spinner');
 
-    btn.disabled = loading;
-    text.textContent = loading ? 'A registar...' : 'Registar Ocorrência';
-    spinner.classList.toggle('hidden', !loading);
+    nextBtn.disabled = loading;
+    nextBtn.textContent = loading ? 'A registar...' : 'Registar';
+    spinner.style.display = loading ? 'block' : 'none';
+
+    if (wizard.backBtn) wizard.backBtn.disabled = loading;
 }
 
+/* ---- Error helpers ---- */
+
 function showError(id, message) {
-    const el = document.getElementById(id);
-    if (el) {
-        el.textContent = message;
-        el.style.display = 'block';
-    }
+    var el = document.getElementById(id);
+    if (el) { el.textContent = message; el.style.display = 'block'; }
 }
 
 function clearErrors() {
-    document.querySelectorAll('.form-error').forEach(el => {
+    document.querySelectorAll('.form-error').forEach(function (el) {
         el.textContent = '';
         el.style.display = 'none';
     });
