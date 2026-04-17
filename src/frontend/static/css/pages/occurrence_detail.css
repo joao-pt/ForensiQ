@@ -251,3 +251,40 @@
     justify-content: center;
     padding: 40px;
 }
+
+/* ---- Desktop ---- */
+
+@media (min-width: 768px) {
+    .case-header {
+        padding: 24px;
+    }
+
+    .case-map {
+        height: 280px;
+    }
+
+    .evidence-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+    .evidence-grid .evidence-card {
+        margin-bottom: 0;
+    }
+}
+
+@media (min-width: 1024px) {
+    .case-layout {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 20px;
+        align-items: start;
+    }
+
+    .case-map {
+        height: 100%;
+        min-height: 240px;
+        margin-bottom: 0;
+    }
+}

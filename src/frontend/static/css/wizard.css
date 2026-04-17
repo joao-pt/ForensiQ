@@ -230,10 +230,31 @@
 
 /* Responsive tweaks */
 @media (min-width: 768px) {
+    .wizard-step {
+        max-width: 560px;
+        margin: 0 auto;
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
     .wizard-nav {
         max-width: 720px;
         left: 50%;
         transform: translateX(-50%);
         border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    }
+
+    .wizard-step-title {
+        font-size: 1.5rem;
+    }
+
+    .wizard-summary-label {
+        min-width: 110px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .wizard-step {
+        max-width: 640px;
     }
 }

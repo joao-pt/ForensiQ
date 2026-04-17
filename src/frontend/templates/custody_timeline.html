@@ -21,32 +21,42 @@
     <a href="/evidences/" class="btn btn-outline">← Evidências</a>
 </div>
 
-<!-- Cabeçalho da evidência -->
-<div class="evidence-header" id="evidence-header" style="display:none">
-    <h3 id="evidence-description">—</h3>
-    <div class="evidence-meta">
-        <span class="meta-item">📋 <span id="evidence-type">—</span></span>
-        <span class="meta-item">🕑 <span id="evidence-timestamp">—</span></span>
-        <span class="meta-item">🔐 <span class="badge badge-outline" id="evidence-hash" title="Hash SHA-256 de integridade" style="font-family:monospace;font-size:0.65rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span></span>
+<!-- Custody layout (sidebar + timeline on desktop) -->
+<div class="custody-layout">
+
+<!-- Evidence sidebar -->
+<div>
+    <div class="evidence-header" id="evidence-header" style="display:none">
+        <h3 id="evidence-description">—</h3>
+        <div class="evidence-meta">
+            <span class="meta-item">📋 <span id="evidence-type">—</span></span>
+            <span class="meta-item">🕑 <span id="evidence-timestamp">—</span></span>
+            <span class="meta-item">🔐 <span class="badge badge-outline" id="evidence-hash" title="Hash SHA-256 de integridade" style="font-family:monospace;font-size:0.65rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</span></span>
+        </div>
     </div>
 </div>
 
-<!-- Barra de progresso dos estados -->
-<div class="state-progress" id="state-progress"></div>
+<!-- Main timeline column -->
+<div>
+    <!-- Barra de progresso dos estados -->
+    <div class="state-progress" id="state-progress"></div>
 
-<!-- Botão de nova transição (apenas agentes com permissão) -->
-<div class="new-transition-btn" id="new-transition-container" style="display:none">
-    <button class="btn btn-primary" id="btn-new-transition">
-        + Registar Transição
-    </button>
-</div>
+    <!-- Botão de nova transição (apenas agentes com permissão) -->
+    <div class="new-transition-btn" id="new-transition-container" style="display:none">
+        <button class="btn btn-primary" id="btn-new-transition">
+            + Registar Transição
+        </button>
+    </div>
 
-<!-- Timeline -->
-<div id="timeline-container">
-    <div class="loading-overlay">
-        <div class="spinner spinner-dark"></div>
+    <!-- Timeline -->
+    <div id="timeline-container">
+        <div class="loading-overlay">
+            <div class="spinner spinner-dark"></div>
+        </div>
     </div>
 </div>
+
+</div><!-- /custody-layout -->
 
 <!-- Modal: nova transição de custódia -->
 <div class="modal-overlay" id="transition-modal">
