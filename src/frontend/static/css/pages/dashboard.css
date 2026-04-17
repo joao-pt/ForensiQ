@@ -1,0 +1,143 @@
+/* ForensiQ — Dashboard page enhancements */
+
+/* Skeleton pulse animation */
+@keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.4; }
+    50%      { opacity: 0.8; }
+}
+
+.skeleton {
+    background: var(--border);
+    border-radius: var(--radius);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.skeleton-text {
+    height: 14px;
+    border-radius: 4px;
+}
+
+.skeleton-text.lg {
+    height: 28px;
+    width: 60%;
+}
+
+.skeleton-text.sm {
+    height: 12px;
+    width: 40%;
+    margin-top: 6px;
+}
+
+/* Stat cards — accent strip at top */
+.stat-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--border);
+    transition: background 0.3s ease;
+}
+
+.stat-card[data-accent="secondary"]::before { background: var(--secondary); }
+.stat-card[data-accent="accent"]::before    { background: var(--accent); }
+.stat-card[data-accent="success"]::before   { background: var(--success); }
+.stat-card[data-accent="danger"]::before    { background: var(--danger); }
+
+.stat-card .stat-icon {
+    font-size: 1.5rem;
+    margin-bottom: 6px;
+    opacity: 0.7;
+}
+
+/* Stat skeleton */
+.stat-card .skeleton-value {
+    height: 32px;
+    width: 48px;
+    margin: 0 auto 4px;
+}
+
+.stat-card .skeleton-label {
+    height: 12px;
+    width: 72px;
+    margin: 0 auto;
+}
+
+/* Recent occurrences skeleton rows */
+.skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.skeleton-row:last-child {
+    border-bottom: none;
+}
+
+.skeleton-row-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.skeleton-row-title {
+    height: 14px;
+    width: 55%;
+}
+
+.skeleton-row-subtitle {
+    height: 12px;
+    width: 80%;
+}
+
+.skeleton-row-date {
+    height: 12px;
+    width: 64px;
+    flex-shrink: 0;
+}
+
+/* Greeting area polish */
+.dashboard-header {
+    padding: 8px 0 16px;
+}
+
+.dashboard-header h2 {
+    font-size: 1.375rem;
+}
+
+.dashboard-header .greeting-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    padding: 3px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--tint-secondary);
+    color: var(--secondary-dark);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Quick action section title */
+.section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-light);
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+/* Recent list — card inner padding */
+.recent-list {
+    padding: 0 16px;
+}
