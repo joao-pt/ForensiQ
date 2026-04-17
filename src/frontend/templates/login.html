@@ -5,12 +5,32 @@
 
 {% block navbar %}{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/login.css' %}">
+{% endblock %}
+
 {% block content %}
-<div class="login-container">
-    <div class="login-card">
-        <!-- Logo seal -->
-        <div class="login-logo">
-            <svg class="seal-logo seal-logo-lg" viewBox="0 0 64 64" aria-hidden="true">
+<div class="login-page">
+
+    <!-- Animated background grid -->
+    <div class="login-grid"></div>
+
+    <!-- Floating chain-of-custody nodes -->
+    <div class="login-nodes">
+        <span class="login-node"></span>
+        <span class="login-node"></span>
+        <span class="login-node"></span>
+        <span class="login-node"></span>
+        <span class="login-node"></span>
+        <span class="login-node"></span>
+    </div>
+
+    <!-- Brand panel (desktop only) -->
+    <div class="login-brand">
+        <div class="login-brand-seal">
+            <div class="login-brand-ring"></div>
+            <div class="login-brand-ring"></div>
+            <svg viewBox="0 0 64 64" aria-hidden="true">
                 <circle cx="32" cy="32" r="30" fill="var(--accent)"/>
                 <circle cx="32" cy="32" r="30" fill="none" stroke="#fff"
                         stroke-width="2" stroke-dasharray="4 3" opacity="0.4"/>
@@ -22,51 +42,89 @@
                 <line x1="39" y1="40" x2="49" y2="50" stroke="#fff"
                       stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
             </svg>
-            <h1>ForensiQ</h1>
-            <p>Gestão de Prova Digital</p>
+        </div>
+        <h1>ForensiQ</h1>
+        <p>Gestão de Prova Digital</p>
+        <div class="login-brand-features">
+            <div class="login-brand-feature">
+                <span class="login-brand-feature-icon">🔒</span>
+                <span>Cadeia de custódia com hash SHA-256</span>
+            </div>
+            <div class="login-brand-feature">
+                <span class="login-brand-feature-icon">📍</span>
+                <span>Geolocalização e fotografia in-loco</span>
+            </div>
+            <div class="login-brand-feature">
+                <span class="login-brand-feature-icon">📋</span>
+                <span>Conformidade ISO/IEC 27037</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Form panel -->
+    <div class="login-form-panel">
+        <div class="login-card">
+            <!-- Logo (mobile only — hidden on desktop where brand panel shows) -->
+            <div class="login-logo">
+                <svg class="seal-logo seal-logo-lg" viewBox="0 0 64 64" aria-hidden="true">
+                    <circle cx="32" cy="32" r="30" fill="var(--accent)"/>
+                    <circle cx="32" cy="32" r="30" fill="none" stroke="#fff"
+                            stroke-width="2" stroke-dasharray="4 3" opacity="0.4"/>
+                    <circle cx="32" cy="32" r="23" fill="none" stroke="#fff"
+                            stroke-width="0.75" opacity="0.15"/>
+                    <text x="30" y="43" text-anchor="middle"
+                          font-family="Inter,system-ui,sans-serif" font-weight="800"
+                          font-size="30" fill="#fff" letter-spacing="-1">Q</text>
+                    <line x1="39" y1="40" x2="49" y2="50" stroke="#fff"
+                          stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+                </svg>
+                <h1>ForensiQ</h1>
+                <p>Gestão de Prova Digital</p>
+            </div>
+
+            <!-- Error message -->
+            <div class="login-error" id="login-error"></div>
+
+            <!-- Login form -->
+            <form id="login-form" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="username">Utilizador</label>
+                    <input
+                        class="form-input"
+                        type="text"
+                        id="username"
+                        name="username"
+                        placeholder="Nome de utilizador"
+                        autocomplete="username"
+                        autocapitalize="none"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Palavra-passe</label>
+                    <input
+                        class="form-input"
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Palavra-passe"
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+
+                <button class="btn btn-login btn-block mt-8" type="submit" id="btn-login">
+                    Entrar
+                </button>
+            </form>
         </div>
 
-        <!-- Mensagem de erro -->
-        <div class="login-error" id="login-error"></div>
-
-        <!-- Formulário de login -->
-        <form id="login-form" novalidate>
-            <div class="form-group">
-                <label class="form-label" for="username">Utilizador</label>
-                <input
-                    class="form-input"
-                    type="text"
-                    id="username"
-                    name="username"
-                    placeholder="Nome de utilizador"
-                    autocomplete="username"
-                    autocapitalize="none"
-                    required
-                >
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="password">Palavra-passe</label>
-                <input
-                    class="form-input"
-                    type="password"
-                    id="password"
-                    name="password"
-                    placeholder="Palavra-passe"
-                    autocomplete="current-password"
-                    required
-                >
-            </div>
-
-            <button class="btn btn-primary btn-block mt-8" type="submit" id="btn-login">
-                Entrar
-            </button>
-        </form>
-
-        <p class="text-center text-muted mt-16" style="font-size: 0.75rem;">
+        <div class="login-footer">
             ForensiQ v0.1 &middot; UC 21184 &middot; Universidade Aberta
-        </p>
+        </div>
     </div>
+
 </div>
 {% endblock %}
 
