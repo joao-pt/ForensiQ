@@ -19,8 +19,8 @@
         <!-- STEP 0 — Ocorrência -->
         <section class="wizard-step" data-step="0">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 1 de 5</div>
-                <h2 class="wizard-step-title">Ocorrência associada</h2>
+                <div class="wizard-step-label">Passo 1 de 8</div>
+                <h2 class="wizard-step-title">Ocorrência</h2>
                 <p class="wizard-step-hint">A que ocorrência pertence esta evidência?</p>
             </div>
             <div class="form-group">
@@ -31,12 +31,12 @@
             </div>
         </section>
 
-        <!-- STEP 1 — Tipo de evidência -->
+        <!-- STEP 1 — Tipo -->
         <section class="wizard-step" data-step="1">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 2 de 5</div>
+                <div class="wizard-step-label">Passo 2 de 8</div>
                 <h2 class="wizard-step-title">Tipo de evidência</h2>
-                <p class="wizard-step-hint">Selecione o tipo — avança automaticamente.</p>
+                <p class="wizard-step-hint">Toque para selecionar — avança automaticamente.</p>
             </div>
             <div class="type-selector" id="type-selector">
                 <button type="button" class="type-btn" data-value="DIGITAL_DEVICE">
@@ -64,41 +64,34 @@
             <div class="form-error" id="type-error"></div>
         </section>
 
-        <!-- STEP 2 — Detalhes -->
+        <!-- STEP 2 — Descrição -->
         <section class="wizard-step" data-step="2">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 3 de 5</div>
-                <h2 class="wizard-step-title">Detalhes da evidência</h2>
+                <div class="wizard-step-label">Passo 3 de 8</div>
+                <h2 class="wizard-step-title">Descrição</h2>
+                <p class="wizard-step-hint">Descreva a evidência: aspecto, estado, localização exacta.</p>
             </div>
-
             <div class="form-group">
-                <label for="description" class="form-label required">Descrição</label>
                 <textarea
                     id="description"
                     name="description"
                     class="form-control"
-                    rows="3"
-                    placeholder="Descreva a evidência: aspecto, estado, localização exacta..."
+                    rows="4"
+                    placeholder="Ex.: iPhone 14 Pro preto, ecrã partido, encontrado na mesa da sala..."
                     required
                 ></textarea>
                 <div class="form-error" id="description-error"></div>
             </div>
+        </section>
 
-            <div class="form-group">
-                <label for="serial_number" class="form-label">Número de série</label>
-                <input
-                    type="text"
-                    id="serial_number"
-                    name="serial_number"
-                    class="form-control"
-                    placeholder="Ex.: SN123456789"
-                    autocomplete="off"
-                >
-                <div class="form-hint">Opcional. Para dispositivos com número de série.</div>
+        <!-- STEP 3 — Data/hora -->
+        <section class="wizard-step" data-step="3">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 4 de 8</div>
+                <h2 class="wizard-step-title">Data e hora da apreensão</h2>
+                <p class="wizard-step-hint">Quando foi apreendida esta evidência?</p>
             </div>
-
             <div class="form-group">
-                <label for="timestamp_seizure" class="form-label required">Data/hora da apreensão</label>
                 <input
                     type="datetime-local"
                     id="timestamp_seizure"
@@ -110,69 +103,91 @@
             </div>
         </section>
 
-        <!-- STEP 3 — Fotografia + GPS -->
-        <section class="wizard-step" data-step="3">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 4 de 5</div>
-                <h2 class="wizard-step-title">Fotografia e localização</h2>
-                <p class="wizard-step-hint">Ambos opcionais, mas recomendados para a cadeia de custódia.</p>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Fotografia</label>
-                <div class="photo-capture" id="photo-capture">
-                    <div id="photo-preview" class="photo-preview hidden">
-                        <img id="preview-img" src="" alt="Pré-visualização da fotografia">
-                        <button type="button" id="btn-remove-photo" class="btn btn-sm btn-outline">
-                            ✕ Remover
-                        </button>
-                    </div>
-                    <div id="photo-buttons">
-                        <label class="btn btn-outline btn-lg" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                            📷 Tirar fotografia
-                            <input type="file" id="photo-camera" accept="image/*" capture="environment" style="display:none;">
-                        </label>
-                        <label class="btn btn-outline" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                            📁 Selecionar ficheiro
-                            <input type="file" id="photo-file" accept="image/*" style="display:none;">
-                        </label>
-                    </div>
-                </div>
-                <div class="form-hint">Opcional. JPEG/PNG até 10 MB.</div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Localização GPS</label>
-                <div id="gps-status" class="gps-status" style="display:none;"></div>
-                <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                    <div style="flex:1; min-width:120px;">
-                        <label for="gps_lat" class="form-label-sm">Latitude</label>
-                        <input type="number" id="gps_lat" name="gps_lat" class="form-control"
-                               placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
-                    </div>
-                    <div style="flex:1; min-width:120px;">
-                        <label for="gps_lon" class="form-label-sm">Longitude</label>
-                        <input type="number" id="gps_lon" name="gps_lon" class="form-control"
-                               placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
-                    </div>
-                </div>
-                <button type="button" id="btn-gps" class="btn btn-outline mt-8" style="width:100%;">
-                    📍 Capturar localização atual
-                </button>
-            </div>
-        </section>
-
-        <!-- STEP 4 — Resumo -->
+        <!-- STEP 4 — Número de série (opcional) -->
         <section class="wizard-step" data-step="4">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 5 de 5</div>
+                <div class="wizard-step-label">Passo 5 de 8</div>
+                <h2 class="wizard-step-title">Número de série</h2>
+                <p class="wizard-step-hint">Se o dispositivo tem número de série visível.</p>
+            </div>
+            <div class="form-group">
+                <input
+                    type="text"
+                    id="serial_number"
+                    name="serial_number"
+                    class="form-control"
+                    placeholder="Ex.: SN123456789"
+                    autocomplete="off"
+                >
+            </div>
+            <button type="button" class="wizard-skip" data-skip>Saltar — sem número de série</button>
+        </section>
+
+        <!-- STEP 5 — Fotografia (opcional) -->
+        <section class="wizard-step" data-step="5">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 6 de 8</div>
+                <h2 class="wizard-step-title">Fotografia</h2>
+                <p class="wizard-step-hint">Registe a evidência visualmente. JPEG/PNG até 10 MB.</p>
+            </div>
+            <div class="photo-capture" id="photo-capture">
+                <div id="photo-preview" class="photo-preview hidden">
+                    <img id="preview-img" src="" alt="Pré-visualização da fotografia">
+                    <button type="button" id="btn-remove-photo" class="btn btn-sm btn-outline">
+                        ✕ Remover
+                    </button>
+                </div>
+                <div id="photo-buttons">
+                    <label class="btn btn-outline btn-lg" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                        📷 Tirar fotografia
+                        <input type="file" id="photo-camera" accept="image/*" capture="environment" style="display:none;">
+                    </label>
+                    <label class="btn btn-outline mt-8" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+                        📁 Selecionar ficheiro
+                        <input type="file" id="photo-file" accept="image/*" style="display:none;">
+                    </label>
+                </div>
+            </div>
+            <button type="button" class="wizard-skip" data-skip>Saltar — sem fotografia</button>
+        </section>
+
+        <!-- STEP 6 — GPS (opcional) -->
+        <section class="wizard-step" data-step="6">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 7 de 8</div>
+                <h2 class="wizard-step-title">Localização GPS</h2>
+                <p class="wizard-step-hint">Local exacto onde a evidência foi apreendida.</p>
+            </div>
+            <div id="gps-status" class="gps-status" style="display:none;"></div>
+            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
+                <div style="flex:1; min-width:120px;">
+                    <label for="gps_lat" class="form-label-sm">Latitude</label>
+                    <input type="number" id="gps_lat" name="gps_lat" class="form-control mono"
+                           placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
+                </div>
+                <div style="flex:1; min-width:120px;">
+                    <label for="gps_lon" class="form-label-sm">Longitude</label>
+                    <input type="number" id="gps_lon" name="gps_lon" class="form-control mono"
+                           placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
+                </div>
+            </div>
+            <button type="button" id="btn-gps" class="btn btn-primary btn-lg btn-block">
+                📍 Capturar localização actual
+            </button>
+            <button type="button" class="wizard-skip" data-skip>Saltar — sem GPS</button>
+        </section>
+
+        <!-- STEP 7 — Resumo -->
+        <section class="wizard-step" data-step="7">
+            <div class="wizard-step-header">
+                <div class="wizard-step-label">Passo 8 de 8</div>
                 <h2 class="wizard-step-title">Confirmar registo</h2>
-                <p class="wizard-step-hint">Verifique os dados antes de submeter.</p>
+                <p class="wizard-step-hint">Verifique os dados. Toque em Registar para submeter.</p>
             </div>
 
             <div class="info-box mb-16">
-                🔒 <strong>Integridade garantida</strong> — O sistema calcula um hash SHA-256
-                dos metadados no momento do registo (ISO/IEC 27037). O registo é imutável.
+                🔒 <strong>Integridade garantida</strong> — Hash SHA-256 calculado automaticamente
+                (ISO/IEC 27037). Registo imutável.
             </div>
 
             <div class="wizard-summary" id="summary">
@@ -189,14 +204,14 @@
                     <span class="wizard-summary-value" id="sum-description">—</span>
                 </div>
                 <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Nº série</span>
-                    <span class="wizard-summary-value" id="sum-serial">—</span>
-                </div>
-                <div class="wizard-summary-item">
                     <span class="wizard-summary-label">Apreensão</span>
                     <span class="wizard-summary-value mono" id="sum-timestamp">—</span>
                 </div>
-                <div class="wizard-summary-item">
+                <div class="wizard-summary-item" id="sum-serial-row">
+                    <span class="wizard-summary-label">Nº série</span>
+                    <span class="wizard-summary-value mono" id="sum-serial">—</span>
+                </div>
+                <div class="wizard-summary-item" id="sum-gps-row">
                     <span class="wizard-summary-label">GPS</span>
                     <span class="wizard-summary-value mono" id="sum-gps">—</span>
                 </div>
@@ -214,7 +229,6 @@
 
     </div><!-- /wizard-track -->
 
-    <!-- Navegação fixa no fundo -->
     <nav class="wizard-nav">
         <button type="button" class="wizard-back" aria-label="Voltar">‹</button>
         <div class="wizard-dots"></div>

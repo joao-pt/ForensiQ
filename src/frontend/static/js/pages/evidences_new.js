@@ -55,16 +55,18 @@ function initWizard() {
         return true;
     });
     wizard.setValidator(2, function () {
-        var ok = true;
         if (!document.getElementById('description').value.trim()) {
             showError('description-error', 'A descrição é obrigatória.');
-            ok = false;
+            return false;
         }
+        return true;
+    });
+    wizard.setValidator(3, function () {
         if (!document.getElementById('timestamp_seizure').value) {
             showError('timestamp_seizure-error', 'A data/hora é obrigatória.');
-            ok = false;
+            return false;
         }
-        return ok;
+        return true;
     });
 
     // Auto-advance: occurrence select
@@ -76,6 +78,14 @@ function initWizard() {
         }
     });
 
+    // Skip buttons for optional steps (4=serial, 5=photo, 6=GPS)
+    var skipBtns = document.querySelectorAll('[data-skip]');
+    skipBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (wizard) wizard.next();
+        });
+    });
+
     // Pre-select occurrence from URL param
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('occurrence')) {
@@ -85,7 +95,7 @@ function initWizard() {
 
 function onStepChange(step) {
     clearErrors();
-    if (step === 4) buildSummary();
+    if (step === 7) buildSummary();
 }
 
 /* ---- Type selector with auto-advance ---- */
@@ -218,7 +228,7 @@ function showGpsStatus(message, type) {
     el.textContent = message;
 }
 
-/* ---- Summary (step 4) ---- */
+/* ---- Summary (step 7) ---- */
 
 function buildSummary() {
     var occSelect = document.getElementById('occurrence');
