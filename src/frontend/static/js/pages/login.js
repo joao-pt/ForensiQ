@@ -1,23 +1,23 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.getElementById('login-form');
-    const errorBox = document.getElementById('login-error');
-    const btnLogin = document.getElementById('btn-login');
-    const usernameInput = document.getElementById('username');
-    const passwordInput = document.getElementById('password');
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('login-form');
+    var errorBox = document.getElementById('login-error');
+    var btnLogin = document.getElementById('btn-login');
+    var usernameInput = document.getElementById('username');
+    var passwordInput = document.getElementById('password');
 
-    Auth.isAuthenticated().then(authenticated => {
+    Auth.isAuthenticated().then(function (authenticated) {
         if (authenticated) {
             window.location.href = '/dashboard/';
         }
     });
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', async function (e) {
         e.preventDefault();
 
-        const username = usernameInput.value.trim();
-        const password = passwordInput.value;
+        var username = usernameInput.value.trim();
+        var password = passwordInput.value;
 
         if (!username || !password) {
             showError('Preencha o nome de utilizador e a palavra-passe.');
@@ -25,7 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         btnLogin.disabled = true;
-        setSpinner(btnLogin);
+        btnLogin.textContent = '';
+        var spinner = document.createElement('span');
+        spinner.className = 'spinner';
+        btnLogin.appendChild(spinner);
 
         try {
             await Auth.login(username, password);
@@ -42,13 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function showError(message) {
         errorBox.textContent = message;
         errorBox.classList.add('visible');
-    }
-
-    function setSpinner(el) {
-        el.textContent = '';
-        const spinner = document.createElement('span');
-        spinner.className = 'spinner';
-        el.appendChild(spinner);
     }
 
     usernameInput.focus();

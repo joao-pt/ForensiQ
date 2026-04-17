@@ -438,18 +438,9 @@ textarea.form-input {
 }
 
 /* ============================================================
-   LOGIN PAGE
+   LOGIN PAGE — styles moved to css/pages/login.css
+   Only shared primitives remain here.
    ============================================================ */
-
-.login-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-    padding: 24px;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-}
 
 .login-card {
     width: 100%;
@@ -464,8 +455,6 @@ textarea.form-input {
     text-align: center;
     margin-bottom: 24px;
 }
-
-/* .login-logo-icon substituído por .seal-logo-lg no template */
 
 .login-logo h1 {
     font-size: 1.5rem;

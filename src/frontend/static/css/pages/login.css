@@ -1,0 +1,361 @@
+/* ForensiQ — Login page (dynamic, immersive) */
+
+/* Break out of .container to go full-screen */
+.container:has(.login-page) {
+    max-width: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Full-screen dark canvas */
+.login-page {
+    display: flex;
+    min-height: 100vh;
+    background: var(--primary);
+    overflow: hidden;
+    position: relative;
+}
+
+/* ---- Animated forensic grid background ---- */
+
+.login-grid {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.login-grid::before,
+.login-grid::after {
+    content: '';
+    position: absolute;
+    inset: -50%;
+    width: 200%;
+    height: 200%;
+}
+
+.login-grid::before {
+    background:
+        repeating-linear-gradient(0deg,   transparent, transparent 59px, rgba(45, 212, 191, 0.06) 59px, rgba(45, 212, 191, 0.06) 60px),
+        repeating-linear-gradient(90deg,  transparent, transparent 59px, rgba(45, 212, 191, 0.06) 59px, rgba(45, 212, 191, 0.06) 60px);
+    animation: grid-drift 25s linear infinite;
+}
+
+.login-grid::after {
+    background:
+        repeating-linear-gradient(0deg,   transparent, transparent 119px, rgba(245, 158, 11, 0.04) 119px, rgba(245, 158, 11, 0.04) 120px),
+        repeating-linear-gradient(90deg,  transparent, transparent 119px, rgba(245, 158, 11, 0.04) 119px, rgba(245, 158, 11, 0.04) 120px);
+    animation: grid-drift 40s linear infinite reverse;
+}
+
+@keyframes grid-drift {
+    from { transform: translate(0, 0); }
+    to   { transform: translate(60px, 60px); }
+}
+
+/* ---- Floating chain-of-custody nodes ---- */
+
+.login-nodes {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.login-node {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0;
+    animation: node-float 8s ease-in-out infinite;
+}
+
+.login-node:nth-child(1) {
+    width: 6px; height: 6px;
+    background: var(--secondary);
+    top: 15%; left: 10%;
+    animation-delay: 0s;
+    animation-duration: 7s;
+}
+.login-node:nth-child(2) {
+    width: 4px; height: 4px;
+    background: var(--accent);
+    top: 30%; left: 80%;
+    animation-delay: 1.5s;
+    animation-duration: 9s;
+}
+.login-node:nth-child(3) {
+    width: 8px; height: 8px;
+    background: var(--secondary);
+    top: 70%; left: 20%;
+    animation-delay: 3s;
+    animation-duration: 11s;
+}
+.login-node:nth-child(4) {
+    width: 5px; height: 5px;
+    background: var(--accent);
+    top: 50%; left: 65%;
+    animation-delay: 2s;
+    animation-duration: 8s;
+}
+.login-node:nth-child(5) {
+    width: 3px; height: 3px;
+    background: rgba(255,255,255,0.3);
+    top: 85%; left: 45%;
+    animation-delay: 4s;
+    animation-duration: 10s;
+}
+.login-node:nth-child(6) {
+    width: 7px; height: 7px;
+    background: var(--secondary);
+    top: 25%; left: 50%;
+    animation-delay: 5s;
+    animation-duration: 12s;
+}
+
+@keyframes node-float {
+    0%, 100% { opacity: 0; transform: translateY(0) scale(0.5); }
+    20%      { opacity: 0.7; }
+    50%      { opacity: 0.4; transform: translateY(-30px) scale(1); }
+    80%      { opacity: 0.6; }
+}
+
+/* ---- Brand panel (visible on desktop) ---- */
+
+.login-brand {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    z-index: 2;
+    padding: 48px;
+    color: #fff;
+}
+
+.login-brand-seal {
+    position: relative;
+    margin-bottom: 32px;
+}
+
+.login-brand-seal svg {
+    width: 96px;
+    height: 96px;
+    display: block;
+}
+
+.login-brand-ring {
+    position: absolute;
+    inset: -12px;
+    border: 2px solid var(--secondary);
+    border-radius: 50%;
+    opacity: 0.3;
+    animation: ring-pulse 3s ease-in-out infinite;
+}
+
+.login-brand-ring:nth-child(2) {
+    inset: -24px;
+    border-color: var(--accent);
+    opacity: 0.15;
+    animation-delay: 1s;
+    animation-duration: 4s;
+}
+
+@keyframes ring-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.3; }
+    50%      { transform: scale(1.08); opacity: 0.15; }
+}
+
+.login-brand h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+}
+
+.login-brand p {
+    font-size: 1rem;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 32px;
+}
+
+.login-brand-features {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 280px;
+}
+
+.login-brand-feature {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.875rem;
+    color: rgba(255,255,255,0.7);
+}
+
+.login-brand-feature-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(45, 212, 191, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+/* ---- Form panel ---- */
+
+.login-form-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    position: relative;
+    z-index: 2;
+    padding: 24px;
+    min-height: 100vh;
+}
+
+/* Override the old login-card for the new design */
+.login-page .login-card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
+    padding: 32px 24px;
+    animation: card-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(24px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Pulsing seal in the card (mobile) */
+.login-page .login-logo {
+    margin-bottom: 28px;
+}
+
+.login-page .login-logo .seal-logo-lg {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    animation: seal-breathe 4s ease-in-out infinite;
+}
+
+@keyframes seal-breathe {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+}
+
+/* Form inputs — elevated style */
+.login-page .form-input {
+    background: var(--surface-muted);
+    border: 2px solid var(--border);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.login-page .form-input:focus {
+    border-color: var(--secondary);
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Submit button with gradient */
+.login-page .btn-login {
+    background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1rem;
+    height: 48px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-page .btn-login:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(45, 212, 191, 0.35);
+}
+
+.login-page .btn-login:active {
+    transform: translateY(0);
+}
+
+.login-page .btn-login:disabled {
+    opacity: 0.7;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Footer text */
+.login-footer {
+    text-align: center;
+    color: rgba(255,255,255,0.3);
+    font-size: 0.6875rem;
+    margin-top: 24px;
+    letter-spacing: 0.3px;
+}
+
+/* ---- Desktop split layout ---- */
+
+@media (min-width: 768px) {
+    .login-page .login-card {
+        padding: 40px 32px;
+    }
+}
+
+@media (min-width: 1024px) {
+    .login-page {
+        flex-direction: row;
+    }
+
+    .login-brand {
+        display: flex;
+        flex: 1;
+        max-width: 50%;
+    }
+
+    .login-form-panel {
+        flex: 1;
+        max-width: 50%;
+        background: rgba(255,255,255,0.03);
+        backdrop-filter: blur(1px);
+    }
+
+    .login-page .login-logo {
+        display: none;
+    }
+
+    .login-footer {
+        position: absolute;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: max-content;
+    }
+}
+
+@media (min-width: 1280px) {
+    .login-brand-seal svg {
+        width: 112px;
+        height: 112px;
+    }
+
+    .login-brand h1 {
+        font-size: 2.5rem;
+    }
+}
