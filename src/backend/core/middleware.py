@@ -6,8 +6,9 @@ Inclui:
 - ContentSecurityPolicyMiddleware: define CSP header para mitigar XSS
 """
 
-import uuid
 import logging
+import secrets
+import uuid
 from contextvars import ContextVar
 
 from django.conf import settings
@@ -68,36 +69,29 @@ class ContentSecurityPolicyMiddleware:
     """
     Middleware que adiciona o header Content-Security-Policy a todas as respostas.
 
-    Política CSP:
+    Política CSP (hardened, sem unsafe-inline/unsafe-eval em script-src):
     - default-src 'self': bloqueia todos os recursos externos por defeito
-    - script-src: permite scripts do próprio domínio e CDN Cloudflare (Leaflet)
-    - style-src: permite estilos inline (necessário para Leaflet) e CDN
-    - connect-src: permite AJAX ao próprio domínio e geocoding OSM
-    - img-src: permite imagens do domínio, data URIs e tiles OSM
-    - font-src: permite fontes do domínio e CDN
-    - base-uri: restringe <base> ao próprio domínio
-    - frame-ancestors: bloqueia embedding em iframes (clickjacking)
-    - form-action: restringe destino de formulários
+    - script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com:
+      scripts só correm do próprio domínio, CDN Cloudflare (Leaflet) ou
+      quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
+      'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79).
+    - style-src 'self' 'unsafe-inline' ...: mantém-se 'unsafe-inline'
+      apenas para CSS porque Leaflet e alguns componentes injectam style
+      attributes. Migrar para nonce/hash é trabalho da Wave 2d.
+    - connect-src: AJAX ao próprio domínio e geocoding OSM
+    - img-src: imagens do domínio, data URIs e tiles OSM
+    - font-src: fontes do domínio e CDNs usadas
+    - base-uri 'self': bloqueia <base> injection
+    - frame-ancestors 'none': anti-clickjacking (CWE-1021)
+    - form-action 'self': restringe destino de formulários
 
-    Conformidade OWASP: mitigação de XSS via CSP Level 2.
-    Em desenvolvimento, a política é mais permissiva (report-only).
+    Nonce:
+    - `secrets.token_urlsafe(16)` (~22 chars, 128 bits entropia) por request.
+    - Exposto em `request.csp_nonce` — templates usam `<script nonce="{{ request.csp_nonce }}">`.
+
+    Conformidade OWASP ASVS v4 V14.4 (CSP Level 3).
+    Em desenvolvimento (DEBUG=True) usa Report-Only para não quebrar o DX.
     """
-
-    # Política CSP para produção
-    CSP_POLICY = (
-        "default-src 'self'; "
-        "script-src 'self' https://cdnjs.cloudflare.com; "
-        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
-        "connect-src 'self' https://nominatim.openstreetmap.org; "
-        "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
-        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
-        "object-src 'none'; "
-        "frame-src 'none'; "
-        "base-uri 'self'; "
-        "frame-ancestors 'none'; "
-        "form-action 'self'; "
-        "upgrade-insecure-requests"
-    )
 
     # Cabeçalhos auxiliares de segurança (OWASP Secure Headers Project)
     EXTRA_SECURITY_HEADERS = {
@@ -114,14 +108,39 @@ class ContentSecurityPolicyMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
 
+    @staticmethod
+    def _build_policy(nonce: str) -> str:
+        """Monta o header CSP com o nonce do request corrente."""
+        return (
+            "default-src 'self'; "
+            f"script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com; "
+            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
+            "connect-src 'self' https://nominatim.openstreetmap.org; "
+            "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
+            "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
+            "object-src 'none'; "
+            "frame-src 'none'; "
+            "base-uri 'self'; "
+            "frame-ancestors 'none'; "
+            "form-action 'self'; "
+            "upgrade-insecure-requests"
+        )
+
     def __call__(self, request):
+        # Gera nonce criptograficamente seguro por request e anexa-o
+        # ao request para uso em templates: `<script nonce="{{ request.csp_nonce }}">`.
+        nonce = secrets.token_urlsafe(16)
+        request.csp_nonce = nonce
+
         response = self.get_response(request)
+
+        policy = self._build_policy(nonce)
 
         if 'Content-Security-Policy' not in response:
             if settings.DEBUG:
-                response['Content-Security-Policy-Report-Only'] = self.CSP_POLICY
+                response['Content-Security-Policy-Report-Only'] = policy
             else:
-                response['Content-Security-Policy'] = self.CSP_POLICY
+                response['Content-Security-Policy'] = policy
 
         for header, value in self.EXTRA_SECURITY_HEADERS.items():
             response.setdefault(header, value)
