@@ -44,6 +44,7 @@ from core.frontend_views import (
     evidence_singular_redirect,
     evidences_new_view,
     evidences_view,
+    investigation_report_view,
     login_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
@@ -88,6 +89,9 @@ urlpatterns = [
 
     # Custódias
     path('custodies/', custody_list_view, name='custodies'),
+
+    # Auditoria — relatório estático de investigação de erros
+    path('audit/investigation/', investigation_report_view, name='investigation_report'),
 
     # -----------------------------------------------------------------
     # Redirects 301 — nomes antigos (singular) para retrocompatibilidade

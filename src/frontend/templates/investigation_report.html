@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Relatório de Investigação{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Auditoria · Investigação de erros</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/investigation_report.css' %}">
+{% endblock %}
+
+{% block content %}
+<article class="audit-report" lang="pt-PT">
+
+    <header class="masthead">
+        <div class="eyebrow">Revisão estática · Backend Django / DRF</div>
+        <h1>ForensiQ — Investigação de erros</h1>
+        <p class="sub">
+            Leitura estática dos módulos centrais do backend (configuração, autenticação, middleware,
+            modelos, views, serializers, permissões, validadores, auditoria) mais inspecção de
+            <code>fly.toml</code>, <code>.env.example</code> e dos templates. Não foram corridos testes
+            nem executada a aplicação — todas as notas vêm de inspecção de código.
+        </p>
+        <div class="meta">
+            <div><b>Data</b> · 2026-04-19</div>
+            <div><b>Âmbito</b> · backend + infra</div>
+            <div><b>Ficheiros lidos</b> · 13</div>
+        </div>
+    </header>
+
+    <div class="caveat">
+        <b>Nota sobre o estado geral.</b>
+        O projeto está, de forma geral, <b>bem construído</b> — cadeia de custódia append-only com
+        <code>select_for_update</code>, CSP com nonce, validadores forenses dedicados (IMEI Luhn, VIN ISO 3779),
+        auditoria via <code>correlation_id</code>, cookies HttpOnly, cache de lookups externos, etc.
+        A lista abaixo é deliberadamente exigente. Nada aqui é bloqueante para correr —
+        são riscos, inconsistências e code smells que merecem atenção.
+    </div>
+
+    <div class="summary">
+        <div class="cell crit"><div class="n">1</div><div class="lbl">Crítico</div></div>
+        <div class="cell high"><div class="n">4</div><div class="lbl">Alto</div></div>
+        <div class="cell med"><div class="n">6</div><div class="lbl">Médio</div></div>
+        <div class="cell low"><div class="n">4</div><div class="lbl">Baixo</div></div>
+        <div class="cell info"><div class="n">3</div><div class="lbl">Nota</div></div>
+    </div>
+
+    {# ==================================================================== #}
+    <h2 class="section">Crítico</h2>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-01</span>
+            <span class="title">IsAgent/IsExpert crashes com <code>AttributeError</code> em superutilizadores sem o campo <code>profile</code></span>
+            <span class="sev crit">Crítico</span>
+        </header>
+        <div class="body">
+            <p>
+                <span class="loc">core/permissions.py:29</span>
+                <span class="loc">core/permissions.py:43</span>
+                <span class="loc">core/permissions.py:60</span>
+            </p>
+            <p>
+                <code>IsAgent.has_permission</code> e <code>IsAgentOrExpert.has_permission</code> fazem
+                <code>request.user.profile == 'AGENT'</code> diretamente. O modelo <code>User</code> tem sempre o campo
+                (é <code>AbstractUser</code> + <code>profile</code> com default <code>AGENT</code>), <b>mas</b>
+                <code>createsuperuser</code> cria o registo sem passar por formulário e, conjugado com o guarda
+                <code>hasattr(user, 'profile')</code> usado noutros sítios, torna óbvio que vocês já anteciparam
+                utilizadores sem este atributo. Um superuser cujo <code>profile</code> ficasse
+                em branco (ou qualquer <code>AnonymousUser</code> que escape pela <code>IsAuthenticated</code> anterior
+                devido a ordem de classes) provoca <code>AttributeError</code> → HTTP 500 em vez de 403.
+            </p>
+            <p>
+                Mais grave: <code>IsAgentOrExpert</code> <b>não tem a guarda de safe methods</b> — um AGENT/EXPERT
+                sem perfil falha na leitura também, enquanto qualquer outro utilizador autenticado é bloqueado de
+                ler. A intenção documentada ("Leitura é permitida a qualquer utilizador autenticado com perfil válido")
+                contradiz o código.
+            </p>
+            <p class="rec">Usar <code>getattr(request.user, 'profile', None)</code> em todas as três classes,
+            e mover o <code>SAFE_METHODS</code> bypass para dentro de <code>IsAgentOrExpert</code>.</p>
+<pre class="snippet"><span class="c"># permissions.py — IsAgentOrExpert</span>
+<span class="k">def</span> has_permission(self, request, view):
+    <span class="k">if</span> <span class="k">not</span> request.user <span class="k">or not</span> request.user.is_authenticated:
+        <span class="k">return</span> <span class="k">False</span>
+<span class="hl">    return request.user.profile in ('AGENT', 'EXPERT')</span>
+<span class="c"># sem bypass de SAFE_METHODS e sem getattr — quebra se profile faltar</span></pre>
+        </div>
+    </article>
+
+    {# ==================================================================== #}
+    <h2 class="section">Alto</h2>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-02</span>
+            <span class="title">Rate limit de autenticação é <i>desligado</i> quando <code>TESTING</code> é verdadeiro — e o sinal de <code>TESTING</code> é promíscuo</span>
+            <span class="sev high">Alto</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">forensiq_project/settings.py:17-24, 145-157</span></p>
+            <p>
+                A detecção de <code>TESTING</code> inclui <code>os.environ.get('DJANGO_TESTING', '').lower() == 'true'</code>.
+                Isto significa que <b>qualquer</b> contexto onde essa env var seja definida (CI, imagem partilhada,
+                container de staging configurado por engano) desactiva throttling, HSTS e SSL redirect.
+                O <code>AuthRateThrottle</code> contra força bruta também fica inócuo:
+                os rates passam para <code>10000/minute</code> e os globais para <code>[]</code>.
+            </p>
+            <p>
+                Adicionalmente, <code>pytest</code> aparecer em <code>sys.argv[0]</code> funciona só para o binário;
+                corridas via <code>python -m pytest</code> não batem nesse teste e caem nas <i>verificações de ambiente</i>
+                — misturar detecção por argv e por env var é frágil.
+            </p>
+            <p class="rec">Confiar apenas no test runner: usar <code>test_settings.py</code> como
+            <code>DJANGO_SETTINGS_MODULE</code> e remover a heurística runtime. Se mantiverem a env var,
+            renomeá-la para algo que só exista no <code>conftest.py</code> (ex: <code>FORENSIQ_TESTING_RUNNER=1</code>)
+            e garantir que nunca é herdada por produção.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-03</span>
+            <span class="title">Endpoints de lookup externos cacheam IMEI globalmente, contornando a permissão por perfil</span>
+            <span class="sev high">Alto</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/views.py — EvidenceIMEILookupView.get</span></p>
+            <p>
+                O <code>cache_key</code> é <code>lookup:imei:&lt;imei&gt;</code>. A verificação de perfil
+                (<code>_user_can_lookup</code>) <i>corre</i> antes, portanto o acesso controlado está ok.
+                <b>Mas</b> a resposta cacheada inclui <code>_cached_at</code> e o próprio payload externo é guardado
+                sem considerar o utilizador que o gerou. Em si não é leak — é ok — mas dois riscos concretos:
+            </p>
+            <p>
+                (1) Se alguma vez <code>lookup_imei</code> incluir dados derivados do request (ex. IP do agente
+                para rate limit upstream, ou idioma), ficarão gravados 30 dias globalmente. (2) O campo
+                <code>cached_at</code> retornado ao cliente é o carimbo do <i>primeiro</i> requisitante — qualquer
+                auditoria ISO 27037 sobre "quando foi consultado o IMEI para esta evidência" tem de ir ao
+                <code>AuditLog</code>, não ao payload. Isto é subtil mas cabe documentar explicitamente.
+            </p>
+            <p>
+                O maior problema prático: não há <b>invalidação manual</b>. Se a imeidb.xyz corrigir um TAC
+                errado, os agentes vão ver a resposta errada durante 30 dias sem forma de forçar refresh.
+            </p>
+            <p class="rec">Adicionar um parâmetro <code>?refresh=1</code> gated por perfil EXPERT/staff que
+            salte a cache e reescreva a entrada. Registar no <code>AuditLog</code> sempre que for usado.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-04</span>
+            <span class="title"><code>CSRF_COOKIE_HTTPONLY = False</code> é intencional, mas <code>SameSite=Strict</code> parte a recuperação de sessão cross-tab</span>
+            <span class="sev high">Alto</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">forensiq_project/settings.py — CSRF section</span></p>
+            <p>
+                <code>SameSite=Strict</code> em <code>CSRF_COOKIE_SAMESITE</code> <b>e</b> em
+                <code>SESSION_COOKIE_SAMESITE</code> significa que seguir um link externo (email de
+                notificação de nova custódia, SSO de entidade pública) para o ForensiQ chega sem os cookies.
+                O utilizador vai aterrar em /login/ mesmo estando autenticado na mesma origem — fricção
+                séria para first responders em campo. <code>Lax</code> é o padrão de facto para aplicações
+                protegidas por CSRF token em headers (é o que fazem).
+            </p>
+            <p>
+                Também: ter <code>CSRF_COOKIE_HTTPONLY=False</code> é correcto aqui (JS precisa de ler o token
+                para o enviar no <code>X-CSRFToken</code>), mas o comentário "SameSite=Strict já bloqueia"
+                só protege cross-site — não protege contra XSS same-origin, e é isso que
+                <code>HTTPOnly</code> é. Se a aplicação servir conteúdo de utilizador (observations,
+                descrições em livre-texto) e o CSP falhar num injectar inline, o atacante pode ler o CSRF token.
+                A decisão é aceitável mas o comentário é enganador.
+            </p>
+            <p class="rec">Relaxar para <code>SameSite=Lax</code> em ambos os cookies (o JWT é só lido pelo
+            backend; o CSRF continua protegido pela double-submit). Actualizar o comentário em
+            <code>settings.py</code>.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-05</span>
+            <span class="title">A variação de fallback de <code>_lookup_previous_hash</code> fora do <code>select_for_update</code> reintroduz a race condition que tentaram corrigir</span>
+            <span class="sev high">Alto</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/models.py — ChainOfCustody.compute_record_hash / _lookup_previous_hash</span></p>
+            <p>
+                O docstring diz explicitamente que o fallback é "apenas para compatibilidade com utilizadores antigos"
+                e expõe a race. Mas a função continua pública no modelo e reutilizável. Qualquer chamador futuro
+                (comandos de management, tarefas assíncronas, scripts de re-hash) que chame
+                <code>compute_record_hash()</code> <i>sem</i> argumento vai silenciosamente desactivar a protecção,
+                sem aviso. Um assert ou warning não chega — a forma correcta é tornar o parâmetro obrigatório
+                e ter um método diferente (<code>compute_record_hash_unsafe_legacy</code>) para o fallback, para que
+                o <i>nome</i> grite no code review.
+            </p>
+            <p class="rec">Tornar <code>previous_hash</code> um argumento obrigatório. Mover o fallback para
+            um método nomeado à parte. Adicionar <code>warnings.warn(DeprecationWarning)</code> se for chamado.</p>
+        </div>
+    </article>
+
+    {# ==================================================================== #}
+    <h2 class="section">Médio</h2>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-06</span>
+            <span class="title"><code>Evidence.save()</code> chama <code>full_clean()</code> antes de calcular o hash — mas <code>integrity_hash</code> não aparece nos <code>read_only_fields</code> do serializer</span>
+            <span class="sev med">Médio</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/serializers.py — EvidenceSerializer.Meta.read_only_fields</span></p>
+            <p>
+                <code>integrity_hash</code> está listado como read-only — correcto. Mas o serializer
+                <b>também</b> marca <code>timestamp_seizure</code> como read-only, o que entra em
+                contradição com o <code>evidences_new.html</code> típico (o agente indica quando apreendeu a
+                evidência, não é o momento em que clica "submeter"). Se o fluxo UX expuser um campo de data/hora
+                de apreensão, o valor é silenciosamente descartado na API.
+            </p>
+            <p class="rec">Clarificar: ou o campo é read-only (e o form frontend não o mostra) ou é writable
+            com validação "não pode ser futuro" (que já existe no <code>clean</code>). Confirmar com o form.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-07</span>
+            <span class="title"><code>DashboardStatsView</code>: <code>list(closed_occurrence_ids)</code> materializa em memória sem limite</span>
+            <span class="sev med">Médio</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/views.py — DashboardStatsView.get</span></p>
+            <p>
+                Envolver uma <code>values_list</code> distinta num <code>list(...)</code> para usar em
+                <code>exclude(id__in=...)</code> funciona para uma demo, mas com N ocorrências com pelo menos
+                uma custódia terminal, vai puxar N IDs para Python antes de re-enviar como <code>IN (...)</code>
+                para Postgres. A Neon cobra por I/O. A query correcta é uma subquery.
+            </p>
+            <p class="rec">Usar subquery sem materializar:
+            <code>occ_qs.exclude(id__in=closed_occurrence_ids)</code> (remover o <code>list</code>) — o ORM gera
+            <code>WHERE id NOT IN (SELECT ...)</code>. Melhor ainda: <code>NOT EXISTS</code> via
+            <code>~Exists(...)</code>.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-08</span>
+            <span class="title"><code>healthcheck</code> não tem throttle — e expõe estado da DB anonimamente</span>
+            <span class="sev med">Médio</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/views.py — healthcheck</span></p>
+            <p>
+                É comum e defensável deixar <code>/health/</code> aberto para o probe do Fly.io. Mas como está
+                (<code>require_safe</code> + sem throttle + devolve 503 quando a DB está em baixo) é um
+                <b>oracle</b> trivial para um atacante saber quando a Neon está em manutenção. Combinado com
+                força bruta em <code>/api/auth/login/</code> durante uma janela de downtime, é leak de sinal.
+            </p>
+            <p>
+                Também: <code>JsonResponse</code> não inclui <code>Cache-Control: no-store</code>. Alguns proxies
+                cacheiam 200s por defeito; o probe do Fly faz 4/minuto com o mesmo <code>Host</code> header —
+                não é problema em Fly mas é má higiene.
+            </p>
+            <p class="rec">Aplicar <code>@cache_control(no_store=True)</code>. Considerar um endpoint
+            <code>/health/deep/</code> gated por token partilhado com o monitor se quiserem detalhes.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-09</span>
+            <span class="title">O <code>exception_handler</code> customizado devolve <code>message_dict</code> bruto — potencialmente expõe estrutura interna</span>
+            <span class="sev med">Médio</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/exceptions.py</span></p>
+            <p>
+                Quando o Django levanta <code>ValidationError</code> com <code>message_dict</code>, o handler devolve-o
+                <i>tal qual</i>. Mas o <code>message_dict</code> de Django inclui chaves que não existem no serializer
+                público — por exemplo, o validador de imagem em <code>validate_image_max_size</code> ou erros de
+                <code>_validate_type_specific_data</code> podem ter chaves <code>__all__</code> ou nomes de campos internos
+                (<code>parent_evidence</code> numa situação onde o serializer só expôs o ID). É pequeno, mas útil para
+                um atacante mapear o modelo interno.
+            </p>
+            <p class="rec">Filtrar <code>__all__</code> para uma chave genérica (<code>non_field_errors</code>) antes
+            de devolver.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-10</span>
+            <span class="title"><code>CorrelationIDMiddleware</code> aceita <code>X-Correlation-ID</code> do cliente sem validar</span>
+            <span class="sev med">Médio</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/middleware.py — CorrelationIDMiddleware.__call__</span></p>
+            <p>
+                Reutilizar o correlation ID do cliente é um padrão legítimo (tracing entre serviços). Mas aqui
+                o valor é gravado <b>directamente no AuditLog</b> (<code>correlation_id = get_correlation_id()</code>
+                em <code>audit.py</code>) e o campo da DB é <code>CharField</code> sem <code>max_length</code> visível no excerto.
+                Um atacante pode enviar um header de 64KB e poluir logs; um atacante mais paciente pode enviar
+                um UUID <i>válido</i> mas correspondente ao correlation ID de outro utilizador, misturando os rastos.
+            </p>
+            <p class="rec">Aceitar o header só se for um UUID válido (<code>uuid.UUID(value)</code>) — caso contrário
+            gerar um novo. Considerar não confiar de todo em headers externos para auditoria forense.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-11</span>
+            <span class="title">A CSP autoriza <code>cdnjs.cloudflare.com</code> sem <code>integrity</code></span>
+            <span class="sev med">Médio</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/middleware.py — ContentSecurityPolicyMiddleware._build_policy</span>
+               <span class="loc">frontend/templates/_leaflet_head.html</span> (provável)</p>
+            <p>
+                Incluir cdnjs em <code>script-src</code>/<code>style-src</code>/<code>img-src</code>/<code>font-src</code>
+                é razoável para Leaflet, mas sem SRI um comprometimento da CDN (ou do package via typosquat)
+                injecta JS no ForensiQ com a bênção da CSP. Não foram vistos os templates de leaflet_head,
+                mas vale verificar.
+            </p>
+            <p class="rec">Adicionar <code>integrity="sha384-..."</code> e <code>crossorigin="anonymous"</code>
+            a todos os scripts e stylesheets servidos via cdnjs. Considerar self-hosting dos 2–3 ficheiros do Leaflet.</p>
+        </div>
+    </article>
+
+    {# ==================================================================== #}
+    <h2 class="section">Baixo</h2>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-12</span>
+            <span class="title"><code>Occurrence.clean()</code> muta <code>self.number</code> (side-effect num validador)</span>
+            <span class="sev low">Baixo</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/models.py — Occurrence.clean</span></p>
+            <p>
+                Normalizar espaços dentro do <code>clean()</code> mistura validação com canonicalização. Funciona,
+                mas passa a ser invisível no serializer (se alguém migrar <code>save</code> para não chamar
+                <code>full_clean</code> futuro, a normalização some). Melhor fazer isto num <code>validate_number</code>
+                de serializer ou num <code>save</code> explícito.
+            </p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-13</span>
+            <span class="title"><code>DigitalDevice.imei</code> aceita string vazia via regex <code>^(\d{15})?$</code> mas não passa pelo Luhn</span>
+            <span class="sev low">Baixo</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/models.py — DigitalDevice.imei</span></p>
+            <p>
+                A validação de IMEI em <code>Evidence.type_specific_data</code> usa <code>validate_imei</code>
+                (com Luhn). Em <code>DigitalDevice.imei</code> usa só um <code>RegexValidator</code> de 15 dígitos.
+                Dois caminhos para o mesmo dado, validações diferentes. Um IMEI inválido-por-Luhn entra pela
+                porta de <code>DigitalDevice</code>.
+            </p>
+            <p class="rec">Substituir o <code>RegexValidator</code> por <code>validate_imei</code>, mantendo o blank.</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-14</span>
+            <span class="title"><code>EvidenceVINLookupView</code> devolve VIN normalizado mas não armazena o snapshot</span>
+            <span class="sev low">Baixo</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/views.py — EvidenceVINLookupView</span></p>
+            <p>
+                O endpoint devolve um URL para o agente abrir numa nova aba. Não há log de auditoria
+                (<code>log_access</code> não é chamado) — ao contrário do IMEI (que também não regista,
+                ver abaixo). Para ISO 27037 é útil saber que o agente X consultou VIN Y às Z horas,
+                mesmo que a resposta seja só um URL.
+            </p>
+            <p class="rec">Registar <code>AuditLog</code> com action <code>VIEW</code> e
+            <code>resource_type</code> custom (ou <code>EVIDENCE</code> quando houver uma evidência pai conhecida).</p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-15</span>
+            <span class="title">Redirects <code>singular → plural</code> perdem query strings e são <code>301 permanente</code></span>
+            <span class="sev low">Baixo</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">core/frontend_views.py — *_singular_redirect</span></p>
+            <p>
+                <code>HttpResponsePermanentRedirect</code> é cacheado agressivamente por browsers e proxies.
+                Se reverterem a convenção (pouco provável) ficam presos. E os redirects não propagam a
+                query string — um bookmark antigo <code>/occurrence/?status=open</code> perde o filtro.
+            </p>
+            <p class="rec">Usar 302 durante pelo menos um ciclo de release; propagar <code>request.META['QUERY_STRING']</code>.</p>
+        </div>
+    </article>
+
+    {# ==================================================================== #}
+    <h2 class="section">Notas</h2>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-16</span>
+            <span class="title">Lookup de IMEI não é auditado</span>
+            <span class="sev info">Nota</span>
+        </header>
+        <div class="body">
+            <p>
+                Nem o endpoint de IMEI nem o de VIN chamam <code>log_access</code>. As consultas externas
+                revelam informação sensível (mapeamento IMEI → marca/modelo; VIN → veículo). Para um
+                processo ISO 27037 é razoável exigir que cada consulta fique registada mesmo quando
+                serve apenas para UI. Ver <b>FQ-14</b>.
+            </p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-17</span>
+            <span class="title"><code>DEBUG=True</code> no <code>.env.example</code></span>
+            <span class="sev info">Nota</span>
+        </header>
+        <div class="body">
+            <p>
+                O template <code>.env.example</code> tem <code>DEBUG=True</code>. Um developer que copie para
+                <code>.env</code> sem pensar corre local com debug — ok. O comentário em baixo lembra
+                "Em produção, DEBUG=False", mas o Fly.io já fixa isso em <code>fly.toml</code>, portanto a única
+                vítima realista é um developer a correr <code>python manage.py runserver</code> sem se
+                aperceber. Mencionar explicitamente "NUNCA copiar isto para um servidor com internet pública".
+            </p>
+        </div>
+    </article>
+
+    <article class="finding">
+        <header>
+            <span class="id">FQ-18</span>
+            <span class="title">Volume persistente Fly.io é único (<code>forensiq_media</code>)</span>
+            <span class="sev info">Nota</span>
+        </header>
+        <div class="body">
+            <p><span class="loc">fly.toml — [[mounts]]</span></p>
+            <p>
+                <code>auto_stop_machines = true</code> + <code>min_machines_running = 0</code> + um único volume:
+                se a aplicação algum dia escalar para mais de uma máquina, só uma montará o volume — os uploads
+                dos outros agentes ficam inacessíveis. Para uma plataforma forense, mover cedo para <b>S3-compatible
+                storage</b> (R2, Tigris) é menos doloroso antes de ter mil evidências.
+            </p>
+        </div>
+    </article>
+
+    <footer class="foot">
+        ForensiQ · revisão estática · sem execução nem testes corridos · reportar de volta ao chat.
+    </footer>
+
+</article>
+{% endblock %}
