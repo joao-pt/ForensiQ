@@ -12,7 +12,7 @@ justiça. Todas as permissões devem validar explicitamente o perfil do
 utilizador — nunca confiar apenas em IsAuthenticated.
 """
 
-from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
 class IsAgent(BasePermission):

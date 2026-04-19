@@ -12,7 +12,7 @@ sensíveis só sejam carregados via API.
 
 from functools import wraps
 
-from django.http import HttpResponseRedirect
+from django.http import HttpResponsePermanentRedirect, HttpResponseRedirect
 from django.shortcuts import render
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
@@ -78,6 +78,65 @@ def evidences_new_view(request):
 
 
 @jwt_cookie_required
+def evidence_detail_view(request, evidence_id):
+    """
+    Detalhe de uma evidência — reutiliza o template de timeline de custódia
+    como hub central da evidência (timeline, integridade, sub-componentes).
+    Requer token JWT válido.
+    """
+    return render(request, 'custody_timeline.html', {'evidence_id': evidence_id})
+
+
+@jwt_cookie_required
 def custody_timeline_view(request, evidence_id):
     """Timeline visual da cadeia de custódia de uma evidência — requer token JWT válido."""
     return render(request, 'custody_timeline.html', {'evidence_id': evidence_id})
+
+
+@jwt_cookie_required
+def custody_list_view(request):
+    """
+    Lista de transições de cadeia de custódia visíveis ao utilizador.
+
+    A filtragem concreta (agente vê as suas; coordenador vê as da equipa;
+    perito vê as em que é custodiante actual) é aplicada no endpoint REST
+    `/api/custody/` via permissões do backend. Esta view apenas serve o
+    template; o JS popula-o via API.
+    """
+    return render(request, 'custody_list.html')
+
+
+# ---------------------------------------------------------------------------
+# Redirects 301 — retrocompatibilidade com nomes antigos (singular)
+# ---------------------------------------------------------------------------
+
+def _redirect_permanent(path):
+    """Factory para redirects 301 simples (sem kwargs)."""
+    def view(_request):
+        return HttpResponsePermanentRedirect(path)
+    return view
+
+
+def occurrence_singular_redirect(_request):
+    """/occurrence/ → /occurrences/"""
+    return HttpResponsePermanentRedirect('/occurrences/')
+
+
+def occurrence_detail_singular_redirect(_request, occurrence_id):
+    """/occurrence/<id>/ → /occurrences/<id>/"""
+    return HttpResponsePermanentRedirect(f'/occurrences/{occurrence_id}/')
+
+
+def evidence_singular_redirect(_request):
+    """/evidence/ → /evidences/"""
+    return HttpResponsePermanentRedirect('/evidences/')
+
+
+def custody_singular_redirect(_request):
+    """/custody/ → /custodies/"""
+    return HttpResponsePermanentRedirect('/custodies/')
+
+
+def custody_evidence_redirect(_request, evidence_id):
+    """/evidence/<id>/custody/ → /evidences/<id>/custody/"""
+    return HttpResponsePermanentRedirect(f'/evidences/{evidence_id}/custody/')

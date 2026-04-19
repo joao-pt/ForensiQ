@@ -11,7 +11,6 @@ from django.middleware.csrf import CsrfViewMiddleware
 from rest_framework import exceptions
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
-
 ACCESS_COOKIE_NAME = 'fq_access'
 REFRESH_COOKIE_NAME = 'fq_refresh'
 REFRESH_COOKIE_PATH = '/api/auth/'
