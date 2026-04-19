@@ -175,6 +175,14 @@ SIMPLE_JWT = {
     'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', SECRET_KEY),
 }
 
+# --- IMEIDB (consulta externa de IMEI / TAC, ver Wave 2c) ---
+# Token de API obtido em https://imeidb.xyz (free tier). Em produção,
+# injectar via `fly secrets set IMEIDB_API_TOKEN=...`. Quando vazio,
+# o serviço degrada para fallback local (validação Luhn apenas).
+IMEIDB_API_TOKEN = os.environ.get('IMEIDB_API_TOKEN', '')
+IMEIDB_BASE_URL = os.environ.get('IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
+IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
+
 # --- drf-spectacular (Swagger / OpenAPI) ---
 SPECTACULAR_SETTINGS = {
     'TITLE': 'ForensiQ API',
@@ -235,10 +243,27 @@ if TESTING:
         'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     }
 MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+# MEDIA_ROOT é configurável via env para permitir montar um volume
+# persistente em produção (Fly.io: /data/media, ver fly.toml [[mounts]]).
+# Filesystem efémero do contentor perde uploads entre reboots, o que é
+# incompatível com a integridade da cadeia de custódia (ISO/IEC 27037).
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', str(BASE_DIR / 'media'))
 
 # --- Chave primária por defeito ---
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Cache backend (ADR-0008) — DatabaseCache na Neon PostgreSQL
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+        'LOCATION': 'forensiq_cache',
+        'TIMEOUT': 60 * 60 * 24 * 30,  # 30 dias
+        'OPTIONS': {
+            'MAX_ENTRIES': 10_000,
+            'CULL_FREQUENCY': 3,
+        },
+    },
+}
 
 # --- Segurança em produção ---
 # Em modo de teste, nunca activar hardening de produção mesmo que
