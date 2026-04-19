@@ -18,10 +18,44 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 
 from core.validators import validate_imei, validate_imsi, validate_vin
+
+
+# ---------------------------------------------------------------------------
+# Gerador de códigos humanos ANO-TIPO-SEQ (ex.: OCC-2026-00001)
+# ---------------------------------------------------------------------------
+
+CODE_MAX_ATTEMPTS = 5
+
+
+def _next_yearly_code(prefix, model, year, field='code'):
+    """Gera o próximo código ``PREFIX-YYYY-NNNNN`` para o ano indicado.
+
+    A unicidade é garantida pelo constraint único no campo ``code``; em
+    caso de colisão concorrente o chamador faz retry até
+    ``CODE_MAX_ATTEMPTS``. Consulta o MAX existente para o ano (``startswith``
+    tira partido do índice) e soma 1. Para o primeiro registo de um ano
+    cai em ``00001``.
+    """
+    prefix_filter = f'{prefix}-{year}-'
+    last = (
+        model.objects
+        .filter(**{f'{field}__startswith': prefix_filter})
+        .order_by(f'-{field}')
+        .values_list(field, flat=True)
+        .first()
+    )
+    if last:
+        try:
+            seq = int(last.rsplit('-', 1)[-1]) + 1
+        except (ValueError, IndexError):
+            seq = 1
+    else:
+        seq = 1
+    return f'{prefix}-{year}-{seq:05d}'
 
 # ---------------------------------------------------------------------------
 # Validadores customizados
@@ -129,6 +163,15 @@ class User(AbstractUser):
 class Occurrence(models.Model):
     """Ocorrência policial / cena de crime."""
 
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='Código do caso',
+        help_text='Gerado automaticamente no formato OCC-YYYY-NNNNN.',
+    )
     number = models.CharField(
         max_length=50,
         unique=True,
@@ -180,7 +223,10 @@ class Occurrence(models.Model):
         ordering = ['-date_time']
 
     def __str__(self):
-        return f'Ocorrência {self.number}'
+        parts = [self.number]
+        if self.code and self.code != self.number:
+            parts.append(self.code)
+        return f'Ocorrência {" · ".join(parts)}'
 
     def clean(self):
         super().clean()
@@ -197,8 +243,26 @@ class Occurrence(models.Model):
             })
 
     def save(self, *args, **kwargs):
-        """Chama full_clean para garantir que validadores de campo correm."""
+        """Chama full_clean e atribui ``code`` (OCC-YYYY-NNNNN) na criação."""
         self.full_clean()
+        is_new = self.pk is None
+        if is_new and not self.code:
+            year = (self.date_time or timezone.now()).year
+            for _ in range(CODE_MAX_ATTEMPTS):
+                self.code = _next_yearly_code('OCC', type(self), year=year)
+                try:
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    return
+                except IntegrityError as exc:
+                    if 'code' not in str(exc).lower():
+                        raise
+                    self.code = ''
+                    self.pk = None
+            raise RuntimeError(
+                'Não foi possível gerar um código OCC-YYYY-NNNNN único '
+                'após várias tentativas.'
+            )
         super().save(*args, **kwargs)
 
 
@@ -247,6 +311,15 @@ class Evidence(models.Model):
         INTERNAL_DRIVE = 'INTERNAL_DRIVE', 'Disco Interno (HDD / SSD / NVMe)'
         VEHICLE_COMPONENT = 'VEHICLE_COMPONENT', 'Componente Electrónico de Veículo'
 
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='Código do item',
+        help_text='Gerado automaticamente no formato ITM-YYYY-NNNNN.',
+    )
     occurrence = models.ForeignKey(
         Occurrence,
         on_delete=models.PROTECT,
@@ -364,7 +437,8 @@ class Evidence(models.Model):
         ]
 
     def __str__(self):
-        return f'Evidência #{self.pk} — {self.get_type_display()} ({self.occurrence.number})'
+        label = self.code or f'#{self.pk}'
+        return f'Item {label} — {self.get_type_display()} ({self.occurrence.number})'
 
     # ------------------------------------------------------------------
     # Hierarquia pai-filho
@@ -470,7 +544,8 @@ class Evidence(models.Model):
     def save(self, *args, **kwargs):
         """
         Override: apenas permite criação (imutável após registo).
-        Calcula o hash de integridade no momento do registo.
+        Calcula o hash de integridade e atribui ``code`` (ITM-YYYY-NNNNN)
+        no momento do registo.
         Conformidade ISO/IEC 27037 — metadados de prova não são alteráveis.
         """
         if self.pk is not None:
@@ -481,7 +556,23 @@ class Evidence(models.Model):
         # full_clean garante que validadores de campo (GPS, etc.) correm
         self.full_clean()
         self.integrity_hash = self.compute_integrity_hash()
-        super().save(*args, **kwargs)
+        year = (self.timestamp_seizure or timezone.now()).year
+        for _ in range(CODE_MAX_ATTEMPTS):
+            if not self.code:
+                self.code = _next_yearly_code('ITM', type(self), year=year)
+            try:
+                with transaction.atomic():
+                    super().save(*args, **kwargs)
+                return
+            except IntegrityError as exc:
+                if 'code' not in str(exc).lower():
+                    raise
+                self.code = ''
+                self.pk = None
+        raise RuntimeError(
+            'Não foi possível gerar um código ITM-YYYY-NNNNN único '
+            'após várias tentativas.'
+        )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de evidência."""
@@ -727,6 +818,15 @@ class ChainOfCustody(models.Model):
         CustodyState.DESTRUIDA: [],  # estado terminal
     }
 
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='Código da transição',
+        help_text='Gerado automaticamente no formato CC-YYYY-NNNNN.',
+    )
     evidence = models.ForeignKey(
         Evidence,
         on_delete=models.PROTECT,
@@ -794,7 +894,8 @@ class ChainOfCustody(models.Model):
 
     def __str__(self):
         prev = self.get_previous_state_display() or '(início)'
-        return f'Evidência #{self.evidence_id}: {prev} → {self.get_new_state_display()}'
+        ev_label = self.evidence.code if self.evidence_id else f'#{self.evidence_id}'
+        return f'Item {ev_label}: {prev} → {self.get_new_state_display()}'
 
     def clean(self):
         """Valida a transição de estado conforme a máquina de estados."""
@@ -887,29 +988,50 @@ class ChainOfCustody(models.Model):
                 'Não é permitido atualizar registos existentes.'
             )
 
-        with transaction.atomic():
-            # Auto-determinar previous_state e sequence a partir do último registo.
-            # select_for_update() garante serialização entre escritores concorrentes
-            # na mesma evidência.
-            last_record = (
-                ChainOfCustody.objects
-                .select_for_update()
-                .filter(evidence=self.evidence)
-                .order_by('-sequence')
-                .first()
-            )
-            self.previous_state = last_record.new_state if last_record else ''
-            self.sequence = (last_record.sequence + 1) if last_record else 1
+        for _ in range(CODE_MAX_ATTEMPTS):
+            try:
+                with transaction.atomic():
+                    # Auto-determinar previous_state e sequence a partir do
+                    # último registo. select_for_update() garante serialização
+                    # entre escritores concorrentes na mesma evidência.
+                    last_record = (
+                        ChainOfCustody.objects
+                        .select_for_update()
+                        .filter(evidence=self.evidence)
+                        .order_by('-sequence')
+                        .first()
+                    )
+                    self.previous_state = last_record.new_state if last_record else ''
+                    self.sequence = (last_record.sequence + 1) if last_record else 1
 
-            # Timestamp sempre do servidor (NTP-synced) — nunca do cliente
-            self.timestamp = timezone.now()
+                    # Timestamp sempre do servidor (NTP-synced) — nunca do cliente
+                    self.timestamp = timezone.now()
 
-            self.full_clean()
-            # Passar o hash explicitamente para a função ficar pura e
-            # reaproveitar a leitura já feita dentro do select_for_update.
-            previous_hash = last_record.record_hash if last_record else '0' * 64
-            self.record_hash = self.compute_record_hash(previous_hash=previous_hash)
-            super().save(*args, **kwargs)
+                    if not self.code:
+                        self.code = _next_yearly_code(
+                            'CC', ChainOfCustody, year=self.timestamp.year,
+                        )
+
+                    self.full_clean()
+                    # Passar o hash explicitamente para a função ficar pura e
+                    # reaproveitar a leitura já feita dentro do select_for_update.
+                    previous_hash = (
+                        last_record.record_hash if last_record else '0' * 64
+                    )
+                    self.record_hash = self.compute_record_hash(
+                        previous_hash=previous_hash,
+                    )
+                    super().save(*args, **kwargs)
+                return
+            except IntegrityError as exc:
+                if 'code' not in str(exc).lower():
+                    raise
+                self.code = ''
+                self.pk = None
+        raise RuntimeError(
+            'Não foi possível gerar um código CC-YYYY-NNNNN único '
+            'após várias tentativas.'
+        )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de custódia."""

@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}ForensiQ — Nova Ocorrência{% endblock %}
+{% block title %}ForensiQ — Nova ocorrência{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/occurrences/">Ocorrências</a><span class="breadcrumb-sep">›</span><span>Nova</span>
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<a href="/occurrences/">Ocorrências</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Nova</span>
 {% endblock %}
 
 {% block extra_css %}
@@ -16,7 +20,6 @@
 <div class="wizard" id="occurrence-wizard">
     <div class="wizard-track">
 
-        <!-- STEP 0 — Número -->
         <section class="wizard-step" data-step="0">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 1 de 6</div>
@@ -24,86 +27,69 @@
                 <p class="wizard-step-hint">NUIPC ou referência interna que identifica esta ocorrência.</p>
             </div>
             <div class="form-group">
-                <input
-                    type="text"
-                    id="number"
-                    name="number"
-                    class="form-control"
-                    placeholder="Ex.: NUIPC 2024/000123 ou INT-2024-001"
-                    required
-                    autocomplete="off"
-                    autocapitalize="characters"
-                >
+                <input type="text" id="number" name="number" class="form-control"
+                       placeholder="Ex.: NUIPC 2024/000123 ou INT-2024-001"
+                       required autocomplete="off" autocapitalize="characters">
                 <div class="form-error" id="number-error"></div>
             </div>
         </section>
 
-        <!-- STEP 1 — Descrição -->
         <section class="wizard-step" data-step="1">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 2 de 6</div>
                 <h2 class="wizard-step-title">Descrição</h2>
-                <p class="wizard-step-hint">Descrição sumária da ocorrência / cena de crime.</p>
+                <p class="wizard-step-hint">Descrição sumária da ocorrência ou cena de crime.</p>
             </div>
             <div class="form-group">
-                <textarea
-                    id="description"
-                    name="description"
-                    class="form-control"
-                    rows="4"
-                    placeholder="Descrição sumária da ocorrência / cena de crime..."
-                    required
-                ></textarea>
+                <textarea id="description" name="description" class="form-control" rows="5"
+                          placeholder="Ex.: Assalto a habitação. Recolhido 1 portátil e 2 smartphones…"
+                          required></textarea>
                 <div class="form-error" id="description-error"></div>
             </div>
         </section>
 
-        <!-- STEP 2 — Data/hora -->
         <section class="wizard-step" data-step="2">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 3 de 6</div>
                 <h2 class="wizard-step-title">Data e hora</h2>
-                <p class="wizard-step-hint">Quando ocorreu o incidente?</p>
+                <p class="wizard-step-hint">Momento em que ocorreu o incidente.</p>
             </div>
             <div class="form-group">
-                <input
-                    type="datetime-local"
-                    id="date_time"
-                    name="date_time"
-                    class="form-control"
-                    required
-                >
+                <input type="datetime-local" id="date_time" name="date_time" class="form-control" required>
                 <div class="form-error" id="date_time-error"></div>
             </div>
         </section>
 
-        <!-- STEP 3 — GPS (opcional) -->
         <section class="wizard-step" data-step="3">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 4 de 6</div>
                 <h2 class="wizard-step-title">Localização GPS</h2>
-                <p class="wizard-step-hint">Local exacto da cena de crime.</p>
+                <p class="wizard-step-hint">Coordenadas do local. Preferencialmente capturadas do dispositivo.</p>
             </div>
-            <div id="gps-status" class="gps-status" style="display:none;"></div>
-            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
-                <div style="flex:1; min-width:120px;">
+            <div id="gps-status" class="gps-status" hidden></div>
+            <div class="stack-sm mb-3">
+                <div class="form-group">
                     <label for="gps_lat" class="form-label-sm">Latitude</label>
                     <input type="number" id="gps_lat" name="gps_lat" class="form-control mono"
                            placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
                 </div>
-                <div style="flex:1; min-width:120px;">
+                <div class="form-group">
                     <label for="gps_lon" class="form-label-sm">Longitude</label>
                     <input type="number" id="gps_lon" name="gps_lon" class="form-control mono"
                            placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
                 </div>
             </div>
             <button type="button" id="btn-gps" class="btn btn-primary btn-lg btn-block">
-                📍 Capturar localização actual
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="10" r="3"/>
+                    <path d="M12 2a8 8 0 0 0-8 8c0 6 8 12 8 12s8-6 8-12a8 8 0 0 0-8-8z"/>
+                </svg>
+                Capturar localização atual
             </button>
             <button type="button" class="wizard-skip" data-skip>Saltar — sem GPS</button>
         </section>
 
-        <!-- STEP 4 — Morada (opcional) -->
         <section class="wizard-step" data-step="4">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 5 de 6</div>
@@ -111,24 +97,17 @@
                 <p class="wizard-step-hint">Morada aproximada. Preenchida automaticamente se GPS disponível.</p>
             </div>
             <div class="form-group">
-                <input
-                    type="text"
-                    id="address"
-                    name="address"
-                    class="form-control"
-                    placeholder="Ex.: Rua da República, Lisboa"
-                    autocomplete="street-address"
-                >
+                <input type="text" id="address" name="address" class="form-control"
+                       placeholder="Ex.: Rua da República, Lisboa" autocomplete="street-address">
             </div>
             <button type="button" class="wizard-skip" data-skip>Saltar — sem morada</button>
         </section>
 
-        <!-- STEP 5 — Resumo -->
         <section class="wizard-step" data-step="5">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 6 de 6</div>
                 <h2 class="wizard-step-title">Confirmar registo</h2>
-                <p class="wizard-step-hint">Verifique os dados. Toque em Registar para submeter.</p>
+                <p class="wizard-step-hint">Verifica os dados. Toca em Registar para submeter.</p>
             </div>
 
             <div class="wizard-summary" id="summary">
@@ -154,18 +133,23 @@
                 </div>
             </div>
 
-            <div id="submit-error" class="form-error mt-8"></div>
-            <div class="spinner spinner-dark hidden mt-16" id="submit-spinner" style="display:none; margin:16px auto;"></div>
+            <div id="submit-error" class="form-error mt-3"></div>
+            <div class="spinner spinner-submit mt-4 hidden" id="submit-spinner"></div>
         </section>
 
-    </div><!-- /wizard-track -->
+    </div>
 
-    <nav class="wizard-nav">
-        <button type="button" class="wizard-back" aria-label="Voltar">‹</button>
+    <nav class="wizard-nav" aria-label="Navegação do wizard">
+        <button type="button" class="wizard-back" aria-label="Voltar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="m15 18-6-6 6-6"/>
+            </svg>
+        </button>
         <div class="wizard-dots"></div>
         <button type="button" class="wizard-next">Seguinte</button>
     </nav>
-</div><!-- /wizard -->
+</div>
 </form>
 {% endblock %}
 

@@ -1,0 +1,15 @@
+/**
+ * ForensiQ — Evidências (lista).
+ * Usa primitives do design system. Aqui só a search bar responsive.
+ */
+
+.evidences-search {
+    max-width: 560px;
+    margin: 0 var(--sp-4);
+}
+
+@media (min-width: 768px) {
+    .evidences-search {
+        margin: 0;
+    }
+}

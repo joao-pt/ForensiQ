@@ -1,5 +1,14 @@
 'use strict';
 
+/**
+ * ForensiQ — Lista de ocorrências (lista + mapa).
+ *
+ * Usa as primitives de .list-item do design system. Mapa Leaflet com
+ * markers e popups tokenizados.
+ */
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
 let currentPage = 1;
 let searchTimeout = null;
 let allOccurrences = [];
@@ -8,22 +17,15 @@ let mapInitialized = false;
 let currentView = 'list';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const authenticated = await Auth.requireAuth();
-    if (!authenticated) return;
+    if (!await Auth.requireAuth()) return;
 
     const user = Auth.getUser();
-    if (user) {
-        document.getElementById('navbar-user').textContent = user.first_name || user.username;
-        if (user.profile !== 'AGENT') {
-            const btnNew = document.getElementById('btn-new-occurrence');
-            if (btnNew) btnNew.style.display = 'none';
-        }
+    if (user && user.profile !== 'AGENT') {
+        const btnNew = document.getElementById('btn-new-occurrence');
+        if (btnNew) btnNew.style.display = 'none';
     }
 
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
-
-    document.getElementById('tab-list').addEventListener('click', () => switchView('list'));
-    document.getElementById('tab-map').addEventListener('click', () => switchView('map'));
+    setupTabs();
 
     document.getElementById('search-input').addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
@@ -37,6 +39,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadAllOccurrencesForMap();
 });
 
+// ----------------------------------------------------------
+// Segmented control Lista / Mapa — ARIA tabs pattern com roving tabindex
+// (audit #18). Teclado: ← → muda tab, Home / End saltam para extremos.
+// ----------------------------------------------------------
+function setupTabs() {
+    const tabList = document.getElementById('tab-list');
+    const tabMap  = document.getElementById('tab-map');
+    const tabs    = [tabList, tabMap];
+
+    tabs.forEach((tab) => {
+        tab.addEventListener('click', () => {
+            activateTab(tab);
+        });
+        tab.addEventListener('keydown', (e) => {
+            let target = null;
+            const idx = tabs.indexOf(tab);
+            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                target = tabs[(idx + 1) % tabs.length];
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                target = tabs[(idx - 1 + tabs.length) % tabs.length];
+            } else if (e.key === 'Home') {
+                target = tabs[0];
+            } else if (e.key === 'End') {
+                target = tabs[tabs.length - 1];
+            }
+            if (target) {
+                e.preventDefault();
+                target.focus();
+                activateTab(target);
+            }
+        });
+    });
+
+    // Estado inicial de tabindex (roving)
+    updateRovingFocus(tabList);
+}
+
+function updateRovingFocus(activeTab) {
+    ['tab-list', 'tab-map'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.tabIndex = el === activeTab ? 0 : -1;
+    });
+}
+
+function activateTab(tab) {
+    const view = tab.id === 'tab-map' ? 'map' : 'list';
+    updateRovingFocus(tab);
+    switchView(view);
+}
+
 function switchView(view) {
     currentView = view;
     const panelList = document.getElementById('panel-list');
@@ -45,8 +98,8 @@ function switchView(view) {
     const tabMap    = document.getElementById('tab-map');
 
     if (view === 'map') {
-        panelList.style.display = 'none';
-        panelMap.style.display  = '';
+        panelList.hidden = true;
+        panelMap.hidden  = false;
         tabList.classList.remove('active');
         tabList.setAttribute('aria-selected', 'false');
         tabMap.classList.add('active');
@@ -59,8 +112,8 @@ function switchView(view) {
             leafletMap.invalidateSize();
         }
     } else {
-        panelList.style.display = '';
-        panelMap.style.display  = 'none';
+        panelList.hidden = false;
+        panelMap.hidden  = true;
         tabList.classList.add('active');
         tabList.setAttribute('aria-selected', 'true');
         tabMap.classList.remove('active');
@@ -68,6 +121,9 @@ function switchView(view) {
     }
 }
 
+// ----------------------------------------------------------
+// Mapa Leaflet
+// ----------------------------------------------------------
 function initMap() {
     mapInitialized = true;
 
@@ -78,45 +134,37 @@ function initMap() {
     });
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
     }).addTo(leafletMap);
 
-    if (allOccurrences.length > 0) {
-        addMarkersToMap(allOccurrences);
-    }
+    if (allOccurrences.length > 0) addMarkersToMap(allOccurrences);
 }
 
 async function loadAllOccurrencesForMap() {
     try {
         const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 200 });
         allOccurrences = data.results || [];
-
-        if (mapInitialized) {
-            addMarkersToMap(allOccurrences);
-        }
+        if (mapInitialized) addMarkersToMap(allOccurrences);
     } catch (err) {
         console.error('Erro ao carregar ocorrências para mapa:', err);
     }
 }
 
-function buildMarkerDot() {
-    const dot = document.createElement('div');
-    dot.style.width = '14px';
-    dot.style.height = '14px';
-    dot.style.background = '#1565c0';
-    dot.style.border = '2px solid #fff';
-    dot.style.borderRadius = '50%';
-    dot.style.boxShadow = '0 1px 4px rgba(0,0,0,0.4)';
-    return dot.outerHTML;
+function makeMarkerIcon() {
+    return L.divIcon({
+        className: 'fq-marker',
+        html: '<span class="status-dot accent" style="width:14px;height:14px;display:block;"></span>',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7],
+    });
 }
 
 function buildPopupNode(occ) {
     const dt = new Date(occ.date_time).toLocaleDateString('pt-PT', {
         day: '2-digit', month: '2-digit', year: 'numeric',
     });
-    const fullDesc = occ.description || '';
-    const desc = fullDesc.substring(0, 80);
+    const full = occ.description || '';
 
     const root = document.createElement('div');
 
@@ -124,26 +172,26 @@ function buildPopupNode(occ) {
     num.textContent = occ.number;
     root.appendChild(num);
 
-    const descEl = document.createElement('div');
-    descEl.className = 'popup-desc';
-    descEl.textContent = fullDesc.length > 80 ? `${desc}…` : desc;
-    root.appendChild(descEl);
+    const desc = document.createElement('div');
+    desc.className = 'popup-desc';
+    desc.textContent = full.length > 80 ? `${full.substring(0, 80)}…` : full;
+    root.appendChild(desc);
 
     if (occ.address) {
         const addr = document.createElement('div');
         addr.className = 'popup-date';
-        addr.textContent = `\u{1F4CC} ${occ.address}`;
+        addr.textContent = occ.address;
         root.appendChild(addr);
     }
 
-    const dateEl = document.createElement('div');
-    dateEl.className = 'popup-date';
-    dateEl.textContent = `\u{1F551} ${dt}`;
-    root.appendChild(dateEl);
+    const date = document.createElement('div');
+    date.className = 'popup-date';
+    date.textContent = dt;
+    root.appendChild(date);
 
     const link = document.createElement('a');
     link.href = `/occurrences/${occ.id}/`;
-    link.textContent = 'Ver detalhes →';
+    link.textContent = 'Abrir caso →';
     root.appendChild(link);
 
     return root;
@@ -152,73 +200,44 @@ function buildPopupNode(occ) {
 function addMarkersToMap(occurrences) {
     if (!leafletMap) return;
 
-    const iconWithGps = L.divIcon({
-        html: buildMarkerDot(),
-        className: '',
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-    });
-
+    const icon = makeMarkerIcon();
     const bounds = [];
-    let markersAdded = 0;
+    let added = 0;
 
     occurrences.forEach(occ => {
         if (!occ.gps_lat || !occ.gps_lon) return;
-
         const lat = parseFloat(occ.gps_lat);
         const lon = parseFloat(occ.gps_lon);
         if (isNaN(lat) || isNaN(lon)) return;
 
-        const marker = L.marker([lat, lon], { icon: iconWithGps })
-            .bindPopup(buildPopupNode(occ), { maxWidth: 260 });
+        L.marker([lat, lon], { icon })
+            .bindPopup(buildPopupNode(occ), { maxWidth: 260 })
+            .addTo(leafletMap);
 
-        marker.addTo(leafletMap);
         bounds.push([lat, lon]);
-        markersAdded++;
+        added++;
     });
 
     if (bounds.length > 0) {
         leafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
     }
 
-    const total = occurrences.length;
-    const countEl = document.getElementById('occurrences-count');
-    if (countEl && currentView === 'map') {
-        countEl.textContent = `${markersAdded} de ${total} ocorrência${total !== 1 ? 's' : ''} com GPS`;
+    if (currentView === 'map') {
+        const countEl = document.getElementById('occurrences-count');
+        if (countEl) {
+            countEl.textContent = `${added} de ${occurrences.length} com GPS`;
+        }
     }
 }
 
-function buildLoading() {
-    const wrap = document.createElement('div');
-    wrap.className = 'loading-overlay';
-    const sp = document.createElement('div');
-    sp.className = 'spinner spinner-dark';
-    wrap.appendChild(sp);
-    return wrap;
-}
-
-function buildEmpty(message, opts = {}) {
-    const wrap = document.createElement('div');
-    wrap.className = 'empty-state';
-    if (opts.icon) {
-        const ic = document.createElement('div');
-        ic.className = 'empty-state-icon';
-        ic.textContent = opts.icon;
-        wrap.appendChild(ic);
-    }
-    const p = document.createElement('p');
-    p.textContent = message;
-    if (opts.danger) p.classList.add('text-danger');
-    wrap.appendChild(p);
-    if (opts.action) wrap.appendChild(opts.action);
-    return wrap;
-}
-
+// ----------------------------------------------------------
+// Lista
+// ----------------------------------------------------------
 async function loadOccurrences(search = '') {
     const container = document.getElementById('occurrences-list');
-    const countEl = document.getElementById('occurrences-count');
+    const countEl   = document.getElementById('occurrences-count');
 
-    container.replaceChildren(buildLoading());
+    container.replaceChildren(renderLoading());
 
     try {
         const params = { page: currentPage, page_size: 20 };
@@ -226,117 +245,153 @@ async function loadOccurrences(search = '') {
 
         const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, params);
         const occurrences = data.results || [];
-
         const total = data.count || 0;
+
         if (currentView === 'list') {
             countEl.textContent = `${total} ocorrência${total !== 1 ? 's' : ''}`;
         }
 
         if (occurrences.length === 0) {
-            const message = search
-                ? `Sem resultados para "${search}".`
-                : 'Sem ocorrências registadas.';
-            const opts = { icon: '\u{1F4CB}' };
-            if (!search) {
-                const a = document.createElement('a');
-                a.href = '/occurrences/new/';
-                a.className = 'btn btn-primary mt-16';
-                a.textContent = 'Registar primeira ocorrência';
-                opts.action = a;
-            }
-            container.replaceChildren(buildEmpty(message, opts));
+            container.replaceChildren(renderEmpty(search));
             document.getElementById('pagination').classList.add('hidden');
             return;
         }
 
         container.replaceChildren();
-        occurrences.forEach(occ => container.appendChild(renderOccurrenceItem(occ)));
+        occurrences.forEach(occ => container.appendChild(renderRow(occ)));
         renderPagination(data);
 
     } catch (err) {
-        container.replaceChildren(buildEmpty('Erro ao carregar ocorrências. Tente novamente.', { danger: true }));
-        console.error('Erro:', err);
+        container.replaceChildren(renderError());
     }
 }
 
-function renderOccurrenceItem(occ) {
-    const date = new Date(occ.date_time).toLocaleDateString('pt-PT', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-    });
-    const hasGps = occ.gps_lat && occ.gps_lon;
-    const fullDesc = occ.description || '';
+function renderRow(occ) {
+    const hasGps = !!(occ.gps_lat && occ.gps_lon);
 
-    const row = document.createElement('div');
+    const row = document.createElement('a');
     row.className = 'list-item';
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', () => {
-        window.location.href = `/occurrences/${occ.id}/`;
-    });
+    row.href = `/occurrences/${occ.id}/`;
 
-    const left = document.createElement('div');
-    left.style.flex = '1';
-    left.style.minWidth = '0';
+    const content = document.createElement('div');
+    content.className = 'list-item-content';
 
     const head = document.createElement('div');
-    head.style.display = 'flex';
-    head.style.alignItems = 'center';
-    head.style.gap = '8px';
-    head.style.flexWrap = 'wrap';
-
-    const num = document.createElement('strong');
+    head.className = 'list-item-title mono-tab flex items-center gap-2';
+    const num = document.createElement('span');
     num.textContent = occ.number;
     head.appendChild(num);
-
     if (hasGps) {
         const badge = document.createElement('span');
         badge.className = 'badge badge-success';
-        badge.title = 'GPS disponível';
-        badge.textContent = '\u{1F4CD} GPS';
+        badge.title = 'GPS registado';
+        badge.textContent = 'GPS';
         head.appendChild(badge);
     }
-    left.appendChild(head);
+    content.appendChild(head);
 
-    const desc = document.createElement('div');
-    desc.className = 'text-muted mt-4';
-    desc.style.fontSize = '0.8125rem';
-    desc.style.overflow = 'hidden';
-    desc.style.textOverflow = 'ellipsis';
-    desc.style.whiteSpace = 'nowrap';
-    desc.textContent = fullDesc.length > 100 ? `${fullDesc.substring(0, 100)}...` : fullDesc;
-    left.appendChild(desc);
+    const subtitle = document.createElement('span');
+    subtitle.className = 'list-item-subtitle';
+    const desc = (occ.description || '').trim();
+    subtitle.textContent = desc.length > 120 ? desc.substring(0, 120) + '…' : desc;
+    content.appendChild(subtitle);
 
     if (occ.address) {
-        const addr = document.createElement('div');
-        addr.className = 'text-muted';
-        addr.style.fontSize = '0.75rem';
-        addr.textContent = `\u{1F4CC} ${occ.address}`;
-        left.appendChild(addr);
+        const addr = document.createElement('span');
+        addr.className = 'list-item-subtitle text-subtle';
+        addr.textContent = occ.address;
+        content.appendChild(addr);
     }
 
-    const right = document.createElement('div');
-    right.style.textAlign = 'right';
-    right.style.flexShrink = '0';
-    right.style.marginLeft = '12px';
+    const meta = document.createElement('span');
+    meta.className = 'list-item-meta mono-tab';
+    meta.textContent = formatDate(occ.date_time);
 
-    const dateEl = document.createElement('div');
-    dateEl.className = 'text-muted';
-    dateEl.style.fontSize = '0.75rem';
-    dateEl.style.whiteSpace = 'nowrap';
-    dateEl.textContent = date;
-    right.appendChild(dateEl);
-
-    const arrow = document.createElement('div');
-    arrow.className = 'text-muted';
-    arrow.style.fontSize = '0.75rem';
-    arrow.textContent = '>';
-    right.appendChild(arrow);
-
-    row.appendChild(left);
-    row.appendChild(right);
+    row.appendChild(content);
+    row.appendChild(meta);
+    row.appendChild(chevron());
     return row;
 }
 
+function chevron() {
+    const s = document.createElementNS(SVG_NS, 'svg');
+    s.setAttribute('class', 'list-item-chevron');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '1.8');
+    s.setAttribute('aria-hidden', 'true');
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', 'm9 18 6-6-6-6');
+    p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round');
+    s.appendChild(p);
+    return s;
+}
+
+function formatDate(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return '—';
+    return d.toLocaleDateString('pt-PT', {
+        day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit',
+    });
+}
+
+function renderLoading() {
+    const wrap = document.createElement('div');
+    wrap.className = 'loading-overlay';
+    const sp = document.createElement('span');
+    sp.className = 'spinner';
+    const txt = document.createElement('span');
+    txt.textContent = 'A carregar ocorrências';
+    wrap.appendChild(sp);
+    wrap.appendChild(txt);
+    return wrap;
+}
+
+function renderEmpty(search) {
+    const wrap = document.createElement('div');
+    wrap.className = 'empty-state';
+
+    const title = document.createElement('div');
+    title.className = 'empty-state-title';
+    title.textContent = search ? `Sem resultados para "${search}"` : 'Sem ocorrências';
+    wrap.appendChild(title);
+
+    const p = document.createElement('p');
+    p.textContent = search
+        ? 'Tenta outro termo de pesquisa.'
+        : 'Começa por registar a primeira ocorrência.';
+    wrap.appendChild(p);
+
+    if (!search) {
+        const a = document.createElement('a');
+        a.href = '/occurrences/new/';
+        a.className = 'btn btn-primary mt-3';
+        a.textContent = 'Registar ocorrência';
+        wrap.appendChild(a);
+    }
+    return wrap;
+}
+
+function renderError() {
+    const wrap = document.createElement('div');
+    wrap.className = 'empty-state';
+    const title = document.createElement('div');
+    title.className = 'empty-state-title text-danger';
+    title.textContent = 'Erro ao carregar ocorrências';
+    wrap.appendChild(title);
+    const p = document.createElement('p');
+    p.textContent = 'Verifica a ligação e tenta recarregar.';
+    wrap.appendChild(p);
+    return wrap;
+}
+
+// ----------------------------------------------------------
+// Paginação
+// ----------------------------------------------------------
 function renderPagination(data) {
     const container = document.getElementById('pagination');
     if (!data.next && !data.previous) {
@@ -348,22 +403,19 @@ function renderPagination(data) {
     container.replaceChildren();
 
     const prev = document.createElement('button');
-    prev.className = 'btn btn-outline';
+    prev.className = 'btn btn-ghost btn-sm';
     prev.textContent = '← Anterior';
     prev.disabled = !data.previous;
-    if (!data.previous) prev.classList.add('disabled');
     prev.addEventListener('click', () => changePage(-1));
 
     const label = document.createElement('span');
-    label.className = 'text-muted';
-    label.style.fontSize = '0.875rem';
+    label.className = 'text-muted text-sm';
     label.textContent = `Página ${currentPage}`;
 
     const next = document.createElement('button');
-    next.className = 'btn btn-outline';
+    next.className = 'btn btn-ghost btn-sm';
     next.textContent = 'Seguinte →';
     next.disabled = !data.next;
-    if (!data.next) next.classList.add('disabled');
     next.addEventListener('click', () => changePage(1));
 
     container.appendChild(prev);

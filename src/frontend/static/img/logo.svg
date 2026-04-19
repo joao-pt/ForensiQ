@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" role="img" aria-label="ForensiQ">
+  <defs>
+    <mask id="fq-interlock-logo" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <rect x="27" y="36" width="10" height="9" fill="#000"/>
+    </mask>
+  </defs>
+
+  <!-- Marca (anéis entrelaçados) -->
+  <circle cx="32" cy="32" r="30" fill="#0F1115"/>
+  <circle cx="25" cy="32" r="11" fill="none" stroke="#2DD4BF" stroke-width="3"/>
+  <circle cx="39" cy="32" r="11" fill="none" stroke="#E6E8EC" stroke-width="3"
+          mask="url(#fq-interlock-logo)"/>
+
+  <!-- Wordmark "ForensiQ" -->
+  <text x="78" y="38" font-family="-apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif"
+        font-size="24" font-weight="700" fill="#0F1115" letter-spacing="-0.5">
+    Forensi<tspan fill="#2DD4BF">Q</tspan>
+  </text>
+  <text x="78" y="52" font-family="-apple-system, Segoe UI, Inter, Helvetica, Arial, sans-serif"
+        font-size="8" font-weight="500" fill="#6B7280" letter-spacing="0.8">
+    PROVA DIGITAL · ISO/IEC 27037
+  </text>
+</svg>

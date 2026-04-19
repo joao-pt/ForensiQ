@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}ForensiQ — Nova Evidência{% endblock %}
+{% block title %}ForensiQ — Novo item{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Evidências</a><span class="breadcrumb-sep">›</span><span id="wizard-breadcrumb-current">Nova</span>
+<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Itens</a><span class="breadcrumb-sep">›</span><span id="wizard-breadcrumb-current">Novo</span>
 {% endblock %}
 
 {% block extra_css %}
@@ -18,7 +18,7 @@
 <input type="hidden" id="parent_type" value="">
 <input type="hidden" id="parent_depth" value="0">
 
-<div class="wizard" id="evidence-wizard" role="form" aria-label="Registar nova evidência">
+<div class="wizard" id="evidence-wizard" role="form" aria-label="Registar novo item apreendido">
     <div class="wizard-track">
 
         <!-- STEP 0 — Ocorrência -->
@@ -26,7 +26,7 @@
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 1</div>
                 <h2 class="wizard-step-title" id="step-occ-title">Ocorrência</h2>
-                <p class="wizard-step-hint">A que ocorrência pertence esta evidência?</p>
+                <p class="wizard-step-hint">A que ocorrência pertence este item?</p>
             </div>
             <div class="form-group">
                 <label class="form-label" for="occurrence">Ocorrência</label>
@@ -48,7 +48,7 @@
         <section class="wizard-step" data-step="1" aria-labelledby="step-type-title">
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 2</div>
-                <h2 class="wizard-step-title" id="step-type-title">Tipo de evidência</h2>
+                <h2 class="wizard-step-title" id="step-type-title">Tipo de item</h2>
                 <p class="wizard-step-hint" id="type-hint">
                     Escolha a categoria que melhor descreve o dispositivo apreendido.
                 </p>
@@ -92,7 +92,7 @@
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 4</div>
                 <h2 class="wizard-step-title" id="step-ts-title">Data e hora da apreensão</h2>
-                <p class="wizard-step-hint">Quando foi apreendida esta evidência?</p>
+                <p class="wizard-step-hint">Quando foi apreendido este item?</p>
             </div>
             <div class="form-group">
                 <label class="form-label" for="timestamp_seizure">Data/hora</label>
@@ -144,23 +144,36 @@
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 6</div>
                 <h2 class="wizard-step-title" id="step-photo-title">Fotografia</h2>
-                <p class="wizard-step-hint">Registe a evidência visualmente. JPEG/PNG até 10 MB.</p>
+                <p class="wizard-step-hint">Registe o item visualmente. JPEG/PNG até 10 MB.</p>
             </div>
             <div class="photo-capture" id="photo-capture">
                 <div id="photo-preview" class="photo-preview hidden">
                     <img id="preview-img" src="" alt="Pré-visualização da fotografia">
-                    <button type="button" id="btn-remove-photo" class="btn btn-sm btn-outline">
-                        ✕ Remover
+                    <button type="button" id="btn-remove-photo" class="btn btn-sm btn-danger-ghost">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 6 6 18M6 6l12 12"/>
+                        </svg>
+                        Remover
                     </button>
                 </div>
-                <div id="photo-buttons">
-                    <label class="btn btn-outline btn-lg" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                        📷 Tirar fotografia
-                        <input type="file" id="photo-camera" accept="image/*" capture="environment" style="display:none;">
+                <div class="photo-buttons" id="photo-buttons">
+                    <label class="btn btn-ghost btn-lg btn-block photo-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 7a2 2 0 0 1 2-2h3l2-2h4l2 2h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                            <circle cx="12" cy="13" r="4"/>
+                        </svg>
+                        Tirar fotografia
+                        <input type="file" id="photo-camera" accept="image/*" capture="environment" class="visually-hidden">
                     </label>
-                    <label class="btn btn-outline mt-8" style="cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-                        📁 Selecionar ficheiro
-                        <input type="file" id="photo-file" accept="image/*" style="display:none;">
+                    <label class="btn btn-ghost btn-block photo-label">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                        </svg>
+                        Selecionar ficheiro
+                        <input type="file" id="photo-file" accept="image/*" class="visually-hidden">
                     </label>
                 </div>
             </div>
@@ -172,7 +185,7 @@
             <div class="wizard-step-header">
                 <div class="wizard-step-label">Passo 7</div>
                 <h2 class="wizard-step-title" id="step-gps-title">Localização GPS</h2>
-                <p class="wizard-step-hint">Local exacto onde a evidência foi apreendida.</p>
+                <p class="wizard-step-hint">Local exacto onde o item foi apreendido.</p>
             </div>
             <div id="gps-status" class="gps-status" style="display:none;" role="status"></div>
             <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
@@ -188,7 +201,12 @@
                 </div>
             </div>
             <button type="button" id="btn-gps" class="btn btn-primary btn-lg btn-block">
-                📍 Capturar localização actual
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 2a8 8 0 0 0-8 8c0 6 8 12 8 12s8-6 8-12a8 8 0 0 0-8-8z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                </svg>
+                <span id="btn-gps-label">Capturar localização actual</span>
             </button>
             <button type="button" class="wizard-skip" data-skip>Saltar — sem GPS</button>
         </section>
@@ -201,9 +219,16 @@
                 <p class="wizard-step-hint">Verifique os dados. Toque em Registar para submeter.</p>
             </div>
 
-            <div class="info-box mb-16">
-                🔒 <strong>Integridade garantida</strong> — Hash SHA-256 calculado automaticamente
-                (ISO/IEC 27037). Registo imutável.
+            <div class="callout success mb-4">
+                <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-3z"/>
+                    <path d="m9 12 2 2 4-4"/>
+                </svg>
+                <div class="callout-body">
+                    <div class="callout-title">Integridade garantida</div>
+                    Hash SHA-256 calculado automaticamente (ISO/IEC 27037). Registo imutável.
+                </div>
             </div>
 
             <div class="wizard-summary" id="summary">
@@ -242,7 +267,7 @@
                 <div class="wizard-summary-item" id="sum-photo-row" style="display:none;">
                     <span class="wizard-summary-label">Foto</span>
                     <span class="wizard-summary-value">
-                        <img id="sum-photo" class="wizard-summary-photo" src="" alt="Foto da evidência">
+                        <img id="sum-photo" class="wizard-summary-photo" src="" alt="Foto do item apreendido">
                     </span>
                 </div>
             </div>
@@ -261,7 +286,7 @@
 </div><!-- /wizard -->
 </form>
 
-<!-- Modal: pergunta sub-componentes depois de criar evidência main -->
+<!-- Modal: pergunta sub-componentes depois de criar item principal -->
 <div class="modal-overlay" id="sub-prompt-modal" aria-hidden="true" role="dialog"
      aria-labelledby="sub-prompt-title" aria-describedby="sub-prompt-desc" hidden>
     <div class="modal">
@@ -271,12 +296,19 @@
             Por exemplo: cartões SIM, cartões de memória, discos internos, ECU, dashcam, etc.
         </p>
         <div id="sub-prompt-suggestions" class="sub-suggestions" aria-hidden="true"></div>
-        <div id="sub-prompt-max" class="info-box hidden" role="note">
-            🛑 <strong>Profundidade máxima atingida.</strong>
-            ISO/IEC 27037 recomenda evitar detalhe excessivo.
+        <div id="sub-prompt-max" class="callout warning hidden" role="note">
+            <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 8v5M12 16h.01"/>
+            </svg>
+            <div class="callout-body">
+                <div class="callout-title">Profundidade máxima atingida</div>
+                ISO/IEC 27037 recomenda evitar detalhe excessivo.
+            </div>
         </div>
         <div class="modal-actions">
-            <button type="button" class="btn btn-outline" id="btn-sub-finish">
+            <button type="button" class="btn btn-ghost" id="btn-sub-finish">
                 Não, terminar
             </button>
             <button type="button" class="btn btn-primary" id="btn-sub-add">

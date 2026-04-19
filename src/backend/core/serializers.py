@@ -135,12 +135,12 @@ class OccurrenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Occurrence
         fields = [
-            'id', 'number', 'description', 'date_time',
+            'id', 'code', 'number', 'description', 'date_time',
             'gps_lat', 'gps_lon', 'address',
             'agent', 'agent_name',
             'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'agent', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'code', 'agent', 'created_at', 'updated_at']
 
 
 # ---------------------------------------------------------------------------
@@ -170,16 +170,61 @@ class EvidenceSerializer(serializers.ModelSerializer):
         allow_null=True,
         required=False,
     )
+    parent_evidence_label = serializers.SerializerMethodField()
+    occurrence_number = serializers.CharField(
+        source='occurrence.number', read_only=True,
+    )
+    occurrence_code = serializers.CharField(
+        source='occurrence.code', read_only=True,
+    )
     type_specific_data = serializers.JSONField(required=False)
+    sub_components = serializers.SerializerMethodField()
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
         return obj.agent.get_full_name() or obj.agent.username
 
+    def get_parent_evidence_label(self, obj):
+        """Rótulo amigável do pai (ex.: 'ITM-2026-00001 · Telemóvel — S23'),
+        para a UI não mostrar #id puro. Nulo se não tiver pai.
+        """
+        parent = obj.parent_evidence
+        if parent is None:
+            return None
+        type_label = parent.get_type_display()
+        desc = (parent.description or '').strip()
+        short_desc = desc[:50] + ('…' if len(desc) > 50 else '')
+        parts = [parent.code, type_label]
+        if short_desc:
+            parts.append(short_desc)
+        return ' · '.join(p for p in parts if p)
+
+    def get_sub_components(self, obj):
+        """Lista compacta dos sub-componentes directos (sem recursão profunda).
+
+        ISO/IEC 27037: um SIM ou cartão de memória dentro de um telemóvel
+        deve acompanhar o pai na cadeia de custódia — aqui expomos essa
+        relação para o frontend renderizar a árvore no detalhe do item.
+        """
+        children = obj.sub_components.select_related('agent').order_by('id')
+        return [
+            {
+                'id': c.id,
+                'code': c.code,
+                'type': c.type,
+                'description': c.description,
+                'serial_number': c.serial_number,
+                'timestamp_seizure': c.timestamp_seizure,
+                'integrity_hash': c.integrity_hash,
+            }
+            for c in children
+        ]
+
     class Meta:
         model = Evidence
         fields = [
-            'id', 'occurrence', 'type', 'parent_evidence',
+            'id', 'code', 'occurrence', 'occurrence_number', 'occurrence_code',
+            'type', 'parent_evidence', 'parent_evidence_label',
             'description', 'photo',
             'gps_lat', 'gps_lon',
             'timestamp_seizure', 'serial_number',
@@ -188,13 +233,18 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'external_lookup_snapshot',
             'external_lookup_source',
             'external_lookup_at',
+            'sub_components',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'id', 'agent', 'timestamp_seizure', 'integrity_hash',
+            'id', 'code', 'agent', 'timestamp_seizure', 'integrity_hash',
             'external_lookup_snapshot',
             'external_lookup_source',
             'external_lookup_at',
+            'sub_components',
+            'occurrence_number',
+            'occurrence_code',
+            'parent_evidence_label',
             'created_at', 'updated_at',
         ]
 
@@ -333,12 +383,13 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
     class Meta:
         model = ChainOfCustody
         fields = [
-            'id', 'evidence', 'sequence', 'previous_state', 'new_state',
+            'id', 'code', 'evidence', 'sequence', 'previous_state', 'new_state',
             'agent', 'agent_name', 'timestamp', 'observations',
             'record_hash',
         ]
         read_only_fields = [
-            'id', 'agent', 'sequence', 'previous_state', 'timestamp', 'record_hash',
+            'id', 'code', 'agent', 'sequence', 'previous_state', 'timestamp',
+            'record_hash',
         ]
 
     def validate_evidence(self, evidence):

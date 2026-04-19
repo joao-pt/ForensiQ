@@ -2,7 +2,15 @@
 
 Esta pasta contém os artefactos de design de interface.
 
-## Conteúdo esperado
+## Conteúdo
+
+| Ficheiro | Descrição |
+|---------|-----------|
+| [`auditoria-de-design.html`](./auditoria-de-design.html) | Auditoria interativa de design (2026-04-18) — 34 achados por severidade/categoria/página, com recomendações acionáveis. Abrir no browser. |
+| [`audit/findings.js`](./audit/findings.js) | Dados estruturados dos achados consumidos pela auditoria interativa. |
+| [`login-design-credits.md`](./login-design-credits.md) | Créditos e referências do redesign da página de login. |
+
+## Conteúdo esperado (template original)
 
 | Ficheiro | Descrição | Obrigatório |
 |---------|-----------|------------|

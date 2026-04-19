@@ -1,0 +1,8 @@
+{% comment %}
+    Inclui o CSS do Leaflet (1.9.4) com SRI e referrer policy.
+    Usado em qualquer template com mapa para evitar duplicação de <link>
+    e manter a integrity hash num único sítio. Ver audit finding #34.
+{% endcomment %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
+      crossorigin="anonymous" referrerpolicy="no-referrer">

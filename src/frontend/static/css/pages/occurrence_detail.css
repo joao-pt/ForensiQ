@@ -1,111 +1,159 @@
-/* ForensiQ — hub da ocorrência (/occurrences/<id>/) */
+/**
+ * ForensiQ — Hub do caso (/occurrences/<id>/).
+ */
+
+/* ---------- Header do caso + mapa ---------- */
+
+.case-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+@media (min-width: 1024px) {
+    .case-layout {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: var(--sp-5);
+        align-items: stretch;
+    }
+}
 
 .case-header {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 20px;
-    margin-bottom: 16px;
-    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
 }
 
 .case-number {
-    font-size: 0.8125rem;
-    font-weight: 600;
-    color: var(--primary);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    letter-spacing: var(--tracking-wide);
+    color: var(--accent);
 }
 
 .case-description {
-    font-size: 1rem;
-    color: var(--text);
-    line-height: 1.5;
-    margin: 8px 0;
+    font-size: var(--fs-md);
+    color: var(--text-emphasis);
+    line-height: var(--lh-base);
+    font-weight: var(--fw-medium);
 }
 
 .case-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 12px;
+    gap: var(--sp-2) var(--sp-4);
+    margin-top: var(--sp-2);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--divider);
 }
 
 .case-meta-item {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.8125rem;
-    color: var(--text-light);
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
 }
 
-.case-meta-item strong {
+.case-meta-item svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--text-subtle);
+}
+
+.case-meta-item span {
     color: var(--text);
+}
+
+.case-map-wrap {
+    display: flex;
+    flex-direction: column;
 }
 
 .case-map {
-    height: 200px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    margin-bottom: 16px;
+    height: 220px;
+    width: 100%;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
 }
 
-.case-map-empty {
+.case-location {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 120px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: var(--surface-muted);
-    color: var(--text-light);
-    font-size: 0.875rem;
-    margin-bottom: 16px;
-}
-
-.custody-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 8px;
-    margin-bottom: 16px;
-}
-
-.custody-stat {
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 10px 8px;
-    text-align: center;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    font-size: var(--fs-sm);
 }
 
-.custody-stat-count {
-    font-size: 1.25rem;
-    font-weight: 700;
+.case-location-row {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text);
 }
 
-.custody-stat-label {
-    font-size: 0.625rem;
-    color: var(--text-light);
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-top: 2px;
+.case-location-row svg {
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    color: var(--text-subtle);
 }
 
-.section-header {
+.case-location-row.mono {
+    color: var(--text-muted);
+}
+
+.case-location-empty {
+    color: var(--text-subtle);
+    font-style: italic;
+}
+
+@media (min-width: 768px) {
+    .case-map {
+        border-radius: var(--r-3) var(--r-3) 0 0;
+        border: 1px solid var(--border);
+        border-bottom: none;
+        height: 280px;
+    }
+    .case-location {
+        border: 1px solid var(--border);
+        border-top: none;
+        border-radius: 0 0 var(--r-3) var(--r-3);
+    }
+}
+
+@media (min-width: 1024px) {
+    .case-map { height: 100%; min-height: 240px; }
+}
+
+/* ---------- Section label com contador ---------- */
+
+.section-label-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 24px 0 12px 0;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4);
+    margin-bottom: var(--sp-3);
 }
 
-.section-title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--text);
-    display: flex;
+@media (min-width: 768px) {
+    .section-label-row { padding: 0; }
+}
+
+.section-label-row .section-label {
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--sp-2);
 }
 
 .section-count {
@@ -113,47 +161,190 @@
     align-items: center;
     justify-content: center;
     min-width: 22px;
-    height: 22px;
+    height: 20px;
     padding: 0 6px;
-    background: var(--primary);
-    color: #fff;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    border-radius: 11px;
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+}
+
+/* ---------- Resumo de custódia (mini-cards) ---------- */
+
+.custody-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+@media (min-width: 768px) {
+    .custody-summary {
+        gap: var(--sp-2);
+        background: transparent;
+        border: none;
+    }
+}
+
+.custody-stat {
+    background: var(--surface);
+    padding: var(--sp-3);
+    text-align: center;
+}
+
+@media (min-width: 768px) {
+    .custody-stat {
+        border: 1px solid var(--border);
+        border-radius: var(--r-3);
+    }
+}
+
+.custody-stat-count {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    color: var(--text-emphasis);
+    font-variant-numeric: tabular-nums;
+}
+
+.custody-stat-label {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    margin-top: 2px;
+}
+
+/* ---------- Evidence grid ---------- */
+
+.evidence-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1px;
+    background: var(--border);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+@media (min-width: 768px) {
+    .evidence-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--sp-3);
+        background: transparent;
+        border: none;
+    }
+}
+
+/* Grupo raiz + componentes integrantes (SIM, SD…) — o grupo é a célula do
+   grid; o pai e os filhos ficam visualmente ligados. ISO/IEC 27037: o
+   dispositivo e os componentes internos não são separáveis. */
+.evidence-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.evidence-sub-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 2px;
+    padding: var(--sp-2) var(--sp-4) var(--sp-3) calc(var(--sp-4) + var(--sp-3));
+    background: var(--surface);
+    border-left: 3px solid var(--accent-tint);
+}
+
+@media (min-width: 768px) {
+    .evidence-sub-wrap {
+        margin-top: 4px;
+        padding: var(--sp-2) var(--sp-3) var(--sp-3) var(--sp-4);
+        border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
+        border-radius: 0 var(--r-3) var(--r-3) 0;
+        margin-left: var(--sp-4);
+    }
+}
+
+.evidence-sub-label {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    margin-bottom: 2px;
+}
+
+.evidence-subcard {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--bg-subtle);
+    border-radius: var(--r-2);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease);
+}
+
+.evidence-subcard:hover {
+    background: var(--surface-hover);
+}
+
+.evidence-subcard-title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+}
+
+.evidence-subcard-title svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.evidence-subcard-body {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
 }
 
 .evidence-card {
     background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 14px 16px;
-    margin-bottom: 10px;
+    padding: var(--sp-4);
     cursor: pointer;
-    transition: border-color var(--transition), box-shadow var(--transition);
+    transition: background var(--t-fast) var(--ease);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
 }
 
 .evidence-card:hover {
-    border-color: var(--primary);
-    box-shadow: 0 2px 8px var(--ring);
+    background: var(--surface-hover);
 }
 
-.evidence-card:active {
-    background: rgba(0, 0, 0, 0.02);
+@media (min-width: 768px) {
+    .evidence-card {
+        border: 1px solid var(--border);
+        border-radius: var(--r-3);
+    }
+    .evidence-card:hover {
+        border-color: var(--border-strong);
+    }
 }
 
 .evidence-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--sp-2);
     flex-wrap: wrap;
-    margin-bottom: 6px;
 }
 
 .evidence-card-title {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--text);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
     flex: 1;
     min-width: 0;
     overflow: hidden;
@@ -162,129 +353,118 @@
 }
 
 .evidence-card-body {
-    font-size: 0.8125rem;
-    color: var(--text-light);
-    line-height: 1.4;
-    margin-bottom: 8px;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    line-height: var(--lh-base);
 }
 
 .evidence-card-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--sp-2);
     flex-wrap: wrap;
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
 }
 
 .evidence-badges {
-    display: flex;
+    display: inline-flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: var(--sp-1);
     align-items: center;
 }
 
 .evidence-actions {
-    display: flex;
-    gap: 6px;
+    display: inline-flex;
+    gap: var(--sp-1);
 }
 
-.evidence-actions .btn-sm {
-    font-size: 0.75rem;
-    padding: 4px 10px;
-    min-height: 30px;
-}
+/* ---------- Custody badges (mesma semântica do timeline) ---------- */
 
 .custody-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 3px 8px;
-    font-size: 0.6875rem;
-    font-weight: 600;
-    border-radius: 10px;
+    padding: 2px var(--sp-2);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    border-radius: var(--r-2);
     text-transform: uppercase;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.02em;
+    border: 1px solid transparent;
 }
 
-.custody-badge.state-APREENDIDA           { background: #e3f2fd; color: #1565c0; }
-.custody-badge.state-EM_TRANSPORTE        { background: #f3e5f5; color: #6a1b9a; }
-.custody-badge.state-RECEBIDA_LABORATORIO { background: #e1f5fe; color: #0277bd; }
-.custody-badge.state-EM_PERICIA           { background: #fff3e0; color: #e65100; }
-.custody-badge.state-CONCLUIDA            { background: #e8f5e9; color: #2e7d32; }
-.custody-badge.state-DEVOLVIDA            { background: #eceff1; color: #37474f; }
-.custody-badge.state-DESTRUIDA            { background: #ffebee; color: #b71c1c; }
-.custody-badge.state-none                 { background: #f5f5f5; color: #9e9e9e; }
+.custody-badge.state-APREENDIDA           { background: var(--info-tint);    color: var(--info); }
+.custody-badge.state-EM_TRANSPORTE        { background: var(--warning-tint); color: var(--warning); }
+.custody-badge.state-RECEBIDA_LABORATORIO { background: var(--accent-tint);  color: var(--accent); }
+.custody-badge.state-EM_PERICIA           { background: var(--accent-tint);  color: var(--accent-hover); }
+.custody-badge.state-CONCLUIDA            { background: var(--success-tint); color: var(--success); }
+.custody-badge.state-DEVOLVIDA            { background: var(--surface-hover);color: var(--text-muted); border-color: var(--border); }
+.custody-badge.state-DESTRUIDA            { background: var(--danger-tint);  color: var(--danger); }
+.custody-badge.state-none                 { background: var(--surface-hover);color: var(--text-subtle); border-color: var(--border); }
+
+/* ---------- Device chip ---------- */
 
 .device-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
-    background: var(--tint-neutral);
+    gap: var(--sp-1);
+    padding: 4px var(--sp-2);
+    background: var(--surface-hover);
     border: 1px solid var(--border);
-    border-radius: 16px;
-    font-size: 0.75rem;
+    border-radius: var(--r-pill);
+    font-size: var(--fs-xs);
     color: var(--text);
-    margin: 2px;
+    margin: 2px 0;
 }
 
 .device-chip-icon {
-    font-size: 0.875rem;
+    font-size: var(--fs-base);
+    line-height: 1;
 }
+
+.device-chip svg { width: 14px; height: 14px; color: var(--text-subtle); }
+
+.device-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+    margin-top: var(--sp-2);
+}
+
+.device-notes {
+    font-size: var(--fs-sm);
+    color: var(--text-subtle);
+    font-style: italic;
+    margin-top: var(--sp-1);
+}
+
+.evidence-card-hash {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    margin-top: var(--sp-1);
+    color: var(--text-subtle);
+}
+
+.evidence-card-title svg { color: var(--text-subtle); }
+
+/* ---------- Hash inline (pequeno, monospace) ---------- */
 
 .hash-inline {
     font-family: var(--font-mono);
-    font-size: 0.625rem;
-    color: var(--text-light);
-    opacity: 0.7;
-    max-width: 120px;
+    font-size: 0.68rem;
+    color: var(--text-subtle);
+    max-width: 140px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    display: inline-block;
-    vertical-align: middle;
 }
 
 .loading-container {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 40px;
-}
-
-/* ---- Desktop ---- */
-
-@media (min-width: 768px) {
-    .case-header {
-        padding: 24px;
-    }
-
-    .case-map {
-        height: 280px;
-    }
-
-    .evidence-grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-    }
-
-    .evidence-grid .evidence-card {
-        margin-bottom: 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .case-layout {
-        display: grid;
-        grid-template-columns: 1fr 320px;
-        gap: 20px;
-        align-items: start;
-    }
-
-    .case-map {
-        height: 100%;
-        min-height: 240px;
-        margin-bottom: 0;
-    }
+    padding: var(--sp-10);
 }

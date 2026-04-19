@@ -1,361 +1,554 @@
-/* ForensiQ — Login page (dynamic, immersive) */
+/* =============================================================
+   ForensiQ — Login: "Corrente Viva"
+   -------------------------------------------------------------
+   Login unificado com o design system global. Usa tokens de
+   main.css (--bg, --surface, --text, --accent, etc.) e suporta
+   ambos os temas (dia/noite).
 
-/* Break out of .container to go full-screen */
-.container:has(.login-page) {
+   Decisão de design: o login renderiza sempre em modo escuro (a
+   cinematografia da constellation depende do contraste escuro).
+   Isto é forçado via <html data-theme="dark"> no template, mas
+   se o utilizador voltar ao dashboard, o tema guardado continua
+   a ser respeitado. Ver login.html e login.js.
+
+   Linhagem / créditos: docs/design/login-design-credits.md
+   ============================================================= */
+
+/* Container da página: ocupa ecrã inteiro, cancelando o container global. */
+.container:has(.lp-page) {
     max-width: none;
     padding: 0;
     margin: 0;
 }
 
-/* Full-screen dark canvas */
-.login-page {
+.lp-page {
     display: flex;
     min-height: 100vh;
-    background: var(--primary);
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
     overflow: hidden;
     position: relative;
 }
 
-/* ---- Animated forensic grid background ---- */
+/* Vinheta decorativa — apenas teal (accent). Amarelo removido para não
+   diluir o seu papel semântico (warning). Ver audit finding #14. */
+/* Toggle de tema — canto superior direito, flutuante acima do grid */
+.lp-theme-toggle {
+    position: fixed;
+    top: var(--sp-4);
+    right: var(--sp-4);
+    z-index: 10;
+    width: 38px;
+    height: 38px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+}
 
-.login-grid {
+.lp-theme-toggle:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+}
+
+@media (min-width: 1024px) {
+    .lp-theme-toggle {
+        top: var(--sp-6);
+        right: var(--sp-6);
+    }
+}
+
+.lp-page::before {
+    content: '';
     position: absolute;
     inset: 0;
-    overflow: hidden;
+    background:
+        radial-gradient(ellipse at 25% 20%, var(--accent-tint) 0%, transparent 50%),
+        radial-gradient(ellipse at 75% 80%, var(--accent-tint) 0%, transparent 55%);
+    opacity: 0.5;
     pointer-events: none;
     z-index: 0;
 }
 
-.login-grid::before,
-.login-grid::after {
-    content: '';
-    position: absolute;
-    inset: -50%;
-    width: 200%;
-    height: 200%;
+/* =============================================================
+   PAINEL ESQUERDO — CORRENTE VIVA
+   ============================================================= */
+
+.lp-chain-panel {
+    display: none;
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(180deg,
+        var(--bg-subtle) 0%,
+        var(--bg) 60%,
+        var(--bg-subtle) 100%);
+    border-right: 1px solid var(--border);
 }
 
-.login-grid::before {
-    background:
-        repeating-linear-gradient(0deg,   transparent, transparent 59px, rgba(45, 212, 191, 0.06) 59px, rgba(45, 212, 191, 0.06) 60px),
-        repeating-linear-gradient(90deg,  transparent, transparent 59px, rgba(45, 212, 191, 0.06) 59px, rgba(45, 212, 191, 0.06) 60px);
-    animation: grid-drift 25s linear infinite;
-}
-
-.login-grid::after {
-    background:
-        repeating-linear-gradient(0deg,   transparent, transparent 119px, rgba(245, 158, 11, 0.04) 119px, rgba(245, 158, 11, 0.04) 120px),
-        repeating-linear-gradient(90deg,  transparent, transparent 119px, rgba(245, 158, 11, 0.04) 119px, rgba(245, 158, 11, 0.04) 120px);
-    animation: grid-drift 40s linear infinite reverse;
-}
-
-@keyframes grid-drift {
-    from { transform: translate(0, 0); }
-    to   { transform: translate(60px, 60px); }
-}
-
-/* ---- Floating chain-of-custody nodes ---- */
-
-.login-nodes {
+.lp-chain-bg {
     position: absolute;
     inset: 0;
+    background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse 80% 70% at center, #000 30%, transparent 90%);
     pointer-events: none;
     z-index: 1;
 }
 
-.login-node {
+.lp-constellation {
     position: absolute;
-    border-radius: 50%;
-    opacity: 0;
-    animation: node-float 8s ease-in-out infinite;
-}
-
-.login-node:nth-child(1) {
-    width: 6px; height: 6px;
-    background: var(--secondary);
-    top: 15%; left: 10%;
-    animation-delay: 0s;
-    animation-duration: 7s;
-}
-.login-node:nth-child(2) {
-    width: 4px; height: 4px;
-    background: var(--accent);
-    top: 30%; left: 80%;
-    animation-delay: 1.5s;
-    animation-duration: 9s;
-}
-.login-node:nth-child(3) {
-    width: 8px; height: 8px;
-    background: var(--secondary);
-    top: 70%; left: 20%;
-    animation-delay: 3s;
-    animation-duration: 11s;
-}
-.login-node:nth-child(4) {
-    width: 5px; height: 5px;
-    background: var(--accent);
-    top: 50%; left: 65%;
-    animation-delay: 2s;
-    animation-duration: 8s;
-}
-.login-node:nth-child(5) {
-    width: 3px; height: 3px;
-    background: rgba(255,255,255,0.3);
-    top: 85%; left: 45%;
-    animation-delay: 4s;
-    animation-duration: 10s;
-}
-.login-node:nth-child(6) {
-    width: 7px; height: 7px;
-    background: var(--secondary);
-    top: 25%; left: 50%;
-    animation-delay: 5s;
-    animation-duration: 12s;
-}
-
-@keyframes node-float {
-    0%, 100% { opacity: 0; transform: translateY(0) scale(0.5); }
-    20%      { opacity: 0.7; }
-    50%      { opacity: 0.4; transform: translateY(-30px) scale(1); }
-    80%      { opacity: 0.6; }
-}
-
-/* ---- Brand panel (visible on desktop) ---- */
-
-.login-brand {
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    z-index: 2;
-    padding: 48px;
-    color: #fff;
-}
-
-.login-brand-seal {
-    position: relative;
-    margin-bottom: 32px;
-}
-
-.login-brand-seal svg {
-    width: 96px;
-    height: 96px;
-    display: block;
-}
-
-.login-brand-ring {
-    position: absolute;
-    inset: -12px;
-    border: 2px solid var(--secondary);
-    border-radius: 50%;
-    opacity: 0.3;
-    animation: ring-pulse 3s ease-in-out infinite;
-}
-
-.login-brand-ring:nth-child(2) {
-    inset: -24px;
-    border-color: var(--accent);
-    opacity: 0.15;
-    animation-delay: 1s;
-    animation-duration: 4s;
-}
-
-@keyframes ring-pulse {
-    0%, 100% { transform: scale(1); opacity: 0.3; }
-    50%      { transform: scale(1.08); opacity: 0.15; }
-}
-
-.login-brand h1 {
-    font-size: 2rem;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    margin-bottom: 8px;
-}
-
-.login-brand p {
-    font-size: 1rem;
-    color: rgba(255,255,255,0.6);
-    margin-bottom: 32px;
-}
-
-.login-brand-features {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    max-width: 280px;
-}
-
-.login-brand-feature {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 0.875rem;
-    color: rgba(255,255,255,0.7);
-}
-
-.login-brand-feature-icon {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    background: rgba(45, 212, 191, 0.15);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1rem;
-    flex-shrink: 0;
-}
-
-/* ---- Form panel ---- */
-
-.login-form-panel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    position: relative;
-    z-index: 2;
-    padding: 24px;
-    min-height: 100vh;
-}
-
-/* Override the old login-card for the new design */
-.login-page .login-card {
+    inset: 0;
     width: 100%;
-    max-width: 400px;
-    background: var(--surface);
-    border-radius: var(--radius-lg);
-    box-shadow: 0 16px 48px rgba(0,0,0,0.3);
-    padding: 32px 24px;
-    animation: card-enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    height: 100%;
+    z-index: 2;
+    display: block;
+    pointer-events: auto;
 }
 
-@keyframes card-enter {
-    from {
-        opacity: 0;
-        transform: translateY(24px) scale(0.96);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
+/* ---- Legenda institucional (fundo do painel) ---- */
+
+.lp-chain-caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: var(--sp-8) var(--sp-12) var(--sp-10);
+    z-index: 5;
+    background: linear-gradient(180deg,
+                                transparent 0%,
+                                var(--bg) 60%,
+                                var(--bg) 100%);
+    color: var(--text);
 }
 
-/* Pulsing seal in the card (mobile) */
-.login-page .login-logo {
-    margin-bottom: 28px;
+.lp-brand-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-5);
 }
 
-.login-page .login-logo .seal-logo-lg {
-    width: 64px;
-    height: 64px;
-    margin: 0 auto 16px;
-    animation: seal-breathe 4s ease-in-out infinite;
-}
-
-@keyframes seal-breathe {
-    0%, 100% { transform: scale(1); }
-    50%      { transform: scale(1.04); }
-}
-
-/* Form inputs — elevated style */
-.login-page .form-input {
-    background: var(--surface-muted);
-    border: 2px solid var(--border);
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.login-page .form-input:focus {
-    border-color: var(--secondary);
-    box-shadow: 0 0 0 3px var(--ring);
-}
-
-/* Submit button with gradient */
-.login-page .btn-login {
-    background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
-    border: none;
-    color: #fff;
-    font-weight: 700;
-    font-size: 1rem;
+.lp-mark {
+    width: 56px;
     height: 48px;
-    border-radius: var(--radius);
+    flex-shrink: 0;
+    display: block;
+    color: var(--text);
+}
+
+.lp-brand-text h2 {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+    color: var(--text-emphasis);
+}
+
+.lp-brand-text p {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    margin: 2px 0 0;
+    letter-spacing: 0.01em;
+}
+
+.lp-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.lp-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--r-pill);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    font-size: var(--fs-micro);
+    font-weight: var(--fw-medium);
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+}
+
+.lp-chip svg {
+    width: 12px;
+    height: 12px;
+    color: var(--accent);
+}
+
+/* =============================================================
+   PAINEL DIREITO — FORMULÁRIO (usa .card + .form-*)
+   ============================================================= */
+
+.lp-form-panel {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sp-8) var(--sp-6);
+    position: relative;
+    z-index: 5;
+    background:
+        radial-gradient(ellipse 70% 50% at 50% 30%,
+                        var(--accent-tint) 0%, transparent 60%),
+        var(--bg);
+}
+
+.lp-form-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-4);
+    padding: var(--sp-8) var(--sp-8) var(--sp-6);
+    box-shadow: var(--shadow-lg);
+    animation: lp-card-enter 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes lp-card-enter {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Brand compacto apenas no mobile */
+.lp-mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding-bottom: var(--sp-6);
+    margin-bottom: var(--sp-6);
+    border-bottom: 1px solid var(--divider);
+}
+
+.lp-mark-sm {
+    width: 48px;
+    height: 40px;
+    flex-shrink: 0;
+    display: block;
+    color: var(--text);
+}
+
+.lp-mobile-brand h2 {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    margin: 0;
+    color: var(--text-emphasis);
+}
+
+.lp-mobile-brand p {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    margin: 1px 0 0;
+}
+
+/* Cabeçalho do formulário */
+
+.lp-form-header {
+    margin-bottom: var(--sp-6);
+}
+
+.lp-form-header h1 {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-emphasis);
+    margin: 0 0 var(--sp-2);
+    line-height: 1.2;
+}
+
+.lp-form-header p {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    line-height: var(--lh-base);
+    margin: 0;
+}
+
+/* Caixa de erro — reutiliza .login-error global (main.css) */
+.lp-error { /* compat: alguns scripts toggle esta classe; mapeia para .login-error */
+    background: var(--danger-tint);
+    color: var(--danger);
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-2);
+    font-size: var(--fs-sm);
+    margin-bottom: var(--sp-4);
+    display: none;
+}
+.lp-error.visible {
+    display: block;
+    animation: lp-error-in 0.3s ease-out both;
+}
+@keyframes lp-error-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Formulário */
+
+.lp-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+}
+
+.lp-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 18px;
+    margin-bottom: var(--sp-2);
+}
+
+.lp-caps-warn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    font-size: var(--fs-micro);
+    font-weight: var(--fw-medium);
+    color: var(--warning);
+    letter-spacing: 0.02em;
+    animation: lp-fade-in 0.2s ease-out;
+}
+
+.lp-caps-warn svg {
+    width: 12px;
+    height: 12px;
+}
+
+@keyframes lp-fade-in {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Input com ícone à esquerda + (opcional) botão à direita ------- */
+
+.lp-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.lp-input-icon {
+    position: absolute;
+    left: 14px;
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+    pointer-events: none;
+    transition: color var(--t-fast) var(--ease);
+    z-index: 1;
+}
+
+/* Reutiliza .form-input do design system + padding extra para o ícone */
+.lp-form .form-input {
+    padding-left: var(--sp-10);
+}
+
+.lp-input-wrap:focus-within .lp-input-icon {
+    color: var(--accent);
+}
+
+/* Botão toggle palavra-passe */
+
+.lp-pw-toggle {
+    position: absolute;
+    right: 6px;
+    width: 34px;
+    height: 34px;
+    background: transparent;
+    border: none;
+    border-radius: var(--r-2);
+    color: var(--text-muted);
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--t-fast) var(--ease),
+                background var(--t-fast) var(--ease);
+    z-index: 2;
+}
+
+.lp-pw-toggle:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+}
+
+.lp-pw-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    color: var(--accent);
+}
+
+.lp-eye {
+    width: 18px;
+    height: 18px;
+}
+
+/* Botão submit — reutiliza .btn .btn-primary .btn-lg .btn-block, com
+   variante "hero" que adiciona o selo luminoso (shine) como personalidade. */
+
+.btn-hero {
     position: relative;
     overflow: hidden;
 }
 
-.login-page .btn-login:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(45, 212, 191, 0.35);
+.btn-hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.18) 50%,
+        transparent 100%);
+    transition: left 0.6s ease;
+    pointer-events: none;
 }
 
-.login-page .btn-login:active {
-    transform: translateY(0);
+.btn-hero:hover:not(:disabled)::before { left: 100%; }
+
+.btn-hero .btn-arrow {
+    width: 16px;
+    height: 16px;
+    transition: transform var(--t-fast) var(--ease);
 }
 
-.login-page .btn-login:disabled {
-    opacity: 0.7;
-    transform: none;
-    box-shadow: none;
+.btn-hero:hover:not(:disabled) .btn-arrow {
+    transform: translateX(3px);
 }
 
-/* Footer text */
-.login-footer {
+/* Link "Esqueceu a palavra-passe?" */
+
+.lp-forgot {
+    display: block;
     text-align: center;
-    color: rgba(255,255,255,0.3);
-    font-size: 0.6875rem;
-    margin-top: 24px;
-    letter-spacing: 0.3px;
+    margin-top: var(--sp-1);
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color var(--t-fast) var(--ease);
 }
 
-/* ---- Desktop split layout ---- */
-
-@media (min-width: 768px) {
-    .login-page .login-card {
-        padding: 40px 32px;
-    }
+.lp-forgot:hover {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
+
+.lp-forgot:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: var(--r-1);
+}
+
+/* Rodapé do cartão */
+
+.lp-form-footer {
+    margin-top: var(--sp-6);
+    padding-top: var(--sp-5);
+    border-top: 1px solid var(--divider);
+    text-align: center;
+}
+
+.lp-secure {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-micro);
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+    letter-spacing: 0.015em;
+    margin-bottom: var(--sp-2);
+}
+
+.lp-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success-tint);
+    animation: lp-pulse-dot 2.4s ease-in-out infinite;
+}
+
+@keyframes lp-pulse-dot {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+.lp-version {
+    font-size: var(--fs-micro);
+    color: var(--text-subtle);
+    letter-spacing: 0.02em;
+}
+
+.lp-mono {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    color: var(--text-muted);
+}
+
+/* =============================================================
+   RESPONSIVE — Desktop split, Mobile card único
+   ============================================================= */
 
 @media (min-width: 1024px) {
-    .login-page {
-        flex-direction: row;
-    }
-
-    .login-brand {
-        display: flex;
-        flex: 1;
+    .lp-chain-panel {
+        display: block;
         max-width: 50%;
-    }
-
-    .login-form-panel {
         flex: 1;
-        max-width: 50%;
-        background: rgba(255,255,255,0.03);
-        backdrop-filter: blur(1px);
     }
-
-    .login-page .login-logo {
+    .lp-form-panel {
+        max-width: 50%;
+        flex: 1;
+    }
+    .lp-mobile-brand {
         display: none;
     }
-
-    .login-footer {
-        position: absolute;
-        bottom: 24px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: max-content;
+    .lp-form-card {
+        padding: var(--sp-10) var(--sp-10) var(--sp-8);
+        max-width: 440px;
+    }
+    .lp-form-header h1 {
+        font-size: var(--fs-2xl);
     }
 }
 
 @media (min-width: 1280px) {
-    .login-brand-seal svg {
-        width: 112px;
-        height: 112px;
+    .lp-chain-caption {
+        padding: var(--sp-8) var(--sp-16) var(--sp-10);
     }
+    .lp-brand-text h2 {
+        font-size: var(--fs-xl);
+    }
+}
 
-    .login-brand h1 {
-        font-size: 2.5rem;
+/* =============================================================
+   Acessibilidade — respeitar prefers-reduced-motion
+   ============================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .lp-form-card,
+    .lp-error,
+    .lp-dot,
+    .btn-hero::before {
+        animation: none !important;
+        transition: none !important;
     }
+}
+
+/* Autofill em fundo escuro — preservar visual do input */
+.lp-form .form-input:-webkit-autofill,
+.lp-form .form-input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+    -webkit-text-fill-color: var(--text);
+    transition: background-color 9999s;
+    caret-color: var(--text);
 }

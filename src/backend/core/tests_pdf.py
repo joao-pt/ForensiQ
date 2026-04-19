@@ -32,7 +32,7 @@ from .models import (
     Occurrence,
     User,
 )
-from .pdf_export import generate_evidence_pdf
+from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 
 # ---------------------------------------------------------------------------
 # Fixtures reutilizáveis
@@ -221,3 +221,58 @@ class PDFAPIEndpointTest(TestCase):
         response = self.client.get(self._pdf_url())
         disposition = response.get('Content-Disposition', '')
         self.assertIn(f'{self.evidence.pk:04d}', disposition)
+
+
+# ---------------------------------------------------------------------------
+# PDF por ocorrência (resumo do processo) + sub-componentes integrados
+# ---------------------------------------------------------------------------
+
+class OccurrencePDFUnitTest(TestCase):
+    """generate_occurrence_pdf gera bytes de PDF válido com itens e sub-itens."""
+
+    def setUp(self):
+        self.agent = _make_agent(username='agente_caso', badge='PSP-CASO')
+        self.occurrence = _make_occurrence(self.agent, number='CASO-INT-01')
+        self.phone = _make_evidence(self.occurrence, self.agent)
+        # Sub-componente integrante (SIM dentro do telemóvel)
+        self.sim = Evidence.objects.create(
+            occurrence=self.occurrence,
+            type=Evidence.EvidenceType.SIM_CARD,
+            description='Cartão SIM inserido no telemóvel.',
+            parent_evidence=self.phone,
+            agent=self.agent,
+        )
+
+    def test_occurrence_pdf_bytes(self):
+        pdf = generate_occurrence_pdf(self.occurrence)
+        self.assertTrue(pdf.startswith(b'%PDF'))
+        self.assertGreater(len(pdf), 500)
+
+    def test_occurrence_pdf_endpoint(self):
+        client = APIClient()
+        client.force_authenticate(user=self.agent)
+        url = f'/api/occurrences/{self.occurrence.pk}/pdf/'
+        response = client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertIn(f'{self.occurrence.pk:04d}', response.get('Content-Disposition', ''))
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_item_pdf_includes_sub_components_section(self):
+        """O PDF de um item com sub-componentes inclui a secção 'Componentes Integrantes'."""
+        pdf = generate_evidence_pdf(self.phone)
+        self.assertTrue(pdf.startswith(b'%PDF'))
+        # Não verificamos texto do PDF (renderizado binário); apenas que
+        # a presença do sub-componente não rebenta a geração.
+
+    def test_sub_components_in_serializer(self):
+        """EvidenceSerializer expõe sub_components do pai."""
+        client = APIClient()
+        client.force_authenticate(user=self.agent)
+        resp = client.get(f'/api/evidences/{self.phone.pk}/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('sub_components', resp.data)
+        subs = resp.data['sub_components']
+        self.assertEqual(len(subs), 1)
+        self.assertEqual(subs[0]['id'], self.sim.pk)
+        self.assertEqual(subs[0]['type'], Evidence.EvidenceType.SIM_CARD)

@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (navUser) navUser.textContent = user.first_name || user.username;
 
         if (user.profile !== 'AGENT') {
-            Toast.show('Sem permissão para registar evidências.', 'error');
+            Toast.show('Sem permissão para registar itens.', 'error');
             setTimeout(function () { window.location.href = '/evidences/'; }, 1500);
             return;
         }
@@ -62,8 +62,8 @@ function populateTypeSelect() {
         group.types.forEach(function (t) {
             var opt = document.createElement('option');
             opt.value = t;
-            var icon = CONFIG.EVIDENCE_ICONS[t] || '';
-            opt.textContent = (icon ? icon + '  ' : '') + (CONFIG.EVIDENCE_TYPES[t] || t);
+            // <option> não permite SVG — texto puro; ícones aparecem na UI que consome a selecção.
+            opt.textContent = CONFIG.EVIDENCE_TYPES[t] || t;
             og.appendChild(opt);
         });
         select.appendChild(og);
@@ -135,7 +135,7 @@ function filterTypeSuggestions(parentType) {
     Array.from(select.querySelectorAll('option')).forEach(function (opt) {
         if (!opt.value) return;
         if (suggestions.indexOf(opt.value) !== -1) {
-            var marker = '★ ';
+            var marker = '[sugerido] ';
             if (opt.textContent.indexOf(marker) !== 0) {
                 opt.textContent = marker + opt.textContent;
             }
@@ -143,7 +143,7 @@ function filterTypeSuggestions(parentType) {
     });
     var hint = document.getElementById('type-hint');
     if (hint) {
-        hint.textContent = 'Tipos com ★ são sugestões típicas para este pai — podes escolher qualquer outro.';
+        hint.textContent = 'Tipos marcados com "[sugerido]" são típicos para este pai — podes escolher qualquer outro.';
     }
 }
 
@@ -392,11 +392,16 @@ function buildSelectField(name, label, options) {
 }
 
 function buildInlineWarn(text) {
-    var div = document.createElement('div');
-    div.className = 'info-box mb-16';
-    div.setAttribute('role', 'note');
-    div.textContent = '⚠ ' + text;
-    return div;
+    var wrap = document.createElement('div');
+    wrap.className = 'callout warning mb-4';
+    wrap.setAttribute('role', 'note');
+    var icon = Icons.element('alert', { size: 18, className: 'callout-icon' });
+    if (icon) wrap.appendChild(icon);
+    var body = document.createElement('div');
+    body.className = 'callout-body';
+    body.textContent = text;
+    wrap.appendChild(body);
+    return wrap;
 }
 
 /* ---- IMEI lookup group ---- */
@@ -637,7 +642,7 @@ function initWizard() {
     });
     wizard.setValidator(1, function () {
         if (!document.getElementById('type').value) {
-            showError('type-error', 'Selecione o tipo de evidência.');
+            showError('type-error', 'Selecione o tipo de item.');
             return false;
         }
         return true;
@@ -775,25 +780,31 @@ function captureGPS() {
     }
 
     btn.disabled = true;
-    btn.textContent = '⏳ A obter localização...';
-    showGpsStatus('A aguardar sinal GPS...', 'info');
+    setGpsButtonLabel(btn, 'A obter localização…');
+    showGpsStatus('A aguardar sinal GPS…', 'info');
 
     navigator.geolocation.getCurrentPosition(
         function (pos) {
             document.getElementById('gps_lat').value = pos.coords.latitude.toFixed(7);
             document.getElementById('gps_lon').value = pos.coords.longitude.toFixed(7);
             btn.disabled = false;
-            btn.textContent = '📍 Atualizar localização';
-            showGpsStatus('✅ GPS capturado (±' + Math.round(pos.coords.accuracy) + 'm)', 'success');
+            setGpsButtonLabel(btn, 'Atualizar localização');
+            showGpsStatus('GPS capturado (±' + Math.round(pos.coords.accuracy) + 'm)', 'success');
         },
         function (err) {
             btn.disabled = false;
-            btn.textContent = '📍 Tentar novamente';
+            setGpsButtonLabel(btn, 'Tentar novamente');
             var msgs = { 1: 'Permissão negada.', 2: 'Posição indisponível.', 3: 'Tempo excedido.' };
-            showGpsStatus('⚠️ ' + (msgs[err.code] || 'Erro GPS.'), 'warning');
+            showGpsStatus(msgs[err.code] || 'Erro GPS.', 'warning');
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
     );
+}
+
+function setGpsButtonLabel(btn, text) {
+    var lbl = btn.querySelector('#btn-gps-label');
+    if (lbl) lbl.textContent = text;
+    else btn.textContent = text;
 }
 
 function showGpsStatus(message, type) {
@@ -935,14 +946,15 @@ async function handleSubmit() {
         var data = await res.json();
         createdEvidenceId = data.id;
         createdEvidenceType = data.type;
-        Toast.show('Evidência #' + data.id + ' registada com sucesso!', 'success');
+        var label = data.code ? 'Item ' + data.code : 'Item #' + data.id;
+        Toast.show(label + ' registado com sucesso!', 'success');
         setSubmitting(false);
 
         // Pergunta sub-componentes — só se ainda houver profundidade
         showSubPrompt(data);
     } catch (err) {
         setSubmitting(false);
-        Toast.show('Erro ao registar a evidência. Tente novamente.', 'error');
+        Toast.show('Erro ao registar o item. Tente novamente.', 'error');
         console.error('Erro:', err);
     }
 }
@@ -1032,8 +1044,11 @@ function showSubPrompt(evidence) {
         suggestions.forEach(function (t) {
             var pill = document.createElement('span');
             pill.className = 'pill';
-            var icon = CONFIG.EVIDENCE_ICONS[t] || '';
-            pill.textContent = (icon ? icon + ' ' : '') + (CONFIG.EVIDENCE_TYPES[t] || t);
+            var svgIcon = Icons.forEvidenceElement(t, { size: 14 });
+            if (svgIcon) pill.appendChild(svgIcon);
+            var label = document.createElement('span');
+            label.textContent = CONFIG.EVIDENCE_TYPES[t] || t;
+            pill.appendChild(label);
             row.appendChild(pill);
         });
         suggestionsBox.appendChild(row);

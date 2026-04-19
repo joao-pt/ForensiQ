@@ -1,0 +1,36 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-PT" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0F1115">
+    <title>ForensiQ — Erro 500</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/pages/error.css' %}">
+</head>
+<body>
+<main>
+    <div class="container">
+        <div class="page">
+            <div class="error-page">
+                <div class="error-code mono">500</div>
+                <h1 class="error-title">Erro interno do servidor</h1>
+                <p class="error-message">
+                    Aconteceu algo inesperado do lado do servidor. A equipa foi
+                    notificada. Tenta novamente daqui a uns instantes.
+                </p>
+                <p class="error-message text-subtle">
+                    Se o problema persistir, comunica ao administrador do sistema
+                    o ID de correlação da sessão.
+                </p>
+                <div class="error-actions">
+                    <a href="/dashboard/" class="btn btn-primary">Voltar ao painel</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+</body>
+</html>

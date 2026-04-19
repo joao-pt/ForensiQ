@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     loadStats();
     loadRecentOccurrences();
 
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+    // Logout e user-menu são cuidados por user-menu.js (carregado no base.html).
 
     document.querySelectorAll('[data-nav]').forEach(function (el) {
         el.addEventListener('click', function () {
@@ -21,9 +21,6 @@ document.addEventListener('DOMContentLoaded', async function () {
 function initDashboard(user) {
     if (!user) return;
 
-    var navbarUser = document.getElementById('navbar-user');
-    if (navbarUser) navbarUser.textContent = user.first_name || user.username;
-
     var greeting = document.getElementById('greeting');
     var hour = new Date().getHours();
     var salutation = 'Bom dia';
@@ -34,10 +31,7 @@ function initDashboard(user) {
     var profileInfo = document.getElementById('profile-info');
     var profileLabel = CONFIG.PROFILES[user.profile] || user.profile;
     profileInfo.replaceChildren();
-    var badge = document.createElement('span');
-    badge.className = 'greeting-badge';
-    badge.textContent = profileLabel;
-    profileInfo.appendChild(badge);
+    profileInfo.textContent = profileLabel;
 
     if (user.profile === 'AGENT') {
         document.getElementById('agent-actions').classList.remove('hidden');
@@ -155,7 +149,7 @@ function renderBreakdown(byType) {
     if (entries.length === 0) {
         var empty = document.createElement('p');
         empty.className = 'text-muted';
-        empty.textContent = 'Sem evidências registadas.';
+        empty.textContent = 'Sem itens registados.';
         chart.appendChild(empty);
         return;
     }
@@ -173,7 +167,8 @@ function renderBreakdown(byType) {
         var icon = document.createElement('span');
         icon.className = 'type-row-icon';
         icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = CONFIG.EVIDENCE_ICONS[e.type] || '•';
+        var svgIcon = Icons.forEvidenceElement(e.type, { size: 16 });
+        if (svgIcon) icon.appendChild(svgIcon);
         var name = document.createElement('span');
         name.textContent = CONFIG.EVIDENCE_TYPES[e.type] || e.type;
         label.appendChild(icon);
@@ -207,7 +202,7 @@ async function loadRecentOccurrences() {
         container.replaceChildren();
 
         if (occurrences.length === 0) {
-            container.appendChild(buildEmptyState('\uD83D\uDCCB', 'Sem ocorrências registadas.'));
+            container.appendChild(buildEmptyState('folder', 'Sem ocorrências registadas.'));
             return;
         }
 
@@ -230,45 +225,41 @@ function buildOccurrenceRow(occ) {
         hour: '2-digit', minute: '2-digit'
     });
 
-    var row = document.createElement('div');
+    var row = document.createElement('a');
     row.className = 'list-item';
-    row.style.cursor = 'pointer';
-    row.addEventListener('click', function () {
-        window.location.href = '/occurrences/' + occ.id + '/';
-    });
+    row.href = '/occurrences/' + occ.id + '/';
 
-    var left = document.createElement('div');
-    left.style.flex = '1';
+    var content = document.createElement('div');
+    content.className = 'list-item-content';
 
-    var num = document.createElement('strong');
+    var num = document.createElement('div');
+    num.className = 'list-item-title';
     num.textContent = occ.number;
-    left.appendChild(num);
+    content.appendChild(num);
 
     var desc = document.createElement('div');
-    desc.className = 'text-muted';
-    desc.style.fontSize = '0.8125rem';
+    desc.className = 'list-item-subtitle';
     var snippet = (occ.description || '').substring(0, 80);
     desc.textContent = (occ.description || '').length > 80 ? snippet + '...' : snippet;
-    left.appendChild(desc);
+    content.appendChild(desc);
 
     var right = document.createElement('div');
-    right.className = 'text-muted mono';
-    right.style.fontSize = '0.75rem';
-    right.style.whiteSpace = 'nowrap';
+    right.className = 'list-item-meta mono';
     right.textContent = date;
 
-    row.appendChild(left);
+    row.appendChild(content);
     row.appendChild(right);
     return row;
 }
 
-function buildEmptyState(icon, message) {
+function buildEmptyState(iconName, message) {
     var wrapper = document.createElement('div');
     wrapper.className = 'empty-state';
-    if (icon) {
+    if (iconName) {
         var ic = document.createElement('div');
         ic.className = 'empty-state-icon';
-        ic.textContent = icon;
+        var svgIcon = Icons.element(iconName, { size: 22 });
+        if (svgIcon) ic.appendChild(svgIcon);
         wrapper.appendChild(ic);
     }
     var p = document.createElement('p');

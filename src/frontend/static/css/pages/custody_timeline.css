@@ -1,9 +1,20 @@
 /* ForensiQ — timeline de cadeia de custódia (/evidences/<id>/custody/) */
 
+/* Scroll horizontal para tabelas em mobile (partilhado com custody_list) */
+.custody-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.custody-table-scroll .data-table {
+    min-width: 680px;
+}
+
 .evidence-header {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--r-3);
     padding: 16px;
     margin-bottom: 24px;
 }
@@ -65,24 +76,25 @@
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    background: var(--primary);
+    background: var(--accent);
     color: #fff;
     box-shadow: 0 0 0 3px var(--bg);
     z-index: 1;
 }
 
-.timeline-dot.state-APREENDIDA           { background: #1565c0; }
-.timeline-dot.state-EM_TRANSPORTE        { background: #6a1b9a; }
-.timeline-dot.state-RECEBIDA_LABORATORIO { background: #0277bd; }
-.timeline-dot.state-EM_PERICIA           { background: #e65100; }
-.timeline-dot.state-CONCLUIDA            { background: #2e7d32; }
-.timeline-dot.state-DEVOLVIDA            { background: #37474f; }
-.timeline-dot.state-DESTRUIDA            { background: #b71c1c; }
+/* Cores coerentes com state-pill e --state-* tokens (main.css) */
+.timeline-dot.state-APREENDIDA           { background: var(--state-apreendida); }
+.timeline-dot.state-EM_TRANSPORTE        { background: var(--state-em-transporte); }
+.timeline-dot.state-RECEBIDA_LABORATORIO { background: var(--state-recebida-laboratorio); }
+.timeline-dot.state-EM_PERICIA           { background: var(--state-em-pericia); }
+.timeline-dot.state-CONCLUIDA            { background: var(--state-concluida); }
+.timeline-dot.state-DEVOLVIDA            { background: var(--state-devolvida); }
+.timeline-dot.state-DESTRUIDA            { background: var(--state-destruida); }
 
 .timeline-card {
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-radius: var(--r-3);
     padding: 14px 16px;
 }
 
@@ -184,7 +196,7 @@
 }
 
 .state-step.done .state-step-dot {
-    background: var(--primary);
+    background: var(--accent);
 }
 
 .state-step.current .state-step-dot {
@@ -212,7 +224,7 @@
 }
 
 .modal-overlay {
-    display: none;
+    display: flex;
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
@@ -222,13 +234,18 @@
     padding: 16px;
 }
 
-.modal-overlay.open {
+.modal-overlay[hidden] {
+    display: none !important;
+}
+
+.modal-overlay.open,
+.modal-overlay.active {
     display: flex;
 }
 
 .modal {
     background: var(--surface);
-    border-radius: var(--radius);
+    border-radius: var(--r-3);
     padding: 24px;
     width: 100%;
     max-width: 480px;

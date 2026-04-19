@@ -3,160 +3,267 @@
 
 {% block title %}ForensiQ — Painel{% endblock %}
 
+{% block breadcrumb %}
+<span class="breadcrumb-current">Painel</span>
+{% endblock %}
+
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/pages/dashboard.css' %}">
 {% endblock %}
 
 {% block content %}
-<!-- Greeting -->
-<div class="dashboard-header" id="dashboard-header">
-    <h2 id="greeting">
-        <span class="skeleton skeleton-text lg">&nbsp;</span>
-    </h2>
-    <div id="profile-info">
-        <span class="skeleton skeleton-text sm">&nbsp;</span>
-    </div>
-</div>
+<div class="page">
 
-<!-- Stats -->
-<div class="stats-grid" id="stats-grid"
-     aria-busy="true" aria-live="polite" aria-label="Estatísticas do painel">
-    <div class="stat-card" data-accent="secondary">
-        <div class="stat-icon" aria-hidden="true">📋</div>
-        <div class="stat-value" id="stat-occurrences">
-            <div class="skeleton skeleton-value">&nbsp;</div>
-        </div>
-        <div class="stat-label">Ocorrências</div>
-        <div class="stat-sub" id="stat-occurrences-sub"></div>
-    </div>
-    <div class="stat-card" data-accent="accent">
-        <div class="stat-icon" aria-hidden="true">🔒</div>
-        <div class="stat-value" id="stat-evidences">
-            <div class="skeleton skeleton-value">&nbsp;</div>
-        </div>
-        <div class="stat-label">Evidências</div>
-        <div class="stat-sub" id="stat-evidences-sub"></div>
-    </div>
-    <div class="stat-card" data-accent="success">
-        <div class="stat-icon" aria-hidden="true">📱</div>
-        <div class="stat-value" id="stat-devices">
-            <div class="skeleton skeleton-value">&nbsp;</div>
-        </div>
-        <div class="stat-label">Dispositivos</div>
-        <div class="stat-sub" id="stat-devices-sub"></div>
-    </div>
-    <div class="stat-card" data-accent="danger">
-        <div class="stat-icon" aria-hidden="true">🔗</div>
-        <div class="stat-value" id="stat-custody">
-            <div class="skeleton skeleton-value">&nbsp;</div>
-        </div>
-        <div class="stat-label">Em trânsito</div>
-        <div class="stat-sub" id="stat-custody-sub"></div>
-    </div>
-</div>
-
-<!-- Breakdown por tipo de evidência -->
-<div class="card card-accent" id="evidences-breakdown" aria-live="polite">
-    <div class="card-header">
+    <header class="page-header">
         <div>
-            <div class="card-title">Evidências por tipo</div>
-            <div class="card-subtitle">Distribuição agregada</div>
+            <h1 class="page-title" id="greeting">
+                <span class="skeleton skeleton-text lg">&nbsp;</span>
+            </h1>
+            <p class="page-subtitle" id="profile-info">
+                <span class="skeleton skeleton-text sm">&nbsp;</span>
+            </p>
         </div>
-    </div>
-    <div class="evidences-type-chart" id="evidences-type-chart" role="list">
-        <div class="skeleton skeleton-text" style="width:100%;height:24px"></div>
-    </div>
-</div>
+    </header>
 
-<!-- Dashboard 2-column layout on desktop -->
-<div class="dashboard-layout">
+    <!-- Stats grid -->
+    <section class="stats-grid" id="stats-grid"
+             aria-busy="true" aria-live="polite" aria-label="Estatísticas do painel">
 
-<!-- Quick actions — AGENT -->
-<div id="agent-actions" class="hidden">
-    <div class="section-label">Acções rápidas</div>
-    <div class="quick-actions">
-        <button class="action-btn" data-nav="/occurrences/new/">
-            <div class="action-icon blue" aria-hidden="true">+</div>
-            <div class="action-text">
-                <strong>Nova Ocorrência</strong>
-                <small>Registar cena de crime</small>
+        <div class="stat-card" data-accent="info">
+            <div class="stat-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                </svg>
             </div>
-        </button>
-        <button class="action-btn" data-nav="/evidences/new/">
-            <div class="action-icon green" aria-hidden="true">+</div>
-            <div class="action-text">
-                <strong>Nova Evidência</strong>
-                <small>Apreender prova digital</small>
+            <div class="stat-value mono-tab" id="stat-occurrences">
+                <div class="skeleton skeleton-value">&nbsp;</div>
             </div>
-        </button>
-        <button class="action-btn" data-nav="/occurrences/">
-            <div class="action-icon orange" aria-hidden="true">📋</div>
-            <div class="action-text">
-                <strong>Ocorrências</strong>
-                <small>Ver todas as ocorrências</small>
-            </div>
-        </button>
-        <button class="action-btn" data-nav="/evidences/">
-            <div class="action-icon red" aria-hidden="true">🔒</div>
-            <div class="action-text">
-                <strong>Evidências</strong>
-                <small>Consultar evidências</small>
-            </div>
-        </button>
-        <button class="action-btn" data-nav="/custodies/">
-            <div class="action-icon blue" aria-hidden="true">🔗</div>
-            <div class="action-text">
-                <strong>Custódias</strong>
-                <small>Transferências recentes</small>
-            </div>
-        </button>
-    </div>
-</div>
-
-<!-- Quick actions — EXPERT -->
-<div id="expert-actions" class="hidden">
-    <div class="section-label">Acções rápidas</div>
-    <div class="quick-actions">
-        <button class="action-btn" data-nav="/custodies/">
-            <div class="action-icon blue" aria-hidden="true">🔗</div>
-            <div class="action-text">
-                <strong>Cadeia de Custódia</strong>
-                <small>Gerir transferências</small>
-            </div>
-        </button>
-        <button class="action-btn" data-nav="/evidences/">
-            <div class="action-icon green" aria-hidden="true">🔒</div>
-            <div class="action-text">
-                <strong>Evidências</strong>
-                <small>Consultar evidências em perícia</small>
-            </div>
-        </button>
-        <button class="action-btn" data-nav="/occurrences/">
-            <div class="action-icon orange" aria-hidden="true">📋</div>
-            <div class="action-text">
-                <strong>Ocorrências</strong>
-                <small>Ver todas as ocorrências</small>
-            </div>
-        </button>
-    </div>
-</div>
-
-<!-- Recent occurrences -->
-<div class="card">
-    <div class="card-header">
-        <div>
-            <div class="card-title">Últimas ocorrências</div>
-            <div class="card-subtitle">As mais recentes</div>
+            <div class="stat-label">Ocorrências</div>
+            <div class="stat-sub" id="stat-occurrences-sub"></div>
         </div>
-    </div>
-    <div id="recent-occurrences" class="recent-list" aria-live="polite">
-        <div class="skeleton-row"><div class="skeleton-row-content"><div class="skeleton skeleton-row-title">&nbsp;</div><div class="skeleton skeleton-row-subtitle">&nbsp;</div></div><div class="skeleton skeleton-row-date">&nbsp;</div></div>
-        <div class="skeleton-row"><div class="skeleton-row-content"><div class="skeleton skeleton-row-title">&nbsp;</div><div class="skeleton skeleton-row-subtitle">&nbsp;</div></div><div class="skeleton skeleton-row-date">&nbsp;</div></div>
-        <div class="skeleton-row"><div class="skeleton-row-content"><div class="skeleton skeleton-row-title">&nbsp;</div><div class="skeleton skeleton-row-subtitle">&nbsp;</div></div><div class="skeleton skeleton-row-date">&nbsp;</div></div>
-    </div>
-</div>
 
-</div><!-- /dashboard-layout -->
+        <div class="stat-card" data-accent="accent">
+            <div class="stat-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="5" y="11" width="14" height="9" rx="2"/>
+                    <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                </svg>
+            </div>
+            <div class="stat-value mono-tab" id="stat-evidences">
+                <div class="skeleton skeleton-value">&nbsp;</div>
+            </div>
+            <div class="stat-label">Itens</div>
+            <div class="stat-sub" id="stat-evidences-sub"></div>
+        </div>
+
+        <div class="stat-card" data-accent="success">
+            <div class="stat-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="7" y="2" width="10" height="20" rx="2"/>
+                    <path d="M11 18h2"/>
+                </svg>
+            </div>
+            <div class="stat-value mono-tab" id="stat-devices">
+                <div class="skeleton skeleton-value">&nbsp;</div>
+            </div>
+            <div class="stat-label">Dispositivos</div>
+            <div class="stat-sub" id="stat-devices-sub"></div>
+        </div>
+
+        <div class="stat-card" data-accent="warning">
+            <div class="stat-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+                    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+                </svg>
+            </div>
+            <div class="stat-value mono-tab" id="stat-custody">
+                <div class="skeleton skeleton-value">&nbsp;</div>
+            </div>
+            <div class="stat-label">Em trânsito</div>
+            <div class="stat-sub" id="stat-custody-sub"></div>
+        </div>
+    </section>
+
+    <!-- Breakdown por tipo de item -->
+    <section class="card" id="evidences-breakdown" aria-live="polite">
+        <div class="card-header">
+            <div>
+                <div class="card-title">Itens por tipo</div>
+                <div class="card-subtitle">Distribuição agregada</div>
+            </div>
+        </div>
+        <div class="evidences-type-chart" id="evidences-type-chart" role="list">
+            <div class="skeleton skeleton-text">&nbsp;</div>
+        </div>
+    </section>
+
+    <!-- 2 colunas no desktop -->
+    <div class="dashboard-layout">
+
+        <!-- Quick actions — AGENT -->
+        <section id="agent-actions" class="hidden">
+            <div class="section-label">Acções rápidas</div>
+            <div class="quick-actions">
+                <button class="action-btn" data-nav="/occurrences/new/" type="button">
+                    <span class="action-icon accent" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Nova Ocorrência</strong>
+                        <small>Registar cena de crime</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/evidences/new/" type="button">
+                    <span class="action-icon success" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-3z"/>
+                            <path d="m9 12 2 2 4-4"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Novo Item</strong>
+                        <small>Apreender prova digital</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/occurrences/" type="button">
+                    <span class="action-icon info" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Ocorrências</strong>
+                        <small>Ver todas as ocorrências</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/evidences/" type="button">
+                    <span class="action-icon warning" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="5" y="11" width="14" height="9" rx="2"/>
+                            <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Itens</strong>
+                        <small>Consultar itens apreendidos</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/custodies/" type="button">
+                    <span class="action-icon info" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+                            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Custódias</strong>
+                        <small>Transferências recentes</small>
+                    </span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Quick actions — EXPERT -->
+        <section id="expert-actions" class="hidden">
+            <div class="section-label">Acções rápidas</div>
+            <div class="quick-actions">
+                <button class="action-btn" data-nav="/custodies/" type="button">
+                    <span class="action-icon info" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+                            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Cadeia de Custódia</strong>
+                        <small>Gerir transferências</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/evidences/" type="button">
+                    <span class="action-icon success" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="5" y="11" width="14" height="9" rx="2"/>
+                            <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Itens</strong>
+                        <small>Consultar itens em perícia</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/occurrences/" type="button">
+                    <span class="action-icon info" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Ocorrências</strong>
+                        <small>Ver todas as ocorrências</small>
+                    </span>
+                </button>
+                <button class="action-btn" data-nav="/reports/" type="button">
+                    <span class="action-icon warning" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                            <path d="M14 3v6h6M9 13h6M9 17h4"/>
+                        </svg>
+                    </span>
+                    <span class="action-text">
+                        <strong>Relatórios PDF</strong>
+                        <small>Gerar relatórios forenses</small>
+                    </span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Recent occurrences -->
+        <section class="recent-section">
+            <div class="section-label">Últimas ocorrências</div>
+            <div class="card p-0">
+                <div id="recent-occurrences" class="list" aria-live="polite">
+                <div class="skeleton-row">
+                    <div class="skeleton-row-content">
+                        <div class="skeleton skeleton-row-title">&nbsp;</div>
+                        <div class="skeleton skeleton-row-subtitle">&nbsp;</div>
+                    </div>
+                    <div class="skeleton skeleton-row-date">&nbsp;</div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="skeleton-row-content">
+                        <div class="skeleton skeleton-row-title">&nbsp;</div>
+                        <div class="skeleton skeleton-row-subtitle">&nbsp;</div>
+                    </div>
+                    <div class="skeleton skeleton-row-date">&nbsp;</div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="skeleton-row-content">
+                        <div class="skeleton skeleton-row-title">&nbsp;</div>
+                        <div class="skeleton skeleton-row-subtitle">&nbsp;</div>
+                    </div>
+                    <div class="skeleton skeleton-row-date">&nbsp;</div>
+                </div>
+                </div>
+            </div>
+        </section>
+    </div><!-- /dashboard-layout -->
+</div>
 {% endblock %}
 
 {% block extra_js %}
