@@ -12,12 +12,12 @@ Conformidade: ISO/IEC 27037:2012 — preservação e integridade de prova digita
 Implementado com ReportLab (PDF puro, sem dependências externas de browser).
 """
 
-from datetime import datetime, timezone as dt_timezone
-from io import BytesIO
 import html as _html
+from datetime import UTC, datetime
+from io import BytesIO
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
@@ -29,7 +29,6 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-
 
 # ---------------------------------------------------------------------------
 # Sanitização de texto — Proteção contra injeção de HTML/XML
@@ -216,7 +215,7 @@ def generate_evidence_pdf(evidence):
 
     styles = _build_styles()
     story = []
-    gen_ts = datetime.now(dt_timezone.utc).strftime('%d/%m/%Y %H:%M:%S UTC')
+    gen_ts = datetime.now(UTC).strftime('%d/%m/%Y %H:%M:%S UTC')
 
     # ── Cabeçalho ────────────────────────────────────────────────────────────
     story.append(Paragraph('ForensiQ', styles['title']))
@@ -344,7 +343,7 @@ def generate_evidence_pdf(evidence):
         # Hash do último registo
         last = custody_records[-1]
         story.append(Paragraph(
-            f'Hash do último registo de custódia:',
+            'Hash do último registo de custódia:',
             styles['label'],
         ))
         story.append(Paragraph(last.record_hash or '—', styles['hash']))
