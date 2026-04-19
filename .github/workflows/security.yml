@@ -1,0 +1,71 @@
+name: Security
+
+# Pipeline de scans de segurança do ForensiQ.
+# Corre em cada PR/push para main e semanalmente (Segunda 06:00 UTC).
+# Conformidade: OWASP SAMM — Security Testing; ISO/IEC 27002 8.28.
+#
+# Jobs:
+# - pip-audit: CVEs conhecidos em dependências Python (PyPA Advisory DB)
+# - bandit:   SAST Python focado em patterns de risco (CWE-78, CWE-89, ...)
+# - gitleaks: detecção de segredos no histórico git (AWS keys, tokens, ...)
+# - trivy:    scan de filesystem (CVEs em OS packages + deps) — CRITICAL/HIGH
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Segunda-feira, 06:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  pip-audit:
+    name: pip-audit (CVE scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Run pip-audit
+        run: pip-audit -r src/backend/requirements.txt --strict
+
+  bandit:
+    name: Bandit (Python SAST)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Bandit
+        run: pip install bandit
+      - name: Run Bandit (severity HIGH, confidence HIGH)
+        run: bandit -r src/backend/core -lll -iii
+
+  gitleaks:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trivy:
+    name: Trivy (filesystem scan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
