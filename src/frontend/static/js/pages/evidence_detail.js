@@ -243,9 +243,16 @@ function renderDevices(devices) {
         const title = document.createElement('div');
         title.className = 'device-row-title';
         const typeLabel = DEVICE_LABELS[d.type] || d.type;
-        title.textContent = d.brand || d.model
-            ? `${d.brand || ''} ${d.model || ''}`.trim() + ` (${typeLabel})`
-            : typeLabel;
+        // Prefere "Marca Nome comercial (SKU)"; fallback para texto livre.
+        const brand = d.brand || '';
+        const commercial = d.commercial_name || '';
+        const sku = d.model || '';
+        let identity;
+        if (commercial && sku) identity = `${brand} ${commercial} (${sku})`.trim();
+        else if (commercial)   identity = `${brand} ${commercial}`.trim();
+        else if (sku)          identity = `${brand} ${sku}`.trim();
+        else                   identity = brand;
+        title.textContent = identity ? `${identity} (${typeLabel})` : typeLabel;
         body.appendChild(title);
 
         const metaParts = [];

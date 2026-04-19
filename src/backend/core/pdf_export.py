@@ -448,8 +448,9 @@ def _render_sub_components(evidence, styles):
                 ),
             ]
             block.extend(_label_value_rows([
-                ('Marca / Modelo:',
-                    f'{_sanitize(dev.brand) or "—"} / {_sanitize(dev.model) or "—"}'),
+                ('Marca:', _sanitize(dev.brand) or '—'),
+                ('Nome comercial:', _sanitize(dev.commercial_name) or '—'),
+                ('Modelo (SKU):', _sanitize(dev.model) or '—'),
                 ('Estado:', dev.get_condition_display()),
                 ('IMEI:', _sanitize(dev.imei) or '—'),
                 ('Nº de série:', _sanitize(dev.serial_number) or '—'),
@@ -688,9 +689,21 @@ def generate_occurrence_pdf(occurrence):
         story.append(Spacer(1, 0.2 * cm))
         for ev_owner, dev in legacy:
             owner_label = ev_owner.code or f'#{ev_owner.pk}'
+            # Identidade do dispositivo: prefere "Marca Nome (SKU)";
+            # cai para "Marca Modelo" quando não há nome comercial.
+            brand = _sanitize(dev.brand) or '—'
+            commercial = _sanitize(dev.commercial_name)
+            sku = _sanitize(dev.model)
+            if commercial and sku:
+                identity = f'{brand} {commercial} ({sku})'
+            elif commercial:
+                identity = f'{brand} {commercial}'
+            elif sku:
+                identity = f'{brand} {sku}'
+            else:
+                identity = brand
             story.append(Paragraph(
-                f'Item {owner_label} · {dev.get_type_display()} '
-                f'· {_sanitize(dev.brand) or "—"} {_sanitize(dev.model) or ""}',
+                f'Item {owner_label} · {dev.get_type_display()} · {identity}',
                 styles['value'],
             ))
 

@@ -339,7 +339,7 @@ class DigitalDeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = DigitalDevice
         fields = [
-            'id', 'evidence', 'type', 'brand', 'model',
+            'id', 'evidence', 'type', 'brand', 'model', 'commercial_name',
             'condition', 'imei', 'serial_number', 'notes',
             'created_at',
         ]
