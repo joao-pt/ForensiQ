@@ -19,34 +19,52 @@
 </div>
 
 <!-- Stats -->
-<div class="stats-grid" id="stats-grid">
+<div class="stats-grid" id="stats-grid"
+     aria-busy="true" aria-live="polite" aria-label="Estatísticas do painel">
     <div class="stat-card" data-accent="secondary">
-        <div class="stat-icon">📋</div>
+        <div class="stat-icon" aria-hidden="true">📋</div>
         <div class="stat-value" id="stat-occurrences">
             <div class="skeleton skeleton-value">&nbsp;</div>
         </div>
         <div class="stat-label">Ocorrências</div>
+        <div class="stat-sub" id="stat-occurrences-sub"></div>
     </div>
     <div class="stat-card" data-accent="accent">
-        <div class="stat-icon">🔒</div>
+        <div class="stat-icon" aria-hidden="true">🔒</div>
         <div class="stat-value" id="stat-evidences">
             <div class="skeleton skeleton-value">&nbsp;</div>
         </div>
         <div class="stat-label">Evidências</div>
+        <div class="stat-sub" id="stat-evidences-sub"></div>
     </div>
     <div class="stat-card" data-accent="success">
-        <div class="stat-icon">📱</div>
+        <div class="stat-icon" aria-hidden="true">📱</div>
         <div class="stat-value" id="stat-devices">
             <div class="skeleton skeleton-value">&nbsp;</div>
         </div>
         <div class="stat-label">Dispositivos</div>
+        <div class="stat-sub" id="stat-devices-sub"></div>
     </div>
     <div class="stat-card" data-accent="danger">
-        <div class="stat-icon">🔗</div>
+        <div class="stat-icon" aria-hidden="true">🔗</div>
         <div class="stat-value" id="stat-custody">
             <div class="skeleton skeleton-value">&nbsp;</div>
         </div>
-        <div class="stat-label">Custódia</div>
+        <div class="stat-label">Em trânsito</div>
+        <div class="stat-sub" id="stat-custody-sub"></div>
+    </div>
+</div>
+
+<!-- Breakdown por tipo de evidência -->
+<div class="card card-accent" id="evidences-breakdown" aria-live="polite">
+    <div class="card-header">
+        <div>
+            <div class="card-title">Evidências por tipo</div>
+            <div class="card-subtitle">Distribuição agregada</div>
+        </div>
+    </div>
+    <div class="evidences-type-chart" id="evidences-type-chart" role="list">
+        <div class="skeleton skeleton-text" style="width:100%;height:24px"></div>
     </div>
 </div>
 
@@ -58,31 +76,38 @@
     <div class="section-label">Acções rápidas</div>
     <div class="quick-actions">
         <button class="action-btn" data-nav="/occurrences/new/">
-            <div class="action-icon blue">+</div>
+            <div class="action-icon blue" aria-hidden="true">+</div>
             <div class="action-text">
                 <strong>Nova Ocorrência</strong>
                 <small>Registar cena de crime</small>
             </div>
         </button>
         <button class="action-btn" data-nav="/evidences/new/">
-            <div class="action-icon green">+</div>
+            <div class="action-icon green" aria-hidden="true">+</div>
             <div class="action-text">
                 <strong>Nova Evidência</strong>
                 <small>Apreender prova digital</small>
             </div>
         </button>
         <button class="action-btn" data-nav="/occurrences/">
-            <div class="action-icon orange">📋</div>
+            <div class="action-icon orange" aria-hidden="true">📋</div>
             <div class="action-text">
                 <strong>Ocorrências</strong>
                 <small>Ver todas as ocorrências</small>
             </div>
         </button>
         <button class="action-btn" data-nav="/evidences/">
-            <div class="action-icon red">🔒</div>
+            <div class="action-icon red" aria-hidden="true">🔒</div>
             <div class="action-text">
                 <strong>Evidências</strong>
                 <small>Consultar evidências</small>
+            </div>
+        </button>
+        <button class="action-btn" data-nav="/custodies/">
+            <div class="action-icon blue" aria-hidden="true">🔗</div>
+            <div class="action-text">
+                <strong>Custódias</strong>
+                <small>Transferências recentes</small>
             </div>
         </button>
     </div>
@@ -92,22 +117,22 @@
 <div id="expert-actions" class="hidden">
     <div class="section-label">Acções rápidas</div>
     <div class="quick-actions">
-        <button class="action-btn" data-nav="/custody/">
-            <div class="action-icon blue">🔗</div>
+        <button class="action-btn" data-nav="/custodies/">
+            <div class="action-icon blue" aria-hidden="true">🔗</div>
             <div class="action-text">
                 <strong>Cadeia de Custódia</strong>
                 <small>Gerir transferências</small>
             </div>
         </button>
         <button class="action-btn" data-nav="/evidences/">
-            <div class="action-icon green">🔒</div>
+            <div class="action-icon green" aria-hidden="true">🔒</div>
             <div class="action-text">
                 <strong>Evidências</strong>
                 <small>Consultar evidências em perícia</small>
             </div>
         </button>
         <button class="action-btn" data-nav="/occurrences/">
-            <div class="action-icon orange">📋</div>
+            <div class="action-icon orange" aria-hidden="true">📋</div>
             <div class="action-text">
                 <strong>Ocorrências</strong>
                 <small>Ver todas as ocorrências</small>
@@ -124,7 +149,7 @@
             <div class="card-subtitle">As mais recentes</div>
         </div>
     </div>
-    <div id="recent-occurrences" class="recent-list">
+    <div id="recent-occurrences" class="recent-list" aria-live="polite">
         <div class="skeleton-row"><div class="skeleton-row-content"><div class="skeleton skeleton-row-title">&nbsp;</div><div class="skeleton skeleton-row-subtitle">&nbsp;</div></div><div class="skeleton skeleton-row-date">&nbsp;</div></div>
         <div class="skeleton-row"><div class="skeleton-row-content"><div class="skeleton skeleton-row-title">&nbsp;</div><div class="skeleton skeleton-row-subtitle">&nbsp;</div></div><div class="skeleton skeleton-row-date">&nbsp;</div></div>
         <div class="skeleton-row"><div class="skeleton-row-content"><div class="skeleton skeleton-row-title">&nbsp;</div><div class="skeleton skeleton-row-subtitle">&nbsp;</div></div><div class="skeleton skeleton-row-date">&nbsp;</div></div>
