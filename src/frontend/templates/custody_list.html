@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Custódias{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><span>Custódias</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/custody_timeline.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h2 class="page-title">Cadeia de Custódia</h2>
+        <p class="page-subtitle" id="custody-count">A carregar...</p>
+    </div>
+    <a href="/evidences/" class="btn btn-outline">← Evidências</a>
+</div>
+
+<!-- Filtros simples por estado -->
+<div class="search-bar mb-16" role="search" aria-label="Filtrar custódias">
+    <input
+        type="search"
+        id="custody-search"
+        class="form-control"
+        placeholder="Pesquisar por evidência, destinatário ou observações..."
+        autocomplete="off"
+        aria-label="Pesquisar"
+    >
+</div>
+
+<!-- Tabela de transições -->
+<div id="custody-table-wrapper" class="card" aria-busy="true" aria-live="polite">
+    <div class="table-responsive">
+        <table class="custody-table" id="custody-table">
+            <thead>
+                <tr>
+                    <th scope="col">Evidência</th>
+                    <th scope="col">De</th>
+                    <th scope="col">Para</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col">Data/hora</th>
+                    <th scope="col"></th>
+                </tr>
+            </thead>
+            <tbody id="custody-tbody">
+                <tr>
+                    <td colspan="6" class="text-center text-muted">
+                        <div class="spinner spinner-dark" style="margin:16px auto"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="custody-pagination" class="pagination-bar hidden" aria-label="Paginação"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script src="{% static 'js/pages/custody_list.js' %}"></script>
+{% endblock %}
