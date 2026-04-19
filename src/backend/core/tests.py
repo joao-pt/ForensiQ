@@ -7,7 +7,15 @@ Testa:
 - Hash SHA-256 automático em evidências
 - Máquina de estados da cadeia de custódia
 - Imutabilidade da cadeia de custódia (append-only)
+
+Nota de taxonomia (ver ADR-0010): os tipos de Evidence passaram de 5
+genéricos para 18 digital-first. Tradução dos usos históricos:
+DIGITAL_DEVICE → MOBILE_DEVICE / COMPUTER (dispositivos autónomos)
+DOCUMENT       → OTHER_DIGITAL (fallback — papel deixou de existir)
+PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 """
+
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.test import TestCase
@@ -55,12 +63,16 @@ class OccurrenceModelTest(TestCase):
         )
 
     def test_create_occurrence(self):
+        # Campo gps_* tem max_digits=10, decimal_places=7 — o total de
+        # dígitos inteiros é 3 (90 ou -180) e fraccionários até 7.
+        # "38.7223340" tem 9 dígitos = 2 inteiros + 7 decimais → ok.
+        # "-9.1393366" tem 8 dígitos = 1 inteiro + 7 decimais → ok.
         occ = Occurrence.objects.create(
             number='NUIPC-2026-001',
             description='Furto de telemóvel na via pública.',
             agent=self.agent,
-            gps_lat=38.7223340,
-            gps_lon=-9.1393366,
+            gps_lat=Decimal('38.7223340'),
+            gps_lon=Decimal('-9.1393366'),
         )
         self.assertEqual(str(occ), 'Ocorrência NUIPC-2026-001')
         self.assertIsNotNone(occ.created_at)
@@ -82,7 +94,7 @@ class EvidenceModelTest(TestCase):
     def test_create_evidence_with_auto_hash(self):
         ev = Evidence.objects.create(
             occurrence=self.occurrence,
-            type=Evidence.EvidenceType.DIGITAL_DEVICE,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='iPhone 15 Pro encontrado no local.',
             agent=self.agent,
         )
@@ -95,8 +107,8 @@ class EvidenceModelTest(TestCase):
         ts = timezone.now()
         ev = Evidence(
             occurrence=self.occurrence,
-            type=Evidence.EvidenceType.DOCUMENT,
-            description='Recibo encontrado.',
+            type=Evidence.EvidenceType.OTHER_DIGITAL,
+            description='Ficheiro recuperado.',
             timestamp_seizure=ts,
             agent=self.agent,
         )
@@ -108,7 +120,7 @@ class EvidenceModelTest(TestCase):
         """Atualizar uma evidência existente deve levantar ValidationError."""
         ev = Evidence.objects.create(
             occurrence=self.occurrence,
-            type=Evidence.EvidenceType.DIGITAL_DEVICE,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='Smartphone original.',
             agent=self.agent,
         )
@@ -120,7 +132,7 @@ class EvidenceModelTest(TestCase):
         """Eliminar uma evidência deve levantar ValidationError."""
         ev = Evidence.objects.create(
             occurrence=self.occurrence,
-            type=Evidence.EvidenceType.DIGITAL_DEVICE,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='Smartphone.',
             agent=self.agent,
         )
@@ -142,7 +154,7 @@ class DigitalDeviceModelTest(TestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type=Evidence.EvidenceType.DIGITAL_DEVICE,
+            type=Evidence.EvidenceType.COMPUTER,
             description='Portátil Lenovo.',
             agent=self.agent,
         )
@@ -178,7 +190,7 @@ class ChainOfCustodyModelTest(TestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type=Evidence.EvidenceType.DIGITAL_DEVICE,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='Smartphone Samsung.',
             agent=self.agent,
         )

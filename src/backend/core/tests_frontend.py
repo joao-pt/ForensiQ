@@ -20,7 +20,7 @@ class AuthenticatedFrontendTestCase(TestCase):
     Classe base para testes de páginas que requerem autenticação JWT (cookie).
 
     Cria um utilizador de teste e injeta um token JWT válido como cookie
-    'forensiq_access' antes de cada pedido.
+    `fq_access` (ADR-0009) antes de cada pedido.
     """
 
     @classmethod
@@ -32,8 +32,10 @@ class AuthenticatedFrontendTestCase(TestCase):
         )
 
     def setUp(self):
+        # Importar aqui para evitar dependência circular em classe base.
+        from core.auth import ACCESS_COOKIE_NAME
         token = AccessToken.for_user(self.test_user)
-        self.client.cookies['forensiq_access'] = str(token)
+        self.client.cookies[ACCESS_COOKIE_NAME] = str(token)
 
 
 class LoginPageTest(TestCase):
@@ -254,10 +256,16 @@ class EvidencesNewPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('id="evidence-form"', content)
 
     def test_evidences_new_page_contains_type_selector(self):
-        """A página de nova evidência deve conter o selector de tipo."""
+        """A página de nova evidência deve conter o selector de tipo.
+
+        O wizard Wave 2b usa um <select id="type"> com optgroups preenchidos
+        dinamicamente a partir de CONFIG.EVIDENCE_TYPE_GROUPS; o antigo
+        id="type-selector" foi descontinuado.
+        """
         response = self.client.get(reverse('evidences_new'))
         content = response.content.decode('utf-8')
-        self.assertIn('id="type-selector"', content)
+        self.assertIn('id="type"', content)
+        self.assertIn('name="type"', content)
 
     def test_evidences_new_page_contains_gps_button(self):
         """A página de nova evidência deve conter o botão GPS."""

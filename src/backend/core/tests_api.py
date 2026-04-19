@@ -2,20 +2,24 @@
 ForensiQ — Testes da API REST.
 
 Testa:
-- Autenticação JWT (login, token refresh)
+- Autenticação JWT em cookies HttpOnly (login, refresh) — ADR-0009
 - CRUD de ocorrências (permissões por perfil)
 - CRUD de evidências (hash automático, permissões)
 - CRUD de dispositivos digitais
 - Cadeia de custódia (append-only via API, timeline)
 - Permissões: AGENT vs EXPERT vs não autenticado
+
+Nota de taxonomia (ADR-0010): DIGITAL_DEVICE → MOBILE_DEVICE;
+DOCUMENT → OTHER_DIGITAL; PHOTO → DIGITAL_FILE.
 """
 
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
-from django.core.files.uploadedfile import SimpleUploadedFile
 
+from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import (
     ChainOfCustody,
     DigitalDevice,
@@ -57,8 +61,13 @@ class BaseAPITestCase(TestCase):
         self.client.force_authenticate(user=user)
 
     def get_jwt_token(self, username, password):
-        """Obtém token JWT via endpoint de login."""
-        url = reverse('token_obtain_pair')
+        """Obtém tokens JWT via endpoint de login (cookies, ADR-0009).
+
+        Devolve a resposta completa. Os tokens ficam disponíveis nos
+        cookies (`fq_access`, `fq_refresh`) em `response.cookies` e
+        também em `self.client.cookies` para pedidos subsequentes.
+        """
+        url = reverse('auth_login')
         response = self.client.post(url, {
             'username': username,
             'password': password,
@@ -71,29 +80,51 @@ class BaseAPITestCase(TestCase):
 # ---------------------------------------------------------------------------
 
 class JWTAuthTest(BaseAPITestCase):
-    """Testes de autenticação JWT."""
+    """Testes de autenticação JWT via cookies HttpOnly (ADR-0009)."""
 
     def test_login_success(self):
-        """Login com credenciais válidas retorna tokens."""
+        """Login válido devolve 200 e semeia os cookies fq_access / fq_refresh."""
         response = self.get_jwt_token('agente_api', 'TestPass123!')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('access', response.data)
-        self.assertIn('refresh', response.data)
+        # Os tokens não são devolvidos no body — ficam em cookies HttpOnly.
+        self.assertIn(ACCESS_COOKIE_NAME, response.cookies)
+        self.assertIn(REFRESH_COOKIE_NAME, response.cookies)
+        self.assertTrue(response.cookies[ACCESS_COOKIE_NAME]['httponly'])
+        self.assertTrue(response.cookies[REFRESH_COOKIE_NAME]['httponly'])
+        # O body inclui informação do utilizador autenticado.
+        self.assertIn('user', response.data)
+        self.assertEqual(response.data['user']['username'], 'agente_api')
 
     def test_login_invalid_credentials(self):
-        """Login com credenciais inválidas retorna 401."""
+        """Login com credenciais inválidas recusa autenticação.
+
+        Aceitamos 401 *ou* 403: com ``authentication_classes=[]`` em
+        ``CookieLoginView`` (ADR-0009), a DRF rebaixa
+        ``AuthenticationFailed`` para 403 porque não há classe
+        autenticadora para emitir ``WWW-Authenticate``. O contrato
+        comportamental relevante é que *nenhum cookie de sessão seja
+        emitido* e que a resposta seja 4xx de recusa.
+        """
         response = self.get_jwt_token('agente_api', 'wrongpassword')
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN),
+        )
+        # Nenhum token deve ter sido emitido.
+        self.assertNotIn(ACCESS_COOKIE_NAME, response.cookies)
+        self.assertNotIn(REFRESH_COOKIE_NAME, response.cookies)
 
     def test_token_refresh(self):
-        """Refresh token gera novo access token."""
+        """Refresh lê o cookie fq_refresh e rotaciona os tokens."""
         login = self.get_jwt_token('agente_api', 'TestPass123!')
-        refresh_token = login.data['refresh']
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
 
-        url = reverse('token_refresh')
-        response = self.client.post(url, {'refresh': refresh_token})
+        # O APIClient mantém cookies em `self.client.cookies` — o endpoint
+        # de refresh lê o `fq_refresh` do cookie automaticamente.
+        url = reverse('auth_refresh')
+        response = self.client.post(url, {})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn('access', response.data)
+        self.assertIn(ACCESS_COOKIE_NAME, response.cookies)
 
     def test_unauthenticated_access_denied(self):
         """Acesso sem token retorna 401."""
@@ -224,7 +255,7 @@ class EvidenceAPITest(BaseAPITestCase):
         url = reverse('core:evidence-list')
         response = self.client.post(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DIGITAL_DEVICE',
+            'type': 'MOBILE_DEVICE',
             'description': 'Smartphone encontrado no local.',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -235,7 +266,7 @@ class EvidenceAPITest(BaseAPITestCase):
         """Filtrar evidências por ocorrência."""
         Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DOCUMENT',
+            type='OTHER_DIGITAL',
             description='Documento de teste.',
             agent=self.agent,
         )
@@ -262,7 +293,7 @@ class DigitalDeviceAPITest(BaseAPITestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Portátil.',
             agent=self.agent,
         )
@@ -299,7 +330,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Smartphone para custódia.',
             agent=self.agent,
         )
@@ -446,7 +477,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
         )
         self.evidence_a = Evidence.objects.create(
             occurrence=self.occurrence_a,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Evidência do Agent A.',
             agent=self.agent,
         )
@@ -459,7 +490,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
         )
         self.evidence_b = Evidence.objects.create(
             occurrence=self.occurrence_b,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Evidência do Agent B.',
             agent=self.agent_b,
         )
@@ -520,7 +551,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
         # Criar um dispositivo na evidência de Agent B
         device_b = Evidence.objects.create(
             occurrence=self.occurrence_b,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Outro dispositivo de Agent B.',
             agent=self.agent_b,
         )
@@ -581,7 +612,7 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Evidência original.',
             agent=self.agent,
         )
@@ -592,7 +623,7 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
         url = reverse('core:evidence-detail', kwargs={'pk': self.evidence.pk})
         response = self.client.put(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DOCUMENT',
+            'type': 'OTHER_DIGITAL',
             'description': 'Descrição alterada.',
         })
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
@@ -622,7 +653,7 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
         url = reverse('core:evidence-detail', kwargs={'pk': self.evidence.pk})
         self.client.put(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DOCUMENT',
+            'type': 'OTHER_DIGITAL',
             'description': 'Nova descrição.',
         })
 
@@ -662,7 +693,7 @@ class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Portátil apreendido.',
             agent=self.agent,
         )
@@ -758,7 +789,7 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Evidência para teste de estados.',
             agent=self.agent,
         )
@@ -1084,7 +1115,7 @@ class EndToEndFlowTest(BaseAPITestCase):
         evidence_url = reverse('core:evidence-list')
         evidence_response = self.client.post(evidence_url, {
             'occurrence': occurrence_id,
-            'type': 'DIGITAL_DEVICE',
+            'type': 'MOBILE_DEVICE',
             'description': 'iPhone 13 Pro encontrado no local do crime.',
         })
         self.assertEqual(evidence_response.status_code, status.HTTP_201_CREATED)
@@ -1103,7 +1134,10 @@ class EndToEndFlowTest(BaseAPITestCase):
             'imei': '358623072123456',
         })
         self.assertEqual(device_response.status_code, status.HTTP_201_CREATED)
-        device_id = device_response.data['id']
+        # device_id é devolvido pela resposta mas não precisamos de o
+        # referenciar nas asserções seguintes — o teste segue pela
+        # evidence_id. Mantemos a verificação estrutural do payload.
+        self.assertIn('id', device_response.data)
 
         # --- STEP 5: Criar primeiro registo de custódia ('' → APREENDIDA) ---
         custody_url = reverse('core:custody-list')
@@ -1424,19 +1458,28 @@ class InputValidationTest(BaseAPITestCase):
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_partial_gps_coordinates_accepted(self):
-        """GPS parcial é aceite — ambos os campos são opcionais (nullable)."""
+    def test_partial_gps_coordinates_rejected(self):
+        """GPS parcial é rejeitado — latitude e longitude têm de ser
+        ambas preenchidas ou ambas vazias (ver ``Occurrence.clean()``).
+        Uma coordenada sozinha é inútil em campo e sinaliza dados corrompidos.
+        """
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
 
-        # Apenas latitude (longitude omissa → null)
+        # Apenas latitude (longitude omissa) → ValidationError no clean()
         response = self.client.post(url, {
             'number': 'NUIPC-2026-GPS-PARTIAL-1',
             'description': 'Ocorrência com apenas latitude.',
             'gps_lat': '38.7223340',
         })
-        # GPS parcial é aceite — campos são independentes e opcionais
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Ambos omissos → aceite (GPS é opcional)
+        response_both = self.client.post(url, {
+            'number': 'NUIPC-2026-GPS-NONE-1',
+            'description': 'Ocorrência sem GPS.',
+        })
+        self.assertEqual(response_both.status_code, status.HTTP_201_CREATED)
 
 
 class ImageUploadValidationTest(BaseAPITestCase):
@@ -1455,6 +1498,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
     def _make_valid_jpeg(self, size_bytes):
         """Gera um JPEG válido (mínimo) padded até size_bytes."""
         import io
+
         from PIL import Image
         img = Image.new('RGB', (1, 1), color='red')
         buf = io.BytesIO()
@@ -1466,7 +1510,14 @@ class ImageUploadValidationTest(BaseAPITestCase):
         return header
 
     def test_image_upload_valid_size(self):
-        """Upload de imagem com tamanho válido (< 25MB) deve ser aceito."""
+        """Upload de imagem com tamanho válido (< 25MB) deve ser aceito.
+
+        Regressão corrigida na Wave 4b: ``Evidence._compute_photo_hash()``
+        deixa de fechar o stream antes do ``ImageField.pre_save`` chamar
+        ``seek(0)``; o hash é computado via ``chunks()`` e o cursor é
+        reposto. Garante que o upload de fotografia não rebenta com
+        ``ValueError: I/O operation on closed file``.
+        """
         self.authenticate_as(self.agent)
         url = reverse('core:evidence-list')
 
@@ -1479,7 +1530,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
 
         response = self.client.post(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DIGITAL_DEVICE',
+            'type': 'MOBILE_DEVICE',
             'description': 'Evidência com imagem.',
             'photo': image_file,
         })
@@ -1499,7 +1550,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
 
         response = self.client.post(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DIGITAL_DEVICE',
+            'type': 'MOBILE_DEVICE',
             'description': 'Evidência com imagem muito grande.',
             'photo': image_file,
         })
@@ -1518,7 +1569,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
 
         response = self.client.post(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DIGITAL_DEVICE',
+            'type': 'MOBILE_DEVICE',
             'description': 'Evidência com ficheiro de texto.',
             'photo': invalid_file,
         })
@@ -1537,7 +1588,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
 
         response = self.client.post(url, {
             'occurrence': self.occurrence.pk,
-            'type': 'DIGITAL_DEVICE',
+            'type': 'MOBILE_DEVICE',
             'description': 'Evidência com ficheiro vazio.',
             'photo': empty_file,
         })
@@ -1556,17 +1607,24 @@ class JWTSecurityTest(BaseAPITestCase):
     """
 
     def test_tampered_token_rejected(self):
-        """Token JWT alterado deve ser rejeitado com 401."""
-        # Obter token válido via login
-        login_url = reverse('token_obtain_pair')
+        """Token JWT alterado em cookie deve ser rejeitado com 401.
+
+        Com ADR-0009 o access token vive num cookie HttpOnly. Simulamos
+        tampering injectando um cookie inválido directamente no cliente
+        — `JWTCookieAuthentication.authenticate()` rejeita com 401.
+        """
+        # Obter token válido via login (devolvido em cookie).
+        login_url = reverse('auth_login')
         login_response = self.client.post(login_url, {
             'username': 'agente_api',
             'password': 'TestPass123!',
         })
-        valid_token = login_response.data['access']
+        self.assertEqual(login_response.status_code, status.HTTP_200_OK)
+        valid_token = login_response.cookies[ACCESS_COOKIE_NAME].value
         # Alterar o último carácter do token
         tampered = valid_token[:-1] + ('X' if valid_token[-1] != 'X' else 'Y')
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {tampered}')
+        # Substituir o cookie mantido pelo APIClient
+        self.client.cookies[ACCESS_COOKIE_NAME] = tampered
 
         url = reverse('core:occurrence-list')
         response = self.client.get(url)
@@ -1643,25 +1701,26 @@ class AuthRateLimitingTest(TestCase):
     Testa que os endpoints de autenticação JWT têm rate limiting aplicado.
 
     Verifica a configuração estrutural (classe de throttle aplicada).
+    Após ADR-0009 os endpoints ``token_obtain_pair`` / ``token_refresh``
+    foram substituídos por ``CookieLoginView`` / ``CookieRefreshView`` em
+    ``core.auth_views``. O rate limit mantém-se via ``AuthRateThrottle``.
     """
 
-    def test_auth_endpoint_has_throttle_class(self):
-        """
-        Verifica que os endpoints de auth usam AuthRateThrottle.
-        """
-        from forensiq_project.urls import ThrottledTokenObtainPairView
+    def test_auth_login_view_has_throttle_class(self):
+        """Verifica que a CookieLoginView usa AuthRateThrottle."""
+        from core.auth_views import CookieLoginView
         from core.throttles import AuthRateThrottle
 
-        view = ThrottledTokenObtainPairView()
+        view = CookieLoginView()
         throttle_classes = [type(t) for t in view.get_throttles()]
         self.assertIn(AuthRateThrottle, throttle_classes)
 
-    def test_auth_refresh_endpoint_has_throttle_class(self):
-        """Verifica que o endpoint de refresh usa AuthRateThrottle."""
-        from forensiq_project.urls import ThrottledTokenRefreshView
+    def test_auth_refresh_view_has_throttle_class(self):
+        """Verifica que a CookieRefreshView usa AuthRateThrottle."""
+        from core.auth_views import CookieRefreshView
         from core.throttles import AuthRateThrottle
 
-        view = ThrottledTokenRefreshView()
+        view = CookieRefreshView()
         throttle_classes = [type(t) for t in view.get_throttles()]
         self.assertIn(AuthRateThrottle, throttle_classes)
 
@@ -1685,7 +1744,7 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
         )
         self.evidence = Evidence.objects.create(
             occurrence=self.occurrence,
-            type='DIGITAL_DEVICE',
+            type='MOBILE_DEVICE',
             description='Evidência para teste de imutabilidade CoC.',
             agent=self.agent,
         )
