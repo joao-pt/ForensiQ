@@ -4,87 +4,110 @@
 {% block title %}ForensiQ — Ocorrências{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><span>Ocorrências</span>
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Ocorrências</span>
 {% endblock %}
 
 {% block extra_css %}
-<!-- Leaflet.js CSS -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
-      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
-      crossorigin="anonymous" referrerpolicy="no-referrer">
-<link rel="stylesheet" href="{% static "css/pages/occurrences.css" %}">
+{% include "_leaflet_head.html" %}
+<link rel="stylesheet" href="{% static 'css/pages/occurrences.css' %}">
 {% endblock %}
 
 {% block content %}
-<!-- Cabeçalho com botão de acção -->
-<div class="page-header">
-    <div>
-        <h2 class="page-title">Ocorrências</h2>
-        <p class="page-subtitle" id="occurrences-count">A carregar...</p>
-    </div>
-    <a href="/occurrences/new/" class="btn btn-primary" id="btn-new-occurrence">
-        + Nova
-    </a>
-</div>
+<div class="page">
 
-<!-- Abas de vista: Lista / Mapa -->
-<div class="view-tabs" role="tablist" aria-label="Vista de ocorrências">
-    <button class="view-tab active" id="tab-list" role="tab" aria-selected="true"
-            aria-controls="panel-list">
-        📋 Lista
-    </button>
-    <button class="view-tab" id="tab-map" role="tab" aria-selected="false"
-            aria-controls="panel-map">
-        🗺️ Mapa
-    </button>
-</div>
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Ocorrências</h1>
+            <p class="page-subtitle" id="occurrences-count">A carregar…</p>
+        </div>
+        <a href="/occurrences/new/" class="btn btn-primary" id="btn-new-occurrence">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Nova
+        </a>
+    </header>
 
-<!-- Painel Lista -->
-<div id="panel-list" role="tabpanel" aria-labelledby="tab-list">
-    <!-- Barra de pesquisa -->
-    <div class="search-bar mb-16">
-        <input
-            type="search"
-            id="search-input"
-            class="form-control"
-            placeholder="Pesquisar por número ou descrição..."
-            autocomplete="off"
-        >
-    </div>
+    <!-- Toolbar: pesquisa + segmented control de vista -->
+    <div class="toolbar">
+        <div class="input-group toolbar-search">
+            <span class="input-group-prefix" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input type="search" id="search-input" class="form-input"
+                   placeholder="Pesquisar por número ou descrição"
+                   autocomplete="off" spellcheck="false">
+        </div>
 
-    <!-- Lista de ocorrências -->
-    <div id="occurrences-list">
-        <div class="loading-overlay">
-            <div class="spinner spinner-dark"></div>
+        <div class="segmented" role="tablist" aria-label="Vista de ocorrências">
+            <button class="segmented-btn active" id="tab-list" role="tab" aria-selected="true"
+                    aria-controls="panel-list">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                </svg>
+                Lista
+            </button>
+            <button class="segmented-btn" id="tab-map" role="tab" aria-selected="false"
+                    aria-controls="panel-map">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/>
+                    <path d="M8 2v16M16 6v16"/>
+                </svg>
+                Mapa
+            </button>
         </div>
     </div>
 
-    <!-- Paginação -->
-    <div id="pagination" class="pagination-bar hidden"></div>
+    <!-- Painel Lista -->
+    <section id="panel-list" role="tabpanel" aria-labelledby="tab-list">
+        <div class="card p-0">
+            <div class="list" id="occurrences-list" aria-busy="true" aria-live="polite">
+                <span class="visually-hidden">A carregar ocorrências</span>
+                <div class="loading-overlay" aria-hidden="true">
+                    <span class="spinner"></span>
+                    <span>A carregar ocorrências</span>
+                </div>
+            </div>
+        </div>
+        <div id="pagination" class="pagination-bar hidden"></div>
+    </section>
+
+    <!-- Painel Mapa -->
+    <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" hidden>
+        <div class="map-wrap">
+            <div id="map-container" class="map-surface" aria-label="Mapa de ocorrências"></div>
+            <div class="map-legend">
+                <div class="map-legend-item">
+                    <span class="status-dot accent"></span> Com GPS
+                </div>
+                <div class="map-legend-item">
+                    <span class="status-dot"></span> Sem GPS
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
 
-<!-- Painel Mapa (Leaflet.js) -->
-<div id="panel-map" role="tabpanel" aria-labelledby="tab-map" style="display:none; position:relative;">
-    <div id="map-container" aria-label="Mapa de ocorrências"></div>
-    <!-- Legenda -->
-    <div class="map-legend">
-        <div class="map-legend-item">
-            <div class="map-legend-dot" style="background:#1565c0;"></div>
-            <span>Com GPS</span>
-        </div>
-        <div class="map-legend-item">
-            <div class="map-legend-dot" style="background:#9e9e9e;"></div>
-            <span>Sem GPS</span>
-        </div>
-    </div>
-</div>
+<a href="/occurrences/new/" class="fab" aria-label="Nova ocorrência">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14"/>
+    </svg>
+    <span class="fab-label">Nova</span>
+</a>
 {% endblock %}
 
 {% block extra_js %}
-<!-- Leaflet.js -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
-        integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+{% include "_leaflet_js.html" %}
 <script src="{% static 'js/toast.js' %}"></script>
 <script src="{% static 'js/pages/occurrences.js' %}"></script>
 {% endblock %}

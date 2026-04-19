@@ -5,13 +5,13 @@ let currentState = null;
 let allowedNextStates = [];
 
 const STATE_FLOW = [
-    { key: 'APREENDIDA',           label: 'Apreendida',         icon: '\u{1F512}' },
-    { key: 'EM_TRANSPORTE',        label: 'Em Transporte',      icon: '\u{1F690}' },
-    { key: 'RECEBIDA_LABORATORIO', label: 'No Laboratório',     icon: '\u{1F3DB}\uFE0F' },
-    { key: 'EM_PERICIA',           label: 'Em Perícia',         icon: '\u{1F52C}' },
-    { key: 'CONCLUIDA',            label: 'Concluída',          icon: '\u2705' },
-    { key: 'DEVOLVIDA',            label: 'Devolvida',          icon: '\u21A9\uFE0F' },
-    { key: 'DESTRUIDA',            label: 'Destruída',          icon: '\u{1F5D1}\uFE0F' },
+    { key: 'APREENDIDA',           label: 'Apreendida' },
+    { key: 'EM_TRANSPORTE',        label: 'Em Transporte' },
+    { key: 'RECEBIDA_LABORATORIO', label: 'No Laboratório' },
+    { key: 'EM_PERICIA',           label: 'Em Perícia' },
+    { key: 'CONCLUIDA',            label: 'Concluída' },
+    { key: 'DEVOLVIDA',            label: 'Devolvida' },
+    { key: 'DESTRUIDA',            label: 'Destruída' },
 ];
 
 const VALID_TRANSITIONS = {
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         empty.className = 'empty-state';
         const p = document.createElement('p');
         p.className = 'text-danger';
-        p.textContent = 'ID de evidência inválido.';
+        p.textContent = 'ID do item inválido.';
         empty.appendChild(p);
         container.replaceChildren(empty);
         return;
@@ -80,26 +80,26 @@ async function loadEvidenceAndTimeline(user) {
 
 function renderEvidenceHeader(evidence) {
     const header = document.getElementById('evidence-header');
-    const typeMap = {
-        DIGITAL_DEVICE:  'Dispositivo Digital',
-        DOCUMENT:        'Documento',
-        STORAGE_MEDIA:   'Suporte de Armazenamento',
-        PHOTO:           'Fotografia',
-        OTHER:           'Outro',
-    };
+    const typeLabel = (CONFIG.EVIDENCE_TYPES && CONFIG.EVIDENCE_TYPES[evidence.type]) || evidence.type;
     const dt = new Date(evidence.timestamp_seizure).toLocaleString('pt-PT', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     });
 
-    document.getElementById('evidence-subtitle').textContent = `Evidência #${evidence.id}`;
+    const itemLabel = evidence.code
+        ? `Item ${evidence.code}`
+        : `${typeLabel}`;
+    const occLabel = evidence.occurrence_number
+        ? ` · Caso ${evidence.occurrence_number}`
+        : '';
+    document.getElementById('evidence-subtitle').textContent = itemLabel + occLabel;
     document.getElementById('evidence-description').textContent = evidence.description || '\u2014';
-    document.getElementById('evidence-type').textContent = typeMap[evidence.type] || evidence.type;
+    document.getElementById('evidence-type').textContent = typeLabel;
     document.getElementById('evidence-timestamp').textContent = dt;
     const hashEl = document.getElementById('evidence-hash');
     hashEl.textContent = evidence.integrity_hash || '\u2014';
     hashEl.title = `SHA-256: ${evidence.integrity_hash || ''}`;
-    header.style.display = '';
+    header.hidden = false;
 }
 
 function renderStateProgress(records) {
@@ -126,7 +126,7 @@ function renderStateProgress(records) {
         stepEl.className = `state-step ${cls}`.trim();
         const dot = document.createElement('div');
         dot.className = 'state-step-dot';
-        dot.textContent = step.icon;
+        // Ponto colorido (CSS pinta via .state-step.done/current); sem texto/emoji.
         stepEl.appendChild(dot);
         const lbl = document.createElement('div');
         lbl.className = 'state-step-label';
@@ -137,7 +137,7 @@ function renderStateProgress(records) {
 }
 
 function buildTimelineItem(rec, idx, stateMap) {
-    const state = stateMap[rec.new_state] || { label: rec.new_state, icon: '\u25CF' };
+    const state = stateMap[rec.new_state] || { label: rec.new_state };
     const dt = new Date(rec.timestamp).toLocaleString('pt-PT', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
@@ -151,7 +151,6 @@ function buildTimelineItem(rec, idx, stateMap) {
     const dot = document.createElement('div');
     dot.className = `timeline-dot state-${rec.new_state}`;
     dot.title = state.label;
-    dot.textContent = state.icon;
     item.appendChild(dot);
 
     const card = document.createElement('div');
@@ -164,14 +163,18 @@ function buildTimelineItem(rec, idx, stateMap) {
     stateLbl.textContent = state.label;
     header.appendChild(stateLbl);
     const dateEl = document.createElement('span');
-    dateEl.className = 'timeline-date';
-    dateEl.textContent = `\u{1F551} ${dt}`;
+    dateEl.className = 'timeline-date mono';
+    dateEl.textContent = dt;
     header.appendChild(dateEl);
     card.appendChild(header);
 
     const agent = document.createElement('div');
     agent.className = 'timeline-agent';
-    agent.textContent = `\u{1F464} ${agentName}`;
+    const agentIcon = Icons.element('user', { size: 14 });
+    if (agentIcon) agent.appendChild(agentIcon);
+    const agentLabel = document.createElement('span');
+    agentLabel.textContent = ` ${agentName}`;
+    agent.appendChild(agentLabel);
     card.appendChild(agent);
 
     if (rec.observations) {
@@ -201,10 +204,11 @@ function renderTimeline(records) {
     if (records.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';
-        const icon = document.createElement('div');
-        icon.className = 'empty-state-icon';
-        icon.textContent = '\u{1F4CB}';
-        empty.appendChild(icon);
+        const iconWrap = document.createElement('div');
+        iconWrap.className = 'empty-state-icon';
+        const icon = Icons.element('file-text', { size: 22 });
+        if (icon) iconWrap.appendChild(icon);
+        empty.appendChild(iconWrap);
         const p = document.createElement('p');
         p.textContent = 'Sem registos de custódia. Registe a primeira transição.';
         empty.appendChild(p);
@@ -228,13 +232,13 @@ function renderTimeline(records) {
 }
 
 function renderTransitionUI(user) {
-    if (!user || user.profile !== 'AGENT') return;
+    if (!user || !['AGENT', 'EXPERT'].includes(user.profile)) return;
 
     allowedNextStates = VALID_TRANSITIONS[currentState] || [];
     if (allowedNextStates.length === 0) return;
 
     const container = document.getElementById('new-transition-container');
-    container.style.display = '';
+    container.hidden = false;
 
     const select = document.getElementById('new-state');
     const stateMap = Object.fromEntries(STATE_FLOW.map(s => [s.key, s]));

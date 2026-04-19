@@ -1,0 +1,172 @@
+/**
+ * ForensiQ — Detalhe da evidência (/evidences/<id>/).
+ *
+ * Hash em destaque (marca forense). Foto + metadados em 2 colunas em
+ * desktop. Dispositivos e custódia abaixo.
+ */
+
+/* ---------- Hash de integridade (protagonista) ---------- */
+
+.integrity-card {
+    background: var(--accent-tint);
+    border-color: transparent;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+}
+
+@media (min-width: 768px) {
+    .integrity-card {
+        border-left: 3px solid var(--accent);
+    }
+}
+
+.integrity-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--accent);
+}
+
+.integrity-label svg {
+    width: 16px;
+    height: 16px;
+}
+
+.integrity-hash {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    color: var(--text-emphasis);
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    padding: var(--sp-2) var(--sp-3);
+    overflow-x: auto;
+    word-break: break-all;
+    user-select: all;
+}
+
+.integrity-meta {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+}
+
+/* ---------- Layout Foto + Metadados ---------- */
+
+.evidence-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+@media (min-width: 1024px) {
+    .evidence-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: var(--sp-5);
+        align-items: start;
+    }
+}
+
+.evidence-photo-card {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-inset);
+    min-height: 200px;
+}
+
+.evidence-photo-card img {
+    width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    display: block;
+}
+
+/* .meta-list / .meta-row movidos para main.css como componente global
+   (audit #22 — promovido do uso local para o design system). */
+
+/* ---------- Estado atual de custódia ---------- */
+
+.custody-current {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.custody-current-icon {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-pill);
+    background: var(--accent-tint);
+    color: var(--accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.custody-current-icon svg {
+    width: 22px;
+    height: 22px;
+}
+
+.custody-current-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.custody-current-state {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+}
+
+.custody-current-meta {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ---------- Device row (dentro do evidence detail) ---------- */
+
+.device-row {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-3);
+}
+
+.device-row-icon {
+    font-size: 1.5rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.device-row-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.device-row-title {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+}
+
+.device-row-meta {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+}

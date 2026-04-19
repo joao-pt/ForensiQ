@@ -1,0 +1,114 @@
+/**
+ * ForensiQ — Definições e perfil (/settings/).
+ */
+
+/* ---------- Profile head ---------- */
+
+.profile-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+    padding-bottom: var(--sp-4);
+    border-bottom: 1px solid var(--divider);
+}
+
+.profile-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    background: var(--accent-tint);
+    color: var(--accent);
+    border-radius: var(--r-pill);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+}
+
+.profile-name {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+}
+
+.profile-role {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* .meta-list / .meta-row — usa definição global em main.css (audit #22). */
+
+/* ---------- Preferência row (theme choice, logout) ---------- */
+
+.pref-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    align-items: flex-start;
+}
+
+@media (min-width: 640px) {
+    .pref-row {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+
+.pref-info { flex: 1; min-width: 0; }
+
+.pref-title {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+}
+
+.pref-hint {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* ---------- Theme choice (segmented dia / noite) ---------- */
+
+.theme-choice {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    gap: 2px;
+}
+
+.theme-option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 8px var(--sp-4);
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--r-2) - 2px);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all var(--t-fast) var(--ease);
+    min-height: 36px;
+}
+
+.theme-option svg {
+    width: 16px;
+    height: 16px;
+}
+
+.theme-option:hover { color: var(--text); }
+
+.theme-option.active {
+    background: var(--surface);
+    color: var(--text-emphasis);
+    box-shadow: var(--shadow-sm);
+}

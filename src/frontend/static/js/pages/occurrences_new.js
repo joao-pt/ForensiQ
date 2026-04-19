@@ -7,18 +7,11 @@ document.addEventListener('DOMContentLoaded', async function () {
     if (!authenticated) return;
 
     var user = Auth.getUser();
-    if (user) {
-        var navUser = document.getElementById('navbar-user');
-        if (navUser) navUser.textContent = user.first_name || user.username;
-
-        if (user.profile !== 'AGENT') {
-            Toast.show('Sem permissão para registar ocorrências.', 'error');
-            setTimeout(function () { window.location.href = '/occurrences/'; }, 1500);
-            return;
-        }
+    if (user && user.profile !== 'AGENT') {
+        Toast.show('Sem permissão para registar ocorrências.', 'error');
+        setTimeout(function () { window.location.href = '/occurrences/'; }, 1500);
+        return;
     }
-
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
 
     setDefaultTimestamp();
     captureGPS();
@@ -120,7 +113,7 @@ function captureGPS() {
 
 function showGpsStatus(message, type) {
     var el = document.getElementById('gps-status');
-    el.style.display = 'block';
+    el.hidden = false;
     el.className = 'gps-status gps-status-' + type;
     el.textContent = message;
 }
@@ -221,7 +214,7 @@ function setSubmitting(loading) {
 
     nextBtn.disabled = loading;
     nextBtn.textContent = loading ? 'A registar...' : 'Registar';
-    spinner.style.display = loading ? 'block' : 'none';
+    spinner.classList.toggle('hidden', !loading);
 
     if (wizard.backBtn) wizard.backBtn.disabled = loading;
 }

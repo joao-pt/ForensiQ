@@ -46,7 +46,7 @@ from .models import (
     Evidence,
     Occurrence,
 )
-from .pdf_export import generate_evidence_pdf
+from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
     ChainOfCustodySerializer,
@@ -177,6 +177,53 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             resource_id=occurrence.pk,
         )
 
+    def get_throttles(self):
+        if self.action == 'export_pdf':
+            self.throttle_scope = 'pdf_export'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def export_pdf(self, request, pk=None):
+        """GET /api/occurrences/<id>/pdf/ — resumo consolidado do caso.
+
+        Contém descrição da ocorrência, inventário de itens de prova
+        (raiz + sub-componentes) e estado actual de custódia. Serve o
+        agente responsável para um overview único do processo.
+        """
+        # ownership: get_queryset já filtra AGENT para ocorrências próprias
+        base_qs = self.get_queryset().filter(pk=pk)
+        optimized_qs = base_qs.select_related('agent').prefetch_related(
+            'evidences__agent',
+            'evidences__parent_evidence',
+            'evidences__sub_components',
+            'evidences__custody_chain',
+            'evidences__digital_devices',
+        )
+        self.queryset = optimized_qs
+        occurrence = self.get_object()
+
+        log_access(
+            request=request,
+            action=AuditLog.Action.EXPORT_PDF,
+            resource_type=AuditLog.ResourceType.OCCURRENCE,
+            resource_id=occurrence.pk,
+        )
+
+        try:
+            pdf_bytes = generate_occurrence_pdf(occurrence)
+        except Exception as exc:  # noqa: BLE001 — erro claro no cliente
+            return Response(
+                {'error': f'Erro ao gerar PDF: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        filename = f'ForensiQ_Caso_{occurrence.pk:04d}.pdf'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = len(pdf_bytes)
+        return response
+
 
 # ---------------------------------------------------------------------------
 # Evidence
@@ -193,7 +240,12 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     - Filtragem por ocorrência: ?occurrence=<id>
     """
 
-    queryset = Evidence.objects.select_related('occurrence', 'agent').all()
+    queryset = (
+        Evidence.objects
+        .select_related('occurrence', 'agent')
+        .prefetch_related('sub_components')
+        .all()
+    )
     serializer_class = EvidenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE

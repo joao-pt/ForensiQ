@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Definições{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Definições</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/settings.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Definições e perfil</h1>
+            <p class="page-subtitle">Preferências visuais e informação da conta.</p>
+        </div>
+    </header>
+
+    <!-- Perfil (read-only) -->
+    <section>
+        <div class="section-label">Perfil</div>
+        <div class="card">
+            <div class="profile-head">
+                <span class="profile-avatar" id="profile-initials" aria-hidden="true">—</span>
+                <div>
+                    <div class="profile-name" id="profile-name">—</div>
+                    <div class="profile-role" id="profile-role">—</div>
+                </div>
+            </div>
+            <dl class="meta-list">
+                <div class="meta-row">
+                    <dt>Utilizador</dt>
+                    <dd class="mono" id="profile-username">—</dd>
+                </div>
+                <div class="meta-row">
+                    <dt>Email</dt>
+                    <dd id="profile-email">—</dd>
+                </div>
+                <div class="meta-row" id="profile-badge-row" hidden>
+                    <dt>Nº crachá</dt>
+                    <dd class="mono" id="profile-badge">—</dd>
+                </div>
+                <div class="meta-row" id="profile-phone-row" hidden>
+                    <dt>Telefone</dt>
+                    <dd class="mono" id="profile-phone">—</dd>
+                </div>
+            </dl>
+            <div class="callout info mt-4">
+                <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M12 16v-4M12 8h.01"/>
+                </svg>
+                <div class="callout-body">
+                    Os dados do perfil são mantidos pelo administrador do sistema.
+                    Para alterações de nome, email ou crachá, contacta o responsável.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Preferências -->
+    <section>
+        <div class="section-label">Preferências</div>
+        <div class="card">
+            <div class="pref-row">
+                <div class="pref-info">
+                    <div class="pref-title">Modo de visualização</div>
+                    <div class="pref-hint">Dia para contexto iluminado, noite para uso com baixa luz.</div>
+                </div>
+                <div class="theme-choice" role="radiogroup" aria-label="Modo de visualização">
+                    <button type="button" class="theme-option" data-theme-choice="light" role="radio">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="4"/>
+                            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+                        </svg>
+                        Dia
+                    </button>
+                    <button type="button" class="theme-option" data-theme-choice="dark" role="radio">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+                        </svg>
+                        Noite
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Sessão -->
+    <section>
+        <div class="section-label">Sessão</div>
+        <div class="card">
+            <div class="pref-row">
+                <div class="pref-info">
+                    <div class="pref-title">Terminar sessão</div>
+                    <div class="pref-hint">Encerra o acesso neste dispositivo.</div>
+                </div>
+                <button type="button" class="btn btn-danger-ghost" id="btn-settings-logout">
+                    Terminar sessão
+                </button>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script src="{% static 'js/pages/settings.js' %}"></script>
+{% endblock %}

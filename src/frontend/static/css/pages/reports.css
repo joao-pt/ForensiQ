@@ -1,0 +1,20 @@
+/**
+ * ForensiQ — Relatórios PDF (/relatorios/).
+ * Usa primitives do design system.
+ */
+
+.reports-search {
+    max-width: 560px;
+    margin: 0 var(--sp-4);
+}
+
+@media (min-width: 768px) {
+    .reports-search { margin: 0; }
+}
+
+/* O botão "Gerar PDF" na linha da evidência */
+.report-item-actions {
+    display: flex;
+    gap: var(--sp-2);
+    flex-shrink: 0;
+}

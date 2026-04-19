@@ -101,27 +101,9 @@ const CONFIG = Object.freeze({
         },
     ],
 
-    // Ícones (emoji fallback; na UI podem ser substituídos por ícones Lucide)
-    EVIDENCE_ICONS: {
-        'MOBILE_DEVICE': '📱',
-        'COMPUTER': '💻',
-        'GAMING_CONSOLE': '🎮',
-        'GPS_TRACKER': '📡',
-        'SMART_TAG': '🏷️',
-        'CCTV_DEVICE': '📹',
-        'DRONE': '🛩️',
-        'VEHICLE': '🚗',
-        'VEHICLE_COMPONENT': '🔧',
-        'NETWORK_DEVICE': '🌐',
-        'IOT_DEVICE': '💡',
-        'STORAGE_MEDIA': '💾',
-        'MEMORY_CARD': '💳',
-        'INTERNAL_DRIVE': '💽',
-        'SIM_CARD': '📶',
-        'RFID_NFC_CARD': '🔖',
-        'DIGITAL_FILE': '📄',
-        'OTHER_DIGITAL': '📦',
-    },
+    // Ícones foram migrados para `icons.js` (SVG profissionais, linhagem
+    // Lucide). Usar `Icons.forEvidence(type)` ou `Icons.forEvidenceElement(type)`
+    // em consumidores. A chave anterior (EVIDENCE_ICONS com emojis) foi removida.
 
     // Cores de badge por tipo (classes CSS existentes)
     EVIDENCE_BADGE_COLORS: {

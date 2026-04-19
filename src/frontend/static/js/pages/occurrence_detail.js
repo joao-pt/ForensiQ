@@ -1,70 +1,64 @@
 'use strict';
 
+/**
+ * ForensiQ — Detalhe da ocorrência (hub central do caso).
+ *
+ * Carrega ocorrência + evidências raiz, custódia por evidência e mapa.
+ * Sub-componentes (Evidence.parent_evidence) vêm no serializer aninhado,
+ * sem round-trips adicionais.
+ */
+
 const occurrenceId = parseInt(
     document.querySelector('[data-occurrence-id]').dataset.occurrenceId,
-    10
+    10,
 );
-
-const TYPE_LABELS = {
-    DIGITAL_DEVICE: 'Dispositivo Digital',
-    DOCUMENT:       'Documento',
-    STORAGE_MEDIA:  'Suporte de Armazenamento',
-    PHOTO:          'Fotografia',
-    OTHER:          'Outro',
-};
-const TYPE_COLORS = {
-    DIGITAL_DEVICE: 'blue',
-    DOCUMENT:       'orange',
-    STORAGE_MEDIA:  'green',
-    PHOTO:          'red',
-    OTHER:          'default',
-};
 
 const STATE_LABELS = {
     APREENDIDA:           'Apreendida',
-    EM_TRANSPORTE:        'Em Transporte',
-    RECEBIDA_LABORATORIO: 'No Laboratório',
-    EM_PERICIA:           'Em Perícia',
+    EM_TRANSPORTE:        'Em transporte',
+    RECEBIDA_LABORATORIO: 'No laboratório',
+    EM_PERICIA:           'Em perícia',
     CONCLUIDA:            'Concluída',
     DEVOLVIDA:            'Devolvida',
     DESTRUIDA:            'Destruída',
 };
-const STATE_ICONS = {
-    APREENDIDA: '\u{1F512}', EM_TRANSPORTE: '\u{1F690}', RECEBIDA_LABORATORIO: '\u{1F3DB}\uFE0F',
-    EM_PERICIA: '\u{1F52C}', CONCLUIDA: '\u2705', DEVOLVIDA: '\u21A9\uFE0F', DESTRUIDA: '\u{1F5D1}\uFE0F',
-};
 
-const DEVICE_ICONS = {
-    SMARTPHONE: '\u{1F4F1}', TABLET: '\u{1F4F1}', LAPTOP: '\u{1F4BB}', DESKTOP: '\u{1F5A5}\uFE0F',
-    USB_DRIVE: '\u{1F4BE}', HARD_DRIVE: '\u{1F4BF}', SIM_CARD: '\u{1F4F6}', SD_CARD: '\u{1F4BE}',
-    CAMERA: '\u{1F4F7}', DRONE: '\u{1F6E9}\uFE0F', OTHER: '\u{1F527}',
-};
 const CONDITION_LABELS = {
     FUNCTIONAL: 'Funcional', DAMAGED: 'Danificado', LOCKED: 'Bloqueado',
-    OFF: 'Desligado', UNKNOWN: 'Desconhecido',
+    OFF: 'Desligado',        UNKNOWN: 'Desconhecido',
+};
+
+// Mapa legado (DigitalDevice) → ícone. Mantido porque DigitalDevice coexiste
+// com Evidence.sub_components enquanto não for consolidado.
+const LEGACY_DEVICE_ICON = {
+    SMARTPHONE: 'smartphone', TABLET: 'smartphone', LAPTOP: 'laptop',
+    DESKTOP: 'laptop',        USB_DRIVE: 'hard-drive', HARD_DRIVE: 'disc',
+    SIM_CARD: 'sim-card',     SD_CARD: 'sd-card', CAMERA: 'cctv',
+    DRONE: 'drone',           OTHER: 'box',
 };
 
 let map = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const authenticated = await Auth.requireAuth();
-    if (!authenticated) return;
+    if (!await Auth.requireAuth()) return;
 
     const user = Auth.getUser();
-    if (user) {
-        document.getElementById('navbar-user').textContent = user.first_name || user.username;
-        if (user.profile === 'AGENT') {
-            document.getElementById('btn-new-evidence').style.display = '';
-        }
+    if (user && user.profile === 'AGENT') {
+        const btnNew = document.getElementById('btn-new-evidence');
+        if (btnNew) btnNew.hidden = false;
     }
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
+
+    const btnPdf = document.getElementById('btn-occurrence-pdf');
+    if (btnPdf) btnPdf.addEventListener('click', () => exportOccurrencePdf());
 
     await loadOccurrenceHub();
 });
 
 async function loadOccurrenceHub() {
     try {
-        const occurrence = await API.get(`${CONFIG.ENDPOINTS.OCCURRENCES}${occurrenceId}/`);
+        const occurrence = await API.get(
+            `${CONFIG.ENDPOINTS.OCCURRENCES}${occurrenceId}/`,
+        );
         renderCaseHeader(occurrence);
 
         const evidenceData = await API.get(CONFIG.ENDPOINTS.EVIDENCES, {
@@ -72,7 +66,7 @@ async function loadOccurrenceHub() {
             page_size: 200,
         });
         const evidences = evidenceData.results || [];
-        const evidenceIds = evidences.map(e => e.id);
+        const evidenceIds = evidences.map((e) => e.id);
 
         const [custodyByEvidence, devicesByEvidence] = await Promise.all([
             loadCustodyForEvidences(evidenceIds),
@@ -83,54 +77,65 @@ async function loadOccurrenceHub() {
         renderCustodySummary(evidences, custodyByEvidence);
         renderDevices(evidences, devicesByEvidence);
         renderMap(occurrence, evidences);
-
     } catch (err) {
         console.error('Erro ao carregar ocorrência:', err);
-        const container = document.getElementById('evidence-container');
-        const empty = document.createElement('div');
-        empty.className = 'empty-state';
-        const p = document.createElement('p');
-        p.className = 'text-danger';
-        p.textContent = 'Erro ao carregar dados. Verifique se a ocorrência existe.';
-        empty.appendChild(p);
-        container.replaceChildren(empty);
+        showCriticalError('Erro ao carregar dados. Verifique se a ocorrência existe.');
     }
+}
+
+function showCriticalError(message) {
+    const container = document.getElementById('evidence-container');
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    const p = document.createElement('p');
+    p.className = 'text-danger';
+    p.textContent = message;
+    empty.appendChild(p);
+    container.replaceChildren(empty);
 }
 
 async function loadCustodyForEvidences(evidenceIds) {
     const result = {};
     if (evidenceIds.length === 0) return result;
-    const promises = evidenceIds.map(async (id) => {
+    await Promise.all(evidenceIds.map(async (id) => {
         try {
-            const data = await API.get(`${CONFIG.ENDPOINTS.CUSTODY}evidence/${id}/timeline/`);
+            const data = await API.get(
+                `${CONFIG.ENDPOINTS.CUSTODY}evidence/${id}/timeline/`,
+            );
             result[id] = Array.isArray(data) ? data : (data.results || []);
         } catch {
             result[id] = [];
         }
-    });
-    await Promise.all(promises);
+    }));
     return result;
 }
 
 async function loadDevicesForEvidences(evidenceIds) {
     const result = {};
     if (evidenceIds.length === 0) return result;
-    const promises = evidenceIds.map(async (id) => {
+    await Promise.all(evidenceIds.map(async (id) => {
         try {
-            const data = await API.get(CONFIG.ENDPOINTS.DEVICES, { evidence: id, page_size: 100 });
+            const data = await API.get(CONFIG.ENDPOINTS.DEVICES, {
+                evidence: id,
+                page_size: 100,
+            });
             result[id] = data.results || [];
         } catch {
             result[id] = [];
         }
-    });
-    await Promise.all(promises);
+    }));
     return result;
 }
 
 function renderCaseHeader(occ) {
-    document.getElementById('page-subtitle').textContent = occ.number;
-    document.getElementById('case-number').textContent = occ.number;
-    document.getElementById('case-description').textContent = occ.description || '\u2014';
+    // NUIPC (ou número manual) é o identificador primário para utilizador;
+    // o código interno (OCC-YYYY-NNNNN) só aparece como tag secundária.
+    const primary = occ.number || occ.code || '';
+    const secondary = occ.number && occ.code ? ` · ${occ.code}` : '';
+    document.getElementById('page-subtitle').textContent = primary + secondary;
+    document.getElementById('breadcrumb-title').textContent = primary;
+    document.getElementById('case-number').textContent = primary;
+    document.getElementById('case-description').textContent = occ.description || '—';
 
     const dt = new Date(occ.date_time).toLocaleString('pt-PT', {
         day: '2-digit', month: 'long', year: 'numeric',
@@ -144,16 +149,52 @@ function renderCaseHeader(occ) {
     strong.textContent = occ.agent_name || '';
     agentEl.appendChild(strong);
 
+    const locationWrap = document.getElementById('case-location');
+    const addressRow = document.getElementById('case-address-row');
+    const gpsRow = document.getElementById('case-gps-row');
+    const emptyRow = document.getElementById('case-location-empty');
+    let hasAnyLocation = false;
+
     if (occ.address) {
         document.getElementById('case-address').textContent = occ.address;
-        document.getElementById('case-address-item').style.display = '';
+        addressRow.hidden = false;
+        hasAnyLocation = true;
     }
     if (occ.gps_lat && occ.gps_lon) {
         document.getElementById('case-gps').textContent =
             `${parseFloat(occ.gps_lat).toFixed(5)}, ${parseFloat(occ.gps_lon).toFixed(5)}`;
-        document.getElementById('case-gps-item').style.display = '';
+        gpsRow.hidden = false;
+        hasAnyLocation = true;
     }
-    document.getElementById('case-header').style.display = '';
+    if (!hasAnyLocation) {
+        emptyRow.hidden = false;
+    }
+    locationWrap.hidden = false;
+    document.getElementById('case-header').hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// Mapa Leaflet — marcadores com SVG estático (sem emojis, CSP-safe)
+// ---------------------------------------------------------------------------
+
+function mapMarkerIcon({ variant }) {
+    // As cores são constantes da paleta ForensiQ; o SVG é gerado por Icons.svg
+    // (string estática, sem conteúdo externo). O divIcon do Leaflet aceita
+    // HTML — aqui o HTML é inteiramente controlado por nós.
+    const isCase = variant === 'case';
+    const bg = isCase ? '#1a237e' : '#ff6f00';
+    const size = isCase ? 32 : 24;
+    const iconSvg = Icons.svg(isCase ? 'map-pin' : 'box', { size: isCase ? 16 : 14 });
+    const html =
+        `<div style="background:${bg};color:#fff;width:${size}px;height:${size}px;` +
+        `border-radius:50%;display:flex;align-items:center;justify-content:center;` +
+        `box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;">${iconSvg}</div>`;
+    return L.divIcon({
+        className: '',
+        html,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+    });
 }
 
 function buildMapPopup(title, subtitle) {
@@ -170,22 +211,18 @@ function buildMapPopup(title, subtitle) {
 
 function renderMap(occ, evidences) {
     const hasOccGps = occ.gps_lat && occ.gps_lon;
-    const evidencesWithGps = evidences.filter(e => e.gps_lat && e.gps_lon);
+    const evidencesWithGps = evidences.filter((e) => e.gps_lat && e.gps_lon);
 
+    // Sem GPS: mapa fica escondido; a mensagem "Sem morada/coordenadas"
+    // aparece em case-location-empty (renderCaseHeader).
     if (!hasOccGps && evidencesWithGps.length === 0) {
-        document.getElementById('case-map-empty').style.display = '';
         return;
     }
 
     const mapEl = document.getElementById('case-map');
-    mapEl.style.display = '';
+    mapEl.hidden = false;
 
-    map = L.map('case-map', {
-        center: [39.5, -8.0],
-        zoom: 7,
-        zoomControl: true,
-    });
-
+    map = L.map('case-map', { center: [39.5, -8.0], zoom: 7, zoomControl: true });
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap',
         maxZoom: 19,
@@ -194,144 +231,180 @@ function renderMap(occ, evidences) {
     const markers = [];
 
     if (hasOccGps) {
-        const occMarker = L.marker(
+        const m = L.marker(
             [parseFloat(occ.gps_lat), parseFloat(occ.gps_lon)],
-            {
-                icon: L.divIcon({
-                    className: '',
-                    html: '<div style="background:#1a237e;color:#fff;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;">\u{1F4CD}</div>',
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16],
-                }),
-            }
+            { icon: mapMarkerIcon({ variant: 'case' }) },
         ).addTo(map);
-        occMarker.bindPopup(buildMapPopup(occ.number, occ.address || 'Local da ocorrência'));
-        markers.push(occMarker);
+        m.bindPopup(buildMapPopup(occ.number, occ.address || 'Local da ocorrência'));
+        markers.push(m);
     }
 
-    evidencesWithGps.forEach(ev => {
-        const isDistinct = !hasOccGps ||
-            Math.abs(parseFloat(ev.gps_lat) - parseFloat(occ.gps_lat)) > 0.0001 ||
-            Math.abs(parseFloat(ev.gps_lon) - parseFloat(occ.gps_lon)) > 0.0001;
+    evidencesWithGps.forEach((ev) => {
+        const isDistinct = !hasOccGps
+            || Math.abs(parseFloat(ev.gps_lat) - parseFloat(occ.gps_lat)) > 0.0001
+            || Math.abs(parseFloat(ev.gps_lon) - parseFloat(occ.gps_lon)) > 0.0001;
+        if (!isDistinct) return;
 
-        if (isDistinct) {
-            const evMarker = L.marker(
-                [parseFloat(ev.gps_lat), parseFloat(ev.gps_lon)],
-                {
-                    icon: L.divIcon({
-                        className: '',
-                        html: '<div style="background:#ff6f00;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,0.3);border:2px solid #fff;">\u{1F4CB}</div>',
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 12],
-                    }),
-                }
-            ).addTo(map);
-            evMarker.bindPopup(buildMapPopup(`Evidência #${ev.id}`, (ev.description || '').substring(0, 60)));
-            markers.push(evMarker);
-        }
+        const m = L.marker(
+            [parseFloat(ev.gps_lat), parseFloat(ev.gps_lon)],
+            { icon: mapMarkerIcon({ variant: 'evidence' }) },
+        ).addTo(map);
+        const popupTitle = ev.code
+            ? `Item ${ev.code}`
+            : (CONFIG.EVIDENCE_TYPES[ev.type] || ev.type);
+        m.bindPopup(buildMapPopup(
+            popupTitle,
+            (ev.description || '').substring(0, 60),
+        ));
+        markers.push(m);
     });
 
     if (markers.length > 0) {
         const group = L.featureGroup(markers);
         map.fitBounds(group.getBounds().pad(0.3));
-        if (markers.length === 1) {
-            map.setZoom(15);
-        }
+        if (markers.length === 1) map.setZoom(15);
     }
 }
 
-function makeBadge(cls, text) {
+// ---------------------------------------------------------------------------
+// Cartões de evidência
+// ---------------------------------------------------------------------------
+
+function makeBadge(cls, text, iconName) {
     const s = document.createElement('span');
     s.className = `badge badge-${cls}`;
-    s.textContent = text;
+    if (iconName) {
+        const ic = Icons.element(iconName, { size: 12 });
+        if (ic) s.appendChild(ic);
+    }
+    if (text) {
+        const label = document.createElement('span');
+        label.textContent = text;
+        s.appendChild(label);
+    }
     return s;
 }
 
 function buildEvidenceCard(ev, custodyRecords, devices) {
-    const lastCustody = custodyRecords.length > 0 ? custodyRecords[custodyRecords.length - 1] : null;
+    const lastCustody = custodyRecords.length > 0
+        ? custodyRecords[custodyRecords.length - 1]
+        : null;
     const currentState = lastCustody ? lastCustody.new_state : null;
     const stateLabel = currentState ? STATE_LABELS[currentState] : 'Sem custódia';
-    const stateIcon = currentState ? STATE_ICONS[currentState] : '\u2014';
     const stateClass = currentState ? `state-${currentState}` : 'state-none';
-    const typeBadgeColor = TYPE_COLORS[ev.type] || 'default';
-    const typeLabel = TYPE_LABELS[ev.type] || ev.type;
+    const typeBadgeColor = CONFIG.EVIDENCE_BADGE_COLORS[ev.type] || 'default';
+    const typeLabel = CONFIG.EVIDENCE_TYPES[ev.type] || ev.type;
 
     const dt = new Date(ev.timestamp_seizure).toLocaleString('pt-PT', {
         day: '2-digit', month: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit',
     });
     const descFull = ev.description || '';
-    const descTruncated = descFull.length > 100 ? descFull.substring(0, 100) + '\u2026' : (descFull || '\u2014');
+    const descTruncated = descFull.length > 100
+        ? descFull.substring(0, 100) + '…'
+        : (descFull || '—');
+
+    const subCount = Array.isArray(ev.sub_components) ? ev.sub_components.length : 0;
 
     const card = document.createElement('div');
     card.className = 'evidence-card';
     card.style.cursor = 'pointer';
     card.addEventListener('click', () => {
-        window.location.href = `/evidences/${ev.id}/custody/`;
+        window.location.href = `/evidences/${ev.id}/`;
     });
 
+    // Cabeçalho
     const header = document.createElement('div');
     header.className = 'evidence-card-header';
+
     const title = document.createElement('span');
     title.className = 'evidence-card-title';
-    title.textContent = `#${ev.id} \u2014 ${typeLabel}`;
+    const typeIcon = Icons.forEvidenceElement(ev.type, { size: 16 });
+    if (typeIcon) title.appendChild(typeIcon);
+    const titleLabel = document.createElement('span');
+    const codePrefix = ev.code ? `${ev.code} · ` : '';
+    titleLabel.textContent = `${codePrefix}${typeLabel}`;
+    title.appendChild(titleLabel);
     header.appendChild(title);
+
     const stateBadge = document.createElement('span');
     stateBadge.className = `custody-badge ${stateClass}`;
-    stateBadge.textContent = `${stateIcon} ${stateLabel}`;
+    stateBadge.textContent = stateLabel;
     header.appendChild(stateBadge);
     card.appendChild(header);
 
+    // Corpo
     const body = document.createElement('div');
     body.className = 'evidence-card-body';
     body.textContent = descTruncated;
     card.appendChild(body);
 
+    // Footer
     const footer = document.createElement('div');
     footer.className = 'evidence-card-footer';
 
     const badges = document.createElement('div');
     badges.className = 'evidence-badges';
-    badges.appendChild(makeBadge(typeBadgeColor, typeLabel));
-    badges.appendChild(makeBadge('neutral', `\u{1F551} ${dt}`));
-    if (ev.gps_lat) badges.appendChild(makeBadge('success', '\u{1F4CD} GPS'));
-    if (ev.photo) badges.appendChild(makeBadge('success', '\u{1F4F7} Foto'));
-    if (devices.length > 0) badges.appendChild(makeBadge('primary', `\u{1F4BB} ${devices.length}`));
+    const dateSpan = document.createElement('span');
+    dateSpan.className = 'badge badge-neutral';
+    dateSpan.textContent = dt;
+    badges.appendChild(dateSpan);
+    if (ev.gps_lat) badges.appendChild(makeBadge('success', 'GPS', 'map-pin'));
+    if (ev.photo) badges.appendChild(makeBadge('success', 'Foto', 'shield'));
+    if (devices.length > 0) {
+        badges.appendChild(makeBadge('primary', String(devices.length), 'laptop'));
+    }
+    if (subCount > 0) {
+        badges.appendChild(makeBadge('primary', `${subCount} sub`, 'link'));
+    }
     footer.appendChild(badges);
 
     const actions = document.createElement('div');
     actions.className = 'evidence-actions';
+
     const custLink = document.createElement('a');
     custLink.href = `/evidences/${ev.id}/custody/`;
-    custLink.className = 'btn btn-sm btn-outline';
-    custLink.textContent = '\u{1F4DC} Custódia';
+    custLink.className = 'btn btn-sm btn-ghost';
+    const custIcon = Icons.element('link', { size: 14 });
+    if (custIcon) custLink.appendChild(custIcon);
+    const custLabel = document.createElement('span');
+    custLabel.textContent = 'Custódia';
+    custLink.appendChild(custLabel);
     custLink.addEventListener('click', (e) => e.stopPropagation());
     actions.appendChild(custLink);
 
     const pdfBtn = document.createElement('button');
-    pdfBtn.className = 'btn btn-sm btn-outline';
-    pdfBtn.textContent = '\u{1F4C4} PDF';
+    pdfBtn.type = 'button';
+    pdfBtn.className = 'btn btn-sm btn-ghost';
+    const pdfIcon = Icons.element('file-text', { size: 14 });
+    if (pdfIcon) pdfBtn.appendChild(pdfIcon);
+    const pdfLabel = document.createElement('span');
+    pdfLabel.textContent = 'PDF';
+    pdfBtn.appendChild(pdfLabel);
     pdfBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        exportPDF(ev.id);
+        exportEvidencePdf(ev.id);
     });
     actions.appendChild(pdfBtn);
     footer.appendChild(actions);
     card.appendChild(footer);
 
+    // Chips de dispositivos legados (DigitalDevice)
     if (devices.length > 0) {
         const chipWrap = document.createElement('div');
-        chipWrap.style.marginTop = '8px';
-        devices.slice(0, 3).forEach(d => {
-            const icon = DEVICE_ICONS[d.type] || '\u{1F527}';
-            const label = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
+        chipWrap.className = 'device-chip-row';
+        devices.slice(0, 3).forEach((d) => {
             const chip = document.createElement('span');
             chip.className = 'device-chip';
-            const iconEl = document.createElement('span');
-            iconEl.className = 'device-chip-icon';
-            iconEl.textContent = icon;
-            chip.appendChild(iconEl);
-            chip.appendChild(document.createTextNode(` ${label}`));
+            const chipIcon = Icons.element(
+                LEGACY_DEVICE_ICON[d.type] || 'box',
+                { size: 14 },
+            );
+            if (chipIcon) chip.appendChild(chipIcon);
+            const label = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
+            const labelEl = document.createElement('span');
+            labelEl.textContent = ` ${label}`;
+            chip.appendChild(labelEl);
             chipWrap.appendChild(chip);
         });
         if (devices.length > 3) {
@@ -343,14 +416,46 @@ function buildEvidenceCard(ev, custodyRecords, devices) {
         card.appendChild(chipWrap);
     }
 
+    // Hash (integridade)
     const hashWrap = document.createElement('div');
-    hashWrap.style.marginTop = '6px';
+    hashWrap.className = 'evidence-card-hash';
+    const hashIcon = Icons.element('shield', { size: 12 });
+    if (hashIcon) hashWrap.appendChild(hashIcon);
     const hashSpan = document.createElement('span');
     hashSpan.className = 'hash-inline';
     hashSpan.title = `SHA-256: ${ev.integrity_hash || ''}`;
-    hashSpan.textContent = `\u{1F510} ${(ev.integrity_hash || '').substring(0, 16)}\u2026`;
+    hashSpan.textContent = (ev.integrity_hash || '').substring(0, 16) + '…';
     hashWrap.appendChild(hashSpan);
     card.appendChild(hashWrap);
+
+    return card;
+}
+
+function buildSubEvidenceCard(child) {
+    // Card compacto para sub-componente (SIM, SD, etc.). Foca no essencial:
+    // tipo + descrição + código/hash. Clicar abre o detalhe do filho.
+    const typeLabel = CONFIG.EVIDENCE_TYPES[child.type] || child.type;
+    const card = document.createElement('div');
+    card.className = 'evidence-subcard';
+    card.addEventListener('click', () => {
+        window.location.href = `/evidences/${child.id}/`;
+    });
+
+    const title = document.createElement('span');
+    title.className = 'evidence-subcard-title';
+    const ic = Icons.forEvidenceElement(child.type, { size: 14 });
+    if (ic) title.appendChild(ic);
+    const label = document.createElement('span');
+    const prefix = child.code ? `${child.code} · ` : '';
+    label.textContent = `${prefix}${typeLabel}`;
+    title.appendChild(label);
+    card.appendChild(title);
+
+    const body = document.createElement('span');
+    body.className = 'evidence-subcard-body';
+    const descFull = (child.description || '').trim();
+    body.textContent = descFull.length > 60 ? descFull.substring(0, 60) + '…' : (descFull || '—');
+    card.appendChild(body);
 
     return card;
 }
@@ -359,40 +464,73 @@ function renderEvidences(evidences, custodyMap, devicesMap) {
     const container = document.getElementById('evidence-container');
     document.getElementById('evidence-count').textContent = evidences.length;
 
-    if (evidences.length === 0) {
+    // ISO/IEC 27037: o pai e os componentes internos (SIM, SD…) são apreendidos
+    // juntos e não devem ser apresentados como itens soltos.
+    const childrenByParent = {};
+    evidences.forEach((e) => {
+        if (e.parent_evidence) {
+            if (!childrenByParent[e.parent_evidence]) {
+                childrenByParent[e.parent_evidence] = [];
+            }
+            childrenByParent[e.parent_evidence].push(e);
+        }
+    });
+
+    const rootEvidences = evidences.filter((e) => !e.parent_evidence);
+
+    if (rootEvidences.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty-state';
-        const icon = document.createElement('div');
-        icon.className = 'empty-state-icon';
-        icon.textContent = '\u{1F4CB}';
-        empty.appendChild(icon);
+        const ic = document.createElement('div');
+        ic.className = 'empty-state-icon';
+        const icon = Icons.element('folder', { size: 22 });
+        if (icon) ic.appendChild(icon);
+        empty.appendChild(ic);
         const p = document.createElement('p');
-        p.textContent = 'Sem evidências registadas nesta ocorrência.';
+        p.textContent = 'Sem itens registados nesta ocorrência.';
         empty.appendChild(p);
         container.replaceChildren(empty);
         return;
     }
 
     container.replaceChildren();
-    evidences.forEach(ev => {
+    rootEvidences.forEach((ev) => {
         const custody = custodyMap[ev.id] || [];
         const devices = devicesMap[ev.id] || [];
-        container.appendChild(buildEvidenceCard(ev, custody, devices));
+
+        const group = document.createElement('div');
+        group.className = 'evidence-group';
+        group.appendChild(buildEvidenceCard(ev, custody, devices));
+
+        const children = childrenByParent[ev.id] || [];
+        if (children.length > 0) {
+            const subWrap = document.createElement('div');
+            subWrap.className = 'evidence-sub-wrap';
+            const subLabel = document.createElement('div');
+            subLabel.className = 'evidence-sub-label';
+            subLabel.textContent = `Componentes integrantes (${children.length})`;
+            subWrap.appendChild(subLabel);
+            children.forEach((child) => {
+                subWrap.appendChild(buildSubEvidenceCard(child));
+            });
+            group.appendChild(subWrap);
+        }
+        container.appendChild(group);
     });
 }
 
 function buildStat(count, label, color) {
     const stat = document.createElement('div');
     stat.className = 'custody-stat';
-    const cEl = document.createElement('div');
-    cEl.className = 'custody-stat-count';
-    if (color) cEl.style.color = color;
-    cEl.textContent = count;
-    stat.appendChild(cEl);
-    const lEl = document.createElement('div');
-    lEl.className = 'custody-stat-label';
-    lEl.textContent = label;
-    stat.appendChild(lEl);
+    const c = document.createElement('div');
+    c.className = 'custody-stat-count';
+    if (color) c.style.color = color;
+    c.textContent = count;
+    stat.appendChild(c);
+    const l = document.createElement('div');
+    l.className = 'custody-stat-label';
+    l.textContent = label;
+    stat.appendChild(l);
     return stat;
 }
 
@@ -402,7 +540,7 @@ function renderCustodySummary(evidences, custodyMap) {
     const stateCounts = {};
     let withoutCustody = 0;
 
-    evidences.forEach(ev => {
+    evidences.forEach((ev) => {
         const records = custodyMap[ev.id] || [];
         if (records.length === 0) {
             withoutCustody++;
@@ -417,24 +555,24 @@ function renderCustodySummary(evidences, custodyMap) {
 
     const container = document.getElementById('custody-summary');
     const section = document.getElementById('custody-summary-section');
-    section.style.display = '';
+    section.hidden = false;
     container.replaceChildren();
 
-    container.appendChild(buildStat(evidences.length, 'Total', 'var(--primary)'));
+    container.appendChild(buildStat(evidences.length, 'Total', 'var(--accent)'));
 
     Object.entries(stateCounts).forEach(([state, count]) => {
-        const label = STATE_LABELS[state] || state;
-        const icon = STATE_ICONS[state] || '\u25CF';
-        container.appendChild(buildStat(`${icon} ${count}`, label));
+        container.appendChild(buildStat(count, STATE_LABELS[state] || state));
     });
 
     if (withoutCustody > 0) {
-        container.appendChild(buildStat(`\u26A0\uFE0F ${withoutCustody}`, 'Sem custódia', 'var(--text-light)'));
+        container.appendChild(
+            buildStat(withoutCustody, 'Sem custódia', 'var(--text-muted)'),
+        );
     }
 }
 
 function buildDeviceCard(d) {
-    const icon = DEVICE_ICONS[d.type] || '\u{1F527}';
+    const iconName = LEGACY_DEVICE_ICON[d.type] || 'box';
     const name = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
     const condition = CONDITION_LABELS[d.condition] || d.condition;
     const conditionColor = d.condition === 'FUNCTIONAL' ? 'success'
@@ -446,32 +584,37 @@ function buildDeviceCard(d) {
     card.className = 'evidence-card';
     card.style.cursor = 'pointer';
     card.addEventListener('click', () => {
-        window.location.href = `/evidences/${d.evidenceId}/custody/`;
+        window.location.href = `/evidences/${d.evidenceId}/`;
     });
 
     const header = document.createElement('div');
     header.className = 'evidence-card-header';
     const title = document.createElement('span');
     title.className = 'evidence-card-title';
-    title.textContent = `${icon} ${name}`;
+    const ic = Icons.element(iconName, { size: 16 });
+    if (ic) title.appendChild(ic);
+    const titleLabel = document.createElement('span');
+    titleLabel.textContent = ` ${name}`;
+    title.appendChild(titleLabel);
     header.appendChild(title);
     header.appendChild(makeBadge(conditionColor, condition));
     card.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'evidence-card-body';
-    const parts = [`Evidência #${d.evidenceId}`];
-    if (d.serial_number) parts.push(`S/N: ${d.serial_number}`);
-    if (d.imei) parts.push(`IMEI: ${d.imei}`);
-    body.textContent = parts.join(' \u00B7 ');
+    const parentLabel = d.evidenceCode
+        ? `Item ${d.evidenceCode}`
+        : (d.evidenceDesc || 'Item');
+    const parts = [parentLabel];
+    if (d.serial_number) parts.push(`S/N ${d.serial_number}`);
+    if (d.imei) parts.push(`IMEI ${d.imei}`);
+    body.textContent = parts.join(' · ');
     card.appendChild(body);
 
     if (d.notes) {
         const notes = document.createElement('div');
-        notes.style.fontSize = '0.8125rem';
-        notes.style.color = 'var(--text-light)';
-        notes.style.fontStyle = 'italic';
-        notes.textContent = `"${d.notes}"`;
+        notes.className = 'device-notes';
+        notes.textContent = d.notes;
         card.appendChild(notes);
     }
     return card;
@@ -479,9 +622,14 @@ function buildDeviceCard(d) {
 
 function renderDevices(evidences, devicesMap) {
     const allDevices = [];
-    evidences.forEach(ev => {
-        (devicesMap[ev.id] || []).forEach(d => {
-            allDevices.push({ ...d, evidenceId: ev.id, evidenceDesc: ev.description });
+    evidences.forEach((ev) => {
+        (devicesMap[ev.id] || []).forEach((d) => {
+            allDevices.push({
+                ...d,
+                evidenceId: ev.id,
+                evidenceCode: ev.code,
+                evidenceDesc: ev.description,
+            });
         });
     });
 
@@ -489,26 +637,54 @@ function renderDevices(evidences, devicesMap) {
 
     const section = document.getElementById('devices-section');
     const container = document.getElementById('devices-container');
-    section.style.display = '';
+    section.hidden = false;
     document.getElementById('device-count').textContent = allDevices.length;
 
     container.replaceChildren();
-    allDevices.forEach(d => container.appendChild(buildDeviceCard(d)));
+    allDevices.forEach((d) => container.appendChild(buildDeviceCard(d)));
 }
 
-async function exportPDF(evidenceId) {
+// ---------------------------------------------------------------------------
+// Exportação de PDF
+// ---------------------------------------------------------------------------
+
+async function exportEvidencePdf(evidenceId) {
     try {
-        Toast.info('A gerar PDF...');
-        const response = await fetch(`${CONFIG.ENDPOINTS.EVIDENCES}${evidenceId}/pdf/`, {
-            credentials: 'include',
-        });
+        Toast.info('A gerar PDF…');
+        const response = await fetch(
+            `${CONFIG.ENDPOINTS.EVIDENCES}${evidenceId}/pdf/`,
+            { credentials: 'include' },
+        );
         if (!response.ok) throw new Error(`Erro ${response.status}`);
 
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `ForensiQ_Evidencia_${String(evidenceId).padStart(4, '0')}.pdf`;
+        a.download = `ForensiQ_Item_${evidenceId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        Toast.success('PDF descarregado.');
+    } catch (err) {
+        Toast.error('Erro ao gerar PDF.');
+        console.error(err);
+    }
+}
+
+async function exportOccurrencePdf() {
+    try {
+        Toast.info('A gerar PDF do caso…');
+        const response = await fetch(
+            `${CONFIG.ENDPOINTS.OCCURRENCES}${occurrenceId}/pdf/`,
+            { credentials: 'include' },
+        );
+        if (!response.ok) throw new Error(`Erro ${response.status}`);
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `ForensiQ_Caso_${String(occurrenceId).padStart(4, '0')}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
         Toast.success('PDF descarregado.');

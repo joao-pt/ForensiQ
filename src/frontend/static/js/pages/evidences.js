@@ -18,15 +18,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!authenticated) return;
 
     const user = Auth.getUser();
-    if (user) {
-        document.getElementById('navbar-user').textContent = user.first_name || user.username;
-        if (user.profile !== 'AGENT') {
-            const btnNew = document.getElementById('btn-new-evidence');
-            if (btnNew) btnNew.style.display = 'none';
-        }
+    if (user && user.profile !== 'AGENT') {
+        const btnNew = document.getElementById('btn-new-evidence');
+        if (btnNew) btnNew.style.display = 'none';
+        const fab = document.querySelector('.fab');
+        if (fab) fab.style.display = 'none';
     }
-
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
 
     document.getElementById('search-input').addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
@@ -42,8 +39,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 function buildLoading() {
     const wrap = document.createElement('div');
     wrap.className = 'loading-overlay';
-    const sp = document.createElement('div');
-    sp.className = 'spinner spinner-dark';
+    const sp = document.createElement('span');
+    sp.className = 'spinner';
     wrap.appendChild(sp);
     return wrap;
 }
@@ -55,7 +52,8 @@ function buildEmpty(message, opts = {}) {
     if (opts.icon) {
         const ic = document.createElement('div');
         ic.className = 'empty-state-icon';
-        ic.textContent = opts.icon;
+        const svgIcon = Icons.element(opts.icon, { size: 22 });
+        if (svgIcon) ic.appendChild(svgIcon);
         wrap.appendChild(ic);
     }
 
@@ -84,20 +82,20 @@ async function loadEvidences(search = '') {
         const evidences = data.results || [];
 
         const total = data.count || 0;
-        countEl.textContent = `${total} evidência${total !== 1 ? 's' : ''}`;
+        countEl.textContent = `${total} ${total === 1 ? 'item' : 'itens'}`;
 
         if (evidences.length === 0) {
             const message = search
                 ? `Sem resultados para "${search}".`
-                : 'Sem evidências registadas.';
-            const opts = { icon: '\u{1F50E}' };
+                : 'Sem itens registados.';
+            const opts = { icon: 'search' };
             const user = Auth.getUser();
             if (!search && user && user.profile === 'AGENT') {
                 const a = document.createElement('a');
                 a.href = '/evidences/new/';
                 a.className = 'btn btn-primary mt-16';
                 a.id = 'btn-empty-new';
-                a.textContent = 'Registar primeira evidência';
+                a.textContent = 'Registar primeiro item';
                 opts.action = a;
             }
             container.replaceChildren(buildEmpty(message, opts));
@@ -110,7 +108,7 @@ async function loadEvidences(search = '') {
         renderPagination(data);
 
     } catch (err) {
-        container.replaceChildren(buildEmpty('Erro ao carregar evidências. Tente novamente.', { danger: true }));
+        container.replaceChildren(buildEmpty('Erro ao carregar itens. Tente novamente.', { danger: true }));
         console.error('Erro:', err);
     }
 }
@@ -124,7 +122,6 @@ function renderEvidenceItem(ev) {
     const color = (CONFIG.EVIDENCE_BADGE_COLORS && CONFIG.EVIDENCE_BADGE_COLORS[ev.type])
         || TYPE_COLORS[ev.type]
         || 'default';
-    const icon = (CONFIG.EVIDENCE_ICONS && CONFIG.EVIDENCE_ICONS[ev.type]) || '';
 
     const row = document.createElement('div');
     row.className = 'list-item';
@@ -146,35 +143,50 @@ function renderEvidenceItem(ev) {
 
     const typeBadge = document.createElement('span');
     typeBadge.className = `badge badge-${color}`;
-    typeBadge.textContent = (icon ? icon + ' ' : '') + typeName;
+    const typeIcon = Icons.forEvidenceElement(ev.type, { size: 12 });
+    if (typeIcon) typeBadge.appendChild(typeIcon);
+    const typeLabel = document.createElement('span');
+    typeLabel.textContent = typeName;
+    typeBadge.appendChild(typeLabel);
     badges.appendChild(typeBadge);
 
-    // Badge adicional para sub-componentes (parent_evidence não nulo)
+    // Badge adicional para sub-componentes — mostra o nome/código do pai,
+    // nunca o ID cru (ISO/IEC 27037: cadeia deve ser legível).
     if (ev.parent_evidence) {
         const sub = document.createElement('span');
         sub.className = 'badge badge-default';
-        sub.title = 'Sub-componente de #' + ev.parent_evidence;
-        sub.textContent = '↳ #' + ev.parent_evidence;
+        const parentLabel = ev.parent_evidence_label || `Item ${ev.parent_evidence}`;
+        sub.title = 'Componente integrante de ' + parentLabel;
+        const truncated = parentLabel.length > 30
+            ? parentLabel.substring(0, 30) + '…'
+            : parentLabel;
+        sub.textContent = `↳ ${truncated}`;
         badges.appendChild(sub);
     }
 
     if (ev.photo) {
         const b = document.createElement('span');
         b.className = 'badge badge-success';
-        b.textContent = '\u{1F4F7}';
+        b.title = 'Com fotografia';
+        b.setAttribute('aria-label', 'Com fotografia');
+        const ic = Icons.element('shield', { size: 12 });
+        if (ic) b.appendChild(ic);
         badges.appendChild(b);
     }
     if (ev.gps_lat && ev.gps_lon) {
         const b = document.createElement('span');
         b.className = 'badge badge-success';
-        b.textContent = '\u{1F4CD}';
+        b.title = 'Com GPS';
+        b.setAttribute('aria-label', 'Com GPS');
+        const ic = Icons.element('map-pin', { size: 12 });
+        if (ic) b.appendChild(ic);
         badges.appendChild(b);
     }
 
     const idTag = document.createElement('small');
-    idTag.className = 'text-muted';
-    idTag.textContent = `#${ev.id}`;
-    badges.appendChild(idTag);
+    idTag.className = 'text-muted mono';
+    idTag.textContent = ev.code || '';
+    if (ev.code) badges.appendChild(idTag);
 
     left.appendChild(badges);
 
@@ -191,7 +203,8 @@ function renderEvidenceItem(ev) {
     const occLine = document.createElement('div');
     occLine.className = 'text-muted';
     occLine.style.fontSize = '0.75rem';
-    occLine.textContent = `Ocorrência: ${ev.occurrence ? ev.occurrence : '—'}`;
+    const nuipc = ev.occurrence_number || ev.occurrence_code || '—';
+    occLine.textContent = `Caso: ${nuipc}`;
     left.appendChild(occLine);
 
     const right = document.createElement('div');

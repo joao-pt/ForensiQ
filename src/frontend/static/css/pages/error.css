@@ -1,0 +1,59 @@
+/**
+ * ForensiQ — Páginas de erro (404, 500).
+ * Layout central limpo, alinhado com a linguagem do design system.
+ */
+
+.error-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-3);
+    text-align: center;
+    padding: var(--sp-12) var(--sp-4);
+    max-width: 520px;
+    margin: 0 auto;
+}
+
+.error-code {
+    font-family: var(--font-mono);
+    font-size: 5rem;
+    line-height: 1;
+    font-weight: var(--fw-bold);
+    color: var(--accent);
+    letter-spacing: -0.04em;
+    text-shadow: 0 0 32px var(--accent-tint);
+}
+
+@media (min-width: 768px) {
+    .error-code {
+        font-size: 7rem;
+    }
+}
+
+.error-title {
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-bold);
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-emphasis);
+    margin-top: var(--sp-2);
+}
+
+@media (min-width: 768px) {
+    .error-title { font-size: var(--fs-2xl); }
+}
+
+.error-message {
+    font-size: var(--fs-md);
+    color: var(--text-muted);
+    line-height: var(--lh-base);
+    max-width: 460px;
+}
+
+.error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    margin-top: var(--sp-4);
+    justify-content: center;
+}

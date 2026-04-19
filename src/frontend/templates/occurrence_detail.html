@@ -1,85 +1,145 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}ForensiQ — Ocorrência{% endblock %}
+{% block title %}ForensiQ — Caso{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/occurrences/">Ocorrências</a><span class="breadcrumb-sep">›</span><span id="breadcrumb-title">Detalhe</span>
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<a href="/occurrences/">Ocorrências</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current" id="breadcrumb-title">Caso</span>
 {% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
-      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
-      crossorigin="anonymous" referrerpolicy="no-referrer" />
-<link rel="stylesheet" href="{% static "css/pages/occurrence_detail.css" %}">
+{% include "_leaflet_head.html" %}
+<link rel="stylesheet" href="{% static 'css/pages/occurrence_detail.css' %}">
 {% endblock %}
 
 {% block content %}
-<!-- Cabeçalho da página -->
-<div class="page-header" data-occurrence-id="{{ occurrence_id }}">
-    <div>
-        <h2 class="page-title">Detalhe da Ocorrência</h2>
-        <p class="page-subtitle" id="page-subtitle">A carregar...</p>
-    </div>
-    <a href="/occurrences/" class="btn btn-outline">← Ocorrências</a>
-</div>
+<div class="page" data-occurrence-id="{{ occurrence_id }}">
 
-<!-- Case header + map (side-by-side on desktop) -->
-<div class="case-layout">
-    <div class="case-header" id="case-header" style="display:none">
-        <div class="case-number" id="case-number">—</div>
-        <div class="case-description" id="case-description">—</div>
-        <div class="case-meta">
-            <div class="case-meta-item">🕑 <span id="case-datetime">—</span></div>
-            <div class="case-meta-item">👤 <span id="case-agent">—</span></div>
-            <div class="case-meta-item" id="case-address-item" style="display:none">📍 <span id="case-address">—</span></div>
-            <div class="case-meta-item" id="case-gps-item" style="display:none">🌐 <span id="case-gps">—</span></div>
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Caso</h1>
+            <p class="page-subtitle" id="page-subtitle">A carregar…</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/occurrences/" class="btn btn-ghost btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m15 18-6-6 6-6"/>
+                </svg>
+                Voltar
+            </a>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-occurrence-pdf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <path d="M14 3v6h6M9 13h6M9 17h4"/>
+                </svg>
+                PDF do caso
+            </button>
+        </div>
+    </header>
+
+    <!-- Case header + mapa -->
+    <div class="case-layout">
+        <div class="card case-header" id="case-header" hidden>
+            <div class="case-number mono" id="case-number">—</div>
+            <div class="case-description" id="case-description">—</div>
+            <div class="case-meta">
+                <div class="case-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M12 7v5l3 2"/>
+                    </svg>
+                    <span id="case-datetime">—</span>
+                </div>
+                <div class="case-meta-item">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="8" r="4"/>
+                        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
+                    </svg>
+                    <span id="case-agent">—</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="case-map-wrap">
+            <div id="case-map" class="case-map" hidden></div>
+            <!-- Morada + GPS debaixo do mapa, para concentrar toda a informação
+                 de localização num sítio (T3). -->
+            <div id="case-location" class="case-location" hidden>
+                <div class="case-location-row" id="case-address-row" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 2a8 8 0 0 0-8 8c0 6 8 12 8 12s8-6 8-12a8 8 0 0 0-8-8z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    <span id="case-address">—</span>
+                </div>
+                <div class="case-location-row mono" id="case-gps-row" hidden>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9"/>
+                        <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>
+                    </svg>
+                    <span id="case-gps">—</span>
+                </div>
+                <div class="case-location-row case-location-empty" id="case-location-empty" hidden>
+                    Sem morada ou coordenadas registadas.
+                </div>
+            </div>
         </div>
     </div>
-    <div>
-        <div id="case-map" class="case-map" style="display:none"></div>
-        <div id="case-map-empty" class="case-map-empty" style="display:none">
-            📍 Sem coordenadas GPS registadas
+
+    <!-- Resumo de custódia -->
+    <section id="custody-summary-section" hidden>
+        <div class="section-label">Estado da custódia</div>
+        <div class="custody-summary" id="custody-summary"></div>
+    </section>
+
+    <!-- Itens apreendidos (ISO/IEC 27037: fonte potencial de prova digital) -->
+    <section aria-labelledby="section-evidence">
+        <div class="section-label-row">
+            <span class="section-label" id="section-evidence">
+                Itens apreendidos
+                <span class="section-count" id="evidence-count">0</span>
+            </span>
+            <a href="/evidences/new/" class="btn btn-primary btn-sm" id="btn-new-evidence" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Nova
+            </a>
         </div>
-    </div>
-</div>
-
-<!-- Resumo de custódia -->
-<div id="custody-summary-section" style="display:none">
-    <div class="section-header">
-        <div class="section-title">📊 Estado do Caso</div>
-    </div>
-    <div class="custody-summary" id="custody-summary"></div>
-</div>
-
-<!-- Evidências -->
-<div class="section-header">
-    <div class="section-title">
-        📋 Evidências <span class="section-count" id="evidence-count">0</span>
-    </div>
-    <a href="/evidences/new/" class="btn btn-primary btn-sm" id="btn-new-evidence" style="display:none">+ Nova</a>
-</div>
-<div id="evidence-container" class="evidence-grid">
-    <div class="loading-container">
-        <div class="spinner spinner-dark"></div>
-    </div>
-</div>
-
-<!-- Dispositivos digitais -->
-<div id="devices-section" style="display:none">
-    <div class="section-header">
-        <div class="section-title">
-            💻 Dispositivos Digitais <span class="section-count" id="device-count">0</span>
+        <div id="evidence-container" class="evidence-grid">
+            <div class="loading-overlay">
+                <span class="spinner"></span>
+            </div>
         </div>
-    </div>
-    <div id="devices-container"></div>
+    </section>
+
+    <!-- Dispositivos -->
+    <section id="devices-section" hidden>
+        <div class="section-label-row">
+            <span class="section-label">
+                Dispositivos digitais
+                <span class="section-count" id="device-count">0</span>
+            </span>
+        </div>
+        <div id="devices-container"></div>
+    </section>
+
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
-        integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g=="
-        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+{% include "_leaflet_js.html" %}
 <script src="{% static 'js/toast.js' %}"></script>
 <script src="{% static 'js/pages/occurrence_detail.js' %}"></script>
 {% endblock %}

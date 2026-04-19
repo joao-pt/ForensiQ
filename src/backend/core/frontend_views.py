@@ -115,6 +115,38 @@ def investigation_report_view(request):
     return render(request, 'investigation_report.html')
 
 
+@jwt_cookie_required
+def reports_view(request):
+    """Página de geração de relatórios PDF por evidência. Requer JWT."""
+    return render(request, 'reports.html')
+
+
+@jwt_cookie_required
+def stats_view(request):
+    """Dashboard de estatísticas agregadas (ocorrências, evidências, custódia). Requer JWT."""
+    return render(request, 'stats.html')
+
+
+@jwt_cookie_required
+def settings_view(request):
+    """Perfil do utilizador e preferências (tema, sessão). Requer JWT."""
+    return render(request, 'settings.html')
+
+
+# ---------------------------------------------------------------------------
+# Handlers de erro — 404 / 500
+# ---------------------------------------------------------------------------
+
+def not_found_view(request, exception=None):
+    """Handler 404 — página amigável em vez do default do Django."""
+    return render(request, '404.html', status=404)
+
+
+def server_error_view(request):
+    """Handler 500 — página amigável para erros inesperados."""
+    return render(request, '500.html', status=500)
+
+
 # ---------------------------------------------------------------------------
 # Redirects 301 — retrocompatibilidade com nomes antigos (singular)
 # ---------------------------------------------------------------------------

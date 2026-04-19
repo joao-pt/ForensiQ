@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="30" fill="#0B1220"/>
-  <circle cx="32" cy="32" r="30" fill="none" stroke="#2DD4BF" stroke-width="2"
-          stroke-dasharray="4 3"/>
-  <circle cx="32" cy="32" r="23" fill="none" stroke="#fff" stroke-width="0.75"
-          opacity="0.15"/>
-  <text x="30" y="43" text-anchor="middle"
-        font-family="Inter,system-ui,sans-serif" font-weight="800"
-        font-size="30" fill="#fff" letter-spacing="-1">Q</text>
-  <line x1="39" y1="40" x2="49" y2="50" stroke="#2DD4BF"
-        stroke-width="2.5" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ForensiQ">
+  <defs>
+    <mask id="fq-interlock" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="64" height="64" fill="#fff"/>
+      <rect x="27" y="36" width="10" height="9" fill="#000"/>
+    </mask>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="#0F1115"/>
+  <circle cx="25" cy="32" r="11" fill="none" stroke="#2DD4BF" stroke-width="3"/>
+  <circle cx="39" cy="32" r="11" fill="none" stroke="#E6E8EC" stroke-width="3"
+          mask="url(#fq-interlock)"/>
 </svg>

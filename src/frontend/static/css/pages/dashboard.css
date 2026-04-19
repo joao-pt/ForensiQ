@@ -1,80 +1,108 @@
-/* ForensiQ — Dashboard page enhancements */
+/**
+ * ForensiQ — Dashboard
+ *
+ * Primitivos já em main.css: .card, .list, .skeleton*, .section-label,
+ * .page, .page-header. Este ficheiro contém apenas componentes
+ * específicos do painel (stats grid, quick actions, type breakdown).
+ */
 
-/* Skeleton pulse animation */
-@keyframes skeleton-pulse {
-    0%, 100% { opacity: 0.4; }
-    50%      { opacity: 0.8; }
+/* =============================================================
+   1. STATS GRID — métrica numérica no topo
+   Mobile: escondida (distrai, há página dedicada em /stats/).
+   Desktop ≥768px: visível em 4 colunas.
+   ============================================================= */
+
+.stats-grid {
+    display: none;
 }
 
-.skeleton {
-    background: var(--border);
-    border-radius: var(--radius);
-    animation: skeleton-pulse 1.4s ease-in-out infinite;
+#evidences-breakdown {
+    display: none;
 }
 
-.skeleton-text {
-    height: 14px;
-    border-radius: 4px;
+@media (min-width: 768px) {
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: var(--sp-4);
+        padding: 0;
+    }
+
+    #evidences-breakdown {
+        display: block;
+    }
 }
 
-.skeleton-text.lg {
-    height: 28px;
-    width: 60%;
-}
-
-.skeleton-text.sm {
-    height: 12px;
-    width: 40%;
-    margin-top: 6px;
-}
-
-/* Stat cards — accent strip at top */
 .stat-card {
     position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-3);
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     overflow: hidden;
 }
 
+/* Accent strip — cor depende do data-accent */
 .stat-card::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
+    height: 2px;
     background: var(--border);
-    transition: background 0.3s ease;
 }
 
-.stat-card[data-accent="secondary"]::before { background: var(--secondary); }
-.stat-card[data-accent="accent"]::before    { background: var(--accent); }
-.stat-card[data-accent="success"]::before   { background: var(--success); }
-.stat-card[data-accent="danger"]::before    { background: var(--danger); }
+.stat-card[data-accent="accent"]::before   { background: var(--accent); }
+.stat-card[data-accent="info"]::before     { background: var(--info); }
+.stat-card[data-accent="success"]::before  { background: var(--success); }
+.stat-card[data-accent="warning"]::before  { background: var(--warning); }
+.stat-card[data-accent="danger"]::before   { background: var(--danger); }
 
-.stat-card .stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 6px;
-    opacity: 0.7;
+.stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    width: 24px;
+    height: 24px;
 }
 
-/* Stat skeleton */
-.stat-card .skeleton-value {
-    height: 32px;
-    width: 48px;
-    margin: 0 auto 4px;
+.stat-icon svg {
+    width: 20px;
+    height: 20px;
 }
 
-.stat-card .skeleton-label {
-    height: 12px;
-    width: 72px;
-    margin: 0 auto;
+.stat-card[data-accent="accent"]  .stat-icon { color: var(--accent); }
+.stat-card[data-accent="info"]    .stat-icon { color: var(--info); }
+.stat-card[data-accent="success"] .stat-icon { color: var(--success); }
+.stat-card[data-accent="warning"] .stat-icon { color: var(--warning); }
+
+.stat-value {
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-bold);
+    line-height: 1.1;
+    letter-spacing: var(--tracking-tight);
+    color: var(--text-emphasis);
 }
 
-/* Stat subtitle (ex: "x em aberto", "indisponível") */
+.stat-value .skeleton-value {
+    height: 36px;
+    width: 60px;
+}
+
+.stat-label {
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    font-weight: var(--fw-medium);
+}
+
 .stat-sub {
-    margin-top: 4px;
-    font-size: 0.6875rem;
-    color: var(--text-light);
-    opacity: 0.85;
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
     min-height: 14px;
 }
 
@@ -82,31 +110,30 @@
     content: '\00a0';
 }
 
-/* Evidências por tipo — breakdown chart */
-.card-accent {
-    margin-bottom: 16px;
-}
+/* =============================================================
+   2. EVIDÊNCIAS POR TIPO — breakdown bar chart
+   ============================================================= */
 
 .evidences-type-chart {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 4px 0;
+    gap: var(--sp-2);
+    padding: var(--sp-1) 0;
 }
 
 .type-row {
     display: grid;
-    grid-template-columns: minmax(140px, 1.2fr) 3fr auto;
+    grid-template-columns: minmax(120px, 1.3fr) 3fr auto;
     align-items: center;
-    gap: 10px;
+    gap: var(--sp-3);
     padding: 4px 0;
 }
 
 .type-row-label {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    font-size: 0.8125rem;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
@@ -114,129 +141,161 @@
 }
 
 .type-row-icon {
-    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.type-row-icon svg {
+    width: 16px;
+    height: 16px;
 }
 
 .type-row-bar {
-    height: 8px;
-    border-radius: 999px;
-    background: var(--border);
+    height: 6px;
+    border-radius: var(--r-pill);
+    background: var(--surface-hover);
     overflow: hidden;
 }
 
 .type-row-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent), var(--accent-dark, var(--accent)));
-    border-radius: 999px;
-    transition: width 0.5s ease;
+    background: var(--accent);
+    border-radius: var(--r-pill);
+    transition: width 0.5s var(--ease);
 }
 
 .type-row-count {
-    font-size: 0.8125rem;
-    color: var(--text-light);
-    font-weight: 600;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    font-weight: var(--fw-semi);
     min-width: 32px;
     text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
-/* Recent occurrences skeleton rows */
-.skeleton-row {
+/* =============================================================
+   3. QUICK ACTIONS — grid de botões rápidos
+   ============================================================= */
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4);
+}
+
+@media (min-width: 480px) {
+    .quick-actions {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 768px) {
+    .quick-actions {
+        padding: 0;
+    }
+}
+
+.action-btn {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--border);
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-3);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease),
+                transform var(--t-fast) var(--ease);
+    color: var(--text);
+    min-height: 64px;
+    font-family: inherit;
 }
 
-.skeleton-row:last-child {
-    border-bottom: none;
+.action-btn:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
 }
 
-.skeleton-row-content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+.action-btn:active {
+    transform: scale(0.98);
 }
 
-.skeleton-row-title {
-    height: 14px;
-    width: 55%;
-}
-
-.skeleton-row-subtitle {
-    height: 12px;
-    width: 80%;
-}
-
-.skeleton-row-date {
-    height: 12px;
-    width: 64px;
+.action-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--r-2);
+    background: var(--surface-hover);
+    color: var(--text-muted);
     flex-shrink: 0;
 }
 
-/* Greeting area polish */
-.dashboard-header {
-    padding: 8px 0 16px;
+.action-icon svg {
+    width: 18px;
+    height: 18px;
 }
 
-.dashboard-header h2 {
-    font-size: 1.375rem;
+.action-icon.accent   { background: var(--accent-tint);   color: var(--accent); }
+.action-icon.info     { background: var(--info-tint);     color: var(--info); }
+.action-icon.success  { background: var(--success-tint);  color: var(--success); }
+.action-icon.warning  { background: var(--warning-tint);  color: var(--warning); }
+.action-icon.danger   { background: var(--danger-tint);   color: var(--danger); }
+
+.action-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
 }
 
-.dashboard-header .greeting-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin-top: 4px;
-    padding: 3px 10px;
-    border-radius: var(--radius-pill);
-    background: var(--tint-secondary);
-    color: var(--secondary-dark);
-    font-size: 0.75rem;
-    font-weight: 600;
+.action-text strong {
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
 }
 
-/* Quick action section title */
-.section-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    color: var(--text-light);
-    letter-spacing: 0.5px;
-    margin-bottom: 8px;
+.action-text small {
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    line-height: 1.3;
 }
 
-/* Recent list — card inner padding */
-.recent-list {
-    padding: 0 16px;
+/* =============================================================
+   4. RECENT OCCURRENCES — lista compacta
+   ============================================================= */
+
+.recent-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
 }
 
-/* ---- Desktop ---- */
+/* =============================================================
+   5. DASHBOARD LAYOUT — 2 colunas no desktop
+   ============================================================= */
 
-@media (min-width: 768px) {
-    .dashboard-header h2 {
-        font-size: 1.5rem;
-    }
-
-    .stat-card {
-        padding: 20px;
-    }
-
-    .stat-card .stat-icon {
-        font-size: 1.75rem;
-    }
+.dashboard-layout {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-6);
 }
 
 @media (min-width: 1024px) {
     .dashboard-layout {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 24px;
+        gap: var(--sp-6);
         align-items: start;
-    }
-
-    .dashboard-layout > .card {
-        margin-bottom: 0;
     }
 }

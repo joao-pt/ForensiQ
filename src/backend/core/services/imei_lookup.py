@@ -6,11 +6,33 @@ Arquitectura:
 - Sem circuit breaker — a camada de cache (30 dias, ADR-0008) já amortiza
   a maioria das consultas e evita sobrecarga da API externa.
 - Resposta normalizada para schema estável em ``_normalize``; o payload
-  bruto é guardado em ``raw`` para auditoria (ISO/IEC 27037).
+  bruto (truncado) é guardado em ``raw`` para auditoria (ISO/IEC 27037).
+
+Endpoint upstream
+-----------------
+``GET https://imeidb.xyz/api/imei/{imei}`` autenticado via header
+``X-Api-Key`` (alternativa à query ``?token=`` — preferimos header para
+não vazar o token em logs de proxy/CDN nem em ``Referer``).
+
+Resposta da API tem o shape::
+
+    {
+      "success": true,
+      "query": <imei>,
+      "data": {
+         "brand": ..., "model": ..., "manufacturer": ..., "name": ...,
+         "tac": ..., "type": ...,
+         "device_spec": {"os": ..., "os_family": ..., ...},
+         ...
+      }
+    }
+
+Erros podem vir com HTTP 200 + ``success: false`` (a API tem códigos
+próprios: 401, 402, 429, 460), por isso verificamos a flag mesmo em 2xx.
 
 Settings usadas (fornecidas por Wave 2b em ``forensiq_project.settings``):
-- ``IMEIDB_API_TOKEN``   — token Bearer para autenticação.
-- ``IMEIDB_BASE_URL``    — URL base da API (default ``https://imeidb.xyz/api``).
+- ``IMEIDB_API_TOKEN``   — chave da API (fly secret).
+- ``IMEIDB_BASE_URL``    — URL base (default ``https://imeidb.xyz/api``).
 - ``IMEIDB_TIMEOUT_SECONDS`` — timeout em segundos (default 10).
 
 Ver também ADR-0008 (cache de lookups externos) e ADR-0010 (taxonomia de
@@ -41,12 +63,7 @@ class LookupError(Exception):
 # ---------------------------------------------------------------------------
 
 def _base_url() -> str:
-    """Devolve a URL base configurada, com default seguro.
-
-    Usa ``getattr`` em vez de acesso directo para não falhar em ambientes
-    onde Wave 2b ainda não aplicou as settings (evita ImportError no
-    ``django check`` de configuração incompleta).
-    """
+    """URL base configurada, com default seguro."""
     return getattr(settings, 'IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
 
 
@@ -56,6 +73,12 @@ def _api_token() -> str:
 
 def _timeout() -> float:
     return float(getattr(settings, 'IMEIDB_TIMEOUT_SECONDS', 10))
+
+
+# Campos do raw payload que NÃO interessa persistir na cache/auditoria
+# (imagens em base64, listas longas de aliases, etc.) — evita inflar o
+# JSONField ``external_lookup_snapshot`` desnecessariamente.
+_RAW_DROP_KEYS = ('device_image',)
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +94,8 @@ def lookup_imei(imei: str) -> dict:
 
     Returns:
         dict com chaves normalizadas: ``brand``, ``model``, ``os``,
-        ``storage``, ``release_date``, ``color`` e ``raw`` (payload
+        ``storage``, ``release_date``, ``color``, ``manufacturer``,
+        ``tac``, ``normalised_complete`` e ``raw`` (subset do payload
         original para auditoria ISO 27037).
 
     Raises:
@@ -79,9 +103,15 @@ def lookup_imei(imei: str) -> dict:
             inválido ou saldo esgotado. A mensagem é em PT-PT e pode
             ser exposta ao cliente.
     """
-    url = f"{_base_url().rstrip('/')}/check/{imei}"
+    token = _api_token()
+    if not token:
+        raise LookupError(
+            'Serviço de consulta IMEI não está configurado. Preenche manualmente.'
+        )
+
+    url = f"{_base_url().rstrip('/')}/imei/{imei}"
     headers = {
-        'Authorization': f'Bearer {_api_token()}',
+        'X-Api-Key': token,
         'Accept': 'application/json',
         'User-Agent': 'ForensiQ/1.0 (+https://forensiq.pt)',
     }
@@ -99,12 +129,52 @@ def lookup_imei(imei: str) -> dict:
             'Erro de rede ao consultar imeidb.xyz. Preenche manualmente.'
         )
 
-    status_code = response.status_code
+    _raise_for_status(response.status_code)
+
+    try:
+        payload = response.json()
+    except ValueError:
+        log.warning('imeidb non-json body imei=%s', imei)
+        raise LookupError('Resposta de imeidb.xyz não é JSON válido.')
+
+    if not isinstance(payload, dict):
+        log.warning(
+            'imeidb payload not a dict imei=%s type=%s',
+            imei, type(payload).__name__,
+        )
+        raise LookupError('Resposta de imeidb.xyz em formato inesperado.')
+
+    # A API por vezes responde 200 OK mas com success:false + code próprio.
+    if payload.get('success') is False:
+        api_code = payload.get('code')
+        api_msg = payload.get('message') or ''
+        log.warning(
+            'imeidb success=false imei=%s code=%s msg=%s',
+            imei, api_code, api_msg,
+        )
+        raise LookupError(_message_for_api_code(api_code, api_msg))
+
+    return _normalize(payload)
+
+
+# ---------------------------------------------------------------------------
+# Helpers privados de erro / normalização
+# ---------------------------------------------------------------------------
+
+def _raise_for_status(status_code: int) -> None:
+    """Mapeia códigos HTTP da imeidb.xyz para mensagens PT-PT."""
+    if 200 <= status_code < 300:
+        return
+    if status_code == 401:
+        raise LookupError(
+            'Token de imeidb.xyz inválido. Contacta o administrador.'
+        )
     if status_code == 402:
         raise LookupError(
             'Saldo da API imeidb.xyz esgotado. Preenche manualmente.'
         )
-    if status_code == 404:
+    if status_code in (404, 460):
+        # 460 é o código próprio da imeidb.xyz para IMEI inválido/desconhecido.
         raise LookupError(
             'IMEI não encontrado em imeidb.xyz. Preenche manualmente.'
         )
@@ -116,50 +186,71 @@ def lookup_imei(imei: str) -> dict:
         raise LookupError(
             f'imeidb.xyz indisponível (HTTP {status_code}). Tenta mais tarde.'
         )
-    if status_code != 200:
-        raise LookupError(
-            f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).'
-        )
+    raise LookupError(
+        f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).'
+    )
 
-    try:
-        payload = response.json()
-    except ValueError:
-        log.warning('imeidb non-json body imei=%s', imei)
-        raise LookupError('Resposta de imeidb.xyz não é JSON válido.')
 
-    if not isinstance(payload, dict):
-        log.warning('imeidb payload not a dict imei=%s type=%s', imei, type(payload).__name__)
-        raise LookupError('Resposta de imeidb.xyz em formato inesperado.')
+def _message_for_api_code(code, fallback_msg: str) -> str:
+    """Mensagem PT-PT para o ``code`` no body da imeidb.xyz."""
+    mapping = {
+        401: 'Token de imeidb.xyz inválido. Contacta o administrador.',
+        402: 'Saldo da API imeidb.xyz esgotado. Preenche manualmente.',
+        429: 'Limite de consultas atingido em imeidb.xyz. Tenta mais tarde.',
+        460: 'IMEI não encontrado em imeidb.xyz. Preenche manualmente.',
+    }
+    if isinstance(code, int) and code in mapping:
+        return mapping[code]
+    if fallback_msg:
+        return f'imeidb.xyz: {fallback_msg}'
+    return 'Resposta de imeidb.xyz em formato inesperado.'
 
-    return _normalize(payload)
+
+def _trim_raw(data: dict) -> dict:
+    """Remove campos pesados/desnecessários do raw para a auditoria/cache."""
+    return {k: v for k, v in data.items() if k not in _RAW_DROP_KEYS}
 
 
 def _normalize(payload: dict) -> dict:
-    """Mapeia o payload bruto da API para o schema interno estável.
+    """Mapeia o payload da imeidb.xyz para o schema interno estável.
 
-    Best-effort: o formato exacto do JSON de imeidb.xyz pode variar por
-    endpoint / plano. Tentamos as chaves mais prováveis e guardamos o
-    payload original em ``raw`` para auditoria ISO/IEC 27037 (proveniência
-    e não-repúdio).
+    Os campos úteis vivem dentro de ``payload['data']``:
+    ``brand``, ``model``, ``manufacturer``, ``name``, ``tac``, ``type`` e o
+    sub-dict ``device_spec`` com ``os``/``os_family``.
 
-    A flag ``normalised_complete`` sinaliza se a normalização encontrou
-    ambos ``brand`` e ``model`` — permite ao caller detectar schema drift
-    (chaves renomeadas em upstream) e evitar cachear respostas parciais.
+    Best-effort: se a API mudar o shape (chaves renomeadas), tentamos
+    fallbacks razoáveis. A flag ``normalised_complete`` sinaliza se a
+    normalização encontrou ``brand`` e ``model`` — permite ao caller
+    detectar schema drift e evitar cachear respostas parciais por 30 dias.
     """
-    brand = payload.get('brand') or payload.get('manufacturer') or ''
-    model = payload.get('model') or payload.get('device') or ''
+    # Aceita tanto o shape novo {data: {...}} como um payload achatado.
+    data = payload.get('data') if isinstance(payload.get('data'), dict) else payload
+    spec = data.get('device_spec') if isinstance(data.get('device_spec'), dict) else {}
+
+    brand = data.get('brand') or data.get('manufacturer') or ''
+    model = data.get('model') or data.get('name') or data.get('device') or ''
+    os_name = (
+        spec.get('os')
+        or spec.get('os_family')
+        or data.get('os')
+        or data.get('operating_system')
+        or ''
+    )
+
     normalised_complete = bool(brand and model)
+
     return {
         'brand': brand,
         'model': model,
-        'os': payload.get('os') or payload.get('operating_system') or '',
-        'storage': payload.get('storage') or payload.get('memory') or '',
-        'release_date': (
-            payload.get('release_date')
-            or payload.get('released')
-            or ''
-        ),
-        'color': payload.get('color') or '',
+        'manufacturer': data.get('manufacturer') or '',
+        'os': os_name,
+        # Campos que a API por vezes não devolve (free tier) — mantemos
+        # vazio para o frontend não preencher com lixo.
+        'storage': data.get('storage') or data.get('memory') or '',
+        'release_date': data.get('release_date') or data.get('released') or '',
+        'color': data.get('color') or '',
+        'tac': data.get('tac') or '',
+        'type': data.get('type') or '',
         'normalised_complete': normalised_complete,
-        'raw': payload,  # para external_lookup_snapshot (auditoria)
+        'raw': _trim_raw(data),  # para external_lookup_snapshot (auditoria)
     }

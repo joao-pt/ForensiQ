@@ -74,7 +74,9 @@ class OccurrenceModelTest(TestCase):
             gps_lat=Decimal('38.7223340'),
             gps_lon=Decimal('-9.1393366'),
         )
-        self.assertEqual(str(occ), 'Ocorrência NUIPC-2026-001')
+        # __str__ combina NUIPC + código interno gerado (OCC-YYYY-NNNNN).
+        self.assertTrue(str(occ).startswith('Ocorrência NUIPC-2026-001'))
+        self.assertIn('OCC-', str(occ))
         self.assertIsNotNone(occ.created_at)
 
 

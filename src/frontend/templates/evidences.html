@@ -1,44 +1,68 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}ForensiQ — Evidências{% endblock %}
+{% block title %}ForensiQ — Itens de prova{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><span>Evidências</span>
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Itens</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/evidences.css' %}">
 {% endblock %}
 
 {% block content %}
-<!-- Cabeçalho -->
-<div class="page-header">
-    <div>
-        <h2 class="page-title">Evidências</h2>
-        <p class="page-subtitle" id="evidences-count">A carregar...</p>
+<div class="page">
+
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Itens</h1>
+            <p class="page-subtitle" id="evidences-count">A carregar…</p>
+        </div>
+        <a href="/evidences/new/" class="btn btn-primary" id="btn-new-evidence">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 5v14M5 12h14"/>
+            </svg>
+            Nova
+        </a>
+    </header>
+
+    <div class="input-group evidences-search">
+        <span class="input-group-prefix" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="7"/>
+                <path d="m21 21-4.3-4.3"/>
+            </svg>
+        </span>
+        <input type="search" id="search-input" class="form-input"
+               placeholder="Pesquisar por descrição ou ocorrência"
+               autocomplete="off" spellcheck="false">
     </div>
-    <a href="/evidences/new/" class="btn btn-primary" id="btn-new-evidence">
-        + Nova
-    </a>
-</div>
 
-<!-- Barra de pesquisa e filtro -->
-<div class="search-bar mb-16">
-    <input
-        type="search"
-        id="search-input"
-        class="form-control"
-        placeholder="Pesquisar por descrição ou ocorrência..."
-        autocomplete="off"
-    >
-</div>
-
-<!-- Lista de evidências -->
-<div id="evidences-list">
-    <div class="loading-overlay">
-        <div class="spinner spinner-dark"></div>
+    <div class="card p-0">
+        <div class="list" id="evidences-list" aria-busy="true" aria-live="polite">
+            <span class="visually-hidden">A carregar itens</span>
+            <div class="loading-overlay" aria-hidden="true">
+                <span class="spinner"></span>
+                <span>A carregar itens</span>
+            </div>
+        </div>
     </div>
+
+    <div id="pagination" class="pagination-bar hidden"></div>
 </div>
 
-<!-- Paginação -->
-<div id="pagination" class="pagination-bar hidden"></div>
+<a href="/evidences/new/" class="fab" aria-label="Novo item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 5v14M5 12h14"/>
+    </svg>
+    <span class="fab-label">Nova</span>
+</a>
 {% endblock %}
 
 {% block extra_js %}

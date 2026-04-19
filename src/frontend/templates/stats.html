@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Estatísticas{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Estatísticas</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/stats.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Estatísticas</h1>
+            <p class="page-subtitle" id="stats-scope">A carregar…</p>
+        </div>
+    </header>
+
+    <!-- KPIs (números globais) -->
+    <section class="stats-totals" id="stats-totals">
+        <div class="stat-tile">
+            <div class="stat-tile-label">Ocorrências</div>
+            <div class="stat-tile-value mono-tab" id="kpi-occurrences">—</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-tile-label">Evidências</div>
+            <div class="stat-tile-value mono-tab" id="kpi-evidences">—</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-tile-label">Dispositivos digitais</div>
+            <div class="stat-tile-value mono-tab" id="kpi-devices">—</div>
+        </div>
+        <div class="stat-tile">
+            <div class="stat-tile-label">Registos de custódia</div>
+            <div class="stat-tile-value mono-tab" id="kpi-custody">—</div>
+        </div>
+    </section>
+
+    <!-- Evidências por tipo -->
+    <section>
+        <div class="section-label">Evidências por tipo</div>
+        <div class="card chart-card">
+            <div class="bar-chart" id="chart-evidence-type">
+                <div class="empty-state">
+                    <span class="spinner"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Custódia por estado -->
+    <section>
+        <div class="section-label">Registos de custódia por estado</div>
+        <div class="card chart-card">
+            <div class="bar-chart" id="chart-custody-state">
+                <div class="empty-state">
+                    <span class="spinner"></span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script src="{% static 'js/pages/stats.js' %}"></script>
+{% endblock %}

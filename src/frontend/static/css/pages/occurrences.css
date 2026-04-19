@@ -1,128 +1,185 @@
-/* ForensiQ — página /occurrences/ (lista + mapa) */
+/**
+ * ForensiQ — Ocorrências (lista + mapa).
+ * Usa primitives em main.css. Aqui só toolbar, segmented e mapa.
+ */
 
-#map-container {
-    height: calc(100vh - 220px);
-    min-height: 360px;
-    border-radius: var(--radius);
-    overflow: hidden;
-    border: 1px solid var(--border);
-}
+/* ---------- Toolbar (pesquisa + vista) ---------- */
 
-.view-tabs {
+.toolbar {
     display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4);
 }
 
-.view-tab {
-    padding: 8px 16px;
+@media (min-width: 768px) {
+    .toolbar {
+        padding: 0;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+
+.toolbar-search {
+    flex: 1;
+    max-width: 480px;
+}
+
+/* ---------- Segmented control (Lista / Mapa) ---------- */
+
+.segmented {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--bg-subtle);
     border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
+    border-radius: var(--r-2);
+    gap: 2px;
+    align-self: flex-start;
+}
+
+.segmented-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 6px var(--sp-3);
+    background: transparent;
+    border: none;
+    border-radius: calc(var(--r-2) - 2px);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: background 0.15s, color 0.15s;
-    min-height: 40px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    transition: all var(--t-fast) var(--ease);
+    min-height: 32px;
+    white-space: nowrap;
 }
 
-.view-tab.active {
-    background: var(--primary);
-    color: #fff;
-    border-color: var(--primary);
+.segmented-btn:hover {
+    color: var(--text);
 }
 
-.view-tab:focus-visible {
-    outline: 3px solid var(--primary);
-    outline-offset: 2px;
+.segmented-btn.active {
+    background: var(--surface);
+    color: var(--text-emphasis);
+    box-shadow: var(--shadow-sm);
 }
 
-/* Popup do Leaflet */
-.leaflet-popup-content {
-    font-family: inherit;
-    font-size: 0.875rem;
-    min-width: 180px;
+.segmented-btn svg {
+    width: 14px;
+    height: 14px;
 }
 
-.leaflet-popup-content strong {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--primary);
+/* ---------- Mapa ---------- */
+
+.map-wrap {
+    position: relative;
+    height: calc(100vh - 240px);
+    min-height: 420px;
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
 }
 
-.leaflet-popup-content .popup-desc {
-    color: #555;
-    font-size: 0.8125rem;
-    margin-bottom: 6px;
+@media (min-width: 768px) {
+    .map-wrap {
+        border: 1px solid var(--border);
+        border-radius: var(--r-3);
+        height: calc(100vh - 280px);
+    }
 }
 
-.leaflet-popup-content .popup-date {
-    font-size: 0.75rem;
-    color: #888;
+.map-surface {
+    width: 100%;
+    height: 100%;
 }
 
-.leaflet-popup-content a {
-    display: inline-block;
-    margin-top: 8px;
-    color: var(--primary);
-    font-weight: 500;
-    text-decoration: none;
-}
-
-/* Legenda do mapa */
 .map-legend {
     position: absolute;
-    bottom: 24px;
-    right: 8px;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    padding: 8px 12px;
-    font-size: 0.75rem;
-    z-index: 1000;
-    pointer-events: none;
+    bottom: var(--sp-3);
+    left: var(--sp-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    box-shadow: var(--shadow-md);
+    font-size: var(--fs-xs);
+    color: var(--text);
+    z-index: 400;
 }
 
 .map-legend-item {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--sp-2);
+}
+
+/* ---------- Leaflet — integração com tokens ---------- */
+
+.leaflet-container {
+    font-family: var(--font-sans);
+    background: var(--bg-subtle);
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+    background: var(--surface-elevated);
+    color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+}
+
+.leaflet-popup-content {
+    font-size: var(--fs-sm);
+    margin: var(--sp-3) var(--sp-4);
+    min-width: 200px;
+}
+
+.leaflet-popup-content strong {
+    display: block;
+    color: var(--text-emphasis);
     margin-bottom: 4px;
 }
 
-.map-legend-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    flex-shrink: 0;
+.leaflet-popup-content .popup-desc {
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    margin-bottom: 6px;
 }
 
-/* ---- Desktop ---- */
-
-@media (min-width: 768px) {
-    #map-container {
-        height: calc(100vh - 180px);
-        min-height: 480px;
-    }
-
-    .view-tabs {
-        gap: 12px;
-    }
+.leaflet-popup-content .popup-date {
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
+    font-family: var(--font-mono);
 }
 
-@media (min-width: 1024px) {
-    .occurrences-split {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 20px;
-        align-items: start;
-    }
+.leaflet-popup-content a {
+    display: inline-block;
+    margin-top: var(--sp-2);
+    color: var(--accent);
+    font-weight: var(--fw-medium);
+}
 
-    .occurrences-split #map-container {
-        height: 560px;
-    }
+.leaflet-control-zoom a {
+    background: var(--surface-elevated) !important;
+    color: var(--text) !important;
+    border-color: var(--border) !important;
+}
+
+.leaflet-control-zoom a:hover {
+    background: var(--surface-hover) !important;
+}
+
+.leaflet-control-attribution {
+    background: var(--surface) !important;
+    color: var(--text-subtle) !important;
+    font-size: 10px;
+}
+
+.leaflet-control-attribution a {
+    color: var(--accent) !important;
 }

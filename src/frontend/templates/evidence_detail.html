@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}ForensiQ — Evidência{% endblock %}
+{% block title %}ForensiQ — Item de prova{% endblock %}
 
 {% block breadcrumb %}
 <a href="/dashboard/">Início</a>
 <span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/evidences/">Evidências</a>
+<a href="/evidences/">Itens</a>
 <span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current" id="breadcrumb-title">Evidência</span>
+<span class="breadcrumb-current" id="breadcrumb-title">Item</span>
 {% endblock %}
 
 {% block extra_css %}
@@ -20,7 +20,7 @@
 
     <header class="page-header">
         <div>
-            <h1 class="page-title">Evidência <span class="mono" id="evidence-id-tag">#{{ evidence_id }}</span></h1>
+            <h1 class="page-title">Item <span class="mono" id="evidence-id-tag"></span></h1>
             <p class="page-subtitle" id="evidence-subtitle">A carregar…</p>
         </div>
         <div class="flex gap-2">
@@ -39,8 +39,30 @@
                 </svg>
                 Cadeia de custódia
             </a>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-evidence-pdf">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                    <path d="M14 3v6h6M9 13h6M9 17h4"/>
+                </svg>
+                Descarregar PDF
+            </button>
         </div>
     </header>
+
+    <!-- Aviso quando este item é um sub-componente de outro -->
+    <div class="callout info" id="parent-banner" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+        </svg>
+        <div>
+            <strong>Sub-componente</strong> —
+            parte integrante de <a id="parent-link" href="#" class="text-accent">—</a>.
+            A cadeia de custódia do item principal acompanha este componente (ISO/IEC 27037).
+        </div>
+    </div>
 
     <!-- Hash (integridade SHA-256) — protagonista forense -->
     <section class="card integrity-card" id="integrity-card" hidden>
@@ -56,10 +78,10 @@
         <div class="integrity-meta" id="integrity-meta"></div>
     </section>
 
-    <!-- Foto + metadados (2-col em desktop) -->
+    <!-- Foto + metadados -->
     <div class="evidence-layout">
         <div class="card evidence-photo-card" id="evidence-photo-card" hidden>
-            <img id="evidence-photo" src="" alt="Fotografia da evidência">
+            <img id="evidence-photo" src="" alt="Fotografia do item apreendido">
         </div>
 
         <div class="card">
@@ -97,7 +119,25 @@
         </div>
     </div>
 
-    <!-- Dispositivos digitais (se existirem) -->
+    <!-- Sub-componentes integrantes (Evidence.sub_components) -->
+    <section id="sub-section" hidden>
+        <div class="section-label-row">
+            <span class="section-label">
+                Componentes integrantes
+                <span class="section-count" id="sub-count">0</span>
+            </span>
+            <a href="#" class="btn btn-subtle btn-sm" id="btn-add-sub" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Adicionar sub-componente
+            </a>
+        </div>
+        <div id="sub-container" class="stack"></div>
+    </section>
+
+    <!-- Dispositivos digitais legados (DigitalDevice) -->
     <section id="devices-section" hidden>
         <div class="section-label-row">
             <span class="section-label">

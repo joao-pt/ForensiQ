@@ -46,11 +46,16 @@ from core.frontend_views import (
     evidences_view,
     investigation_report_view,
     login_view,
+    not_found_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
     occurrence_singular_redirect,
     occurrences_new_view,
     occurrences_view,
+    reports_view,
+    server_error_view,
+    settings_view,
+    stats_view,
 )
 
 urlpatterns = [
@@ -90,6 +95,11 @@ urlpatterns = [
     # Custódias
     path('custodies/', custody_list_view, name='custodies'),
 
+    # Relatórios PDF, estatísticas e definições
+    path('reports/', reports_view, name='reports'),
+    path('stats/', stats_view, name='stats'),
+    path('settings/', settings_view, name='settings'),
+
     # Auditoria — relatório estático de investigação de erros
     path('audit/investigation/', investigation_report_view, name='investigation_report'),
 
@@ -106,3 +116,11 @@ urlpatterns = [
 # Servir ficheiros media em desenvolvimento
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+
+# ---------------------------------------------------------------------------
+# Handlers de erro — registados no módulo raiz de URLs (Django convention)
+# ---------------------------------------------------------------------------
+
+handler404 = 'core.frontend_views.not_found_view'
+handler500 = 'core.frontend_views.server_error_view'
