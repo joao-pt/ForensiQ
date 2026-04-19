@@ -201,6 +201,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://127.0.0.1:8000',
     'https://forensiq.pt',
     'https://www.forensiq.pt',
+    'https://forensiq.fly.dev',
 ]
 CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() == 'true'
 
@@ -208,6 +209,7 @@ CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower
 CSRF_TRUSTED_ORIGINS = [
     'https://forensiq.pt',
     'https://www.forensiq.pt',
+    'https://forensiq.fly.dev',
 ]
 # Cookie CSRF lido pelo JS para enviar em X-CSRFToken. SameSite=Strict
 # já bloqueia requests cross-site, e o cookie JWT é HttpOnly.
