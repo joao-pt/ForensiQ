@@ -1,0 +1,145 @@
+# ForensiQ — configuração central de ferramentas Python (dev/CI).
+#
+# Apenas configuração — este projecto não é empacotado como
+# biblioteca publicável; deployment segue ``requirements.txt`` +
+# ``manage.py`` Django. Mantemos aqui ``ruff``, ``black``, ``pytest``
+# e ``coverage`` para garantir um único local de verdade por
+# ferramenta.
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [
+    "migrations",
+    "static",
+    "media",
+    ".venv",
+    "venv",
+    "htmlcov",
+]
+
+[tool.ruff.lint]
+# F   = Pyflakes (bugs óbvios)
+# E/W = pycodestyle
+# I   = isort (ordenação de imports)
+# UP  = pyupgrade (modernização de sintaxe)
+# B   = flake8-bugbear (bugs/design)
+# DJ  = flake8-django (boas práticas Django)
+# SIM = flake8-simplify (idiomas mais concisos)
+# S   = bandit (segurança) — selectivo, com ignores por pasta de testes
+select = ["F", "E", "W", "I", "UP", "B", "DJ", "SIM", "S"]
+ignore = [
+    "E501",    # line too long — regulado pelo black (100)
+    "S101",    # assert (usado em testes e asserts de runtime)
+    "S105",    # hardcoded password string (falsos positivos em constantes)
+    "S106",    # hardcoded password — comum em tests/factories
+    "B008",    # default mutável em argumentos — Django usa em campos
+    "SIM108",  # ternary preferido — nem sempre mais claro
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Testes podem importar wildcards, usar assert e passwords literais
+"**/tests*.py" = ["S", "E402", "F401", "F403", "F405"]
+"**/test_settings.py" = ["F403", "F405"]
+"**/settings.py" = ["F403", "F405", "S"]
+# Migrations são auto-geradas
+"**/migrations/*.py" = ["E", "W", "F", "UP", "B", "DJ", "SIM", "S"]
+# ----------------------------------------------------------------------------
+# Ignores específicos para ficheiros da Wave 2a/2b que estão fora do
+# âmbito da Wave 2e (não é permitido editar lógica de negócio nem
+# reorganizar modelos). As violações abaixo são pré-existentes e estão
+# documentadas como dívida técnica a ser endereçada em waves dedicadas
+# (ver follow-ups spawnados via mcp__ccd_session__spawn_task).
+# ----------------------------------------------------------------------------
+# models.py: DJ012 (ordem de métodos Django) + SIM105/S110 (try/except/pass
+# em hashers — refactor candidate). audit.py: S104 (fallback de IP em
+# ambientes de teste). imei_lookup.py / serializers.py / views.py / auth_views.py:
+# B904 (cadeias de excepção — low risk, cosmetic).
+"core/models.py" = ["DJ012", "SIM105", "S110"]
+"core/audit.py" = ["S104"]
+"core/auth_views.py" = ["B904", "SIM105"]
+"core/serializers.py" = ["B904"]
+"core/services/imei_lookup.py" = ["B904"]
+"core/views.py" = ["B904"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["core", "forensiq_project"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+skip-string-normalization = true  # Preserva aspas simples do código existente
+extend-exclude = '''
+/(
+    \.git
+  | \.venv
+  | venv
+  | migrations
+  | htmlcov
+  | static
+  | media
+)/
+'''
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "forensiq_project.test_settings"
+python_files = ["tests.py", "test_*.py", "tests_*.py"]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "-ra",
+]
+markers = [
+    "slow: marca testes lentos (excluídos em CI rápido com -m 'not slow')",
+    "integration: testes de integração que tocam múltiplas camadas",
+    "security: testes focados em segurança (CSRF, JWT, IDOR, ...)",
+]
+filterwarnings = [
+    # Silenciar avisos de terceiros que não controlamos
+    "ignore::DeprecationWarning:django.*",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["core", "forensiq_project"]
+omit = [
+    "*/migrations/*",
+    "*/tests.py",
+    "*/tests_*.py",
+    "*/__init__.py",
+    "*/apps.py",
+    "*/admin.py",
+    "*/wsgi.py",
+    "*/asgi.py",
+    "*/manage.py",
+    "*/test_settings.py",
+]
+
+[tool.coverage.report]
+# NOTA: ``fail_under = 85`` é um target aspiracional. A cobertura
+# actual (Wave 2e) ronda os ~68 %. O CI ainda NÃO enforça este
+# limiar via ``--fail-under`` (ver ``.github/workflows/ci.yml``);
+# uma wave dedicada de cobertura vai aproximar o valor real antes
+# de o enforcar. Baixar este número agora só mascarava o gap.
+fail_under = 85
+show_missing = true
+skip_covered = false
+skip_empty = true
+precision = 2
+sort = "Cover"
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@(abc\\.)?abstractmethod",
+    "except ImportError:",
+]

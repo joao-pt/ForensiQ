@@ -1,0 +1,58 @@
+# ForensiQ — configuração de coverage (coverage.py).
+#
+# Executa:  coverage run --rcfile=.coveragerc manage.py test \
+#               --settings=forensiq_project.test_settings
+#           coverage report --rcfile=.coveragerc
+#
+# NOTA: ``fail_under = 85`` na secção [report] é um target
+# aspiracional. A cobertura actual (Wave 2e) ronda os ~68 %. O CI
+# NÃO invoca ``coverage report`` com ``--fail-under`` activo (ver
+# ``.github/workflows/ci.yml``) — logo o pipeline não quebra em
+# 68 %. Uma wave dedicada de cobertura vai subir o valor real
+# antes de ligar o enforcement.
+
+[run]
+branch = True
+source = core, forensiq_project
+parallel = False
+omit =
+    */migrations/*
+    */tests.py
+    */tests_*.py
+    */__init__.py
+    */apps.py
+    */admin.py
+    */wsgi.py
+    */asgi.py
+    */manage.py
+    */test_settings.py
+    */.venv/*
+    */venv/*
+
+[report]
+# Target aspiracional (~68 % actual) — ver nota no cabeçalho do
+# ficheiro; o CI não enforça este limiar por agora.
+fail_under = 85
+show_missing = True
+skip_covered = False
+skip_empty = True
+precision = 2
+sort = Cover
+exclude_lines =
+    # Padrões standard — linhas que não contam para cobertura
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @(abc\.)?abstractmethod
+    # Fallbacks de import opcionais (ex.: Pillow ausente)
+    except ImportError:
+
+[html]
+directory = htmlcov
+title = ForensiQ — Cobertura de Testes
+
+[xml]
+output = coverage.xml
