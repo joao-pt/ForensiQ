@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}ForensiQ — Evidência{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<a href="/evidences/">Evidências</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current" id="breadcrumb-title">Evidência</span>
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/pages/evidence_detail.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page" data-evidence-id="{{ evidence_id }}">
+
+    <header class="page-header">
+        <div>
+            <h1 class="page-title">Evidência <span class="mono" id="evidence-id-tag">#{{ evidence_id }}</span></h1>
+            <p class="page-subtitle" id="evidence-subtitle">A carregar…</p>
+        </div>
+        <div class="flex gap-2">
+            <a href="/evidences/" class="btn btn-ghost btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m15 18-6-6 6-6"/>
+                </svg>
+                Voltar
+            </a>
+            <a href="/evidences/{{ evidence_id }}/custody/" class="btn btn-subtle btn-sm" id="btn-custody">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+                Cadeia de custódia
+            </a>
+        </div>
+    </header>
+
+    <!-- Hash (integridade SHA-256) — protagonista forense -->
+    <section class="card integrity-card" id="integrity-card" hidden>
+        <div class="integrity-label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/>
+                <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span>Hash SHA-256 (integridade ISO/IEC 27037)</span>
+        </div>
+        <code class="integrity-hash hash" id="integrity-hash">—</code>
+        <div class="integrity-meta" id="integrity-meta"></div>
+    </section>
+
+    <!-- Foto + metadados (2-col em desktop) -->
+    <div class="evidence-layout">
+        <div class="card evidence-photo-card" id="evidence-photo-card" hidden>
+            <img id="evidence-photo" src="" alt="Fotografia da evidência">
+        </div>
+
+        <div class="card">
+            <div class="section-label mb-3 px-0">Metadados</div>
+            <dl class="meta-list" id="evidence-meta">
+                <div class="meta-row">
+                    <dt>Tipo</dt>
+                    <dd><span class="badge badge-accent" id="meta-type">—</span></dd>
+                </div>
+                <div class="meta-row">
+                    <dt>Descrição</dt>
+                    <dd id="meta-description">—</dd>
+                </div>
+                <div class="meta-row">
+                    <dt>Apreensão</dt>
+                    <dd class="mono" id="meta-timestamp">—</dd>
+                </div>
+                <div class="meta-row" id="meta-serial-row" hidden>
+                    <dt>Nº de série</dt>
+                    <dd class="mono" id="meta-serial">—</dd>
+                </div>
+                <div class="meta-row" id="meta-gps-row" hidden>
+                    <dt>GPS</dt>
+                    <dd class="mono" id="meta-gps">—</dd>
+                </div>
+                <div class="meta-row">
+                    <dt>Agente</dt>
+                    <dd id="meta-agent">—</dd>
+                </div>
+                <div class="meta-row">
+                    <dt>Ocorrência</dt>
+                    <dd><a href="#" id="meta-occurrence" class="text-accent">—</a></dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Dispositivos digitais (se existirem) -->
+    <section id="devices-section" hidden>
+        <div class="section-label-row">
+            <span class="section-label">
+                Dispositivos digitais
+                <span class="section-count" id="device-count">0</span>
+            </span>
+        </div>
+        <div id="devices-container" class="stack"></div>
+    </section>
+
+    <!-- Estado de custódia (resumo) -->
+    <section id="custody-summary-section" hidden>
+        <div class="section-label-row">
+            <span class="section-label">Estado atual de custódia</span>
+            <a href="/evidences/{{ evidence_id }}/custody/" class="section-action">
+                Ver timeline completa
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6"/>
+                </svg>
+            </a>
+        </div>
+        <div class="card custody-current" id="custody-current"></div>
+    </section>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/toast.js' %}"></script>
+<script src="{% static 'js/pages/evidence_detail.js' %}"></script>
+{% endblock %}
