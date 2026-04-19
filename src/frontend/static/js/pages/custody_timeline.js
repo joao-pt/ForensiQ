@@ -1,6 +1,6 @@
 'use strict';
 
-const evidenceId = parseInt(window.location.pathname.match(/\/evidence\/(\d+)\//)?.[1], 10);
+const evidenceId = parseInt(window.location.pathname.match(/\/evidences?\/(\d+)\//)?.[1], 10);
 let currentState = null;
 let allowedNextStates = [];
 
@@ -29,12 +29,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const authenticated = await Auth.requireAuth();
     if (!authenticated) return;
 
-    const user = Auth.getUser();
-    if (user) {
-        document.getElementById('navbar-user').textContent = user.first_name || user.username;
-    }
-    document.getElementById('btn-logout').addEventListener('click', Auth.logout);
-
     document.getElementById('btn-new-transition').addEventListener('click', openTransitionModal);
     document.getElementById('btn-cancel-transition').addEventListener('click', closeTransitionModal);
     document.getElementById('btn-submit-transition').addEventListener('click', submitTransition);
@@ -51,6 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
+    const user = Auth.getUser();
     await loadEvidenceAndTimeline(user);
 });
 
@@ -254,13 +249,15 @@ function renderTransitionUI(user) {
 }
 
 function openTransitionModal() {
-    document.getElementById('transition-error').style.display = 'none';
+    const err = document.getElementById('transition-error');
+    err.classList.remove('visible');
+    err.textContent = '';
     document.getElementById('observations').value = '';
-    document.getElementById('transition-modal').classList.add('open');
+    document.getElementById('transition-modal').hidden = false;
 }
 
 function closeTransitionModal() {
-    document.getElementById('transition-modal').classList.remove('open');
+    document.getElementById('transition-modal').hidden = true;
 }
 
 async function submitTransition() {
@@ -270,8 +267,8 @@ async function submitTransition() {
     const observations = document.getElementById('observations').value.trim();
 
     btn.disabled = true;
-    btn.textContent = 'A registar...';
-    errorEl.style.display = 'none';
+    btn.textContent = 'A registar…';
+    errorEl.classList.remove('visible');
 
     try {
         await API.post(CONFIG.ENDPOINTS.CUSTODY, {
@@ -286,9 +283,9 @@ async function submitTransition() {
         await loadEvidenceAndTimeline(user);
 
     } catch (err) {
-        const msg = err?.detail || err?.new_state?.[0] || 'Erro ao registar transição.';
+        const msg = err?.detail || err?.new_state?.[0] || err?.message || 'Erro ao registar transição.';
         errorEl.textContent = msg;
-        errorEl.style.display = '';
+        errorEl.classList.add('visible');
     } finally {
         btn.disabled = false;
         btn.textContent = 'Confirmar';

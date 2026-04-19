@@ -79,12 +79,8 @@ def evidences_new_view(request):
 
 @jwt_cookie_required
 def evidence_detail_view(request, evidence_id):
-    """
-    Detalhe de uma evidência — reutiliza o template de timeline de custódia
-    como hub central da evidência (timeline, integridade, sub-componentes).
-    Requer token JWT válido.
-    """
-    return render(request, 'custody_timeline.html', {'evidence_id': evidence_id})
+    """Detalhe de uma evidência — requer token JWT válido."""
+    return render(request, 'evidence_detail.html', {'evidence_id': evidence_id})
 
 
 @jwt_cookie_required
