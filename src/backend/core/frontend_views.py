@@ -102,6 +102,19 @@ def custody_list_view(request):
     return render(request, 'custody_list.html')
 
 
+@jwt_cookie_required
+def investigation_report_view(request):
+    """
+    Relatório de investigação estática da aplicação (auditoria).
+
+    Página editorial que lista achados de revisão de código organizados por
+    severidade (Crítico / Alto / Médio / Baixo / Notas). O conteúdo é estático
+    — serve como referência de arquitectura e registo do estado conhecido da
+    base de código à data do relatório. Requer token JWT válido.
+    """
+    return render(request, 'investigation_report.html')
+
+
 # ---------------------------------------------------------------------------
 # Redirects 301 — retrocompatibilidade com nomes antigos (singular)
 # ---------------------------------------------------------------------------
