@@ -10,7 +10,14 @@ Testa:
   - Conteúdo não vazio (bytes válidos de PDF)
 - Evidência sem dispositivos digitais e sem cadeia de custódia
 - Evidência com dispositivos digitais e com cadeia de custódia
+
+Nota de taxonomia (ADR-0010): os tipos genéricos legados (DIGITAL_DEVICE,
+DOCUMENT, PHOTO) foram substituídos pela taxonomia digital-first:
+  DIGITAL_DEVICE → MOBILE_DEVICE (smartphone/telemóvel apreendido)
+  DOCUMENT       → OTHER_DIGITAL (fallback — papel deixou de existir)
 """
+
+from decimal import Decimal
 
 from django.test import TestCase
 from django.urls import reverse
@@ -26,7 +33,6 @@ from .models import (
     User,
 )
 from .pdf_export import generate_evidence_pdf
-
 
 # ---------------------------------------------------------------------------
 # Fixtures reutilizáveis
@@ -48,8 +54,8 @@ def _make_occurrence(agent, number='OCC-PDF-001'):
         number=number,
         description='Ocorrência de teste para exportação PDF.',
         date_time=timezone.now(),
-        gps_lat='38.7169',
-        gps_lon='-9.1399',
+        gps_lat=Decimal('38.7169000'),
+        gps_lon=Decimal('-9.1399000'),
         address='Lisboa, Portugal',
         agent=agent,
     )
@@ -58,10 +64,10 @@ def _make_occurrence(agent, number='OCC-PDF-001'):
 def _make_evidence(occurrence, agent):
     return Evidence.objects.create(
         occurrence=occurrence,
-        type=Evidence.EvidenceType.DIGITAL_DEVICE,
+        type=Evidence.EvidenceType.MOBILE_DEVICE,
         description='Smartphone encontrado na cena de crime.',
-        gps_lat='38.7169',
-        gps_lon='-9.1399',
+        gps_lat=Decimal('38.7169000'),
+        gps_lon=Decimal('-9.1399000'),
         serial_number='SN-TEST-001',
         agent=agent,
     )
@@ -129,8 +135,8 @@ class PDFGenerationUnitTest(TestCase):
         occ2 = _make_occurrence(agent2, 'OCC-PDF-002')
         evidence_no_gps = Evidence.objects.create(
             occurrence=occ2,
-            type=Evidence.EvidenceType.DOCUMENT,
-            description='Documento sem GPS.',
+            type=Evidence.EvidenceType.OTHER_DIGITAL,
+            description='Ficheiro digital sem GPS.',
             agent=agent2,
         )
         pdf = generate_evidence_pdf(evidence_no_gps)

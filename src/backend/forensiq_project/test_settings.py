@@ -8,6 +8,9 @@ Utilização:
     python manage.py test --settings=forensiq_project.test_settings
 """
 
+import tempfile as _tempfile
+from pathlib import Path as _Path
+
 from .settings import *  # noqa: F401, F403
 
 # Remover whitenoise do middleware (não necessário em testes e não instalado neste ambiente)
@@ -42,21 +45,39 @@ SECURE_HSTS_SECONDS = 0
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False
 
-# Suprimir warnings de diretórios estáticos inexistentes
+# Suprimir warnings de diretórios estáticos inexistentes.
+# Usamos ``tempfile.gettempdir()`` para o directório de testes (cross-OS:
+# resolve para ``/tmp`` em Linux/macOS e ``%TEMP%`` em Windows).
 STATICFILES_DIRS = []
-STATIC_ROOT = '/tmp/forensiq_static_test'
+STATIC_ROOT = str(_Path(_tempfile.gettempdir()) / 'forensiq_static_test')
 
-# Desactivar throttling em testes (evita 429 em sequências rápidas)
+# Autenticação e throttling alinhados com produção (ADR-0009).
+# Mantemos JWTCookieAuthentication como default — os testes usam
+# `force_authenticate` em APIClient, que ignora a classe de autenticação,
+# mas o alinhamento assegura que testes que *não* forcem auth (p.ex.
+# IDOR / CSRF) reflectem o comportamento real.
 REST_FRAMEWORK_THROTTLE_OVERRIDE = True
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'core.auth.JWTCookieAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 50,
+    # Throttling desactivado em testes — 429 em sequências rápidas é
+    # artefacto do runner, não comportamento que queiramos validar aqui.
+    # Testes dedicados ao throttling reactivam-no com @override_settings.
     'DEFAULT_THROTTLE_CLASSES': [],
     'DEFAULT_THROTTLE_RATES': {
-        'auth': '100/minute',  # Limite alto para não interferir com testes
+        'anon': '10000/minute',
+        'user': '10000/minute',
+        'auth': '10000/minute',
+        'evidence_upload': '10000/minute',
+        'pdf_export': '10000/minute',
+        'schema': '10000/minute',
     },
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
+    'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }

@@ -28,7 +28,8 @@ Referência: https://docs.locust.io/
 import json
 import re
 from datetime import datetime
-from locust import HttpUser, task, between, events
+
+from locust import HttpUser, between, events, task
 from locust.contrib.fasthttp import FastHttpUser
 
 
@@ -127,15 +128,35 @@ class ForensiQUser(FastHttpUser):
         """
         POST /api/evidences/ — cria evidência ligada a ocorrência.
         Retorna ID da evidência criada.
+
+        Tipos: subset digital-first da taxonomia ADR-0010 (Wave 2a). Os
+        valores legados ``DIGITAL_DEVICE``/``DOCUMENT``/``PHYSICAL``/
+        ``BIOLOGICAL`` já não existem no modelo.
         """
-        evidence_types = ['DIGITAL_DEVICE', 'DOCUMENT', 'PHYSICAL', 'BIOLOGICAL']
+        evidence_types = [
+            'MOBILE_DEVICE',
+            'COMPUTER',
+            'STORAGE_MEDIA',
+            'DIGITAL_FILE',
+            'SIM_CARD',
+            'MEMORY_CARD',
+            'OTHER_DIGITAL',
+        ]
         import random
 
+        evidence_type = random.choice(evidence_types)
         evidence_data = {
             'occurrence': occurrence_id,
-            'type': random.choice(evidence_types),
+            'type': evidence_type,
             'description': f'Evidência de teste Locust - {datetime.now().isoformat()}',
         }
+
+        # Payload type-specific mínimo para os tipos que o exigem (valores
+        # válidos: IMEI 15 dígitos com checksum Luhn; MAC canónico).
+        if evidence_type == 'MOBILE_DEVICE':
+            evidence_data['type_specific_data'] = {'imei': '490154203237518'}
+        elif evidence_type == 'COMPUTER':
+            evidence_data['type_specific_data'] = {'mac': '00:1A:2B:3C:4D:5E'}
 
         response = self.client.post(
             '/api/evidences/',
@@ -217,7 +238,9 @@ class ForensiQUser(FastHttpUser):
         if not evidence_id:
             return
 
-        # 3. Criar dispositivo digital (se evidência é DIGITAL_DEVICE)
+        # 3. Criar dispositivo digital (quando a evidência é MOBILE_DEVICE
+        # ou COMPUTER — a API aceita o POST mesmo para outros tipos; é
+        # um cenário de carga, não uma regra de negócio).
         self._create_digital_device(evidence_id)
 
         # 4. Registar primeiro estado de custódia
@@ -247,17 +270,16 @@ class ForensiQUser(FastHttpUser):
             )
 
             # Verificar que é PDF válido
-            if response.status_code == 200:
-                if not response.content.startswith(b'%PDF'):
-                    self.environment.stats.events.request_failure.fire(
-                        request_type='GET',
-                        name='/api/evidences/{id}/pdf/',
-                        response_time=response.elapsed.total_seconds() * 1000,
-                        response_length=len(response.content),
-                        response=response,
-                        context={},
-                        exception=Exception('Resposta não é PDF válido')
-                    )
+            if response.status_code == 200 and not response.content.startswith(b'%PDF'):
+                self.environment.stats.events.request_failure.fire(
+                    request_type='GET',
+                    name='/api/evidences/{id}/pdf/',
+                    response_time=response.elapsed.total_seconds() * 1000,
+                    response_length=len(response.content),
+                    response=response,
+                    context={},
+                    exception=Exception('Resposta não é PDF válido'),
+                )
 
 
 @events.test_start.add_listener
