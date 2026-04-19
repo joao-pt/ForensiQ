@@ -721,7 +721,21 @@ class DigitalDevice(models.Model):
         max_length=100,
         blank=True,
         default='',
-        verbose_name='Modelo',
+        verbose_name='Modelo (SKU)',
+        help_text=(
+            'Código técnico do modelo (ex.: A2161). Permite ao perito '
+            'identificar a variante exacta — bandas, memória, region-lock.'
+        ),
+    )
+    commercial_name = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name='Nome comercial',
+        help_text=(
+            'Nome reconhecido pelo first responder (ex.: iPhone 11 Pro Max). '
+            'Preenchido pelo enriquecimento IMEI quando disponível.'
+        ),
     )
     condition = models.CharField(
         max_length=20,
@@ -756,7 +770,16 @@ class DigitalDevice(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        label = f'{self.brand} {self.model}'.strip() or self.get_type_display()
+        # Prefere nome comercial (reconhecível) e mostra SKU entre parênteses
+        # quando ambos existem — útil para listagens e admin.
+        if self.commercial_name and self.model:
+            label = f'{self.commercial_name} ({self.model})'
+        else:
+            label = (
+                self.commercial_name
+                or f'{self.brand} {self.model}'.strip()
+                or self.get_type_display()
+            )
         return f'{label} ({self.get_condition_display()})'
 
     def save(self, *args, **kwargs):

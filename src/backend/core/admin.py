@@ -52,9 +52,9 @@ class EvidenceAdmin(admin.ModelAdmin):
 
 @admin.register(DigitalDevice)
 class DigitalDeviceAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'type', 'brand', 'model', 'condition', 'imei', 'evidence')
+    list_display = ('pk', 'type', 'brand', 'commercial_name', 'model', 'condition', 'imei', 'evidence')
     list_filter = ('type', 'condition')
-    search_fields = ('brand', 'model', 'imei', 'serial_number')
+    search_fields = ('brand', 'commercial_name', 'model', 'imei', 'serial_number')
     raw_id_fields = ('evidence',)
 
 

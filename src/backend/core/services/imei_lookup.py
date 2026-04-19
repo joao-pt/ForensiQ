@@ -93,10 +93,11 @@ def lookup_imei(imei: str) -> dict:
             via ``core.validators.validate_imei``).
 
     Returns:
-        dict com chaves normalizadas: ``brand``, ``model``, ``os``,
-        ``storage``, ``release_date``, ``color``, ``manufacturer``,
-        ``tac``, ``normalised_complete`` e ``raw`` (subset do payload
-        original para auditoria ISO 27037).
+        dict com chaves normalizadas: ``brand``, ``model`` (SKU técnico,
+        ex.: ``A2161``), ``commercial_name`` (nome reconhecível, ex.:
+        ``iPhone 11 Pro Max``), ``os``, ``storage``, ``release_date``,
+        ``color``, ``manufacturer``, ``tac``, ``normalised_complete`` e
+        ``raw`` (subset do payload original para auditoria ISO 27037).
 
     Raises:
         LookupError: em qualquer falha de rede, HTTP não-2xx, JSON
@@ -228,7 +229,16 @@ def _normalize(payload: dict) -> dict:
     spec = data.get('device_spec') if isinstance(data.get('device_spec'), dict) else {}
 
     brand = data.get('brand') or data.get('manufacturer') or ''
-    model = data.get('model') or data.get('name') or data.get('device') or ''
+    # SKU/modelo técnico (ex.: "A2161"). Mantemos o valor cru de `model`.
+    model_sku = data.get('model') or data.get('device') or ''
+    # Nome comercial. Preferimos `name`; se vier como "Apple iPhone 11 Pro Max"
+    # tiramos o prefixo da marca para evitar duplicação na UI.
+    commercial_name = data.get('name') or ''
+    if commercial_name and brand and commercial_name.lower().startswith(
+        brand.lower() + ' '
+    ):
+        commercial_name = commercial_name[len(brand) + 1:].strip()
+
     os_name = (
         spec.get('os')
         or spec.get('os_family')
@@ -237,11 +247,15 @@ def _normalize(payload: dict) -> dict:
         or ''
     )
 
-    normalised_complete = bool(brand and model)
+    # Para o flag de "schema completo" basta termos brand + identificação do
+    # dispositivo (SKU OU nome comercial) — assim não inutilizamos respostas
+    # em que a API só dá um dos dois.
+    normalised_complete = bool(brand and (model_sku or commercial_name))
 
     return {
         'brand': brand,
-        'model': model,
+        'model': model_sku,
+        'commercial_name': commercial_name,
         'manufacturer': data.get('manufacturer') or '',
         'os': os_name,
         # Campos que a API por vezes não devolve (free tier) — mantemos

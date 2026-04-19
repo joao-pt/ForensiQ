@@ -166,7 +166,13 @@ function renderTypeSpecificFields(type) {
         case 'MOBILE_DEVICE':
             container.appendChild(buildImeiGroup());
             container.appendChild(buildTextField('brand', 'Marca', 'Ex.: Apple, Samsung'));
-            container.appendChild(buildTextField('model', 'Modelo', 'Ex.: iPhone 14 Pro'));
+            // Nome reconhecível pelo first responder ("iPhone 11 Pro Max").
+            container.appendChild(buildTextField('commercial_name', 'Nome comercial',
+                'Ex.: iPhone 14 Pro'));
+            // SKU/modelo técnico ligado ao TAC ("A2161"). Fica vazio se o
+            // lookup não devolver — não bloqueia o registo.
+            container.appendChild(buildTextField('model', 'Modelo (SKU)',
+                'Ex.: A2161 — variante exacta para o perito'));
             container.appendChild(buildTextField('os', 'Sistema operativo', 'Ex.: iOS 17.4'));
             container.appendChild(buildTextField('storage', 'Armazenamento', 'Ex.: 256GB'));
             container.appendChild(buildTextField('color', 'Cor', 'Ex.: Preto'));
@@ -495,6 +501,7 @@ async function onLookupImei() {
         }
         var data = await r.json();
         fillIfPresent('tsd-brand', data.brand);
+        fillIfPresent('tsd-commercial_name', data.commercial_name);
         fillIfPresent('tsd-model', data.model);
         fillIfPresent('tsd-os', data.os);
         fillIfPresent('tsd-storage', data.storage);
