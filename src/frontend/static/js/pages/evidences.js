@@ -3,12 +3,14 @@
 let currentPage = 1;
 let searchTimeout = null;
 
+// Fallback local — será preferencialmente preenchido via
+// CONFIG.EVIDENCE_BADGE_COLORS / CONFIG.EVIDENCE_ICONS (18 tipos, Wave 2a)
 const TYPE_COLORS = {
-    'DIGITAL_DEVICE': 'blue',
-    'DOCUMENT': 'orange',
+    'MOBILE_DEVICE': 'blue',
+    'COMPUTER': 'blue',
     'STORAGE_MEDIA': 'green',
-    'PHOTO': 'red',
-    'OTHER': 'default',
+    'VEHICLE': 'red',
+    'OTHER_DIGITAL': 'default',
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -119,11 +121,15 @@ function renderEvidenceItem(ev) {
         hour: '2-digit', minute: '2-digit',
     });
     const typeName = CONFIG.EVIDENCE_TYPES[ev.type] || ev.type;
-    const color = TYPE_COLORS[ev.type] || 'default';
+    const color = (CONFIG.EVIDENCE_BADGE_COLORS && CONFIG.EVIDENCE_BADGE_COLORS[ev.type])
+        || TYPE_COLORS[ev.type]
+        || 'default';
+    const icon = (CONFIG.EVIDENCE_ICONS && CONFIG.EVIDENCE_ICONS[ev.type]) || '';
 
     const row = document.createElement('div');
     row.className = 'list-item';
     row.style.cursor = 'pointer';
+    // Rota canónica: /evidences/<id>/ (normalizada na Wave 2d).
     row.addEventListener('click', () => {
         window.location.href = `/evidences/${ev.id}/`;
     });
@@ -140,8 +146,17 @@ function renderEvidenceItem(ev) {
 
     const typeBadge = document.createElement('span');
     typeBadge.className = `badge badge-${color}`;
-    typeBadge.textContent = typeName;
+    typeBadge.textContent = (icon ? icon + ' ' : '') + typeName;
     badges.appendChild(typeBadge);
+
+    // Badge adicional para sub-componentes (parent_evidence não nulo)
+    if (ev.parent_evidence) {
+        const sub = document.createElement('span');
+        sub.className = 'badge badge-default';
+        sub.title = 'Sub-componente de #' + ev.parent_evidence;
+        sub.textContent = '↳ #' + ev.parent_evidence;
+        badges.appendChild(sub);
+    }
 
     if (ev.photo) {
         const b = document.createElement('span');

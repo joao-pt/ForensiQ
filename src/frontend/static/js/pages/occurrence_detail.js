@@ -267,7 +267,7 @@ function buildEvidenceCard(ev, custodyRecords, devices) {
     card.className = 'evidence-card';
     card.style.cursor = 'pointer';
     card.addEventListener('click', () => {
-        window.location.href = `/evidence/${ev.id}/custody/`;
+        window.location.href = `/evidences/${ev.id}/custody/`;
     });
 
     const header = document.createElement('div');
@@ -302,7 +302,7 @@ function buildEvidenceCard(ev, custodyRecords, devices) {
     const actions = document.createElement('div');
     actions.className = 'evidence-actions';
     const custLink = document.createElement('a');
-    custLink.href = `/evidence/${ev.id}/custody/`;
+    custLink.href = `/evidences/${ev.id}/custody/`;
     custLink.className = 'btn btn-sm btn-outline';
     custLink.textContent = '\u{1F4DC} Custódia';
     custLink.addEventListener('click', (e) => e.stopPropagation());
@@ -446,7 +446,7 @@ function buildDeviceCard(d) {
     card.className = 'evidence-card';
     card.style.cursor = 'pointer';
     card.addEventListener('click', () => {
-        window.location.href = `/evidence/${d.evidenceId}/custody/`;
+        window.location.href = `/evidences/${d.evidenceId}/custody/`;
     });
 
     const header = document.createElement('div');

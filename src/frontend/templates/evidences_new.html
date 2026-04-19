@@ -4,7 +4,7 @@
 {% block title %}ForensiQ — Nova Evidência{% endblock %}
 
 {% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Evidências</a><span class="breadcrumb-sep">›</span><span>Nova</span>
+<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Evidências</a><span class="breadcrumb-sep">›</span><span id="wizard-breadcrumb-current">Nova</span>
 {% endblock %}
 
 {% block extra_css %}
@@ -12,66 +12,68 @@
 {% endblock %}
 
 {% block content %}
-<form id="evidence-form" novalidate enctype="multipart/form-data">
-<div class="wizard" id="evidence-wizard">
+<form id="evidence-form" novalidate enctype="multipart/form-data" autocomplete="off">
+<!-- Hidden: parent_evidence (preenchido quando é sub-componente) -->
+<input type="hidden" id="parent_evidence" name="parent_evidence" value="">
+<input type="hidden" id="parent_type" value="">
+<input type="hidden" id="parent_depth" value="0">
+
+<div class="wizard" id="evidence-wizard" role="form" aria-label="Registar nova evidência">
     <div class="wizard-track">
 
         <!-- STEP 0 — Ocorrência -->
-        <section class="wizard-step" data-step="0">
+        <section class="wizard-step" data-step="0" aria-labelledby="step-occ-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 1 de 8</div>
-                <h2 class="wizard-step-title">Ocorrência</h2>
+                <div class="wizard-step-label">Passo 1</div>
+                <h2 class="wizard-step-title" id="step-occ-title">Ocorrência</h2>
                 <p class="wizard-step-hint">A que ocorrência pertence esta evidência?</p>
             </div>
             <div class="form-group">
-                <select id="occurrence" name="occurrence" class="form-control" required>
+                <label class="form-label" for="occurrence">Ocorrência</label>
+                <select id="occurrence" name="occurrence" class="form-control" required
+                        aria-describedby="occurrence-error">
                     <option value="">— Selecionar ocorrência —</option>
                 </select>
-                <div class="form-error" id="occurrence-error"></div>
+                <div class="form-error" id="occurrence-error" role="alert"></div>
+            </div>
+
+            <!-- Mostrado quando é sub-componente (parent_evidence preenchido) -->
+            <div id="parent-info" class="info-box hidden" role="note">
+                <strong>Sub-componente</strong>
+                <div id="parent-breadcrumb" class="mono" style="font-size:0.8125rem;margin-top:4px;"></div>
             </div>
         </section>
 
-        <!-- STEP 1 — Tipo -->
-        <section class="wizard-step" data-step="1">
+        <!-- STEP 1 — Tipo (select com optgroups) -->
+        <section class="wizard-step" data-step="1" aria-labelledby="step-type-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 2 de 8</div>
-                <h2 class="wizard-step-title">Tipo de evidência</h2>
-                <p class="wizard-step-hint">Toque para selecionar — avança automaticamente.</p>
+                <div class="wizard-step-label">Passo 2</div>
+                <h2 class="wizard-step-title" id="step-type-title">Tipo de evidência</h2>
+                <p class="wizard-step-hint" id="type-hint">
+                    Escolha a categoria que melhor descreve o dispositivo apreendido.
+                </p>
             </div>
-            <div class="type-selector" id="type-selector">
-                <button type="button" class="type-btn" data-value="DIGITAL_DEVICE">
-                    <span class="type-icon">📱</span>
-                    <span>Dispositivo Digital</span>
-                </button>
-                <button type="button" class="type-btn" data-value="STORAGE_MEDIA">
-                    <span class="type-icon">💾</span>
-                    <span>Suporte Armazenamento</span>
-                </button>
-                <button type="button" class="type-btn" data-value="DOCUMENT">
-                    <span class="type-icon">📄</span>
-                    <span>Documento</span>
-                </button>
-                <button type="button" class="type-btn" data-value="PHOTO">
-                    <span class="type-icon">🖼️</span>
-                    <span>Fotografia</span>
-                </button>
-                <button type="button" class="type-btn" data-value="OTHER">
-                    <span class="type-icon">📦</span>
-                    <span>Outro</span>
-                </button>
+            <div class="form-group">
+                <label class="form-label" for="type">Tipo</label>
+                <select id="type" name="type" class="form-control" required
+                        aria-describedby="type-error">
+                    <option value="">— Selecionar tipo —</option>
+                    <!-- optgroups são preenchidos em JS a partir de
+                         CONFIG.EVIDENCE_TYPE_GROUPS -->
+                </select>
+                <div class="form-error" id="type-error" role="alert"></div>
             </div>
-            <input type="hidden" id="type" name="type" required>
-            <div class="form-error" id="type-error"></div>
         </section>
 
         <!-- STEP 2 — Descrição -->
-        <section class="wizard-step" data-step="2">
+        <section class="wizard-step" data-step="2" aria-labelledby="step-desc-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 3 de 8</div>
-                <h2 class="wizard-step-title">Descrição</h2>
-                <p class="wizard-step-hint">Descreva a evidência: aspecto, estado, localização exacta.</p>
+                <div class="wizard-step-label">Passo 3</div>
+                <h2 class="wizard-step-title" id="step-desc-title">Descrição</h2>
+                <p class="wizard-step-hint">Aspecto, estado e localização exacta.</p>
             </div>
             <div class="form-group">
+                <label class="form-label" for="description">Descrição</label>
                 <textarea
                     id="description"
                     name="description"
@@ -79,55 +81,69 @@
                     rows="4"
                     placeholder="Ex.: iPhone 14 Pro preto, ecrã partido, encontrado na mesa da sala..."
                     required
+                    aria-describedby="description-error"
                 ></textarea>
-                <div class="form-error" id="description-error"></div>
+                <div class="form-error" id="description-error" role="alert"></div>
             </div>
         </section>
 
         <!-- STEP 3 — Data/hora -->
-        <section class="wizard-step" data-step="3">
+        <section class="wizard-step" data-step="3" aria-labelledby="step-ts-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 4 de 8</div>
-                <h2 class="wizard-step-title">Data e hora da apreensão</h2>
+                <div class="wizard-step-label">Passo 4</div>
+                <h2 class="wizard-step-title" id="step-ts-title">Data e hora da apreensão</h2>
                 <p class="wizard-step-hint">Quando foi apreendida esta evidência?</p>
             </div>
             <div class="form-group">
+                <label class="form-label" for="timestamp_seizure">Data/hora</label>
                 <input
                     type="datetime-local"
                     id="timestamp_seizure"
                     name="timestamp_seizure"
                     class="form-control"
                     required
+                    aria-describedby="timestamp_seizure-error"
                 >
-                <div class="form-error" id="timestamp_seizure-error"></div>
+                <div class="form-error" id="timestamp_seizure-error" role="alert"></div>
             </div>
         </section>
 
-        <!-- STEP 4 — Número de série (opcional) -->
-        <section class="wizard-step" data-step="4">
+        <!-- STEP 4 — Campos específicos do tipo (dinâmicos) -->
+        <section class="wizard-step" data-step="4" aria-labelledby="step-ts-spec-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 5 de 8</div>
-                <h2 class="wizard-step-title">Número de série</h2>
-                <p class="wizard-step-hint">Se o dispositivo tem número de série visível.</p>
+                <div class="wizard-step-label">Passo 5</div>
+                <h2 class="wizard-step-title" id="step-ts-spec-title">Detalhes específicos</h2>
+                <p class="wizard-step-hint" id="type-specific-hint">
+                    Preencha os campos relevantes para o tipo escolhido.
+                </p>
             </div>
+
+            <!-- Número de série — visível para quase todos os tipos -->
             <div class="form-group">
+                <label class="form-label" for="serial_number">Número de série</label>
                 <input
                     type="text"
                     id="serial_number"
                     name="serial_number"
-                    class="form-control"
+                    class="form-control mono"
                     placeholder="Ex.: SN123456789"
                     autocomplete="off"
                 >
             </div>
-            <button type="button" class="wizard-skip" data-skip>Saltar — sem número de série</button>
+
+            <!-- Container dinâmico para type-specific fields -->
+            <div id="type-specific-fields" aria-live="polite"></div>
+
+            <button type="button" class="wizard-skip" data-skip>
+                Saltar — sem detalhes adicionais
+            </button>
         </section>
 
         <!-- STEP 5 — Fotografia (opcional) -->
-        <section class="wizard-step" data-step="5">
+        <section class="wizard-step" data-step="5" aria-labelledby="step-photo-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 6 de 8</div>
-                <h2 class="wizard-step-title">Fotografia</h2>
+                <div class="wizard-step-label">Passo 6</div>
+                <h2 class="wizard-step-title" id="step-photo-title">Fotografia</h2>
                 <p class="wizard-step-hint">Registe a evidência visualmente. JPEG/PNG até 10 MB.</p>
             </div>
             <div class="photo-capture" id="photo-capture">
@@ -152,13 +168,13 @@
         </section>
 
         <!-- STEP 6 — GPS (opcional) -->
-        <section class="wizard-step" data-step="6">
+        <section class="wizard-step" data-step="6" aria-labelledby="step-gps-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 7 de 8</div>
-                <h2 class="wizard-step-title">Localização GPS</h2>
+                <div class="wizard-step-label">Passo 7</div>
+                <h2 class="wizard-step-title" id="step-gps-title">Localização GPS</h2>
                 <p class="wizard-step-hint">Local exacto onde a evidência foi apreendida.</p>
             </div>
-            <div id="gps-status" class="gps-status" style="display:none;"></div>
+            <div id="gps-status" class="gps-status" style="display:none;" role="status"></div>
             <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
                 <div style="flex:1; min-width:120px;">
                     <label for="gps_lat" class="form-label-sm">Latitude</label>
@@ -178,10 +194,10 @@
         </section>
 
         <!-- STEP 7 — Resumo -->
-        <section class="wizard-step" data-step="7">
+        <section class="wizard-step" data-step="7" aria-labelledby="step-sum-title">
             <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 8 de 8</div>
-                <h2 class="wizard-step-title">Confirmar registo</h2>
+                <div class="wizard-step-label">Passo 8</div>
+                <h2 class="wizard-step-title" id="step-sum-title">Confirmar registo</h2>
                 <p class="wizard-step-hint">Verifique os dados. Toque em Registar para submeter.</p>
             </div>
 
@@ -195,6 +211,10 @@
                     <span class="wizard-summary-label">Ocorrência</span>
                     <span class="wizard-summary-value" id="sum-occurrence">—</span>
                 </div>
+                <div class="wizard-summary-item" id="sum-parent-row" style="display:none;">
+                    <span class="wizard-summary-label">Pai</span>
+                    <span class="wizard-summary-value mono" id="sum-parent">—</span>
+                </div>
                 <div class="wizard-summary-item">
                     <span class="wizard-summary-label">Tipo</span>
                     <span class="wizard-summary-value" id="sum-type">—</span>
@@ -207,9 +227,13 @@
                     <span class="wizard-summary-label">Apreensão</span>
                     <span class="wizard-summary-value mono" id="sum-timestamp">—</span>
                 </div>
-                <div class="wizard-summary-item" id="sum-serial-row">
+                <div class="wizard-summary-item">
                     <span class="wizard-summary-label">Nº série</span>
                     <span class="wizard-summary-value mono" id="sum-serial">—</span>
+                </div>
+                <div class="wizard-summary-item" id="sum-tsd-row" style="display:none;">
+                    <span class="wizard-summary-label">Detalhes</span>
+                    <span class="wizard-summary-value mono" id="sum-tsd">—</span>
                 </div>
                 <div class="wizard-summary-item" id="sum-gps-row">
                     <span class="wizard-summary-label">GPS</span>
@@ -223,19 +247,44 @@
                 </div>
             </div>
 
-            <div id="submit-error" class="form-error mt-8"></div>
+            <div id="submit-error" class="form-error mt-8" role="alert"></div>
             <div class="spinner spinner-dark hidden mt-16" id="submit-spinner" style="display:none; margin:16px auto;"></div>
         </section>
 
     </div><!-- /wizard-track -->
 
-    <nav class="wizard-nav">
+    <nav class="wizard-nav" aria-label="Navegação do wizard">
         <button type="button" class="wizard-back" aria-label="Voltar">‹</button>
         <div class="wizard-dots"></div>
         <button type="button" class="wizard-next">Seguinte</button>
     </nav>
 </div><!-- /wizard -->
 </form>
+
+<!-- Modal: pergunta sub-componentes depois de criar evidência main -->
+<div class="modal-overlay" id="sub-prompt-modal" aria-hidden="true" role="dialog"
+     aria-labelledby="sub-prompt-title" aria-describedby="sub-prompt-desc" hidden>
+    <div class="modal">
+        <h3 id="sub-prompt-title">Componentes internos?</h3>
+        <p id="sub-prompt-desc">
+            Este dispositivo contém <strong>componentes internos</strong> a registar?
+            Por exemplo: cartões SIM, cartões de memória, discos internos, ECU, dashcam, etc.
+        </p>
+        <div id="sub-prompt-suggestions" class="sub-suggestions" aria-hidden="true"></div>
+        <div id="sub-prompt-max" class="info-box hidden" role="note">
+            🛑 <strong>Profundidade máxima atingida.</strong>
+            ISO/IEC 27037 recomenda evitar detalhe excessivo.
+        </div>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-outline" id="btn-sub-finish">
+                Não, terminar
+            </button>
+            <button type="button" class="btn btn-primary" id="btn-sub-add">
+                Sim, adicionar componente
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
