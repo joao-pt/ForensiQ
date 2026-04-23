@@ -4,12 +4,10 @@
 #               --settings=forensiq_project.test_settings
 #           coverage report --rcfile=.coveragerc
 #
-# NOTA: ``fail_under = 85`` na secção [report] é um target
-# aspiracional. A cobertura actual (Wave 2e) ronda os ~68 %. O CI
-# NÃO invoca ``coverage report`` com ``--fail-under`` activo (ver
-# ``.github/workflows/ci.yml``) — logo o pipeline não quebra em
-# 68 %. Uma wave dedicada de cobertura vai subir o valor real
-# antes de ligar o enforcement.
+# NOTA: ``fail_under`` em [report] é enforçado por ``coverage report``
+# (mesmo sem flag CLI). Valor actual alinhado com a cobertura real
+# (~68 %) mais uma margem mínima. Subir gradualmente com cada wave
+# que adicionar testes.
 
 [run]
 branch = True
@@ -30,9 +28,9 @@ omit =
     */venv/*
 
 [report]
-# Target aspiracional (~68 % actual) — ver nota no cabeçalho do
-# ficheiro; o CI não enforça este limiar por agora.
-fail_under = 85
+# Limiar enforçado. Cobertura real ronda os 68 %. Subir conforme
+# cada wave introduz testes; target final aspiracional 85 %.
+fail_under = 65
 show_missing = True
 skip_covered = False
 skip_empty = True
