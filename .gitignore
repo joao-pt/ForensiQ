@@ -11,9 +11,13 @@ tarefas-agendadas.md
 # Reports / outputs temporários (gerados ad-hoc, não fazem parte do repo)
 .tmp-audit/
 .remember/
+.playwright-mcp/
 semgrep-report.json
 semgrep-stderr.txt
 precommit-scan-*.md
+# Screenshots de verificação manual (Playwright/Chrome DevTools)
+mobile-cards.png
+occurrence-detail-*.png
 
 # LaTeX build artefacts (mantemos só os .tex e o PDF final em docs/report/)
 src_latex/*.aux
