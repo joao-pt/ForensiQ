@@ -24,7 +24,7 @@ from pathlib import Path
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from core.models import (
@@ -72,17 +72,32 @@ class Command(BaseCommand):
             )
 
         self.stdout.write(self.style.WARNING('A apagar dados existentes...'))
-        with transaction.atomic():
-            # Ordem importa por causa das FKs; ChainOfCustody → Evidence →
-            # Occurrence; DigitalDevice → Evidence; AuditLog é independente.
-            # Modelos imutáveis (ChainOfCustody, Evidence, AuditLog) bloqueiam
-            # `.delete()` via override — usar `_raw_delete` para bypass.
-            ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
-            DigitalDevice.objects.all().delete()
-            Evidence.objects.all()._raw_delete(Evidence.objects.db)
-            Occurrence.objects.all().delete()
-            AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
-            User.objects.all().delete()
+        # Em PostgreSQL os triggers ``BEFORE DELETE`` (migration 0002)
+        # bloqueiam qualquer DELETE — protecção ISO/IEC 27037. ``TRUNCATE``
+        # não dispara esses triggers (só dispararia `BEFORE TRUNCATE` se
+        # tivessem sido criados, e não foram), pelo que serve para o
+        # caso de seed/demo.
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                cursor.execute('''
+                    TRUNCATE TABLE
+                        core_chainofcustody,
+                        core_digitaldevice,
+                        core_evidence,
+                        core_occurrence,
+                        core_auditlog,
+                        core_user
+                    RESTART IDENTITY CASCADE
+                ''')
+        else:
+            # SQLite (testes) — sem triggers, basta o queryset delete.
+            with transaction.atomic():
+                ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
+                DigitalDevice.objects.all().delete()
+                Evidence.objects.all()._raw_delete(Evidence.objects.db)
+                Occurrence.objects.all().delete()
+                AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
+                User.objects.all().delete()
 
         if options['wipe_media']:
             media_root = Path(settings.MEDIA_ROOT)
