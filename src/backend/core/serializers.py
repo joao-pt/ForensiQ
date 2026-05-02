@@ -375,6 +375,7 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
     """
 
     agent_name = serializers.SerializerMethodField()
+    evidence_code = serializers.CharField(source='evidence.code', read_only=True)
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
@@ -383,13 +384,14 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
     class Meta:
         model = ChainOfCustody
         fields = [
-            'id', 'code', 'evidence', 'sequence', 'previous_state', 'new_state',
+            'id', 'code', 'evidence', 'evidence_code', 'sequence',
+            'previous_state', 'new_state',
             'agent', 'agent_name', 'timestamp', 'observations',
             'record_hash',
         ]
         read_only_fields = [
-            'id', 'code', 'agent', 'sequence', 'previous_state', 'timestamp',
-            'record_hash',
+            'id', 'code', 'evidence_code', 'agent', 'sequence', 'previous_state',
+            'timestamp', 'record_hash',
         ]
 
     def validate_evidence(self, evidence):

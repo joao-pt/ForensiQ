@@ -33,9 +33,17 @@
         // Ícone mostra o *destino* da próxima troca, à la Notion:
         //   - estás no dark → mostra o Sol (vais para o dia se clicares)
         //   - estás no light → mostra a Lua (vais para a noite se clicares)
+        // Nota: em SVG o IDL `el.hidden` não reflecte o atributo HTML em todos
+        // os browsers, por isso usamos setAttribute/removeAttribute para
+        // garantir que o seletor [hidden] aplica.
         if (iconSun && iconMoon) {
-            iconSun.hidden  = theme !== 'dark';
-            iconMoon.hidden = theme === 'dark';
+            if (theme === 'dark') {
+                iconSun.removeAttribute('hidden');
+                iconMoon.setAttribute('hidden', '');
+            } else {
+                iconSun.setAttribute('hidden', '');
+                iconMoon.removeAttribute('hidden');
+            }
         }
 
         // aria-pressed: true = tema claro activo (botão "pressionado" para mudar).

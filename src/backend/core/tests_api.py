@@ -40,7 +40,7 @@ class BaseAPITestCase(TestCase):
             username='agente_api',
             password='TestPass123!',
             profile=User.Profile.AGENT,
-            badge_number='PSP-API-01',
+            badge_number='AGT-API-01',
             first_name='Ana',
             last_name='Silva',
         )
@@ -175,7 +175,7 @@ class UserAPITest(BaseAPITestCase):
             'username': 'novo_agente',
             'password': 'NovoPass123!',
             'profile': 'AGENT',
-            'badge_number': 'PSP-NEW-01',
+            'badge_number': 'AGT-NEW-01',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['username'], 'novo_agente')
@@ -464,7 +464,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
             username='agente_b_api',
             password='TestPass123!',
             profile=User.Profile.AGENT,
-            badge_number='PSP-API-02',
+            badge_number='AGT-API-02',
             first_name='Bruno',
             last_name='Santos',
         )
@@ -1158,7 +1158,7 @@ class EndToEndFlowTest(BaseAPITestCase):
             'evidence': evidence_id,
             'previous_state': 'APREENDIDA',
             'new_state': 'EM_TRANSPORTE',
-            'observations': 'Transporte para o laboratório. Transportado por PSP.',
+            'observations': 'Transporte para o laboratório. Transportado por OPC.',
         })
         self.assertEqual(custody_response_2.status_code, status.HTTP_201_CREATED)
         self.assertEqual(custody_response_2.data['new_state'], 'EM_TRANSPORTE')

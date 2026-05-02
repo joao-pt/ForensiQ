@@ -605,7 +605,8 @@ class DashboardStatsView(APIView):
             "open_occurrences": int,
             "total_evidences": int,
             "evidences_by_type": {"MOBILE_DEVICE": int, ...},
-            "custodies_in_transit": int
+            "custodies_in_transit": int,
+            "evidences_in_analysis": int,    # itens cujo último estado é EM_PERICIA
         }
 
     Ownership: AGENT vê apenas o seu scope; EXPERT / staff vêem totais.
@@ -650,9 +651,25 @@ class DashboardStatsView(APIView):
             .values_list('type', 'n')
         )
 
-        custodies_in_transit = coc_qs.filter(
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-        ).count()
+        # Para cada evidência, identificar o ÚLTIMO estado de custódia.
+        # Counts de "Em trânsito" e "Em perícia" devem reflectir o estado
+        # actual, não o histórico (caso contrário um item que esteve em
+        # trânsito e agora está em perícia seria contado em ambos).
+        latest_states = list(coc_qs.values('evidence_id', 'new_state', 'sequence'))
+        latest_by_ev = {}
+        for r in latest_states:
+            cur = latest_by_ev.get(r['evidence_id'])
+            if cur is None or r['sequence'] > cur['sequence']:
+                latest_by_ev[r['evidence_id']] = r
+
+        custodies_in_transit = sum(
+            1 for r in latest_by_ev.values()
+            if r['new_state'] == ChainOfCustody.CustodyState.EM_TRANSPORTE
+        )
+        evidences_in_analysis = sum(
+            1 for r in latest_by_ev.values()
+            if r['new_state'] == ChainOfCustody.CustodyState.EM_PERICIA
+        )
 
         return Response({
             'total_occurrences': total_occurrences,
@@ -660,6 +677,7 @@ class DashboardStatsView(APIView):
             'total_evidences': total_evidences,
             'evidences_by_type': evidences_by_type,
             'custodies_in_transit': custodies_in_transit,
+            'evidences_in_analysis': evidences_in_analysis,
         })
 
 
