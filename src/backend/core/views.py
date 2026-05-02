@@ -30,6 +30,7 @@ from django.db.models import Count
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_safe
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import (
     filters,
     serializers as drf_serializers,  # Para converter ValidationError
@@ -43,6 +44,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from .audit import log_access
+from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
     AuditLog,
     ChainOfCustody,
@@ -152,7 +154,8 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     queryset = Occurrence.objects.select_related('agent').all()
     serializer_class = OccurrenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = OccurrenceFilter
     # Campos pesquisáveis via ?search= — NUIPC/número, descrição livre,
     # morada e código gerado (OCC-YYYY-NNNNN). Resolve queixa de filtros
     # inoperantes (revisão UX 2026-05-02).
@@ -276,13 +279,14 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     serializer_class = EvidenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = EvidenceFilter
     # Pesquisa atravessa para a ocorrência (?search= no NUIPC funciona).
     search_fields = [
         'code', 'description', 'serial_number',
         'occurrence__number', 'occurrence__code', 'occurrence__description',
     ]
-    ordering_fields = ['timestamp_seizure', 'created_at', 'code']
+    ordering_fields = ['timestamp_seizure', 'created_at', 'code', 'type']
     ordering = ['-timestamp_seizure']
 
     def get_throttles(self):
@@ -442,7 +446,8 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     serializer_class = ChainOfCustodySerializer
     permission_classes = [IsAuthenticated, IsAgentOrExpert]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = CustodyFilter
     search_fields = [
         'code', 'observations',
         'evidence__code', 'evidence__description',
