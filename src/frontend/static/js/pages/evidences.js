@@ -1,11 +1,18 @@
 'use strict';
 
-let currentPage = 1;
+/**
+ * ForensiQ — Lista de itens de prova (cards mobile, tabela densa desktop).
+ *
+ * O renderer é decidido pelo componente DataTable. ``renderEvidenceItem``
+ * continua a desenhar o card legado e é passado como ``cardRenderer``
+ * (preserva mobile-first sem tocar na lógica de badges/photo/GPS).
+ */
+
 let searchTimeout = null;
 let currentStateFilter = null;
+let dataTable = null;
 
-// Fallback local — será preferencialmente preenchido via
-// CONFIG.EVIDENCE_BADGE_COLORS / CONFIG.EVIDENCE_ICONS (18 tipos, Wave 2a)
+// Fallback local — preenchido preferencialmente via CONFIG.EVIDENCE_BADGE_COLORS
 const TYPE_COLORS = {
     'MOBILE_DEVICE': 'blue',
     'COMPUTER': 'blue',
@@ -15,8 +22,7 @@ const TYPE_COLORS = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const authenticated = await Auth.requireAuth();
-    if (!authenticated) return;
+    if (!await Auth.requireAuth()) return;
 
     const user = Auth.getUser();
     if (user && user.profile !== 'AGENT') {
@@ -26,27 +32,156 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (fab) fab.hidden = true;
     }
 
-    document.getElementById('search-input').addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            currentPage = 1;
-            loadEvidences(e.target.value.trim());
-        }, 400);
-    });
-
-    // Filtro inicial vem do dashboard via ?state=EM_PERICIA, etc.
     const params = new URLSearchParams(window.location.search);
     currentStateFilter = params.get('state');
     renderStateFilterChip();
 
-    loadEvidences();
+    populateTypeFilter();
+    mountDataTable();
+    setupSearch();
+    setupSidebarFilters();
 });
 
-/**
- * Renderiza um chip "Filtrado: {estado} ✕" acima da listagem quando há
- * um filtro ?state activo. Click no ✕ navega para /evidences/ sem o
- * query param, repondo a listagem completa.
- */
+function mountDataTable() {
+    dataTable = DataTable.mount('#evidences-list', {
+        endpoint: CONFIG.ENDPOINTS.EVIDENCES,
+        defaultSort: '-timestamp_seizure',
+        defaultPageSize: DataTable.effectiveRenderer() === 'cards' ? 20 : 50,
+        rowHref: (row) => `/evidences/${row.id}/`,
+        columns: [
+            {
+                key: 'code', label: 'Código',
+                sortable: true, format: 'mono',
+                width: '160px', sticky: true,
+            },
+            {
+                key: 'type', label: 'Tipo',
+                sortable: true, width: '180px',
+                render: (raw) => {
+                    const span = document.createElement('span');
+                    span.textContent = CONFIG.EVIDENCE_TYPES[raw] || raw || '—';
+                    return span;
+                },
+            },
+            {
+                key: 'description', label: 'Descrição',
+                truncate: 90,
+            },
+            {
+                key: 'occurrence_number', label: 'NUIPC',
+                format: 'mono', width: '160px', hideBelow: 1024,
+            },
+            {
+                key: 'timestamp_seizure', label: 'Apreendido',
+                sortable: true, format: 'date',
+                width: '140px',
+            },
+            {
+                key: 'photo', label: 'Foto',
+                width: '60px', align: 'center',
+                render: (raw) => document.createTextNode(raw ? '✓' : '—'),
+            },
+            {
+                key: 'gps_lat', label: 'GPS',
+                width: '60px', align: 'center',
+                format: 'badge-presence',
+            },
+        ],
+        filters: [
+            { key: 'type',        label: 'Tipo',          type: 'multi' },
+            { key: 'date_after',  label: 'Desde',         type: 'date' },
+            { key: 'date_before', label: 'Até',           type: 'date' },
+            { key: 'has_gps',     label: 'Com GPS',       type: 'boolean' },
+        ],
+        cardRenderer: (row) => renderEvidenceItem(row),
+        extraParams: () => (currentStateFilter ? { state: currentStateFilter } : {}),
+        onCount: (n) => {
+            const countEl = document.getElementById('evidences-count');
+            if (countEl) countEl.textContent = `${n} ${n === 1 ? 'item' : 'itens'}`;
+        },
+    });
+
+    // Pré-popular inputs da sidebar a partir da URL.
+    const urlParams = new URLSearchParams(window.location.search);
+    const da = document.getElementById('filter-date-after');
+    const db = document.getElementById('filter-date-before');
+    const hg = document.getElementById('filter-has-gps');
+    if (da && urlParams.has('date_after')) da.value = urlParams.get('date_after');
+    if (db && urlParams.has('date_before')) db.value = urlParams.get('date_before');
+    if (hg && urlParams.has('has_gps')) hg.checked = urlParams.get('has_gps') === 'true';
+    // Pré-marcar tipos seleccionados.
+    const selectedTypes = urlParams.getAll('type');
+    selectedTypes.forEach((t) => {
+        const cb = document.querySelector(`#filter-type-list input[value="${CSS.escape(t)}"]`);
+        if (cb) cb.checked = true;
+    });
+}
+
+function populateTypeFilter() {
+    const list = document.getElementById('filter-type-list');
+    if (!list) return;
+    list.replaceChildren();
+    const types = CONFIG.EVIDENCE_TYPES || {};
+    Object.entries(types).forEach(([key, label]) => {
+        const wrap = document.createElement('label');
+        wrap.className = 'form-checkbox';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.value = key;
+        cb.dataset.role = 'filter-type';
+        wrap.appendChild(cb);
+        wrap.appendChild(document.createTextNode(' ' + label));
+        list.appendChild(wrap);
+    });
+}
+
+function setupSearch() {
+    const input = document.getElementById('search-input');
+    if (!input) return;
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('search')) input.value = urlParams.get('search');
+    input.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            if (dataTable) dataTable.setSearch(e.target.value.trim());
+        }, 400);
+    });
+}
+
+function setupSidebarFilters() {
+    const da = document.getElementById('filter-date-after');
+    const db = document.getElementById('filter-date-before');
+    const hg = document.getElementById('filter-has-gps');
+    const clear = document.getElementById('filter-clear');
+
+    if (da) da.addEventListener('change', () => dataTable && dataTable.setFilter('date_after', da.value || ''));
+    if (db) db.addEventListener('change', () => dataTable && dataTable.setFilter('date_before', db.value || ''));
+    if (hg) hg.addEventListener('change', () => dataTable && dataTable.setFilter('has_gps', hg.checked ? 'true' : ''));
+
+    document.querySelectorAll('#filter-type-list input[data-role="filter-type"]').forEach((cb) => {
+        cb.addEventListener('change', () => {
+            const checked = Array.from(
+                document.querySelectorAll('#filter-type-list input[data-role="filter-type"]:checked')
+            ).map((el) => el.value);
+            if (dataTable) dataTable.setFilter('type', checked);
+        });
+    });
+
+    if (clear) {
+        clear.addEventListener('click', () => {
+            if (da) da.value = '';
+            if (db) db.value = '';
+            if (hg) hg.checked = false;
+            document.querySelectorAll('#filter-type-list input').forEach((cb) => { cb.checked = false; });
+            if (!dataTable) return;
+            dataTable.setFilter('date_after', '');
+            dataTable.setFilter('date_before', '');
+            dataTable.setFilter('has_gps', '');
+            dataTable.setFilter('type', []);
+        });
+    }
+}
+
 function renderStateFilterChip() {
     if (!currentStateFilter) return;
     const countEl = document.getElementById('evidences-count');
@@ -78,84 +213,9 @@ function renderStateFilterChip() {
     countEl.appendChild(chip);
 }
 
-function buildLoading() {
-    const wrap = document.createElement('div');
-    wrap.className = 'loading-overlay';
-    const sp = document.createElement('span');
-    sp.className = 'spinner';
-    wrap.appendChild(sp);
-    return wrap;
-}
-
-function buildEmpty(message, opts = {}) {
-    const wrap = document.createElement('div');
-    wrap.className = 'empty-state';
-
-    if (opts.icon) {
-        const ic = document.createElement('div');
-        ic.className = 'empty-state-icon';
-        const svgIcon = Icons.element(opts.icon, { size: 22 });
-        if (svgIcon) ic.appendChild(svgIcon);
-        wrap.appendChild(ic);
-    }
-
-    const p = document.createElement('p');
-    p.textContent = message;
-    if (opts.danger) p.classList.add('text-danger');
-    wrap.appendChild(p);
-
-    if (opts.action) {
-        wrap.appendChild(opts.action);
-    }
-    return wrap;
-}
-
-async function loadEvidences(search = '') {
-    const container = document.getElementById('evidences-list');
-    const countEl = document.getElementById('evidences-count');
-
-    container.replaceChildren(buildLoading());
-
-    try {
-        const params = { page: currentPage, page_size: 20 };
-        if (search) params.search = search;
-        if (currentStateFilter) params.state = currentStateFilter;
-
-        const data = await API.get(CONFIG.ENDPOINTS.EVIDENCES, params);
-        const evidences = data.results || [];
-
-        const total = data.count || 0;
-        countEl.textContent = `${total} ${total === 1 ? 'item' : 'itens'}`;
-
-        if (evidences.length === 0) {
-            const message = search
-                ? `Sem resultados para "${search}".`
-                : 'Sem itens registados.';
-            const opts = { icon: 'search' };
-            const user = Auth.getUser();
-            if (!search && user && user.profile === 'AGENT') {
-                const a = document.createElement('a');
-                a.href = '/evidences/new/';
-                a.className = 'btn btn-primary mt-16';
-                a.id = 'btn-empty-new';
-                a.textContent = 'Registar primeiro item';
-                opts.action = a;
-            }
-            container.replaceChildren(buildEmpty(message, opts));
-            document.getElementById('pagination').classList.add('hidden');
-            return;
-        }
-
-        container.replaceChildren();
-        evidences.forEach(ev => container.appendChild(renderEvidenceItem(ev)));
-        renderPagination(data);
-
-    } catch (err) {
-        container.replaceChildren(buildEmpty('Erro ao carregar itens. Tente novamente.', { danger: true }));
-        console.error('Erro:', err);
-    }
-}
-
+// ----------------------------------------------------------
+// Card renderer (modo mobile / fq:listmode=cards)
+// ----------------------------------------------------------
 function renderEvidenceItem(ev) {
     const date = new Date(ev.timestamp_seizure).toLocaleDateString('pt-PT', {
         day: '2-digit', month: '2-digit', year: 'numeric',
@@ -166,8 +226,6 @@ function renderEvidenceItem(ev) {
         || TYPE_COLORS[ev.type]
         || 'default';
 
-    // Linha clicável construída como <a> para semântica e suporte de
-    // teclado/leitores de ecrã sem cursor:pointer manual nem listener click.
     const row = document.createElement('a');
     row.className = 'list-item evidences-row';
     row.href = `/evidences/${ev.id}/`;
@@ -187,8 +245,6 @@ function renderEvidenceItem(ev) {
     typeBadge.appendChild(typeLabel);
     badges.appendChild(typeBadge);
 
-    // Badge adicional para sub-componentes — mostra o nome/código do pai,
-    // nunca o ID cru (ISO/IEC 27037: cadeia deve ser legível).
     if (ev.parent_evidence) {
         const sub = document.createElement('span');
         sub.className = 'badge badge-default';
@@ -256,44 +312,4 @@ function renderEvidenceItem(ev) {
     row.appendChild(left);
     row.appendChild(right);
     return row;
-}
-
-function renderPagination(data) {
-    const container = document.getElementById('pagination');
-    if (!data.next && !data.previous) {
-        container.classList.add('hidden');
-        return;
-    }
-    container.classList.remove('hidden');
-    container.replaceChildren();
-
-    const prev = document.createElement('button');
-    prev.className = 'btn btn-outline';
-    prev.textContent = '← Anterior';
-    prev.disabled = !data.previous;
-    if (!data.previous) prev.classList.add('disabled');
-    prev.addEventListener('click', () => changePage(-1));
-
-    const label = document.createElement('span');
-    label.className = 'text-muted';
-    label.style.fontSize = '0.875rem';
-    label.textContent = `Página ${currentPage}`;
-
-    const next = document.createElement('button');
-    next.className = 'btn btn-outline';
-    next.textContent = 'Seguinte →';
-    next.disabled = !data.next;
-    if (!data.next) next.classList.add('disabled');
-    next.addEventListener('click', () => changePage(1));
-
-    container.appendChild(prev);
-    container.appendChild(label);
-    container.appendChild(next);
-}
-
-function changePage(delta) {
-    currentPage += delta;
-    const search = document.getElementById('search-input').value.trim();
-    loadEvidences(search);
-    window.scrollTo(0, 0);
 }
