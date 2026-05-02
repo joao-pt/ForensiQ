@@ -56,40 +56,39 @@ async function loadStats() {
     if (!data) {
         setStat('stat-occurrences', '—');
         setStat('stat-evidences', '—');
-        setStat('stat-devices', '—');
+        setStat('stat-analysis', '—');
         setStat('stat-custody', '—');
         setStatSub('stat-occurrences-sub', 'indisponível');
         setStatSub('stat-evidences-sub', 'indisponível');
-        setStatSub('stat-devices-sub', 'indisponível');
+        setStatSub('stat-analysis-sub', 'indisponível');
         setStatSub('stat-custody-sub', 'indisponível');
         renderBreakdown({});
         if (grid) grid.setAttribute('aria-busy', 'false');
         return;
     }
 
-    // Novo shape (Wave 2c)
+    // Novo shape (Wave 2c+):
     //   total_occurrences, open_occurrences, total_evidences,
-    //   evidences_by_type, custodies_in_transit
-    // Legacy shape (fallback):
-    //   occurrences, evidences, devices, custody_records,
-    //   evidence_by_type, custody_by_state
+    //   evidences_by_type, custodies_in_transit, evidences_in_analysis
+    // O legado "devices"/"total_devices" foi descontinuado em favor da
+    // taxonomia Evidence (sub_components) — agora mostramos "Em perícia".
     var occTotal = pickNumber(data.total_occurrences, data.occurrences);
     var occOpen = pickNumber(data.open_occurrences, null);
     var evTotal = pickNumber(data.total_evidences, data.evidences);
-    var devTotal = pickNumber(data.total_devices, data.devices);
+    var inAnalysis = pickNumber(data.evidences_in_analysis,
+                                (data.custody_by_state || {}).EM_PERICIA);
     var inTransit = pickNumber(data.custodies_in_transit,
                                (data.custody_by_state || {}).EM_TRANSPORTE);
     var byType = data.evidences_by_type || data.evidence_by_type || {};
 
     setStat('stat-occurrences', occTotal);
     setStat('stat-evidences', evTotal);
-    setStat('stat-devices', devTotal);
+    setStat('stat-analysis', inAnalysis);
     setStat('stat-custody', inTransit);
 
     if (occOpen !== null && occOpen !== undefined) {
         setStatSub('stat-occurrences-sub', occOpen + ' em aberto');
     }
-    setStatSub('stat-custody-sub', 'em trânsito');
 
     renderBreakdown(byType);
 

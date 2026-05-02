@@ -133,20 +133,8 @@
     .case-map { height: 100%; min-height: 240px; }
 }
 
-/* ---------- Section label com contador ---------- */
-
-.section-label-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    padding: 0 var(--sp-4);
-    margin-bottom: var(--sp-3);
-}
-
-@media (min-width: 768px) {
-    .section-label-row { padding: 0; }
-}
+/* `.section-label-row`, `.section-action` e `.section-count` foram promovidos
+   a primitives partilhados em main.css (Wave 2e). */
 
 .section-label-row .section-label {
     padding: 0;
@@ -154,21 +142,6 @@
     display: inline-flex;
     align-items: center;
     gap: var(--sp-2);
-}
-
-.section-count {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 22px;
-    height: 20px;
-    padding: 0 6px;
-    background: var(--surface-hover);
-    color: var(--text-muted);
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-semi);
-    border-radius: var(--r-pill);
-    border: 1px solid var(--border);
 }
 
 /* ---------- Resumo de custódia (mini-cards) ---------- */

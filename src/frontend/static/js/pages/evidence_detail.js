@@ -81,14 +81,11 @@ async function loadEvidence() {
 function renderEvidence(ev) {
     const typeLabel = CONFIG.EVIDENCE_TYPES[ev.type] || ev.type;
 
-    const breadcrumbTitle = ev.code ? `Item ${ev.code}` : typeLabel;
-    document.getElementById('breadcrumb-title').textContent = breadcrumbTitle;
-    const idTag = document.getElementById('evidence-id-tag');
-    if (idTag) idTag.textContent = ev.code || `#${ev.id}`;
-    const subtitleParts = [];
-    if (ev.code) subtitleParts.push(ev.code);
-    subtitleParts.push(typeLabel);
-    document.getElementById('evidence-subtitle').textContent = subtitleParts.join(' · ');
+    // Title = código humano (ex.: ITM-2026-00001). Subtitle = tipo. Sem duplicar o código.
+    const title = ev.code || `Item #${ev.id}`;
+    document.getElementById('breadcrumb-title').textContent = title;
+    document.getElementById('evidence-title').textContent = title;
+    document.getElementById('evidence-subtitle').textContent = typeLabel;
 
     document.getElementById('meta-type').textContent = typeLabel;
     document.getElementById('meta-description').textContent = ev.description || '—';

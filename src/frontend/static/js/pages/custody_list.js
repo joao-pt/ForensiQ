@@ -45,7 +45,7 @@ async function loadCustodies(search) {
         var records = data.results || [];
         var total = data.count || 0;
 
-        countEl.textContent = total + ' transição' + (total !== 1 ? 'ões' : '');
+        countEl.textContent = total + (total === 1 ? ' transição' : ' transições');
 
         tbody.replaceChildren();
         if (records.length === 0) {
@@ -95,27 +95,33 @@ function buildEmptyRow(message, danger) {
 function buildRow(rec) {
     var tr = document.createElement('tr');
 
-    // Evidência (com link para detalhe)
+    // Evidência — preferir o código humano (ITM-2026-XXXXX); fallback "#id".
     var evTd = document.createElement('td');
     if (rec.evidence) {
         var a = document.createElement('a');
         a.href = '/evidences/' + rec.evidence + '/';
-        a.className = 'link';
-        a.textContent = '#' + rec.evidence;
+        a.className = 'link mono';
+        a.textContent = rec.evidence_code || ('#' + rec.evidence);
         evTd.appendChild(a);
     } else {
         evTd.textContent = '—';
     }
     tr.appendChild(evTd);
 
-    // De — agente/utilizador anterior
+    // Estado anterior — usa label legível em vez do enum (RECEBIDA_LABORATORIO → "No laboratório")
     var fromTd = document.createElement('td');
-    fromTd.textContent = rec.previous_state || '—';
+    if (rec.previous_state) {
+        var fromLabel = (CONFIG.CUSTODY_STATES && CONFIG.CUSTODY_STATES[rec.previous_state])
+            || rec.previous_state;
+        fromTd.textContent = fromLabel;
+    } else {
+        fromTd.textContent = '—';
+    }
     tr.appendChild(fromTd);
 
-    // Para — agente/utilizador novo (custodiante)
+    // Custodiante — nome completo do agente (não o ID).
     var toTd = document.createElement('td');
-    toTd.textContent = formatAgent(rec.agent) || '—';
+    toTd.textContent = rec.agent_name || '—';
     tr.appendChild(toTd);
 
     // Estado — usa state-pill (cores coerentes com timeline)

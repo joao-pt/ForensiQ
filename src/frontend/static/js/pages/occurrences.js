@@ -154,7 +154,7 @@ async function loadAllOccurrencesForMap() {
 function makeMarkerIcon() {
     return L.divIcon({
         className: 'fq-marker',
-        html: '<span class="status-dot accent" style="width:14px;height:14px;display:block;"></span>',
+        html: '<span class="status-dot accent fq-marker-dot"></span>',
         iconSize: [14, 14],
         iconAnchor: [7, 7],
     });

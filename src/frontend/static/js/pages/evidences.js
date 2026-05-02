@@ -20,9 +20,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const user = Auth.getUser();
     if (user && user.profile !== 'AGENT') {
         const btnNew = document.getElementById('btn-new-evidence');
-        if (btnNew) btnNew.style.display = 'none';
+        if (btnNew) btnNew.hidden = true;
         const fab = document.querySelector('.fab');
-        if (fab) fab.style.display = 'none';
+        if (fab) fab.hidden = true;
     }
 
     document.getElementById('search-input').addEventListener('input', (e) => {
@@ -123,23 +123,17 @@ function renderEvidenceItem(ev) {
         || TYPE_COLORS[ev.type]
         || 'default';
 
-    const row = document.createElement('div');
-    row.className = 'list-item';
-    row.style.cursor = 'pointer';
-    // Rota canónica: /evidences/<id>/ (normalizada na Wave 2d).
-    row.addEventListener('click', () => {
-        window.location.href = `/evidences/${ev.id}/`;
-    });
+    // Linha clicável construída como <a> para semântica e suporte de
+    // teclado/leitores de ecrã sem cursor:pointer manual nem listener click.
+    const row = document.createElement('a');
+    row.className = 'list-item evidences-row';
+    row.href = `/evidences/${ev.id}/`;
 
     const left = document.createElement('div');
-    left.style.flex = '1';
-    left.style.minWidth = '0';
+    left.className = 'evidences-row-left';
 
     const badges = document.createElement('div');
-    badges.style.display = 'flex';
-    badges.style.alignItems = 'center';
-    badges.style.gap = '8px';
-    badges.style.flexWrap = 'wrap';
+    badges.className = 'evidences-row-badges';
 
     const typeBadge = document.createElement('span');
     typeBadge.className = `badge badge-${color}`;
@@ -191,39 +185,30 @@ function renderEvidenceItem(ev) {
     left.appendChild(badges);
 
     const desc = document.createElement('div');
-    desc.className = 'mt-4';
-    desc.style.fontWeight = '500';
-    desc.style.overflow = 'hidden';
-    desc.style.textOverflow = 'ellipsis';
-    desc.style.whiteSpace = 'nowrap';
+    desc.className = 'mt-4 evidences-row-desc';
     const fullDesc = ev.description || '';
-    desc.textContent = fullDesc.length > 80 ? `${fullDesc.substring(0, 80)}...` : fullDesc;
+    desc.textContent = fullDesc.length > 80 ? `${fullDesc.substring(0, 80)}…` : fullDesc;
     left.appendChild(desc);
 
     const occLine = document.createElement('div');
-    occLine.className = 'text-muted';
-    occLine.style.fontSize = '0.75rem';
+    occLine.className = 'text-muted evidences-row-meta';
     const nuipc = ev.occurrence_number || ev.occurrence_code || '—';
     occLine.textContent = `Caso: ${nuipc}`;
     left.appendChild(occLine);
 
     const right = document.createElement('div');
-    right.style.textAlign = 'right';
-    right.style.flexShrink = '0';
-    right.style.marginLeft = '12px';
+    right.className = 'evidences-row-right';
 
     const dateEl = document.createElement('div');
-    dateEl.className = 'text-muted';
-    dateEl.style.fontSize = '0.75rem';
-    dateEl.style.whiteSpace = 'nowrap';
+    dateEl.className = 'text-muted evidences-row-date';
     dateEl.textContent = date;
     right.appendChild(dateEl);
 
-    const arrow = document.createElement('div');
-    arrow.className = 'text-muted';
-    arrow.style.fontSize = '0.75rem';
-    arrow.textContent = '>';
-    right.appendChild(arrow);
+    const arrow = Icons.element('chevron-right', { size: 16 });
+    if (arrow) {
+        arrow.classList.add('evidences-row-chevron');
+        right.appendChild(arrow);
+    }
 
     row.appendChild(left);
     row.appendChild(right);

@@ -40,7 +40,7 @@
             <!-- Mostrado quando é sub-componente (parent_evidence preenchido) -->
             <div id="parent-info" class="info-box hidden" role="note">
                 <strong>Sub-componente</strong>
-                <div id="parent-breadcrumb" class="mono" style="font-size:0.8125rem;margin-top:4px;"></div>
+                <div id="parent-breadcrumb" class="mono wizard-parent-breadcrumb"></div>
             </div>
         </section>
 
@@ -187,14 +187,14 @@
                 <h2 class="wizard-step-title" id="step-gps-title">Localização GPS</h2>
                 <p class="wizard-step-hint">Local exacto onde o item foi apreendido.</p>
             </div>
-            <div id="gps-status" class="gps-status" style="display:none;" role="status"></div>
-            <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
-                <div style="flex:1; min-width:120px;">
+            <div id="gps-status" class="gps-status" role="status" hidden></div>
+            <div class="wizard-gps-row">
+                <div class="wizard-gps-col">
                     <label for="gps_lat" class="form-label-sm">Latitude</label>
                     <input type="number" id="gps_lat" name="gps_lat" class="form-control mono"
                            placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
                 </div>
-                <div style="flex:1; min-width:120px;">
+                <div class="wizard-gps-col">
                     <label for="gps_lon" class="form-label-sm">Longitude</label>
                     <input type="number" id="gps_lon" name="gps_lon" class="form-control mono"
                            placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
@@ -236,7 +236,7 @@
                     <span class="wizard-summary-label">Ocorrência</span>
                     <span class="wizard-summary-value" id="sum-occurrence">—</span>
                 </div>
-                <div class="wizard-summary-item" id="sum-parent-row" style="display:none;">
+                <div class="wizard-summary-item" id="sum-parent-row" hidden>
                     <span class="wizard-summary-label">Pai</span>
                     <span class="wizard-summary-value mono" id="sum-parent">—</span>
                 </div>
@@ -256,7 +256,7 @@
                     <span class="wizard-summary-label">Nº série</span>
                     <span class="wizard-summary-value mono" id="sum-serial">—</span>
                 </div>
-                <div class="wizard-summary-item" id="sum-tsd-row" style="display:none;">
+                <div class="wizard-summary-item" id="sum-tsd-row" hidden>
                     <span class="wizard-summary-label">Detalhes</span>
                     <span class="wizard-summary-value mono" id="sum-tsd">—</span>
                 </div>
@@ -264,7 +264,7 @@
                     <span class="wizard-summary-label">GPS</span>
                     <span class="wizard-summary-value mono" id="sum-gps">—</span>
                 </div>
-                <div class="wizard-summary-item" id="sum-photo-row" style="display:none;">
+                <div class="wizard-summary-item" id="sum-photo-row" hidden>
                     <span class="wizard-summary-label">Foto</span>
                     <span class="wizard-summary-value">
                         <img id="sum-photo" class="wizard-summary-photo" src="" alt="Foto do item apreendido">
@@ -273,7 +273,7 @@
             </div>
 
             <div id="submit-error" class="form-error mt-8" role="alert"></div>
-            <div class="spinner spinner-dark hidden mt-16" id="submit-spinner" style="display:none; margin:16px auto;"></div>
+            <div class="spinner spinner-dark spinner-submit" id="submit-spinner" hidden></div>
         </section>
 
     </div><!-- /wizard-track -->

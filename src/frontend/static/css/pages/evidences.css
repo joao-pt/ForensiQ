@@ -13,3 +13,48 @@
         margin: 0;
     }
 }
+
+/* Linha de evidência — substitui style="" inline antes em evidences.js.
+   <a class="list-item evidences-row"> com layout flex e chevron à direita. */
+.evidences-row {
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background var(--transition-fast);
+}
+.evidences-row:hover { background: var(--surface-hover); }
+
+.evidences-row-left {
+    flex: 1;
+    min-width: 0;
+}
+.evidences-row-badges {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+}
+.evidences-row-desc {
+    font-weight: var(--fw-medium);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.evidences-row-meta {
+    font-size: 0.75rem;
+}
+.evidences-row-right {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-shrink: 0;
+    margin-left: var(--sp-3);
+}
+.evidences-row-date {
+    font-size: 0.75rem;
+    white-space: nowrap;
+}
+.evidences-row-chevron {
+    color: var(--text-subtle);
+    flex-shrink: 0;
+}
