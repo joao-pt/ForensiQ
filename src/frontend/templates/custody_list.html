@@ -30,50 +30,58 @@
         </a>
     </header>
 
-    <!-- Pesquisa -->
-    <div class="input-group">
-        <span class="input-group-prefix" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="7"/>
-                <path d="m21 21-4.3-4.3"/>
-            </svg>
-        </span>
-        <input type="search" id="custody-search" class="form-input"
-               placeholder="Código (CC-…/ITM-…), NUIPC ou observações"
-               autocomplete="off" spellcheck="false"
-               aria-label="Pesquisar custódias">
-    </div>
-
-    <!-- Tabela -->
-    <div class="card p-0" id="custody-table-wrapper" aria-busy="true" aria-live="polite">
-        <div class="custody-table-scroll">
-            <table class="data-table" id="custody-table">
-                <thead>
-                    <tr>
-                        <th scope="col">Evidência</th>
-                        <th scope="col">Estado anterior</th>
-                        <th scope="col">Para</th>
-                        <th scope="col">Estado</th>
-                        <th scope="col">Data/hora</th>
-                        <th scope="col" class="text-right">Acções</th>
-                    </tr>
-                </thead>
-                <tbody id="custody-tbody">
-                    <tr>
-                        <td colspan="6" class="text-center">
-                            <div class="loading-overlay" aria-hidden="true">
-                                <span class="spinner"></span>
-                                <span>A carregar custódias</span>
-                            </div>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+    <!-- Toolbar: pesquisa + botão de exportação CSV -->
+    <div class="toolbar">
+        <div class="input-group toolbar-search">
+            <span class="input-group-prefix" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input type="search" id="custody-search" class="form-input"
+                   placeholder="Código (CC-…/ITM-…), NUIPC ou observações"
+                   autocomplete="off" spellcheck="false"
+                   aria-label="Pesquisar custódias">
         </div>
+        <a href="/api/custody/csv/" class="btn btn-ghost btn-sm" id="btn-export-csv"
+           download="forensiq_custodia.csv">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            Exportar CSV
+        </a>
     </div>
 
-    <div id="custody-pagination" class="pagination-bar hidden" aria-label="Paginação"></div>
+    <div class="list-page-grid">
+        <div>
+            <div id="custody-list" aria-live="polite"></div>
+        </div>
+        <aside class="list-page-sidebar" aria-label="Filtros">
+            <details open>
+                <summary>Estado actual</summary>
+                <div id="filter-state-list" class="filter-checkbox-list">
+                    <!-- Preenchido por custody_list.js a partir de CONFIG.CUSTODY_STATES -->
+                </div>
+            </details>
+            <details>
+                <summary>Data da transição</summary>
+                <div class="form-group">
+                    <label class="form-label" for="filter-date-after">Desde</label>
+                    <input type="date" id="filter-date-after" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="filter-date-before">Até</label>
+                    <input type="date" id="filter-date-before" class="form-input">
+                </div>
+            </details>
+            <button type="button" id="filter-clear" class="btn btn-ghost btn-sm">
+                Limpar filtros
+            </button>
+        </aside>
+    </div>
 </div>
 {% endblock %}
 

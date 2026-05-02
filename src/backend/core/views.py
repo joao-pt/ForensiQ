@@ -17,6 +17,7 @@ Endpoints:
 - /api/health/             — healthcheck (liveness + DB)
 """
 
+import csv
 import logging
 import mimetypes
 from pathlib import Path
@@ -27,7 +28,7 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
 from django.db.models import Count
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.views.decorators.http import require_safe
 from django_filters.rest_framework import DjangoFilterBackend
@@ -76,6 +77,59 @@ log = logging.getLogger(__name__)
 # com ``CACHES['default']['TIMEOUT']`` mas declarado localmente para o
 # endpoint ser explícito sobre a política forense (imutabilidade do IMEI).
 _LOOKUP_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
+
+# Limite máximo de linhas exportadas em CSV — defesa contra extracções
+# massivas que ultrapassem a janela de auditoria razoável (uma exportação
+# legítima de 10k registos já indica que o agente devia ter aplicado
+# filtros). Acima disto retornamos 413 e pedimos ao cliente para filtrar.
+CSV_EXPORT_MAX_ROWS = 10_000
+
+
+class _CsvEcho:
+    """Pseudo file-object — devolve o que recebe. Usado pelo ``csv.writer``
+    para escrever directamente para o iterador do StreamingHttpResponse,
+    sem buffering em memória."""
+
+    def write(self, value):
+        return value
+
+
+def _csv_filename(prefix: str) -> str:
+    return f'forensiq_{prefix}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv'
+
+
+def _csv_streaming_response(rows_iterator, filename: str) -> StreamingHttpResponse:
+    """StreamingHttpResponse com ``Content-Disposition: attachment``.
+
+    O iterador ``rows_iterator`` deve produzir listas/tuplos por linha
+    (a primeira é o header). UTF-8 BOM é incluído para o Excel abrir
+    correctamente em Windows.
+    """
+    pseudo_buffer = _CsvEcho()
+    writer = csv.writer(pseudo_buffer)
+
+    def stream():
+        # BOM para Excel pt-PT (ã/ç são preservados sem mojibake).
+        yield '﻿'
+        for row in rows_iterator:
+            yield writer.writerow(row)
+
+    response = StreamingHttpResponse(stream(), content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _check_csv_size(qs) -> int | None:
+    """Devolve count se ≤ limite; senão devolve None (sinaliza 413).
+
+    Faz ``count()`` cedo (antes de consumir o queryset) para evitar gerar
+    um CSV de 50 MB e abortar a meio. ``count()`` é uma query simples e
+    rápida na presença de índices.
+    """
+    count = qs.count()
+    if count > CSV_EXPORT_MAX_ROWS:
+        return None
+    return count
 
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
@@ -211,7 +265,56 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         if self.action == 'export_pdf':
             self.throttle_scope = 'pdf_export'
             return [ScopedRateThrottle()]
+        if self.action == 'export_csv':
+            self.throttle_scope = 'csv_export'
+            return [ScopedRateThrottle()]
         return super().get_throttles()
+
+    @action(detail=False, methods=['get'], url_path='csv')
+    def export_csv(self, request):
+        """GET /api/occurrences/csv/ — exportação massiva (modo tabela densa).
+
+        Respeita filtros activos (``?date_after=``, ``?ordering=``,
+        ``?search=``, ``?state=``) e ownership (``IsOwnerOrReadOnly``).
+        StreamingHttpResponse → memória constante mesmo para 10k linhas.
+        Auditado em ``AuditLog`` com action ``EXPORT_CSV`` e detalhe dos
+        filtros aplicados.
+        """
+        qs = self.filter_queryset(self.get_queryset())
+        count = _check_csv_size(qs)
+        if count is None:
+            return Response(
+                {'detail': (
+                    f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
+                    'Aplica filtros antes de exportar.'
+                )},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        log_access(
+            request=request,
+            action=AuditLog.Action.EXPORT_CSV,
+            resource_type=AuditLog.ResourceType.OCCURRENCE,
+            resource_id=0,
+            details={'count': count, 'filters': dict(request.query_params)},
+        )
+
+        def rows():
+            yield ['Codigo', 'NUIPC', 'Descricao', 'Data', 'Agente',
+                   'Morada', 'GPS Lat', 'GPS Lon']
+            for occ in qs.iterator(chunk_size=500):
+                yield [
+                    occ.code,
+                    occ.number,
+                    occ.description,
+                    occ.date_time.isoformat() if occ.date_time else '',
+                    occ.agent.username if occ.agent_id else '',
+                    occ.address,
+                    str(occ.gps_lat) if occ.gps_lat is not None else '',
+                    str(occ.gps_lon) if occ.gps_lon is not None else '',
+                ]
+
+        return _csv_streaming_response(rows(), _csv_filename('ocorrencias'))
 
     @action(detail=True, methods=['get'], url_path='pdf')
     def export_pdf(self, request, pk=None):
@@ -295,6 +398,9 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             return [ScopedRateThrottle()]
         if self.action == 'export_pdf':
             self.throttle_scope = 'pdf_export'
+            return [ScopedRateThrottle()]
+        if self.action == 'export_csv':
+            self.throttle_scope = 'csv_export'
             return [ScopedRateThrottle()]
         return super().get_throttles()
 
@@ -392,6 +498,54 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         response['Content-Length'] = len(pdf_bytes)
         return response
 
+    @action(detail=False, methods=['get'], url_path='csv')
+    def export_csv(self, request):
+        """GET /api/evidences/csv/ — exportação massiva (modo tabela densa).
+
+        Respeita filtros (``?type=``, ``?date_after=``, ``?has_gps=``,
+        ``?occurrence=``) e ownership. Imutabilidade ISO/IEC 27037 não é
+        afectada — o endpoint é GET.
+        """
+        qs = self.filter_queryset(self.get_queryset())
+        count = _check_csv_size(qs)
+        if count is None:
+            return Response(
+                {'detail': (
+                    f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
+                    'Aplica filtros antes de exportar.'
+                )},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        log_access(
+            request=request,
+            action=AuditLog.Action.EXPORT_CSV,
+            resource_type=AuditLog.ResourceType.EVIDENCE,
+            resource_id=0,
+            details={'count': count, 'filters': dict(request.query_params)},
+        )
+
+        def rows():
+            yield ['Codigo', 'Tipo', 'Descricao', 'NUIPC', 'Apreendido',
+                   'Numero de serie', 'Hash SHA-256', 'GPS Lat', 'GPS Lon',
+                   'Foto', 'Agente']
+            for ev in qs.iterator(chunk_size=500):
+                yield [
+                    ev.code,
+                    ev.get_type_display(),
+                    ev.description,
+                    ev.occurrence.number if ev.occurrence_id else '',
+                    ev.timestamp_seizure.isoformat() if ev.timestamp_seizure else '',
+                    ev.serial_number,
+                    ev.integrity_hash,
+                    str(ev.gps_lat) if ev.gps_lat is not None else '',
+                    str(ev.gps_lon) if ev.gps_lon is not None else '',
+                    'sim' if ev.photo else 'nao',
+                    ev.agent.username if ev.agent_id else '',
+                ]
+
+        return _csv_streaming_response(rows(), _csv_filename('evidencias'))
+
 
 # ---------------------------------------------------------------------------
 # DigitalDevice
@@ -469,6 +623,12 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
             qs = qs.filter(evidence_id=evidence_id)
         return qs
 
+    def get_throttles(self):
+        if self.action == 'export_csv':
+            self.throttle_scope = 'csv_export'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
+
     def perform_create(self, serializer):
         try:
             custody_record = serializer.save(agent=self.request.user)
@@ -482,6 +642,53 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         except DjangoValidationError as exc:
             # Converter ValidationError do Django para DRF (retorna 400)
             raise drf_serializers.ValidationError(exc.message_dict)
+
+    @action(detail=False, methods=['get'], url_path='csv')
+    def export_csv(self, request):
+        """GET /api/custody/csv/ — exportação massiva (modo tabela densa).
+
+        Cadeia de custódia é append-only — exportar não compromete
+        imutabilidade. Respeita ownership (AGENT só vê os seus) e
+        filtros activos (``?new_state=``, ``?date_after=``).
+        """
+        qs = self.filter_queryset(self.get_queryset())
+        count = _check_csv_size(qs)
+        if count is None:
+            return Response(
+                {'detail': (
+                    f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
+                    'Aplica filtros antes de exportar.'
+                )},
+                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            )
+
+        log_access(
+            request=request,
+            action=AuditLog.Action.EXPORT_CSV,
+            resource_type=AuditLog.ResourceType.CUSTODY,
+            resource_id=0,
+            details={'count': count, 'filters': dict(request.query_params)},
+        )
+
+        def rows():
+            yield ['Codigo', 'Item', 'NUIPC', 'Sequencia', 'Estado anterior',
+                   'Novo estado', 'Agente', 'Data', 'Observacoes', 'Hash']
+            for rec in qs.iterator(chunk_size=500):
+                yield [
+                    rec.code,
+                    rec.evidence.code if rec.evidence_id else '',
+                    rec.evidence.occurrence.number
+                        if rec.evidence_id and rec.evidence.occurrence_id else '',
+                    rec.sequence,
+                    rec.get_previous_state_display() if rec.previous_state else '',
+                    rec.get_new_state_display(),
+                    rec.agent.username if rec.agent_id else '',
+                    rec.timestamp.isoformat() if rec.timestamp else '',
+                    rec.observations,
+                    rec.record_hash,
+                ]
+
+        return _csv_streaming_response(rows(), _csv_filename('custodia'))
 
     @action(detail=False, methods=['get'], url_path='evidence/(?P<evidence_id>[0-9]+)/timeline')
     def timeline(self, request, evidence_id=None):

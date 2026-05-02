@@ -2170,6 +2170,28 @@ main {
     }
 }
 
+/* Toolbar genérica (pesquisa + acções) — partilhada por occurrences,
+   evidences, custody. Em mobile empilha; em desktop alinha em linha. */
+.toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4);
+    margin-bottom: var(--sp-4);
+}
+@media (min-width: 768px) {
+    .toolbar {
+        padding: 0;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+.toolbar-search {
+    flex: 1;
+    max-width: 480px;
+}
+
 /* Sidebar — checkboxes verticais para filtros multi-valor (ex: tipo) */
 .filter-checkbox-list {
     display: flex;
