@@ -38,7 +38,10 @@ async function loadCustodies(search) {
     tbody.replaceChildren(buildLoadingRow(6));
 
     try {
-        var params = { page: currentPage, page_size: 25 };
+        // ordering=-timestamp: nesta tabela queremos as transições mais
+        // recentes primeiro (custody-list é uma vista global). O endpoint
+        // usa por defeito sequência ascendente (cadeia) — aqui invertemos.
+        var params = { page: currentPage, page_size: 25, ordering: '-timestamp' };
         if (search) params.search = search;
 
         var data = await API.get(CONFIG.ENDPOINTS.CUSTODY, params);

@@ -391,3 +391,44 @@
         top: 72px;
     }
 }
+
+/* ---------- Cascade checklist (modal de transição) ---------- */
+
+.cascade-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 10px 12px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.cascade-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.875rem;
+    cursor: pointer;
+    line-height: 1.4;
+}
+
+.cascade-row input[type="checkbox"] {
+    margin: 0;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+
+.cascade-row input[type="checkbox"]:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.cascade-row span {
+    flex: 1;
+}

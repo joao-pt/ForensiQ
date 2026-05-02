@@ -29,7 +29,9 @@
     <section class="stats-grid" id="stats-grid"
              aria-busy="true" aria-live="polite" aria-label="Estatísticas do painel">
 
-        <div class="stat-card" data-accent="info">
+        <a class="stat-card" data-accent="info" href="/occurrences/"
+           data-nav="/occurrences/" role="button" tabindex="0"
+           aria-label="Abrir lista de ocorrências">
             <div class="stat-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" stroke-linejoin="round">
@@ -41,9 +43,11 @@
             </div>
             <div class="stat-label">Ocorrências</div>
             <div class="stat-sub" id="stat-occurrences-sub"></div>
-        </div>
+        </a>
 
-        <div class="stat-card" data-accent="accent">
+        <a class="stat-card" data-accent="accent" href="/evidences/"
+           data-nav="/evidences/" role="button" tabindex="0"
+           aria-label="Abrir lista de itens apreendidos">
             <div class="stat-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" stroke-linejoin="round">
@@ -56,9 +60,11 @@
             </div>
             <div class="stat-label">Itens</div>
             <div class="stat-sub" id="stat-evidences-sub"></div>
-        </div>
+        </a>
 
-        <div class="stat-card" data-accent="success">
+        <a class="stat-card" data-accent="success" href="/evidences/?state=EM_PERICIA"
+           data-nav="/evidences/?state=EM_PERICIA" role="button" tabindex="0"
+           aria-label="Filtrar itens em perícia">
             <div class="stat-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" stroke-linejoin="round">
@@ -71,9 +77,11 @@
             </div>
             <div class="stat-label">Em perícia</div>
             <div class="stat-sub" id="stat-analysis-sub"></div>
-        </div>
+        </a>
 
-        <div class="stat-card" data-accent="warning">
+        <a class="stat-card" data-accent="warning" href="/evidences/?state=EM_TRANSPORTE"
+           data-nav="/evidences/?state=EM_TRANSPORTE" role="button" tabindex="0"
+           aria-label="Filtrar itens em trânsito">
             <div class="stat-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" stroke-linejoin="round">
@@ -86,7 +94,7 @@
             </div>
             <div class="stat-label">Em trânsito</div>
             <div class="stat-sub" id="stat-custody-sub"></div>
-        </div>
+        </a>
     </section>
 
     <!-- Breakdown por tipo de item -->

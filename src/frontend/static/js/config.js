@@ -141,9 +141,17 @@ const CONFIG = Object.freeze({
         'GPS_TRACKER': ['SIM_CARD', 'MEMORY_CARD'],
     },
 
-    // Profundidade máxima da árvore pai-filho (ISO/IEC 27037 — evitar
-    // detalhe excessivo)
+    // Profundidade máxima da árvore pai-filho.
     MAX_TREE_DEPTH: 3,
+
+    // Tipos terminais — não admitem sub-componentes (espelha o backend
+    // Evidence.EVIDENCE_LEAF_TYPES). Frontend usa para ocultar UI; o backend
+    // valida no clean() e devolve 400 se o cliente tentar contornar.
+    EVIDENCE_LEAF_TYPES: ['SIM_CARD', 'MEMORY_CARD', 'RFID_NFC_CARD', 'DIGITAL_FILE'],
+
+    isLeafType: function (type) {
+        return this.EVIDENCE_LEAF_TYPES.indexOf(type) !== -1;
+    },
 
     // Perfis de utilizador
     PROFILES: {

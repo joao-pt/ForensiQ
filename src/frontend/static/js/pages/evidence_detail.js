@@ -67,8 +67,12 @@ async function loadEvidence() {
         });
         renderDevices(devicesData.results || []);
 
+        // Ordering default do endpoint é `sequence` ASC (cronológico da
+        // cadeia). Para o "estado actual" precisamos do MAIS RECENTE —
+        // forçamos -sequence e pegamos no primeiro.
         const custodyData = await API.get(CONFIG.ENDPOINTS.CUSTODY, {
             evidence: evidenceId,
+            ordering: '-sequence',
             page_size: 1,
         });
         const latest = (custodyData.results || [])[0];
@@ -135,10 +139,11 @@ function renderEvidence(ev) {
         banner.hidden = false;
     }
 
-    // Botão "Adicionar sub-componente" — apenas para AGENT e se houver
-    // margem na profundidade da árvore. Servidor valida profundidade ≤ 3.
+    // Botão "Adicionar sub-componente" — apenas para AGENT, quando o item
+    // ainda admite filhos (não é tipo terminal e está abaixo da profundidade
+    // máxima). O servidor valida ambos os casos no Evidence.clean().
     const user = Auth.getUser();
-    if (user && user.profile === 'AGENT') {
+    if (user && user.profile === 'AGENT' && !(CONFIG.isLeafType && CONFIG.isLeafType(ev.type))) {
         const btn = document.getElementById('btn-add-sub');
         if (btn) {
             const params = new URLSearchParams({

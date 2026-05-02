@@ -12,24 +12,6 @@
 {% block content %}
 <div class="lp-page" data-page="login">
 
-    <!-- Alternar tema (canto superior direito, flutuante) -->
-    <button type="button" class="lp-theme-toggle icon-btn" id="theme-toggle"
-            title="Alternar tema" aria-label="Alternar tema" aria-pressed="false">
-        <svg class="icon-sun" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="4"/>
-            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-        </svg>
-        <svg class="icon-moon" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
-            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
-        </svg>
-    </button>
-
-    <div id="theme-announce" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
-
     <aside class="lp-chain-panel" aria-hidden="true">
 
         <div class="lp-chain-bg"></div>
@@ -222,6 +204,5 @@
 
 {% block extra_js %}
 <script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/theme-switch.js' %}"></script>
 <script src="{% static 'js/pages/login.js' %}"></script>
 {% endblock %}

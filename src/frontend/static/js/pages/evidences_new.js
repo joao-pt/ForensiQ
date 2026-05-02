@@ -15,6 +15,10 @@ var selectedPhoto = null;
 var wizard = null;
 var createdEvidenceId = null;
 var createdEvidenceType = null;
+// Quando o wizard é aberto com contexto (ocorrência ou pai pré-seleccionado),
+// saltamos automaticamente para este passo após init para evitar pedir ao
+// utilizador para escolher a ocorrência outra vez.
+var wizardSkipToStep = 0;
 
 document.addEventListener('DOMContentLoaded', async function () {
     var authenticated = await Auth.requireAuth();
@@ -36,16 +40,37 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     setDefaultTimestamp();
     populateTypeSelect();
-    loadOccurrences();
-    readParentFromUrl();
+    // Carrega ocorrências PRIMEIRO (precisamos da lista para pré-seleccionar
+    // via ?occurrence=). Só depois lê o URL e arranca o wizard.
+    await loadOccurrences();
+    await readParentFromUrl();
     setupTypeChange();
     setupPhotoCapture();
     captureGPS();
     document.getElementById('btn-gps').addEventListener('click', captureGPS);
 
     initWizard();
+    if (wizardSkipToStep > 0 && wizard) {
+        // Salta o passo de selecção de ocorrência — já vem do contexto.
+        wizard.goTo(wizardSkipToStep);
+    }
     initSubPromptHandlers();
 });
+
+/**
+ * Mostra o banner persistente de contexto (visível em todos os passos)
+ * com a ocorrência (e opcionalmente o pai) onde o item será adicionado.
+ */
+function showWizardContextBanner(opts) {
+    var banner = document.getElementById('wizard-context-banner');
+    var titleEl = document.getElementById('wizard-context-title');
+    var metaEl = document.getElementById('wizard-context-meta');
+    if (!banner || !titleEl || !metaEl) return;
+
+    titleEl.textContent = opts.title || 'A adicionar item';
+    metaEl.textContent = opts.meta || '';
+    banner.classList.remove('hidden');
+}
 
 /* ---- Type select (optgroups) ---- */
 
@@ -70,24 +95,61 @@ function populateTypeSelect() {
     });
 }
 
-/* ---- Sub-componente: ler parent da URL ---- */
+/* ---- Sub-componente: ler parent / occurrence da URL ---- */
 
 async function readParentFromUrl() {
     var params = new URLSearchParams(window.location.search);
     var parentId = params.get('parent');
+    var occurrenceId = params.get('occurrence');
+
+    // CASO 1 — vem com ?occurrence= (atalho do modal pós-criação de ocorrência).
+    // Pré-selecciona a ocorrência no dropdown, mostra banner persistente,
+    // e marca para o wizard saltar o passo da ocorrência.
+    if (!parentId && occurrenceId) {
+        var occSelect = document.getElementById('occurrence');
+        if (occSelect) {
+            var hasOpt = Array.from(occSelect.options).some(function (o) {
+                return o.value === String(occurrenceId);
+            });
+            if (hasOpt) {
+                occSelect.value = String(occurrenceId);
+                occSelect.disabled = true;
+                occSelect.dispatchEvent(new Event('change'));
+            }
+        }
+        // Carrega o número da ocorrência para mostrar no banner.
+        try {
+            var occ = await API.get(CONFIG.ENDPOINTS.OCCURRENCES + occurrenceId + '/');
+            showWizardContextBanner({
+                title: 'A adicionar item à ocorrência',
+                meta: occ ? (occ.number || ('#' + occurrenceId)) : ('#' + occurrenceId),
+            });
+        } catch (err) {
+            // Se falhar a leitura, ainda mostramos o ID para dar contexto.
+            showWizardContextBanner({
+                title: 'A adicionar item à ocorrência',
+                meta: '#' + occurrenceId,
+            });
+        }
+        wizardSkipToStep = 1;
+        return;
+    }
+
     if (!parentId) return;
 
+    // CASO 2 — vem com ?parent= (sub-componente).
     var parentHidden = document.getElementById('parent_evidence');
     parentHidden.value = parentId;
 
     var crumb = document.getElementById('wizard-breadcrumb-current');
     if (crumb) crumb.textContent = 'Sub-componente de #' + parentId;
 
-    // Mostra info-box e tenta carregar dados do parent para breadcrumb
+    // Info-box do step 0 (legacy — usamos também para coerência se o
+    // utilizador voltar atrás). O banner persistente é a fonte principal.
     var info = document.getElementById('parent-info');
     var bc = document.getElementById('parent-breadcrumb');
-    info.classList.remove('hidden');
-    bc.textContent = '#' + parentId + ' → [novo componente]';
+    if (info) info.classList.remove('hidden');
+    if (bc) bc.textContent = '#' + parentId + ' → [novo componente]';
 
     try {
         var parent = await API.get(CONFIG.ENDPOINTS.EVIDENCES + parentId + '/');
@@ -98,20 +160,33 @@ async function readParentFromUrl() {
 
             var typeLabel = CONFIG.EVIDENCE_TYPES[parent.type] || parent.type;
             var snippet = (parent.description || '').substring(0, 50);
-            bc.textContent = 'Ocorrência #' + (parent.occurrence || '?')
-                + ' → ' + typeLabel + ' #' + parent.id
-                + (snippet ? ' (' + snippet + ')' : '')
-                + ' → [novo]';
+            if (bc) {
+                bc.textContent = 'Ocorrência #' + (parent.occurrence || '?')
+                    + ' → ' + typeLabel + ' #' + parent.id
+                    + (snippet ? ' (' + snippet + ')' : '')
+                    + ' → [novo]';
+            }
 
             // Pré-selecciona a ocorrência
-            var occSelect = document.getElementById('occurrence');
-            if (parent.occurrence) {
-                occSelect.value = String(parent.occurrence);
-                occSelect.disabled = true;
+            var occSelect2 = document.getElementById('occurrence');
+            if (parent.occurrence && occSelect2) {
+                occSelect2.value = String(parent.occurrence);
+                occSelect2.disabled = true;
             }
+
+            // Banner persistente — visível em todos os passos do wizard.
+            var occLabel = parent.occurrence_number || parent.occurrence_code
+                || ('#' + (parent.occurrence || '?'));
+            showWizardContextBanner({
+                title: 'A adicionar sub-componente',
+                meta: occLabel + ' · ' + typeLabel + ' ' + (parent.code || '#' + parent.id),
+            });
 
             // Filtra o select de tipos para sugerir sub-componentes típicos
             filterTypeSuggestions(parent.type);
+
+            // Salta o passo da ocorrência — já está pré-seleccionada.
+            wizardSkipToStep = 1;
         }
     } catch (err) {
         console.warn('Não foi possível carregar o evidence-pai:', err);
@@ -991,61 +1066,131 @@ function setSubmitting(loading) {
     if (wizard.backBtn) wizard.backBtn.disabled = loading;
 }
 
-/* ---- Sub-component prompt modal ---- */
+/* ---- Sub-component prompt modal ----
+ *
+ * 3 opções para o utilizador:
+ *  - "Outro componente do {pai}" (irmão) — visível só se o item criado tem pai
+ *  - "Sub-componente deste {item}" (filho) — desactivado se LEAF ou max depth
+ *  - "Terminar e abrir detalhe" — sempre visível
+ *
+ * O contexto (pai + criado) é mostrado em destaque para o utilizador não
+ * se confundir entre níveis quando entra fundo na hierarquia.
+ */
 
 function initSubPromptHandlers() {
-    var modal = document.getElementById('sub-prompt-modal');
-    var btnAdd = document.getElementById('btn-sub-add');
-    var btnFinish = document.getElementById('btn-sub-finish');
-
-    btnAdd.addEventListener('click', function () {
-        if (!createdEvidenceId) return;
-        // Abrimos o wizard de novo, mas como sub-componente do que acabámos de criar.
-        var url = '/evidences/new/?parent=' + encodeURIComponent(createdEvidenceId);
-        window.location.href = url;
-    });
-
-    btnFinish.addEventListener('click', function () {
-        closeSubPrompt();
-        if (createdEvidenceId) {
-            window.location.href = '/evidences/' + createdEvidenceId + '/';
-        } else {
-            window.location.href = '/evidences/';
+    // Os handlers são reconfigurados por evidence em showSubPrompt().
+    // Aqui apenas garantimos que a tecla Escape fecha sem navegar (volta
+    // ao formulário, mas como já submeteu, o utilizador continua na mesma
+    // página até clicar num botão).
+    document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        var modal = document.getElementById('sub-prompt-modal');
+        if (modal && modal.classList.contains('open')) {
+            // Escape fecha modal e vai para detalhe — mantém estado consistente.
+            if (createdEvidenceId) {
+                window.location.href = '/evidences/' + createdEvidenceId + '/';
+            } else {
+                closeSubPrompt();
+            }
         }
     });
 }
 
 function showSubPrompt(evidence) {
     var modal = document.getElementById('sub-prompt-modal');
-    var btnAdd = document.getElementById('btn-sub-add');
+    var btnSibling = document.getElementById('btn-sub-sibling');
+    var btnChild = document.getElementById('btn-sub-child');
+    var btnFinish = document.getElementById('btn-sub-finish');
+    var btnSiblingLabel = document.getElementById('btn-sub-sibling-label');
+    var btnChildLabel = document.getElementById('btn-sub-child-label');
     var maxBox = document.getElementById('sub-prompt-max');
+    var leafBox = document.getElementById('sub-prompt-leaf');
     var suggestionsBox = document.getElementById('sub-prompt-suggestions');
+    var createdEl = document.getElementById('sub-prompt-created');
+    var parentEl = document.getElementById('sub-prompt-parent');
+    var parentRow = document.getElementById('sub-prompt-parent-row');
 
-    // Profundidade: calculamos a partir do depth do pai + 1
-    var parentDepth = Number(document.getElementById('parent_depth').value || 0);
-    var newDepth = document.getElementById('parent_evidence').value ? parentDepth + 1 : 0;
+    var typeLabel = (CONFIG.EVIDENCE_TYPES && CONFIG.EVIDENCE_TYPES[evidence.type]) || evidence.type;
+    createdEl.textContent = (evidence.code ? evidence.code + ' · ' : '') + typeLabel;
 
-    // MAX_TREE_DEPTH = 3. Um componente de profundidade 2 não pode ter filhos
-    // (depth 3 seria a folha e já não cabe mais nada).
-    if (newDepth >= CONFIG.MAX_TREE_DEPTH - 1) {
-        btnAdd.hidden = true;
-        btnAdd.setAttribute('aria-hidden', 'true');
-        maxBox.classList.remove('hidden');
+    // Pai: tem prioridade o `parent_evidence_label` do serializer; fallback
+    // para o que tínhamos no formulário.
+    var parentId = evidence.parent_evidence;
+    var parentLabel = evidence.parent_evidence_label || '';
+    if (parentId && !parentLabel) {
+        parentLabel = 'Item #' + parentId;
+    }
+    if (parentId) {
+        parentEl.textContent = parentLabel;
+        parentRow.hidden = false;
     } else {
-        btnAdd.hidden = false;
-        btnAdd.removeAttribute('aria-hidden');
-        maxBox.classList.add('hidden');
+        parentRow.hidden = true;
     }
 
-    // Mostra sugestões baseadas no tipo recém-criado
+    // ---- Botão "irmão" (outro componente para o pai) ----
+    if (parentId) {
+        btnSibling.hidden = false;
+        // Tipo do pai para a label — usamos o que já temos no DOM
+        // (preenchido em readParentFromUrl). Se vazio, label genérico.
+        var parentTypeCode = document.getElementById('parent_type').value || '';
+        var parentTypeLabel = (CONFIG.EVIDENCE_TYPES && CONFIG.EVIDENCE_TYPES[parentTypeCode]) || 'item-pai';
+        btnSiblingLabel.textContent = 'Outro componente do ' + parentTypeLabel.toLowerCase();
+        btnSibling.onclick = function () {
+            window.location.href = '/evidences/new/?occurrence='
+                + encodeURIComponent(evidence.occurrence)
+                + '&parent=' + encodeURIComponent(parentId);
+        };
+    } else {
+        // Item criado é raiz — "irmão" significa nova raiz na mesma ocorrência.
+        btnSibling.hidden = false;
+        btnSiblingLabel.textContent = 'Outro item nesta ocorrência';
+        btnSibling.onclick = function () {
+            window.location.href = '/evidences/new/?occurrence='
+                + encodeURIComponent(evidence.occurrence);
+        };
+    }
+
+    // ---- Botão "filho" (sub-componente deste item) ----
+    var isLeaf = CONFIG.isLeafType && CONFIG.isLeafType(evidence.type);
+    var parentDepth = Number(document.getElementById('parent_depth').value || 0);
+    var createdDepth = parentId ? parentDepth + 1 : 1;
+    var canHaveChildren = !isLeaf && createdDepth < CONFIG.MAX_TREE_DEPTH;
+
+    if (canHaveChildren) {
+        btnChild.hidden = false;
+        btnChildLabel.textContent = 'Sub-componente deste ' + typeLabel.toLowerCase();
+        btnChild.onclick = function () {
+            window.location.href = '/evidences/new/?parent='
+                + encodeURIComponent(createdEvidenceId);
+        };
+        leafBox.classList.add('hidden');
+        maxBox.classList.add('hidden');
+    } else {
+        btnChild.hidden = true;
+        if (isLeaf) {
+            leafBox.classList.remove('hidden');
+            maxBox.classList.add('hidden');
+        } else {
+            maxBox.classList.remove('hidden');
+            leafBox.classList.add('hidden');
+        }
+    }
+
+    // ---- Botão "terminar" ----
+    btnFinish.onclick = function () {
+        closeSubPrompt();
+        window.location.href = '/evidences/'
+            + encodeURIComponent(createdEvidenceId) + '/';
+    };
+
+    // Sugestões de sub-componentes (só se "filho" estiver disponível).
     suggestionsBox.replaceChildren();
     var suggestions = (CONFIG.EVIDENCE_CHILD_SUGGESTIONS || {})[evidence.type];
-    if (suggestions && suggestions.length && !btnAdd.hidden) {
+    if (canHaveChildren && suggestions && suggestions.length) {
         var title = document.createElement('small');
         title.className = 'text-muted';
-        title.textContent = 'Sugestões para ' + (CONFIG.EVIDENCE_TYPES[evidence.type] || evidence.type) + ':';
+        title.textContent = 'Sub-componentes típicos: ';
         suggestionsBox.appendChild(title);
-
         var row = document.createElement('div');
         row.className = 'sub-suggestion-pills';
         suggestions.forEach(function (t) {
@@ -1054,7 +1199,7 @@ function showSubPrompt(evidence) {
             var svgIcon = Icons.forEvidenceElement(t, { size: 14 });
             if (svgIcon) pill.appendChild(svgIcon);
             var label = document.createElement('span');
-            label.textContent = CONFIG.EVIDENCE_TYPES[t] || t;
+            label.textContent = (CONFIG.EVIDENCE_TYPES && CONFIG.EVIDENCE_TYPES[t]) || t;
             pill.appendChild(label);
             row.appendChild(pill);
         });
@@ -1069,9 +1214,11 @@ function showSubPrompt(evidence) {
     modal.setAttribute('aria-hidden', 'false');
     modal.classList.add('open');
     modal.classList.add('active');
-    // Coloca o foco no botão primário (ou terminar se max atingido)
     setTimeout(function () {
-        (btnAdd.hidden ? document.getElementById('btn-sub-finish') : btnAdd).focus();
+        // Foco no primeiro botão visível, ou em "terminar" se nenhum.
+        var first = !btnChild.hidden ? btnChild
+                  : (!btnSibling.hidden ? btnSibling : btnFinish);
+        first.focus();
     }, 50);
 }
 
