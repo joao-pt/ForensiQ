@@ -30,19 +30,30 @@
         </a>
     </header>
 
-    <div class="input-group evidences-search">
-        <span class="input-group-prefix" aria-hidden="true">
+    <div class="toolbar">
+        <div class="input-group toolbar-search">
+            <span class="input-group-prefix" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="7"/>
+                    <path d="m21 21-4.3-4.3"/>
+                </svg>
+            </span>
+            <input type="search" id="search-input" class="form-input"
+                   placeholder="Código (ITM-…), descrição, S/N ou NUIPC"
+                   aria-label="Pesquisar itens"
+                   autocomplete="off" spellcheck="false">
+        </div>
+        <a href="/api/evidences/csv/" class="btn btn-ghost btn-sm" id="btn-export-csv"
+           download="forensiq_evidencias.csv">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="7"/>
-                <path d="m21 21-4.3-4.3"/>
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
             </svg>
-        </span>
-        <input type="search" id="search-input" class="form-input"
-               placeholder="Código (ITM-…), descrição, S/N ou NUIPC"
-               aria-label="Pesquisar itens"
-               autocomplete="off" spellcheck="false">
+            Exportar CSV
+        </a>
     </div>
+    <div id="results-announce" class="visually-hidden" aria-live="polite"></div>
 
     <div class="list-page-grid">
         <div>
