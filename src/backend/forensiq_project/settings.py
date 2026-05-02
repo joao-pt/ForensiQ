@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'django_filters',
     'drf_spectacular',
     # ForensiQ
     'core',
@@ -127,8 +128,13 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'core.pagination.BoundedPageNumberPagination',
     'PAGE_SIZE': 50,
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.AnonRateThrottle',
         'rest_framework.throttling.UserRateThrottle',
@@ -139,6 +145,7 @@ REST_FRAMEWORK = {
         'auth': '5/minute',
         'evidence_upload': '20/minute',
         'pdf_export': '30/minute',
+        'csv_export': '10/minute',
         'schema': '30/minute',
     },
 }
@@ -158,6 +165,7 @@ if TESTING:
         'auth': '10000/minute',
         'evidence_upload': '10000/minute',
         'pdf_export': '10000/minute',
+        'csv_export': '10000/minute',
         'schema': '10000/minute',
     }
 
