@@ -44,17 +44,40 @@
                autocomplete="off" spellcheck="false">
     </div>
 
-    <div class="card p-0">
-        <div class="list" id="evidences-list" aria-busy="true" aria-live="polite">
-            <span class="visually-hidden">A carregar itens</span>
-            <div class="loading-overlay" aria-hidden="true">
-                <span class="spinner"></span>
-                <span>A carregar itens</span>
-            </div>
+    <div class="list-page-grid">
+        <div>
+            <div id="evidences-list" aria-live="polite"></div>
         </div>
+        <aside class="list-page-sidebar" aria-label="Filtros">
+            <details open>
+                <summary>Tipo</summary>
+                <div id="filter-type-list" class="filter-checkbox-list">
+                    <!-- Preenchido por evidences.js a partir de CONFIG.EVIDENCE_TYPES -->
+                </div>
+            </details>
+            <details>
+                <summary>Data de apreensão</summary>
+                <div class="form-group">
+                    <label class="form-label" for="filter-date-after">Desde</label>
+                    <input type="date" id="filter-date-after" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="filter-date-before">Até</label>
+                    <input type="date" id="filter-date-before" class="form-input">
+                </div>
+            </details>
+            <details>
+                <summary>Localização</summary>
+                <label class="form-checkbox">
+                    <input type="checkbox" id="filter-has-gps">
+                    Apenas com GPS registado
+                </label>
+            </details>
+            <button type="button" id="filter-clear" class="btn btn-ghost btn-sm">
+                Limpar filtros
+            </button>
+        </aside>
     </div>
-
-    <div id="pagination" class="pagination-bar hidden"></div>
 </div>
 
 <a href="/evidences/new/" class="fab" aria-label="Novo item">
