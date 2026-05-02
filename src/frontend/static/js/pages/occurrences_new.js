@@ -190,7 +190,16 @@ async function handleSubmit() {
 
         var result = await API.post(CONFIG.ENDPOINTS.OCCURRENCES, data);
         Toast.show('Ocorrência registada com sucesso!', 'success');
-        setTimeout(function () { window.location.href = '/occurrences/'; }, 1200);
+        // Reset do estado de submissão antes de mostrar o modal — caso
+        // contrário, se o utilizador fechar o modal por engano, os botões
+        // de navegação do wizard ficavam permanentemente desactivados.
+        setSubmitting(false);
+        if (!result || !result.id) {
+            console.error('Resposta inválida do servidor (sem id):', result);
+            window.location.href = '/occurrences/';
+            return;
+        }
+        showPostCreateModal(result.id, result.number);
 
     } catch (err) {
         setSubmitting(false);
@@ -206,6 +215,55 @@ async function handleSubmit() {
             Toast.show('Erro ao registar a ocorrência. Tente novamente.', 'error');
         }
     }
+}
+
+/* ---- Modal pós-criação ---- */
+
+function showPostCreateModal(occurrenceId, occurrenceNumber) {
+    var modal = document.getElementById('post-create-modal');
+    var btnAdd = document.getElementById('btn-post-add');
+    var btnView = document.getElementById('btn-post-view');
+    var numEl = document.getElementById('post-create-number');
+
+    if (!modal || !btnAdd || !btnView || !numEl) {
+        console.error('Modal pós-criação em falta no DOM:', {
+            modal: !!modal, btnAdd: !!btnAdd, btnView: !!btnView, numEl: !!numEl,
+        });
+        // Fallback: navegar directo para o wizard de evidências em vez da
+        // listagem — mantém o fluxo "criar ocorrência → adicionar dispositivos".
+        window.location.href = '/evidences/new/?occurrence=' + encodeURIComponent(occurrenceId);
+        return;
+    }
+
+    numEl.textContent = occurrenceNumber || ('#' + occurrenceId);
+
+    var goAdd = function () {
+        window.location.href = '/evidences/new/?occurrence=' + encodeURIComponent(occurrenceId);
+    };
+    var goView = function () {
+        window.location.href = '/occurrences/' + occurrenceId + '/';
+    };
+
+    btnAdd.onclick = goAdd;
+    btnView.onclick = goView;
+
+    // Escape vai para detalhe da ocorrência — utilizador nunca perde o
+    // registo recém-criado.
+    document.addEventListener('keydown', function escListener(e) {
+        if (e.key === 'Escape') {
+            document.removeEventListener('keydown', escListener);
+            goView();
+        }
+    });
+
+    modal.hidden = false;
+    modal.removeAttribute('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+    modal.classList.add('open');
+    modal.classList.add('active');
+    // O focus é diferido para o próximo frame para garantir que o modal
+    // já está renderizado/visível.
+    requestAnimationFrame(function () { btnAdd.focus(); });
 }
 
 function setSubmitting(loading) {

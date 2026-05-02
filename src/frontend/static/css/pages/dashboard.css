@@ -13,12 +13,12 @@
    ============================================================= */
 
 .page > .stats-grid             { order: 4; }
-.page > #evidences-breakdown    { order: 5; }
+.page > #evidences-breakdown    { display: none; }
 .page > .dashboard-layout       { order: 1; }
 
 @media (min-width: 768px) {
     .page > .stats-grid             { order: 0; }
-    .page > #evidences-breakdown    { order: 0; }
+    .page > #evidences-breakdown    { display: block; order: 0; }
     .page > .dashboard-layout       { order: 0; }
 }
 

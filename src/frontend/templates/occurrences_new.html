@@ -15,6 +15,9 @@
 <link rel="stylesheet" href="{% static 'css/wizard.css' %}">
 {% endblock %}
 
+{# extra_css_post desnecessário aqui (wizard.css já está em extra_css) — bloco
+   removido para evitar ruído. Mantemos apenas o markup do modal. #}
+
 {% block content %}
 <form id="occurrence-form" novalidate>
 <div class="wizard" id="occurrence-wizard">
@@ -151,6 +154,29 @@
     </nav>
 </div>
 </form>
+
+<!-- Modal: pós-criação de ocorrência. Pergunta se o utilizador quer
+     adicionar dispositivos imediatamente, evitando que tenha de voltar
+     ao listing e abrir a ocorrência. Reutiliza o pattern modal-overlay
+     do wizard de evidências. -->
+<div class="modal-overlay" id="post-create-modal" hidden aria-hidden="true"
+     role="dialog" aria-modal="true" aria-labelledby="post-create-title">
+    <div class="modal">
+        <h3 class="modal-title" id="post-create-title">Ocorrência registada</h3>
+        <p>
+            Ocorrência <strong class="mono" id="post-create-number">—</strong> criada com sucesso.
+            Quer começar já a registar dispositivos apreendidos?
+        </p>
+        <div class="modal-actions">
+            <button type="button" class="btn btn-ghost" id="btn-post-view">
+                Ver ocorrência
+            </button>
+            <button type="button" class="btn btn-primary" id="btn-post-add">
+                Adicionar dispositivos
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}

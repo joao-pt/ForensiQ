@@ -116,6 +116,8 @@ function bindAutoNightToggle() {
         } catch (e) { /* quota */ }
         if (toggle.checked) {
             requestLocationAndApply();
+        } else {
+            Toast && Toast.show('Tema automático desactivado.', 'info');
         }
     });
 }

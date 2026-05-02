@@ -23,12 +23,12 @@
             <h1 class="page-title">Cadeia de custódia</h1>
             <p class="page-subtitle" id="evidence-subtitle">A carregar…</p>
         </div>
-        <a href="/evidences/" class="btn btn-ghost btn-sm">
+        <a href="/evidences/" id="btn-back-evidence" class="btn btn-ghost btn-sm">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                  stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="m15 18-6-6 6-6"/>
             </svg>
-            Voltar
+            Voltar ao item
         </a>
     </header>
 
@@ -84,7 +84,7 @@
 
 </div>
 
-<!-- Modal: nova transição -->
+<!-- Modal: nova transição (suporta cascade quando o item tem sub-componentes) -->
 <div class="modal-overlay" id="transition-modal" role="dialog" aria-modal="true"
      aria-labelledby="transition-modal-title" hidden>
     <div class="modal">
@@ -93,6 +93,27 @@
         <div class="form-group">
             <label class="form-label" for="new-state">Novo estado</label>
             <select class="form-control" id="new-state"></select>
+        </div>
+
+        <!-- Checklist de cascade — preenchida via API quando o item tem
+             sub-componentes. O item principal aparece bloqueado (sempre
+             marcado); cada sub-item começa marcado e pode ser desmarcado
+             com aviso explícito. -->
+        <div class="form-group" id="cascade-section" hidden>
+            <label class="form-label">Aplicar a:</label>
+            <div id="cascade-list" class="cascade-list"></div>
+            <div id="cascade-warning" class="callout warning hidden" role="note">
+                <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"/>
+                    <path d="M12 8v5M12 16h.01"/>
+                </svg>
+                <div class="callout-body">
+                    <div class="callout-title">Sub-componentes desincronizados</div>
+                    Os sub-itens desmarcados ficarão num estado diferente do pai.
+                    Pode causar problemas na cadeia de custódia.
+                </div>
+            </div>
         </div>
 
         <div class="form-group">
