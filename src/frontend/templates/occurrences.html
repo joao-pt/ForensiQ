@@ -47,26 +47,37 @@
                    autocomplete="off" spellcheck="false">
         </div>
 
-        <div class="segmented" role="tablist" aria-label="Vista de ocorrências">
-            <button class="segmented-btn active" id="tab-list" role="tab" aria-selected="true"
-                    aria-controls="panel-list">
+        <div class="toolbar-actions">
+            <a href="/api/occurrences/csv/" class="btn btn-ghost btn-sm" id="btn-export-csv"
+               download="forensiq_ocorrencias.csv">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                 </svg>
-                Lista
-            </button>
-            <button class="segmented-btn" id="tab-map" role="tab" aria-selected="false"
-                    aria-controls="panel-map">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/>
-                    <path d="M8 2v16M16 6v16"/>
-                </svg>
-                Mapa
-            </button>
+                Exportar CSV
+            </a>
+            <div class="segmented" role="tablist" aria-label="Vista de ocorrências">
+                <button class="segmented-btn active" id="tab-list" role="tab" aria-selected="true"
+                        aria-controls="panel-list">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+                    </svg>
+                    Lista
+                </button>
+                <button class="segmented-btn" id="tab-map" role="tab" aria-selected="false"
+                        aria-controls="panel-map">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/>
+                        <path d="M8 2v16M16 6v16"/>
+                    </svg>
+                    Mapa
+                </button>
+            </div>
         </div>
     </div>
+    <div id="results-announce" class="visually-hidden" aria-live="polite"></div>
 
     <!-- Painel Lista — modo cards (mobile) ou tabela densa (desktop) -->
     <section id="panel-list" role="tabpanel" aria-labelledby="tab-list">

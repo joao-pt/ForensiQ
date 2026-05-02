@@ -2191,6 +2191,12 @@ main {
     flex: 1;
     max-width: 480px;
 }
+.toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+}
 
 /* Sidebar — checkboxes verticais para filtros multi-valor (ex: tipo) */
 .filter-checkbox-list {
