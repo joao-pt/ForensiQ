@@ -1,0 +1,28 @@
+%% ForensiQ — C4 Nível 1 (Contexto)
+%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i c4-context.mmd -o c4-context.png -b transparent -w 1600
+
+flowchart LR
+    Agent("Agente OPC<br/>(First Responder)<br/>terreno · mobile")
+    Expert("Perito Forense<br/>(EXPERT)<br/>laboratório · desktop")
+    Admin("Administrador<br/>(staff)")
+
+    subgraph ForensiQ["ForensiQ — Plataforma de Prova Digital"]
+        App["Aplicação Web Django + DRF<br/>frontend mobile-first<br/>API REST + Swagger"]
+    end
+
+    OSM["OpenStreetMap<br/>(Nominatim, tiles)"]
+    IMEIDB["IMEIDB.xyz<br/>(lookup IMEI)"]
+    Neon["Neon.tech<br/>(PostgreSQL gerido)"]
+    Fly["Fly.io<br/>(deploy + HTTPS)"]
+    Court["Tribunal /<br/>Investigador"]
+
+    Agent -->|"regista ocorrências e itens"| App
+    Expert -->|"consulta · transição custódia · gera PDF"| App
+    Admin -->|"gestão de utilizadores"| App
+
+    App -->|"reverse geocoding · tiles"| OSM
+    App -->|"lookup metadata IMEI"| IMEIDB
+    App -->|"persistência (PgBouncer)"| Neon
+    App -.->|"deploy contínuo"| Fly
+
+    App -->|"PDF forense ISO/IEC 27037"| Court

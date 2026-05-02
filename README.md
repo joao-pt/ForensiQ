@@ -1,158 +1,215 @@
 # ForensiQ — Plataforma Modular de Gestão de Prova Digital para First Responders
 
-> Digitalizar e padronizar a recolha, registo e cadeia de custódia de prova digital — do terreno ao laboratório.
+> Digitalizar e padronizar a recolha, registo e cadeia de custódia de prova digital — do terreno ao laboratório, em conformidade com a ISO/IEC 27037.
 
-**Estudante:** João Rodrigues · 2203474
+**Estudante:** João M. M. Rodrigues · 2203474
 **Orientador:** Professor Pedro Duarte Pestana
 **UC:** 21184 — Projecto de Engenharia Informática · Universidade Aberta · 2025/26
-**Repositório:** https://github.com/joao-pt/ForensiQ
-**Produção:** https://forensiq.pt
+**Repositório:** <https://github.com/joao-pt/ForensiQ>
+**Produção:** <https://forensiq.pt>
 
 ---
 
 ## Estado actual
 
-🟢 **Verde** — Fase 2 em curso. Backend funcional e reforçado com segurança (CSP, HSTS, rate limiting, IDOR protection, immutability triggers, select_for_update). API REST completa com 10+ rotas. Frontend completo com timeline de custódia e mapa Leaflet. 142 testes a passar. Código review concluída (11 abr). Aplicação deployed em produção.
+🟢 **MVP funcional em produção · Fase 2 em curso (Relatório Intercalar prazo 6 mai 2026).**
+
+- Backend Django 5 + DRF com 169 testes a passar.
+- Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like).
+- 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence).
+- Frontend HTML/CSS/JS vanilla, mobile-first; mapa Leaflet/OpenStreetMap; PDF export ReportLab.
+- HTTPS A+ no SSL Labs, HSTS preload submetido, CSP com nonce por request.
+- Auditorias completas (auditoria de segurança 2026-04-16, auditoria de design 2026-04-18, sweep UX 2026-05-02).
 
 ---
 
-## O que está implementado
+## Funcionalidades implementadas
+
+### Modelo de dados forense
+- `User` (perfis **AGENT** / **EXPERT**, badge_number, phone)
+- `Occurrence` — caso/cena de crime (NUIPC, GPS, address, agent)
+- `Evidence` — item apreendido com taxonomia de **18 tipos** (`MOBILE_DEVICE`, `COMPUTER`, `STORAGE_MEDIA`, `GAMING_CONSOLE`, `GPS_TRACKER`, `IOT_DEVICE`, `NETWORKING`, `BIOMETRIC`, `WEARABLE`, `VEHICLE_INFO`, `MEDIA_RECORDER`, `OPTICAL_DISC`, `PRINTED_DOCUMENT`, `CRYPTO_HW`, `LICENSE_KEY`, `CLOUD_ACCOUNT`, `EMAIL_ACCOUNT`, `OTHER`) e hierarquia de **sub_components** (parent_evidence)
+- `DigitalDevice` (legacy, coexiste com `Evidence.sub_components`)
+- `ChainOfCustody` — máquina de estados linear (APREENDIDA → EM_TRANSPORTE → RECEBIDA_LABORATORIO → EM_PERICIA → CONCLUIDA → DEVOLVIDA / DESTRUIDA)
+- `AuditLog` com correlation_id por request
 
 ### Backend (Django + DRF)
-- [x] Django 5.2 com projecto `forensiq_project` e app `core`
-- [x] Modelo User customizado (AbstractUser, perfis AGENT/EXPERT, badge_number)
-- [x] Modelos: Occurrence, Evidence, DigitalDevice, ChainOfCustody, AuditLog
-- [x] Hash SHA-256 automático em Evidence (ISO/IEC 27037)
-- [x] Hashes encadeados (blockchain-like) em ChainOfCustody
-- [x] Máquina de estados para cadeia de custódia (validação de transições)
-- [x] ChainOfCustody append-only (bloqueio de update/delete)
-- [x] PostgreSQL (Neon.tech, Frankfurt) via dj-database-url + .env
-- [x] API REST com 5 endpoints + acções personalizadas (10+ rotas)
-- [x] Serializers para todas as entidades
-- [x] Permissões por perfil (IsAgent, IsExpert, IsAgentOrExpert, IsOwnerOrReadOnly)
-- [x] JWT authentication (SimpleJWT: login, refresh, verify)
-- [x] Swagger UI via drf-spectacular (/api/docs/)
-- [x] Django Admin configurado (com prefixo secreto)
-- [x] 142 testes (14 modelos + 69 API + 45 frontend + 14 PDF) — todos passam
-- [x] `test_settings.py` — configuração de testes isolada (SQLite em memória)
-- [x] Cobertura de testes (backend + frontend)
+- API REST com 12+ rotas e Swagger UI em `/api/docs/`
+- **Autenticação JWT em cookies HttpOnly** (`fq_access` / `fq_refresh`) com CSRF enforcement em métodos não-safe
+- Endpoints `/api/auth/{login,refresh,logout}/` (rotação + blacklist)
+- Imutabilidade ao nível DB (PostgreSQL trigger `prevent_evidence_modification`) — UPDATE/DELETE bloqueados em Evidence e ChainOfCustody
+- Lookup IMEI (imeidb.xyz) e VIN (redirect vindecoder)
+- Validadores forenses: IMEI Luhn, VIN ISO 3779, IMSI MCC+MNC
+- PDF export forense (`/api/evidences/<id>/pdf/`) com ReportLab + declaração ISO/IEC 27037
+- DatabaseCache (PostgreSQL Neon) para `/api/stats/dashboard/` e lookups
+- Throttling (5 req/min) em endpoints sensíveis
 
-### Frontend (HTML/CSS/JS vanilla)
-- [x] CSS mobile-first com touch targets de 48px (WCAG 2.1 AA)
-- [x] Página de login com autenticação JWT
-- [x] Dashboard com estatísticas e acções rápidas por perfil
-- [x] Módulos JS: auth.js (JWT), api.js (cliente HTTP), config.js, toast.js
-- [x] Página de listagem de ocorrências (`/occurrences/`) com pesquisa e paginação
-- [x] Formulário de nova ocorrência (`/occurrences/new/`) com GPS automático + reverse geocoding
-- [x] Página de listagem de evidências (`/evidences/`) com filtros por tipo
-- [x] Formulário de nova evidência (`/evidences/new/`) com captura de foto e GPS
-- [x] Timeline visual da cadeia de custódia (`/evidences/<id>/chain_of_custody/`)
-- [x] Mapa com Leaflet.js (marcadores de ocorrências)
-- [x] Exportação PDF de relatório forense (`/api/evidences/{id}/pdf/`)
+### Frontend (HTML5/CSS3/JavaScript vanilla)
+- Mobile-first, touch targets ≥48px (WCAG 2.1 AA)
+- Tipografia: Inter (UI) + JetBrains Mono (hashes/IDs/timestamps)
+- Tokens semânticos para estados forenses (`--state-apreendida` etc.)
+- **Páginas:**
+  - `/login/` — autenticação JWT (cookie) com fallback de erro e Caps Lock detect
+  - `/dashboard/` — saudação, **acções rápidas (Nova Ocorrência / Novo Item proeminentes em mobile)**, últimas ocorrências, stats por estado de custódia (Em perícia, Em trânsito), breakdown por tipo
+  - `/occurrences/` — lista + mapa Leaflet com toggle, pesquisa client-side, paginação
+  - `/occurrences/new/` — wizard 6-step com GPS automático + reverse geocoding (Nominatim)
+  - `/occurrences/<id>/` — hub do caso (resumo, mapa multi-marker com GPS por item, custody summary, lista de itens)
+  - `/evidences/` — lista com badges por tipo, GPS/foto/sub indicators
+  - `/evidences/new/` — wizard com type selector visual, captura de foto (câmara nativa + upload), GPS, lookup IMEI/VIN, sub-componentes recursivos
+  - `/evidences/<id>/` — detalhe com hash SHA-256, foto, metadados, sub-componentes integrantes, custódia actual
+  - `/evidences/<id>/custody/` — timeline cronológica com state progress, modal de transição (apenas AGENT, próximo estado válido), hashes encadeados
+  - `/custodies/` — todas as transições com filtros (mobile compacto, desktop completo)
+  - `/stats/` — dashboard agregado
+  - `/reports/` — relatórios PDF
+  - `/settings/` — perfil, **tema dia/noite + tema automático ao entardecer (geolocation + sunset NOAA)**, terminar sessão
 
 ### Infraestrutura
-- [x] Deploy em produção (Fly.io, Frankfurt) — `forensiq.pt`
-- [x] HTTPS com certificado Let's Encrypt (RSA + ECDSA)
-- [x] Dockerfile multi-stage (python:3.12-slim, user não-root, Gunicorn)
-- [x] WhiteNoise para servir ficheiros estáticos
-- [x] Segurança em produção (HSTS, SSL redirect, secure cookies)
-- [x] DNS com IPv4/IPv6 dedicados
+- Deploy em **Fly.io (Frankfurt)** com volume persistente para uploads
+- HTTPS A+ (Qualys SSL Labs) com Let's Encrypt RSA + ECDSA
+- HSTS 1 ano + preload submetido a hstspreload.org
+- HTTP Observatory (Mozilla) — pontuação A+
+- Dockerfile multi-stage (`python:3.12-slim`, user não-root, Gunicorn + WhiteNoise)
+- PostgreSQL gerido em **Neon.tech** com connection pooling (PgBouncer)
+- Cache em DB (`forensiq_cache` table)
 
-### Segurança
-- [x] **Imutabilidade de prova:** ChainOfCustody append-only, sem UPDATE/DELETE
-- [x] **Integridade de metadados:** SHA-256 automático em cada Evidence
-- [x] **Cadeia de custódia encadeada:** Hash anterior referenciado (blockchain-like)
-- [x] **Autenticação JWT:** SimpleJWT com tokens acessíveis apenas via HTTPS
-- [x] **RBAC granular:** Permissões por perfil (Agent, Expert)
-- [x] **Proteção IDOR:** Filtro de queryset por utilizador (`get_queryset()`)
-- [x] **Rate limiting:** 5 requisições/minuto em endpoints de auth (JWT token, refresh, verify)
-- [x] **HSTS:** 1 ano + preload (HTTP Strict-Transport-Security)
-- [x] **Content Security Policy (CSP):** default-src 'self'; script-src 'self' cdn.leafletjs.com; img-src 'self' data: https:
-- [x] **Race condition:** Lock pessimista (select_for_update) na transição de custódia
-- [x] **Admin Django secreto:** Prefixo aleatório via variável de ambiente
-- [x] **Auditoria transversal:** AuditLog com correlation_id em cada requisição
-- [x] **Logging seguro:** Sem PII em logs (mascarar email, IP anónimo)
+### Segurança (OWASP ASVS v4)
+| Controlo | Implementação |
+|---|---|
+| **Autenticação** | JWT em HttpOnly + Secure + SameSite=Strict; rotação de refresh; blacklist |
+| **CSRF** | Token por sessão (não-HttpOnly), validado em todos os métodos não-safe |
+| **CSP Level 3** | `script-src 'self' 'nonce-{nonce}'`; `style-src 'self' 'nonce-{nonce}'` (sem `unsafe-inline`); `frame-ancestors 'none'`; `upgrade-insecure-requests` |
+| **OWASP Top 10** | Audit limpo (Semgrep p/owasp-top-ten + p/security-audit) |
+| **Imutabilidade** | Trigger PostgreSQL bloqueia UPDATE/DELETE em Evidence/ChainOfCustody |
+| **Integridade** | SHA-256 com nonce determinístico (verificável); hash encadeado em ChainOfCustody |
+| **IDOR** | `get_queryset()` filtra por `request.user`; ownership validado em writes |
+| **Rate limiting** | DRF throttling 5/min em login/refresh/logout |
+| **Logging seguro** | Sem PII; correlation_id por request via middleware |
+| **Permissões** | RBAC fino (AGENT cria; EXPERT consulta; staff vê tudo) |
+| **Trusted proxies** | `TRUSTED_PROXIES` env var (X-Forwarded-For audit integrity) |
+| **Admin** | URL com prefixo aleatório via `ADMIN_URL_PREFIX` env var |
 
-### Testes
-- [x] **Testes de modelos:** 14 casos (User, Occurrence, Evidence, DigitalDevice, ChainOfCustody)
-- [x] **Testes de API:** 69 casos (autenticação, CRUD, permissões, IDOR, imutabilidade, validação de entrada, transições de estado)
-- [x] **Testes de frontend:** 45 casos (dashboard, formulários, templates)
-- [x] **Testes de PDF:** 14 casos (geração, sanitização, metadados, endpoints)
-- [x] **Comando:** `python manage.py test core --settings=forensiq_project.test_settings --verbosity=2`
+### UX e acessibilidade
+- **Mobile (perito no terreno)**: dashboard prioriza acções rápidas (Nova Ocorrência / Novo Item) e últimas ocorrências; estatísticas em scroll horizontal compacto
+- **Desktop**: stats grid 4 colunas + breakdown + acções + recent
+- **Breadcrumb**: chevron SVG mask-image; em mobile colapsa para botão "← {parent}"
+- **Tema dia/noite** com toggle persistente em localStorage; **tema automático opcional** ativa modo noite 1h após pôr-do-sol (cálculo NOAA via geolocation, client-side)
+- **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
+- **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
+
+### Testes (169 a passar)
+| Suite | Casos | Cobertura |
+|---|---|---|
+| `tests.py` | 14 | Modelos (User, Occurrence, Evidence, DigitalDevice, ChainOfCustody) |
+| `tests_api.py` | 96 | API (auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle) |
+| `tests_frontend.py` | 45 | Frontend views, templates, redirect, conteúdo HTML |
+| `tests_pdf.py` | 14 | PDF export (geração, sanitização, content-type, 404, com/sem dispositivos) |
+
+```bash
+cd src/backend
+../../.venv/Scripts/python.exe -m pytest -q
+# 169 passed
+```
 
 ### Conformidade
-- [x] **ISO/IEC 27037:2012** — Integridade de prova digital (SHA-256, cadeia encadeada, append-only logs)
-- [x] **ISO/IEC 27001:2022** — Gestão de segurança da informação (RBAC, auditoria, HTTPS, rate limiting)
-- [x] **WCAG 2.1 AA** — Acessibilidade (mobile-first, touch targets 48px, contraste, teclas de navegação)
+- **ISO/IEC 27037:2012** — Integridade da prova digital (SHA-256, hash encadeado, append-only)
+- **ISO/IEC 27001:2022** — Gestão de segurança (RBAC, auditoria, HTTPS, rate limiting)
+- **WCAG 2.1 AA** — Acessibilidade
+- **RGPD (UE 2016/679)** — Minimização de dados; tensão com art. 17.º resolvida pelo n.º 3 alínea e) (defesa em processo judicial)
 
 ---
 
-## O que está pendente
+## Estrutura do repositório
 
-- [ ] **GitHub Actions CI:** Executar testes automaticamente em cada push
-- [ ] **Dashboard de auditoria:** Página para visualizar AuditLog com filtros e pesquisa
+```
+ForensiQ/
+├── docs/
+│   ├── architecture/adr/      # ADRs 0001-0010
+│   ├── compliance/            # SSL Labs, HSTS, HTTP Observatory
+│   ├── design/                # Auditoria de design 2026-04-18 (interactiva)
+│   ├── deployment/            # Guia Fly.io
+│   └── scope/                 # changelog.md, plan.md
+├── src/
+│   ├── backend/               # Django 5 + DRF
+│   │   ├── core/              # App principal (modelos, views, serializers, tests)
+│   │   ├── forensiq_project/  # Settings, URLs raiz
+│   │   └── manage.py
+│   └── frontend/              # Templates Django + CSS/JS vanilla
+├── src_latex/                 # Relatórios LaTeX (proposta, intercalar) + figuras C4/ER
+├── Dockerfile                 # Multi-stage build
+├── fly.toml                   # Config Fly.io
+└── README.md
+```
 
 ---
 
-## Como instalar e correr
+## Como instalar e correr (local)
+
+### 1. Clonar e configurar
 
 ```bash
-# 1. Clonar o repositório
 git clone https://github.com/joao-pt/ForensiQ.git
 cd ForensiQ
-
-# 2. Criar virtualenv e instalar dependências
 python3 -m venv .venv
-source .venv/bin/activate  # Linux/macOS
+.venv/Scripts/activate          # Windows
+# source .venv/bin/activate     # Linux/macOS
 pip install -r src/backend/requirements.txt
-
-# 3. Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com DATABASE_URL, SECRET_KEY, etc.
-
-# 4. Aplicar migrations
-cd src/backend
-python manage.py migrate
-
-# 5. Criar superutilizador
-python manage.py createsuperuser
-
-# 6. Correr o servidor
-python manage.py runserver
-
-# 7. Aceder
-# Login: http://localhost:8000/login/
-# Dashboard: http://localhost:8000/dashboard/
-# Swagger UI: http://localhost:8000/api/docs/
-# Admin: http://localhost:8000/admin/
 ```
 
-### Correr testes
+### 2. Variáveis de ambiente
+
+```bash
+cp .env.example .env
+# Editar .env: DATABASE_URL, SECRET_KEY, JWT_SIGNING_KEY,
+#              ADMIN_URL_PREFIX, IMEIDB_API_TOKEN, TRUSTED_PROXIES
+```
+
+### 3. Migrations + cache table + superuser
 
 ```bash
 cd src/backend
-# Testes isolados (SQLite em memória — sem necessidade de Neon.tech)
-python manage.py test core --settings=forensiq_project.test_settings --verbosity=2
+python manage.py migrate              # cria tabelas + cache
+python manage.py createsuperuser
+```
 
-# Testes com BD real (requer .env configurado)
-python manage.py test core --verbosity=2
+### 4. Correr
+
+```bash
+python manage.py runserver
+```
+
+| URL | Descrição |
+|---|---|
+| <http://localhost:8000/login/> | Autenticação JWT |
+| <http://localhost:8000/dashboard/> | Painel principal |
+| <http://localhost:8000/api/docs/> | Swagger UI |
+| <http://localhost:8000/admin/> | Django Admin (URL com prefixo do `ADMIN_URL_PREFIX`) |
+
+### 5. Testes
+
+```bash
+cd src/backend
+python -m pytest -q                   # 169 testes
+python -m pytest --cov=core           # com coverage
 ```
 
 ---
 
-## Decisões de arquitectura principais
+## Decisões de arquitectura (ADRs)
 
-| Decisão | Alternativa considerada | Razão da escolha |
-|---------|------------------------|-----------------|
-| Django + DRF | FastAPI | Estrutura convencional; autenticação built-in; ORM; mais fácil de defender |
-| PostgreSQL | SQLite / MongoDB | Integridade referencial; append-only para logs de custódia |
-| HTML/CSS/JS vanilla | React / Vue | Mobile-first sem overhead de framework; suficiente para MVP |
-| SHA-256 nos metadados | Hash do ficheiro completo | Conforme ISO/IEC 27037; detecta alteração de qualquer campo do registo |
-| Django Templates | SPA separado | Deploy simplificado; sem build step; fácil de manter |
-| Fly.io (Frankfurt) | Render / Railway | Única plataforma PaaS com região Frankfurt; latência mínima para BD Neon.tech |
-| BD separada (Neon.tech) | Fly Postgres | Neon.tech é gerido (backups automáticos); independência entre app e dados |
+| ADR | Tópico | Decisão |
+|---|---|---|
+| 0001 | Base de dados | Neon.tech (Frankfurt) — gerido, com connection pooling |
+| 0002 | Estrutura Django | Projecto `forensiq_project` + app `core` |
+| 0003 | API REST | DRF + ViewSets + permissões custom + Spectacular OpenAPI |
+| 0004 | Frontend | HTML/CSS/JS vanilla — sem build, mobile-first |
+| 0005 | Deployment | Fly.io (Frankfurt), HTTPS automático, volume persistente |
+| 0006 | Sub-componentes | `Evidence.parent_evidence` self-FK; profundidade ≤3 |
+| 0007 | SRI + Referrer-Policy | Subresource Integrity em CDN; strict-origin-when-cross-origin |
+| 0008 | Cache | DatabaseCache em Neon (sem Redis adicional) |
+| 0009 | JWT cookies | HttpOnly cookies + CSRF (Wave 2d) — substitui Authorization Bearer + localStorage |
+| 0010 | Taxonomia | 18 tipos digitais hierárquicos (Wave 2c); IMEI/VIN lookups |
 
-Decisões detalhadas em `docs/architecture/adr/`.
+Detalhe completo em `docs/architecture/adr/`.
 
 ---
 
@@ -162,17 +219,15 @@ Decisões detalhadas em `docs/architecture/adr/`.
 - ACPO (2012). *Good Practice Guide for Digital Evidence*.
 - ISO/IEC 27037:2012 — Guidelines for identification, collection, acquisition and preservation of digital evidence.
 - NIST SP 800-86 (2006). *Guide to Integrating Forensic Techniques into Incident Response*.
+- OWASP ASVS v4 — Application Security Verification Standard.
 - Pestana, P. D. (Projecto #38 — LEI 2025/26). *Plataforma Modular de Captura e Preservação de Evidência Digital para OSINT*. Universidade Aberta.
 
 ---
 
-## Documentação Adicional
+## Uso de IA generativa
 
-- **Arquitectura:** `docs/architecture/adr/` — 7 decisões documentadas (DB, estrutura Django, API REST, frontend, deployment, extensibilidade, SRI/Referrer-Policy)
-- **Plano de Teste:** `docs/scope/` — scope de testes, changelog de versões
-- **Código Review:** `docs/code-review-2026-04-11.md` — análise de segurança completa
-- **Guia de Deploy:** `docs/deployment/deploy-guide.md` — procedimento de produção em Fly.io
+O desenvolvimento foi assistido por modelos de IA generativa (Claude, principalmente) em modo *pair programming*: brainstorming arquitectural, geração de boilerplate, escrita inicial de testes, revisão de segurança. Todo o código foi compreendido, validado e adaptado pelo autor antes de entrar no repositório (regra inviolável definida em `INSTRUCOES_GLOBAIS.md`). Ferramentas e referências serão listadas na secção de Referências do relatório final.
 
 ---
 
-*Última actualização: 13 abr 2026 · Sem. 7*
+*Última actualização: 2 mai 2026 · Sem. 9 · 169 testes a passar*
