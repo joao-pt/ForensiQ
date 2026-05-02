@@ -19,13 +19,16 @@ import string
 import shutil
 from datetime import timedelta
 from decimal import Decimal
+from io import BytesIO
 from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.utils import timezone
+from PIL import Image, ImageDraw, ImageFont
 
 from core.models import (
     AuditLog,
@@ -36,6 +39,77 @@ from core.models import (
 )
 
 User = get_user_model()
+
+
+# Paleta de cores por tipo de evidência — coerente com a UI (badges).
+# Os hex são usados como fundo das placeholders para distinção visual.
+_TYPE_PALETTE = {
+    Evidence.EvidenceType.MOBILE_DEVICE:    ('#1E3A8A', 'Telemóvel'),
+    Evidence.EvidenceType.COMPUTER:         ('#166534', 'Computador'),
+    Evidence.EvidenceType.STORAGE_MEDIA:    ('#5B21B6', 'Armazenamento'),
+    Evidence.EvidenceType.DRONE:            ('#C2410C', 'Drone'),
+    Evidence.EvidenceType.VEHICLE:          ('#991B1B', 'Viatura'),
+    Evidence.EvidenceType.VEHICLE_COMPONENT: ('#374151', 'Componente'),
+    Evidence.EvidenceType.SIM_CARD:         ('#0E7490', 'SIM'),
+    Evidence.EvidenceType.MEMORY_CARD:      ('#0F766E', 'Cartão SD'),
+    Evidence.EvidenceType.GPS_TRACKER:      ('#A16207', 'GPS Tracker'),
+}
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    v = value.lstrip('#')
+    return (int(v[0:2], 16), int(v[2:4], 16), int(v[4:6], 16))
+
+
+def _load_font(size: int):
+    """Procura uma TTF local; cai para o bitmap default se não houver."""
+    for candidate in (
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+        '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+        'DejaVuSans-Bold.ttf', 'DejaVuSans.ttf',
+        'C:/Windows/Fonts/arialbd.ttf', 'C:/Windows/Fonts/arial.ttf',
+    ):
+        try:
+            return ImageFont.truetype(candidate, size)
+        except (OSError, IOError):
+            continue
+    return ImageFont.load_default()
+
+
+def _make_placeholder_photo(evidence_type: str, label: str, sub: str) -> ContentFile:
+    """Gera uma fotografia JPEG simulada (1024x768) para o item.
+
+    Usada apenas em demo — uma placeholder mostra cor por tipo + label
+    (código do item) + linha secundária (descrição truncada). O hash
+    SHA-256 é calculado normalmente sobre os bytes desta placeholder.
+    """
+    color_hex, type_label = _TYPE_PALETTE.get(
+        evidence_type, ('#1F2937', 'Item de prova'),
+    )
+    bg = _hex_to_rgb(color_hex)
+    img = Image.new('RGB', (1024, 768), color=bg)
+    draw = ImageDraw.Draw(img)
+
+    # Faixa lateral mais escura (acento visual à esquerda).
+    accent = tuple(max(0, c - 40) for c in bg)
+    draw.rectangle([(0, 0), (16, 768)], fill=accent)
+
+    # Texto principal: tipo + código.
+    f_xl = _load_font(64)
+    f_lg = _load_font(36)
+    f_md = _load_font(24)
+
+    draw.text((48, 48),  type_label.upper(), font=f_md, fill=(255, 255, 255, 200))
+    draw.text((48, 96),  label,              font=f_xl, fill='white')
+    draw.text((48, 200), sub[:80],           font=f_lg, fill=(255, 255, 255, 220))
+
+    # Marca canto inferior — "ForensiQ DEMO" para que ninguém confunda
+    # com prova real.
+    draw.text((48, 700), 'ForensiQ — DEMO (placeholder)', font=f_md, fill=(255, 255, 255, 180))
+
+    buf = BytesIO()
+    img.save(buf, format='JPEG', quality=80, optimize=True)
+    return ContentFile(buf.getvalue(), name='placeholder.jpg')
 
 
 def _random_password(length: int = 16) -> str:
@@ -188,6 +262,11 @@ class Command(BaseCommand):
             serial_number='F2LXV3PJ9K',
             agent=agent,
             type_specific_data={'imei': '353918023456789'},
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.MOBILE_DEVICE,
+                'Lisboa · 01',
+                'iPhone 15 Pro Max apreendido na Av. da Liberdade.',
+            ),
         )
         e1b = Evidence.objects.create(
             occurrence=c1, type=Evidence.EvidenceType.SIM_CARD,
@@ -198,6 +277,11 @@ class Command(BaseCommand):
             serial_number='8935101234567890123',
             agent=agent,
             type_specific_data={'imsi': '268010012345678'},
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.SIM_CARD,
+                'Lisboa · 02',
+                'SIM MEO — sub-componente do iPhone.',
+            ),
         )
         cases.append((c1, [e1a, e1b], [
             ChainOfCustody.CustodyState.APREENDIDA,
@@ -225,6 +309,11 @@ class Command(BaseCommand):
             gps_lat=Decimal('41.1496'), gps_lon=Decimal('-8.6109'),
             serial_number='C02ABCDEFGHJ',
             agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.COMPUTER,
+                'Porto · 01',
+                'MacBook Pro 14" 2023 — busca domiciliária.',
+            ),
         )
         e2b = Evidence.objects.create(
             occurrence=c2, type=Evidence.EvidenceType.MOBILE_DEVICE,
@@ -234,6 +323,11 @@ class Command(BaseCommand):
             serial_number='RZ8M407JKLM',
             agent=agent,
             type_specific_data={'imei': '358412345987650'},
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.MOBILE_DEVICE,
+                'Porto · 02',
+                'Samsung Galaxy S23 do suspeito.',
+            ),
         )
         cases.append((c2, [e2a, e2b], [
             ChainOfCustody.CustodyState.APREENDIDA,
@@ -262,6 +356,11 @@ class Command(BaseCommand):
             gps_lat=None, gps_lon=None,
             serial_number='NA8ABCDXYZ',
             agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.STORAGE_MEDIA,
+                'Coimbra · 01',
+                'Disco externo Seagate 2TB — burla bancária.',
+            ),
         )
         cases.append((c3, [e3], [
             ChainOfCustody.CustodyState.APREENDIDA,
@@ -291,6 +390,11 @@ class Command(BaseCommand):
             gps_lat=Decimal('41.5454'), gps_lon=Decimal('-8.4265'),
             serial_number='1581F5A0B0C0D',
             agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.DRONE,
+                'Braga · 01',
+                'DJI Mavic 3 Pro — voo não autorizado.',
+            ),
         )
         e4b = Evidence.objects.create(
             occurrence=c4, type=Evidence.EvidenceType.MEMORY_CARD,
@@ -300,6 +404,11 @@ class Command(BaseCommand):
             gps_lat=None, gps_lon=None,
             serial_number='SDC0010203',
             agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.MEMORY_CARD,
+                'Braga · 02',
+                'microSD 256 GB recuperado do drone.',
+            ),
         )
         cases.append((c4, [e4a, e4b], [
             ChainOfCustody.CustodyState.APREENDIDA,
@@ -329,6 +438,11 @@ class Command(BaseCommand):
             serial_number='WAUZZZ8E5BA123456',
             agent=agent,
             type_specific_data={'vin': '1HGBH41JXMN109186'},
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.VEHICLE,
+                'Faro · 01',
+                'Audi A4 Avant 2021 — recuperado após furto.',
+            ),
         )
         e5b = Evidence.objects.create(
             occurrence=c5, type=Evidence.EvidenceType.VEHICLE_COMPONENT,
@@ -339,6 +453,11 @@ class Command(BaseCommand):
             gps_lat=None, gps_lon=None,
             serial_number='4M0035043G',
             agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.VEHICLE_COMPONENT,
+                'Faro · 02',
+                'Unidade infotainment MMI 8.4".',
+            ),
         )
         e5c = Evidence.objects.create(
             occurrence=c5, type=Evidence.EvidenceType.GPS_TRACKER,
@@ -349,6 +468,11 @@ class Command(BaseCommand):
             gps_lat=Decimal('37.0194'), gps_lon=Decimal('-7.9304'),
             serial_number='862785043210123',
             agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.GPS_TRACKER,
+                'Faro · 03',
+                'Concox JM-VL01 oculto no porta-luvas.',
+            ),
         )
         cases.append((c5, [e5a, e5b, e5c], [
             ChainOfCustody.CustodyState.APREENDIDA,
