@@ -242,12 +242,28 @@ function buildOccurrenceRow(occ) {
     desc.textContent = (occ.description || '').length > 80 ? snippet + '...' : snippet;
     content.appendChild(desc);
 
+    if (occ.address) {
+        var addr = document.createElement('div');
+        addr.className = 'list-item-subtitle text-subtle';
+        addr.textContent = occ.address;
+        content.appendChild(addr);
+    }
+
     var right = document.createElement('div');
     right.className = 'list-item-meta mono';
     right.textContent = date;
 
     row.appendChild(content);
     row.appendChild(right);
+
+    // Chevron — alinha o estilo das linhas com as listagens /occurrences/
+    // e /evidences/ (que já mostram chevron à direita).
+    var chev = Icons.element('chevron-right', { size: 16 });
+    if (chev) {
+        chev.classList.add('list-item-chevron');
+        row.appendChild(chev);
+    }
+
     return row;
 }
 

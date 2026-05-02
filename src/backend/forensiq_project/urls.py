@@ -20,8 +20,6 @@ redireccionados com 301 permanente para retrocompatibilidade.
 
 import os
 
-from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import (
@@ -34,6 +32,7 @@ from core.auth_views import (
     CookieLogoutView,
     CookieRefreshView,
 )
+from core.views import MediaServeView
 from core.frontend_views import (
     custody_evidence_redirect,
     custody_list_view,
@@ -103,6 +102,11 @@ urlpatterns = [
     # Auditoria — relatório estático de investigação de erros
     path('audit/investigation/', investigation_report_view, name='investigation_report'),
 
+    # Media (fotos de evidência) — view autenticada com ownership + audit log.
+    # Substitui o `static(MEDIA_URL, ...)` para que funcione em produção
+    # (sem nginx) e para que cada acesso fique registado (ISO/IEC 27037).
+    path('media/<path:path>', MediaServeView.as_view(), name='media-serve'),
+
     # -----------------------------------------------------------------
     # Redirects 301 — nomes antigos (singular) para retrocompatibilidade
     # -----------------------------------------------------------------
@@ -112,10 +116,6 @@ urlpatterns = [
     path('evidence/<int:evidence_id>/custody/', custody_evidence_redirect),
     path('custody/', custody_singular_redirect),
 ]
-
-# Servir ficheiros media em desenvolvimento
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 
 # ---------------------------------------------------------------------------

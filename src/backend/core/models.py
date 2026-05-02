@@ -19,6 +19,7 @@ from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import IntegrityError, models, transaction
+from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
 from core.validators import validate_imei, validate_imsi, validate_vin
@@ -270,6 +271,26 @@ class Occurrence(models.Model):
 # Evidência
 # ---------------------------------------------------------------------------
 
+class EvidenceQuerySet(models.QuerySet):
+    """QuerySet de Evidence com helpers comuns."""
+
+    def with_current_state(self):
+        """Anota cada evidência com ``current_state`` (último ChainOfCustody).
+
+        O estado actual é definido pelo registo com maior ``sequence`` por
+        ``evidence_id`` — invariante mantida pelo append-only de
+        ChainOfCustody.save(). O índice ``coc_ev_seq_idx`` suporta a
+        ordenação sem table scan.
+        """
+        latest_state = (
+            ChainOfCustody.objects
+            .filter(evidence=OuterRef('pk'))
+            .order_by('-sequence')
+            .values('new_state')[:1]
+        )
+        return self.annotate(current_state=Subquery(latest_state))
+
+
 def evidence_photo_path(instance, filename):
     """Caminho de upload: evidencias/<occurrence_number>/<uuid>_<filename>."""
     return f'evidencias/{instance.occurrence.number}/{uuid.uuid4().hex[:8]}_{filename}'
@@ -288,6 +309,18 @@ class Evidence(models.Model):
 
     # Profundidade máxima da árvore pai-filho.
     MAX_TREE_DEPTH = 3
+
+    # Tipos terminais — não admitem sub-componentes.
+    # Um cartão SIM, cartão de memória, cartão RFID/NFC ou ficheiro digital
+    # é, por natureza, indivisível: não há prova forense útil em registar
+    # algo "dentro de" um SIM. A validação é aplicada em clean(); o frontend
+    # replica a constante (config.js EVIDENCE_LEAF_TYPES) só para UX.
+    EVIDENCE_LEAF_TYPES = frozenset({
+        'SIM_CARD',
+        'MEMORY_CARD',
+        'RFID_NFC_CARD',
+        'DIGITAL_FILE',
+    })
 
     class EvidenceType(models.TextChoices):
         # --- Dispositivos autónomos (tipicamente raiz) ---
@@ -425,6 +458,8 @@ class Evidence(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = EvidenceQuerySet.as_manager()
 
     class Meta:
         verbose_name = 'Evidência'
@@ -623,6 +658,14 @@ class Evidence(models.Model):
                         f'Profundidade da árvore excede o máximo permitido '
                         f'({self.MAX_TREE_DEPTH} níveis). Esta evidência '
                         f'ficaria a {depth} níveis da raiz.'
+                    )
+                })
+            # Tipos terminais (cartão SIM, etc.) não aceitam sub-componentes.
+            if parent.type in self.EVIDENCE_LEAF_TYPES:
+                parent_label = parent.get_type_display()
+                raise ValidationError({
+                    'parent_evidence': (
+                        f'O tipo "{parent_label}" não admite sub-componentes.'
                     )
                 })
 

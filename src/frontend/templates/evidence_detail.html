@@ -52,15 +52,15 @@
 
     <!-- Aviso quando este item é um sub-componente de outro -->
     <div class="callout info" id="parent-banner" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
             <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
         </svg>
-        <div>
+        <div class="callout-body">
             <strong>Sub-componente</strong> —
             parte integrante de <a id="parent-link" href="#" class="text-accent">—</a>.
-            A cadeia de custódia do item principal acompanha este componente (ISO/IEC 27037).
+            A cadeia de custódia do item principal acompanha este componente.
         </div>
     </div>
 
@@ -72,7 +72,7 @@
                 <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/>
                 <path d="m9 12 2 2 4-4"/>
             </svg>
-            <span>Hash SHA-256 (integridade ISO/IEC 27037)</span>
+            <span>Hash SHA-256 (integridade)</span>
         </div>
         <code class="integrity-hash hash" id="integrity-hash">—</code>
         <div class="integrity-meta" id="integrity-meta"></div>

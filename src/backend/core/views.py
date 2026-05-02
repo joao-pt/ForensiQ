@@ -18,16 +18,20 @@ Endpoints:
 """
 
 import logging
+import mimetypes
+from pathlib import Path
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Count
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_safe
 from rest_framework import (
+    filters,
     serializers as drf_serializers,  # Para converter ValidationError
     status,
     viewsets,
@@ -49,6 +53,7 @@ from .models import (
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
+    CascadeCustodyRequestSerializer,
     ChainOfCustodySerializer,
     DigitalDeviceSerializer,
     EvidenceSerializer,
@@ -147,14 +152,36 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     queryset = Occurrence.objects.select_related('agent').all()
     serializer_class = OccurrenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    # Campos pesquisáveis via ?search= — NUIPC/número, descrição livre,
+    # morada e código gerado (OCC-YYYY-NNNNN). Resolve queixa de filtros
+    # inoperantes (revisão UX 2026-05-02).
+    search_fields = ['number', 'code', 'description', 'address']
+    ordering_fields = ['date_time', 'created_at', 'number']
+    ordering = ['-date_time']
 
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if user.is_staff:
-            return qs
-        if hasattr(user, 'profile') and user.profile == 'AGENT':
-            return qs.filter(agent=user)
+        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
+            qs = qs.filter(agent=user)
+        # Filtro opcional por estado actual de custódia das evidências da
+        # ocorrência. Reutiliza Evidence.objects.with_current_state() para
+        # manter a definição de "estado actual" coerente com os outros
+        # endpoints e o dashboard.
+        state = self.request.query_params.get('state')
+        if state:
+            valid_states = {s for s, _ in ChainOfCustody.CustodyState.choices}
+            if state not in valid_states:
+                raise drf_serializers.ValidationError({
+                    'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
+                })
+            occ_ids = (
+                Evidence.objects.with_current_state()
+                .filter(current_state=state)
+                .values_list('occurrence_id', flat=True)
+            )
+            qs = qs.filter(id__in=list(occ_ids))
         return qs
 
     def retrieve(self, request, *args, **kwargs):
@@ -249,6 +276,14 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     serializer_class = EvidenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    # Pesquisa atravessa para a ocorrência (?search= no NUIPC funciona).
+    search_fields = [
+        'code', 'description', 'serial_number',
+        'occurrence__number', 'occurrence__code', 'occurrence__description',
+    ]
+    ordering_fields = ['timestamp_seizure', 'created_at', 'code']
+    ordering = ['-timestamp_seizure']
 
     def get_throttles(self):
         if self.action == 'create':
@@ -267,13 +302,24 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         directamente passam a ignorar o filtro e abrem IDOR (bug corrigido
         em 2026-04-19 no ``export_pdf``).
         """
-        qs = super().get_queryset()
+        qs = super().get_queryset().with_current_state()
         user = self.request.user
         if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
             qs = qs.filter(occurrence__agent=user)
         occurrence_id = self.request.query_params.get('occurrence')
         if occurrence_id:
             qs = qs.filter(occurrence_id=occurrence_id)
+        parent_id = self.request.query_params.get('parent')
+        if parent_id:
+            qs = qs.filter(parent_evidence_id=parent_id)
+        state = self.request.query_params.get('state')
+        if state:
+            valid_states = {s for s, _ in ChainOfCustody.CustodyState.choices}
+            if state not in valid_states:
+                raise drf_serializers.ValidationError({
+                    'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
+                })
+            qs = qs.filter(current_state=state)
         return qs
 
     def retrieve(self, request, *args, **kwargs):
@@ -360,6 +406,11 @@ class DigitalDeviceViewSet(viewsets.ModelViewSet):
     serializer_class = DigitalDeviceSerializer
     permission_classes = [IsAuthenticated, IsAgent]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
+    filter_backends = [filters.SearchFilter]
+    search_fields = [
+        'brand', 'model', 'commercial_name',
+        'serial_number', 'imei', 'notes',
+    ]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -391,6 +442,17 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     serializer_class = ChainOfCustodySerializer
     permission_classes = [IsAuthenticated, IsAgentOrExpert]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = [
+        'code', 'observations',
+        'evidence__code', 'evidence__description',
+        'evidence__occurrence__number',
+    ]
+    ordering_fields = ['timestamp', 'sequence']
+    # Ordem canónica de uma cadeia de custódia: ASCENDENTE por sequência
+    # (do primeiro registo APREENDIDA ao último). Quem precisar do mais
+    # recente primeiro (ex: listagem global) passa ?ordering=-timestamp.
+    ordering = ['sequence']
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -427,6 +489,91 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         )
         serializer = self.get_serializer(records, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=['post'], url_path='cascade')
+    def cascade(self, request):
+        """POST /api/custody/cascade/ — transição atómica de várias evidências.
+
+        Permite ao utilizador mover um item-pai e os seus sub-componentes
+        (ex: telemóvel + cartão SIM + cartão de memória) para o mesmo
+        estado de custódia numa única acção, em vez de o fazer item a
+        item. Ver decisão UX no plano (Bloco E).
+
+        Garantias:
+        - Atomicidade: ou todas as transições são gravadas, ou nenhuma
+          (envolto em ``transaction.atomic()``).
+        - Cada ``ChainOfCustody.save()`` mantém o seu próprio
+          ``select_for_update`` por evidência — não há contenção entre
+          evidências distintas.
+        - Ownership: utilizador tem de poder operar sobre TODAS as
+          evidências (AGENT dono, EXPERT ou staff). Caso contrário 403.
+        - Validação da máquina de estados é feita por cada
+          ``ChainOfCustody.save()``; se uma evidência rejeitar a
+          transição, todas revertem e o cliente recebe 400 com
+          ``evidence_id`` e mensagem.
+        - Auditoria: cria um ``AuditLog`` por cada registo criado.
+        """
+        payload = CascadeCustodyRequestSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        evidence_ids = payload.validated_data['evidence_ids']
+        new_state = payload.validated_data['new_state']
+        observations = payload.validated_data.get('observations', '')
+
+        evidences = list(
+            Evidence.objects.select_related('occurrence', 'occurrence__agent')
+            .filter(id__in=evidence_ids)
+        )
+        if len(evidences) != len(set(evidence_ids)):
+            return Response(
+                {'detail': 'Uma ou mais evidências não existem.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        for ev in evidences:
+            if not _user_can_access_occurrence(request.user, ev.occurrence):
+                return Response(
+                    {'detail': f'Sem permissão sobre a evidência {ev.code or ev.pk}.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        created_records = []
+        try:
+            with transaction.atomic():
+                for ev in evidences:
+                    record = ChainOfCustody(
+                        evidence=ev,
+                        new_state=new_state,
+                        observations=observations,
+                        agent=request.user,
+                    )
+                    record.save()
+                    created_records.append(record)
+                    log_access(
+                        request=request,
+                        action=AuditLog.Action.CREATE,
+                        resource_type=AuditLog.ResourceType.CUSTODY,
+                        resource_id=record.pk,
+                        details={
+                            'evidence_id': ev.pk,
+                            'new_state': new_state,
+                            'cascade': True,
+                        },
+                    )
+        except DjangoValidationError as exc:
+            # Identifica a evidência que falhou — útil para o frontend
+            # mostrar mensagem específica (ex: "filho já está em estado
+            # terminal e não pode regredir").
+            failed_ev = evidences[len(created_records)] if len(created_records) < len(evidences) else None
+            return Response(
+                {
+                    'evidence_id': failed_ev.pk if failed_ev else None,
+                    'evidence_code': failed_ev.code if failed_ev else None,
+                    'error': exc.message_dict if hasattr(exc, 'message_dict') else exc.messages,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = ChainOfCustodySerializer(created_records, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------
@@ -655,6 +802,12 @@ class DashboardStatsView(APIView):
         # Counts de "Em trânsito" e "Em perícia" devem reflectir o estado
         # actual, não o histórico (caso contrário um item que esteve em
         # trânsito e agora está em perícia seria contado em ambos).
+        #
+        # Invariante: estado actual = registo com max(sequence) por evidence_id.
+        # Esta lógica foi auditada (2026-05-02) e está correcta — não muda para
+        # subquery SQL porque o índice composto coc_ev_seq_idx torna a iteração
+        # Python eficaz para o volume típico de operação. Refactor opcional
+        # noutra fase usando Evidence.objects.with_current_state().
         latest_states = list(coc_qs.values('evidence_id', 'new_state', 'sequence'))
         latest_by_ev = {}
         for r in latest_states:
@@ -679,6 +832,88 @@ class DashboardStatsView(APIView):
             'custodies_in_transit': custodies_in_transit,
             'evidences_in_analysis': evidences_in_analysis,
         })
+
+
+# ---------------------------------------------------------------------------
+# Media servida com auditoria — fotos de evidência (substitui static() em prod)
+# ---------------------------------------------------------------------------
+
+class MediaServeView(APIView):
+    """GET /media/<path> — serve fotos de evidência com auth + auditoria.
+
+    Em produção, Gunicorn (sem nginx à frente) não serve ``/media/`` por
+    defeito, e mesmo que servisse, fotos de evidência têm de exigir
+    autenticação e ownership da ocorrência (ISO/IEC 27037 — controlo de
+    acesso a prova). Esta view substitui o ``static(MEDIA_URL, ...)`` que
+    apenas existia em ``DEBUG``.
+
+    Garantias:
+    - Path traversal bloqueado via ``Path.resolve().is_relative_to``.
+    - Ownership: o utilizador tem de poder aceder à ocorrência cujo
+      ``number`` aparece no path (``evidencias/<number>/<file>``).
+    - Auditoria: cada acesso gera ``AuditLog(action=VIEW,
+      resource_type=EVIDENCE)`` com ``details.media_path``.
+    - Cache HTTP privado (1h) — fotos não mudam após criação (Evidence
+      é imutável).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, path):
+        media_root = Path(settings.MEDIA_ROOT).resolve()
+        try:
+            target = (media_root / path).resolve(strict=True)
+        except (FileNotFoundError, RuntimeError):
+            raise Http404('Ficheiro não encontrado.')
+        # Path traversal: garante que o ficheiro está dentro de MEDIA_ROOT.
+        try:
+            target.relative_to(media_root)
+        except ValueError:
+            raise Http404('Caminho inválido.')
+        if not target.is_file():
+            raise Http404('Ficheiro não encontrado.')
+
+        # Ownership: extrai occurrence number do path
+        # (evidencias/<number>/<uuid>_<filename>).
+        parts = Path(path).parts
+        if len(parts) >= 2 and parts[0] == 'evidencias':
+            occurrence_number = parts[1]
+            occurrence = Occurrence.objects.filter(number=occurrence_number).first()
+            if occurrence is None:
+                raise Http404('Ocorrência não encontrada.')
+            if not _user_can_access_occurrence(request.user, occurrence):
+                return Response(
+                    {'detail': 'Sem permissão para aceder a esta foto.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            related_evidence_id = (
+                Evidence.objects.filter(occurrence=occurrence, photo=path)
+                .values_list('id', flat=True).first()
+            )
+            log_access(
+                request=request,
+                action=AuditLog.Action.VIEW,
+                resource_type=AuditLog.ResourceType.EVIDENCE,
+                resource_id=related_evidence_id or occurrence.pk,
+                details={'media_path': path},
+            )
+        # Caminhos fora de evidencias/ (ex: assets futuros) são bloqueados
+        # por defeito — abrir explicitamente quando houver caso de uso.
+        else:
+            return Response(
+                {'detail': 'Acesso a este caminho não autorizado.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        content_type, _ = mimetypes.guess_type(str(target))
+        response = FileResponse(
+            open(target, 'rb'),
+            content_type=content_type or 'application/octet-stream',
+        )
+        response['Content-Disposition'] = f'inline; filename="{target.name}"'
+        # Evidence é imutável: cache 1h é seguro e reduz GETs repetidos.
+        response['Cache-Control'] = 'private, max-age=3600'
+        return response
 
 
 # ---------------------------------------------------------------------------

@@ -179,6 +179,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
     )
     type_specific_data = serializers.JSONField(required=False)
     sub_components = serializers.SerializerMethodField()
+    current_state = serializers.SerializerMethodField()
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
@@ -220,6 +221,23 @@ class EvidenceSerializer(serializers.ModelSerializer):
             for c in children
         ]
 
+    def get_current_state(self, obj):
+        """Estado actual de custódia (último ChainOfCustody por sequence).
+
+        Usa a anotação ``current_state`` se o queryset foi construído com
+        ``Evidence.objects.with_current_state()`` (caminho normal das
+        listagens). Em retrieve isolado, faz uma query adicional barata.
+        Devolve ``None`` se a evidência ainda não tem registo de custódia.
+        """
+        annotated = getattr(obj, 'current_state', None)
+        if annotated is not None:
+            return annotated
+        return (
+            obj.custody_chain.order_by('-sequence')
+            .values_list('new_state', flat=True)
+            .first()
+        )
+
     class Meta:
         model = Evidence
         fields = [
@@ -234,6 +252,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'external_lookup_source',
             'external_lookup_at',
             'sub_components',
+            'current_state',
             'created_at', 'updated_at',
         ]
         read_only_fields = [
@@ -242,6 +261,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'external_lookup_source',
             'external_lookup_at',
             'sub_components',
+            'current_state',
             'occurrence_number',
             'occurrence_code',
             'parent_evidence_label',
@@ -404,3 +424,32 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
                 'Não tem permissão para registar custódia nesta evidência.'
             )
         return evidence
+
+
+# ---------------------------------------------------------------------------
+# CascadeCustodyRequest — payload para POST /api/custody/cascade/
+# ---------------------------------------------------------------------------
+
+class CascadeCustodyRequestSerializer(serializers.Serializer):
+    """Payload do endpoint de transição em cascata.
+
+    Permite mover N evidências (item-pai + sub-componentes) para o mesmo
+    estado de custódia numa única operação atómica. A validação de
+    transição (máquina de estados) e de ownership é feita por evidência
+    dentro da view; este serializer apenas garante que o payload tem o
+    formato correcto.
+    """
+
+    evidence_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        min_length=1,
+        max_length=200,
+        help_text='IDs das evidências a transitar (item principal + sub-componentes).',
+    )
+    new_state = serializers.ChoiceField(
+        choices=ChainOfCustody.CustodyState.choices,
+        help_text='Novo estado a aplicar a todas as evidências.',
+    )
+    observations = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=2000,
+    )

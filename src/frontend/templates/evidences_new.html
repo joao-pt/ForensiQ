@@ -18,6 +18,21 @@
 <input type="hidden" id="parent_type" value="">
 <input type="hidden" id="parent_depth" value="0">
 
+<!-- Banner persistente: mostrado quando o utilizador chega ao wizard com
+     contexto pré-definido (ocorrência ou pai). Visível em TODOS os passos
+     para nunca perder o contexto. Preenchido em readParentFromUrl(). -->
+<div id="wizard-context-banner" class="wizard-context-banner hidden" role="note" aria-live="polite">
+    <svg class="wizard-context-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/>
+        <path d="M12 16v-4M12 8h.01"/>
+    </svg>
+    <div class="wizard-context-body">
+        <div class="wizard-context-title" id="wizard-context-title">A adicionar item</div>
+        <div class="wizard-context-meta mono" id="wizard-context-meta">—</div>
+    </div>
+</div>
+
 <div class="wizard" id="evidence-wizard" role="form" aria-label="Registar novo item apreendido">
     <div class="wizard-track">
 
@@ -227,7 +242,7 @@
                 </svg>
                 <div class="callout-body">
                     <div class="callout-title">Integridade garantida</div>
-                    Hash SHA-256 calculado automaticamente (ISO/IEC 27037). Registo imutável.
+                    Hash SHA-256 calculado automaticamente. Registo imutável.
                 </div>
             </div>
 
@@ -286,16 +301,34 @@
 </div><!-- /wizard -->
 </form>
 
-<!-- Modal: pergunta sub-componentes depois de criar item principal -->
+<!-- Modal: continuação após criar item. Oferece 3 opções claras —
+     irmão (outro componente para o mesmo pai), filho (sub-componente do
+     item criado), ou terminar e ver o detalhe. Mostra explicitamente o
+     contexto (item criado + pai) para o utilizador não confundir o nível. -->
 <div class="modal-overlay" id="sub-prompt-modal" aria-hidden="true" role="dialog"
      aria-labelledby="sub-prompt-title" aria-describedby="sub-prompt-desc" hidden>
     <div class="modal">
-        <h3 id="sub-prompt-title">Componentes internos?</h3>
-        <p id="sub-prompt-desc">
-            Este dispositivo contém <strong>componentes internos</strong> a registar?
-            Por exemplo: cartões SIM, cartões de memória, discos internos, ECU, dashcam, etc.
-        </p>
+        <h3 id="sub-prompt-title">Item registado</h3>
+        <div id="sub-prompt-context" class="sub-prompt-context">
+            <div><span class="sub-prompt-label">Criado:</span> <strong id="sub-prompt-created">—</strong></div>
+            <div id="sub-prompt-parent-row" hidden>
+                <span class="sub-prompt-label">Adicionado a:</span>
+                <strong id="sub-prompt-parent">—</strong>
+            </div>
+        </div>
+        <p id="sub-prompt-desc">Continuar a registar?</p>
         <div id="sub-prompt-suggestions" class="sub-suggestions" aria-hidden="true"></div>
+        <div id="sub-prompt-leaf" class="callout info hidden" role="note">
+            <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            <div class="callout-body">
+                <div class="callout-title">Tipo terminal</div>
+                Este tipo de item não admite sub-componentes.
+            </div>
+        </div>
         <div id="sub-prompt-max" class="callout warning hidden" role="note">
             <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -304,15 +337,18 @@
             </svg>
             <div class="callout-body">
                 <div class="callout-title">Profundidade máxima atingida</div>
-                ISO/IEC 27037 recomenda evitar detalhe excessivo.
+                Recomenda-se evitar detalhe excessivo nesta hierarquia.
             </div>
         </div>
-        <div class="modal-actions">
-            <button type="button" class="btn btn-ghost" id="btn-sub-finish">
-                Não, terminar
+        <div class="modal-actions modal-actions-stack">
+            <button type="button" class="btn btn-primary" id="btn-sub-sibling" hidden>
+                <span id="btn-sub-sibling-label">Outro componente do pai</span>
             </button>
-            <button type="button" class="btn btn-primary" id="btn-sub-add">
-                Sim, adicionar componente
+            <button type="button" class="btn btn-secondary" id="btn-sub-child">
+                <span id="btn-sub-child-label">Sub-componente deste item</span>
+            </button>
+            <button type="button" class="btn btn-ghost" id="btn-sub-finish">
+                Terminar e abrir detalhe
             </button>
         </div>
     </div>

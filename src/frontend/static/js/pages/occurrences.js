@@ -15,6 +15,7 @@ let allOccurrences = [];
 let leafletMap = null;
 let mapInitialized = false;
 let currentView = 'list';
+let currentStateFilter = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!await Auth.requireAuth()) return;
@@ -35,9 +36,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         }, 400);
     });
 
+    const urlParams = new URLSearchParams(window.location.search);
+    currentStateFilter = urlParams.get('state');
+    renderStateFilterChip();
+
     loadOccurrences();
     loadAllOccurrencesForMap();
 });
+
+function renderStateFilterChip() {
+    if (!currentStateFilter) return;
+    const countEl = document.getElementById('occurrences-count');
+    if (!countEl) return;
+    const stateLabels = {
+        'APREENDIDA': 'Apreendido',
+        'EM_TRANSPORTE': 'Em trânsito',
+        'RECEBIDA_LABORATORIO': 'Recebido no laboratório',
+        'EM_PERICIA': 'Em perícia',
+        'CONCLUIDA': 'Concluído',
+        'DEVOLVIDA': 'Devolvido',
+        'DESTRUIDA': 'Destruído',
+    };
+    const label = stateLabels[currentStateFilter] || currentStateFilter;
+    const chip = document.createElement('span');
+    chip.className = 'badge badge-info ml-2';
+    chip.textContent = `Filtrado: ${label}`;
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.className = 'btn-icon-inline';
+    clear.setAttribute('aria-label', 'Limpar filtro');
+    clear.textContent = ' ✕';
+    clear.addEventListener('click', () => {
+        window.location.href = '/occurrences/';
+    });
+    chip.appendChild(clear);
+    countEl.appendChild(chip);
+}
 
 // ----------------------------------------------------------
 // Segmented control Lista / Mapa — ARIA tabs pattern com roving tabindex
@@ -242,6 +276,7 @@ async function loadOccurrences(search = '') {
     try {
         const params = { page: currentPage, page_size: 20 };
         if (search) params.search = search;
+        if (currentStateFilter) params.state = currentStateFilter;
 
         const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, params);
         const occurrences = data.results || [];
