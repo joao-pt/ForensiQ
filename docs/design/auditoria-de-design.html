@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="pt-PT" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ForensiQ — Auditoria de design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap">
+<style>
+:root{
+  --bg:#0F1115; --bg-2:#14171C; --bg-3:#0A0C10;
+  --surf:#181B21; --surf-2:#1F2229; --surf-3:#23272F;
+  --text:#E6E8EC; --text-em:#F4F5F7; --text-mu:#9AA0A6; --text-sub:#6E737C;
+  --border:rgba(255,255,255,.07); --border-s:rgba(255,255,255,.13); --div:rgba(255,255,255,.06);
+  --teal:#2DD4BF; --teal-tint:rgba(45,212,191,.12);
+  --amber:#F59E0B; --amber-tint:rgba(245,158,11,.14);
+  --red:#F87171; --red-tint:rgba(239,68,68,.14);
+  --green:#34D399; --green-tint:rgba(16,185,129,.14);
+  --blue:#60A5FA; --blue-tint:rgba(96,165,250,.14);
+  --purple:#C084FC; --purple-tint:rgba(192,132,252,.14);
+  --font:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{min-height:100vh}
+a{color:var(--teal);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+code{font-family:var(--mono);font-size:.88em;background:var(--bg-3);padding:1px 6px;border-radius:4px;border:1px solid var(--border);color:var(--text-mu)}
+b{font-weight:600;color:var(--text-em)}
+i{color:var(--text-mu)}
+
+.wrap{max-width:1100px;margin:0 auto;padding:48px 24px 96px}
+
+/* ====== HERO ====== */
+.hero{padding:24px 0 32px;border-bottom:1px solid var(--div);margin-bottom:32px}
+.hero-kicker{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.hero-kicker::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 4px var(--teal-tint)}
+.hero h1{font-size:36px;font-weight:700;letter-spacing:-.02em;line-height:1.15;color:var(--text-em);margin-bottom:12px}
+.hero p{font-size:16px;color:var(--text-mu);max-width:720px;line-height:1.6}
+.hero-meta{display:flex;gap:32px;margin-top:28px;flex-wrap:wrap}
+.hero-meta > div{font-size:13px;color:var(--text-mu)}
+.hero-meta b{display:block;font-size:24px;font-family:var(--mono);color:var(--text-em);margin-bottom:2px;font-weight:500}
+
+/* ====== TOC / STATS STRIP ====== */
+.severity-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:40px}
+.sev-stat{padding:16px 18px;background:var(--bg-2);display:flex;flex-direction:column;gap:4px;cursor:pointer;transition:background .15s}
+.sev-stat:hover{background:var(--surf)}
+.sev-stat.is-on{background:var(--surf-2)}
+.sev-stat .n{font-size:26px;font-weight:700;font-family:var(--mono);letter-spacing:-.02em}
+.sev-stat .l{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-mu);font-weight:600}
+.sev-stat.critical .n{color:var(--red)}
+.sev-stat.high .n{color:var(--amber)}
+.sev-stat.medium .n{color:var(--blue)}
+.sev-stat.low .n{color:var(--green)}
+.sev-stat.nit .n{color:var(--text-sub)}
+
+/* ====== STRENGTHS ====== */
+.strengths{background:linear-gradient(180deg,rgba(45,212,191,.05),transparent);border:1px solid var(--border);border-left:3px solid var(--teal);border-radius:10px;padding:22px 24px;margin-bottom:40px}
+.strengths h2{font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--teal);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.strengths h2::before{content:"✓";font-family:var(--mono)}
+.strengths ul{list-style:none;display:flex;flex-direction:column;gap:10px}
+.strengths li{font-size:14px;line-height:1.6;color:var(--text);padding-left:22px;position:relative}
+.strengths li::before{content:"";position:absolute;left:0;top:8px;width:10px;height:2px;background:var(--teal);opacity:.6}
+
+/* ====== SECTION HEAD ====== */
+.section-head{display:flex;align-items:baseline;justify-content:space-between;margin:48px 0 20px;padding-bottom:12px;border-bottom:1px solid var(--div)}
+.section-head h2{font-size:22px;font-weight:700;letter-spacing:-.015em}
+.section-head .sub{font-size:13px;color:var(--text-mu)}
+
+/* ====== FILTERS ====== */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;padding:14px 16px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px}
+.filter-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text-mu);align-self:center;margin-right:4px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;font-size:12px;font-weight:500;color:var(--text-mu);background:transparent;border:1px solid var(--border-s);border-radius:999px;cursor:pointer;transition:all .15s;font-family:inherit}
+.chip:hover{color:var(--text);background:var(--surf)}
+.chip.on{background:var(--teal-tint);color:var(--teal);border-color:transparent}
+.chip .n{font-family:var(--mono);font-size:11px;opacity:.7;margin-left:2px}
+
+/* ====== FINDINGS ====== */
+.findings{display:flex;flex-direction:column;gap:14px}
+.finding{background:var(--surf);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:border-color .15s}
+.finding:hover{border-color:var(--border-s)}
+.finding.hide{display:none}
+
+.f-head{display:flex;align-items:flex-start;gap:14px;padding:18px 22px;cursor:pointer;user-select:none}
+.f-head:hover{background:var(--surf-2)}
+
+.f-id{font-family:var(--mono);font-size:12px;color:var(--text-sub);font-weight:500;width:36px;flex-shrink:0;padding-top:3px;letter-spacing:.02em}
+
+.f-sev{width:4px;align-self:stretch;border-radius:2px;flex-shrink:0;margin-top:2px;margin-bottom:2px}
+.finding[data-sev="critical"] .f-sev{background:var(--red)}
+.finding[data-sev="high"]     .f-sev{background:var(--amber)}
+.finding[data-sev="medium"]   .f-sev{background:var(--blue)}
+.finding[data-sev="low"]      .f-sev{background:var(--green)}
+.finding[data-sev="nit"]      .f-sev{background:var(--text-sub)}
+
+.f-main{flex:1;min-width:0}
+.f-title{font-size:15.5px;font-weight:600;color:var(--text-em);line-height:1.4;margin-bottom:8px}
+.f-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;font-size:11px;font-weight:500;border-radius:4px;letter-spacing:.015em;font-family:inherit}
+.tag-sev{font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:10px;padding:3px 8px}
+.finding[data-sev="critical"] .tag-sev{background:var(--red-tint);color:var(--red)}
+.finding[data-sev="high"]     .tag-sev{background:var(--amber-tint);color:var(--amber)}
+.finding[data-sev="medium"]   .tag-sev{background:var(--blue-tint);color:var(--blue)}
+.finding[data-sev="low"]      .tag-sev{background:var(--green-tint);color:var(--green)}
+.finding[data-sev="nit"]      .tag-sev{background:var(--surf-2);color:var(--text-sub)}
+.tag-cat{background:var(--surf-2);color:var(--text-mu);border:1px solid var(--border)}
+.tag-page{background:transparent;color:var(--text-sub);border:1px solid var(--border);font-family:var(--mono)}
+
+.f-chev{width:18px;height:18px;color:var(--text-sub);flex-shrink:0;transition:transform .2s;margin-top:3px}
+.finding.open .f-chev{transform:rotate(90deg)}
+
+.f-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
+.finding.open .f-body{max-height:3000px}
+.f-body-inner{padding:4px 22px 22px 74px}
+.f-body-inner > div + div{margin-top:18px}
+
+.label{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mu);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.label::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--text-mu)}
+.f-where{font-family:var(--mono);font-size:13px;color:var(--text-mu);line-height:1.6}
+.f-problem{font-size:14px;line-height:1.6;color:var(--text)}
+.f-impact{font-size:14px;line-height:1.6;color:var(--text);padding:12px 14px;background:var(--bg-3);border-left:2px solid var(--amber);border-radius:0 6px 6px 0}
+.f-fix{font-size:14px;line-height:1.6;color:var(--text);padding:12px 14px;background:rgba(45,212,191,.05);border-left:2px solid var(--teal);border-radius:0 6px 6px 0}
+.f-fix::before{content:"SOLUÇÃO · ";font-weight:700;font-size:10px;letter-spacing:.1em;color:var(--teal);margin-right:4px}
+
+.empty{padding:60px 24px;text-align:center;color:var(--text-sub);font-size:14px}
+
+/* ====== TOC ====== */
+.toc-links{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:40px}
+.toc-links a{padding:6px 12px;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text-mu)}
+.toc-links a:hover{color:var(--text-em);background:var(--surf);text-decoration:none}
+
+/* ====== FOOTER ====== */
+footer{margin-top:64px;padding-top:24px;border-top:1px solid var(--div);font-size:12px;color:var(--text-sub);display:flex;justify-content:space-between;flex-wrap:wrap;gap:16px}
+
+@media (max-width:640px){
+  .wrap{padding:28px 16px 64px}
+  .hero h1{font-size:26px}
+  .severity-strip{grid-template-columns:repeat(2,1fr)}
+  .f-body-inner{padding:4px 16px 18px 16px}
+  .f-head{padding:14px 16px}
+  .f-id{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="hero-kicker">ForensiQ · Auditoria de design</div>
+    <h1>Análise de falhas e inconsistências</h1>
+    <p>Revisão sistemática do design system e templates de <code>src/frontend</code>. 34 achados catalogados por severidade, categoria e página. Cada achado inclui onde está, porque importa e como corrigir.</p>
+    <div class="hero-meta">
+      <div><b id="meta-f">34</b>achados</div>
+      <div><b>13</b>páginas analisadas</div>
+      <div><b>~2.9k</b>linhas de CSS</div>
+      <div><b id="meta-crit">3</b>críticos</div>
+    </div>
+  </header>
+
+  <div class="toc-links">
+    <a href="#strengths">O que está bem</a>
+    <a href="#critical">Críticos</a>
+    <a href="#all">Todos os achados</a>
+    <a href="#priorities">Prioridades</a>
+  </div>
+
+  <section id="strengths" class="strengths">
+    <h2>O que está bem</h2>
+    <ul id="strengths-list"></ul>
+  </section>
+
+  <div class="section-head" id="all">
+    <h2>Achados</h2>
+    <span class="sub" id="count-visible">—</span>
+  </div>
+
+  <div class="severity-strip" id="sev-strip">
+    <button class="sev-stat critical" data-sev="critical"><span class="n" data-n="critical">0</span><span class="l">Críticos</span></button>
+    <button class="sev-stat high" data-sev="high"><span class="n" data-n="high">0</span><span class="l">High</span></button>
+    <button class="sev-stat medium" data-sev="medium"><span class="n" data-n="medium">0</span><span class="l">Medium</span></button>
+    <button class="sev-stat low" data-sev="low"><span class="n" data-n="low">0</span><span class="l">Low</span></button>
+    <button class="sev-stat nit" data-sev="nit"><span class="n" data-n="nit">0</span><span class="l">Nit</span></button>
+  </div>
+
+  <div class="filters" id="cat-filters">
+    <span class="filter-label">Categoria</span>
+  </div>
+
+  <div class="findings" id="list"></div>
+
+  <section id="priorities" style="margin-top:64px">
+    <div class="section-head"><h2>Por onde começar</h2></div>
+    <ol style="padding-left:20px;display:flex;flex-direction:column;gap:14px;font-size:14.5px;line-height:1.6">
+      <li><b>Unificar login com o design system</b> (achados #1 + #2). Uma sessão de 3–4 h remove ~600 linhas de CSS duplicado e corrige o modo claro.</li>
+      <li><b>Remover <code>style=""</code> inline + endurecer CSP</b> (#3). Meia hora. Alinhamento crítico entre código e documento de compliance ISO/RGPD.</li>
+      <li><b>Resolver os "legacy aliases"</b> (#4). Find/replace página a página, depois apagar o bloco. 1–2 h.</li>
+      <li><b>Tokens semânticos para estados forenses</b> (#8 + #24). Cor consistente entre timeline, badge e listagem.</li>
+      <li><b>Subir tipografia base para 16/14/13</b> (#5). Teste com utilizadores ao sol.</li>
+      <li><b>Substituir emojis por SVG</b> no wizard de tipo (#7). 30 min.</li>
+      <li>Passar pelas melhorias de acessibilidade (#9, #12, #18, #30) — tudo pequenas correcções.</li>
+    </ol>
+  </section>
+
+  <footer>
+    <div>Auditoria conduzida contra <code>src/frontend/css/main.css</code>, <code>wizard.css</code>, e 13 templates Django.</div>
+    <div>ForensiQ · <span style="font-family:var(--mono)">v0.1</span></div>
+  </footer>
+</div>
+
+<script src="audit/findings.js"></script>
+<script>
+(function(){
+  const A = window.FORENSIQ_AUDIT;
+  const SEV_ORDER = ['critical','high','medium','low','nit'];
+  const state = { sev: null, cat: null };
+
+  // Strengths
+  document.getElementById('strengths-list').innerHTML =
+    A.strengths.map(s => '<li>'+s+'</li>').join('');
+
+  // Meta totals
+  const counts = { critical:0, high:0, medium:0, low:0, nit:0 };
+  const cats = {};
+  A.findings.forEach(f => {
+    counts[f.severity]++;
+    cats[f.category] = (cats[f.category]||0) + 1;
+  });
+  Object.entries(counts).forEach(([k,v]) => {
+    const el = document.querySelector('[data-n="'+k+'"]');
+    if(el) el.textContent = v;
+  });
+  document.getElementById('meta-f').textContent = A.findings.length;
+  document.getElementById('meta-crit').textContent = counts.critical;
+
+  // Category filters
+  const catWrap = document.getElementById('cat-filters');
+  const allChip = btn('Todas', null, A.findings.length, true);
+  catWrap.appendChild(allChip);
+  Object.entries(cats).sort((a,b) => b[1]-a[1]).forEach(([c,n]) => {
+    catWrap.appendChild(btn(c, c, n));
+  });
+  function btn(label, val, n, active){
+    const b = document.createElement('button');
+    b.className = 'chip' + (active ? ' on' : '');
+    b.innerHTML = label + '<span class="n">'+n+'</span>';
+    b.addEventListener('click', () => {
+      state.cat = val;
+      catWrap.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+      b.classList.add('on');
+      render();
+    });
+    return b;
+  }
+
+  // Severity strip toggles
+  document.querySelectorAll('.sev-stat').forEach(el => {
+    el.addEventListener('click', () => {
+      const s = el.dataset.sev;
+      if(state.sev === s){ state.sev = null; el.classList.remove('is-on'); }
+      else {
+        state.sev = s;
+        document.querySelectorAll('.sev-stat').forEach(x => x.classList.remove('is-on'));
+        el.classList.add('is-on');
+      }
+      render();
+    });
+  });
+
+  // Render findings
+  const list = document.getElementById('list');
+  const sorted = [...A.findings].sort((a,b) =>
+    SEV_ORDER.indexOf(a.severity) - SEV_ORDER.indexOf(b.severity) || a.id - b.id
+  );
+  list.innerHTML = sorted.map(f => `
+    <article class="finding" data-sev="${f.severity}" data-cat="${f.category}" data-id="${f.id}">
+      <div class="f-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="f-id">#${String(f.id).padStart(2,'0')}</span>
+        <span class="f-sev"></span>
+        <div class="f-main">
+          <div class="f-title">${f.title}</div>
+          <div class="f-meta">
+            <span class="tag tag-sev">${sevLabel(f.severity)}</span>
+            <span class="tag tag-cat">${f.category}</span>
+            <span class="tag tag-page">${f.page}</span>
+          </div>
+        </div>
+        <svg class="f-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </div>
+      <div class="f-body">
+        <div class="f-body-inner">
+          <div><div class="label">Onde</div><div class="f-where">${f.where}</div></div>
+          <div><div class="label">Problema</div><div class="f-problem">${f.problem}</div></div>
+          <div><div class="label">Impacto</div><div class="f-impact">${f.impact}</div></div>
+          <div><div class="label">Correção</div><div class="f-fix">${f.fix}</div></div>
+        </div>
+      </div>
+    </article>
+  `).join('');
+
+  function sevLabel(s){
+    return {critical:'Crítico',high:'High',medium:'Medium',low:'Low',nit:'Nit'}[s];
+  }
+
+  function render(){
+    let visible = 0;
+    document.querySelectorAll('.finding').forEach(el => {
+      const okSev = !state.sev || el.dataset.sev === state.sev;
+      const okCat = !state.cat || el.dataset.cat === state.cat;
+      if(okSev && okCat){ el.classList.remove('hide'); visible++; }
+      else el.classList.add('hide');
+    });
+    document.getElementById('count-visible').textContent = visible + ' visíveis de ' + A.findings.length;
+  }
+  render();
+})();
+</script>
+</body>
+</html>
