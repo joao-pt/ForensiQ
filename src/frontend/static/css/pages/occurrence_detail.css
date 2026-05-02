@@ -273,6 +273,8 @@
 }
 
 .evidence-subcard-title svg {
+    width: 14px;
+    height: 14px;
     color: var(--accent);
     flex-shrink: 0;
 }

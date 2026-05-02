@@ -1334,8 +1334,12 @@ textarea.form-control {
     height: 16px;
 }
 
-/* Dentro de um .card, o list-item já não precisa de padding lateral */
-.card .list {
+/* Dentro de um .card *com padding interior*, o .list "estica" para
+   compensar as margens internas do card e dar full-bleed às linhas.
+   Quando o card tem .p-0 (sem padding), NÃO esticamos — caso contrário
+   o conteúdo ultrapassa o card e fica colado às bordas da página
+   (regressão detectada na auditoria UX 2026-05-02). */
+.card:not(.p-0) .list {
     margin: 0 calc(var(--sp-4) * -1);
 }
 
@@ -1345,7 +1349,7 @@ textarea.form-control {
 }
 
 @media (min-width: 768px) {
-    .card .list {
+    .card:not(.p-0) .list {
         margin: 0 calc(var(--sp-5) * -1);
     }
     .card .list-item {
@@ -1492,6 +1496,16 @@ textarea.form-control {
     color: var(--text-muted);
 }
 
+/* Defensiva: qualquer SVG inline no .callout sem classe explícita ainda
+   recebe dimensões finitas. Sem isto, um SVG com viewBox mas sem
+   width/height estica até ao tamanho do contentor flex (regressão
+   detectada em /evidences/<id>/ — bug do parent-banner). */
+.callout > svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+}
+
 .callout-body {
     flex: 1;
     min-width: 0;
@@ -1565,13 +1579,19 @@ textarea.form-control {
 
 .toast-container {
     position: fixed;
-    bottom: calc(var(--sp-4) + env(safe-area-inset-bottom));
+    top: calc(var(--sp-4) + env(safe-area-inset-top));
     left: 50%;
     transform: translateX(-50%);
     z-index: 100;
     width: calc(100% - var(--sp-8));
     max-width: 420px;
     pointer-events: none;
+}
+
+@media (min-width: 768px) {
+    .toast-container {
+        top: calc(var(--navbar-h-desktop) + var(--sp-4) + env(safe-area-inset-top));
+    }
 }
 
 .toast {
@@ -1597,7 +1617,7 @@ textarea.form-control {
 .toast.info    { border-left: 3px solid var(--info); }
 
 @keyframes toast-in {
-    from { opacity: 0; transform: translateY(12px); }
+    from { opacity: 0; transform: translateY(-12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
 
