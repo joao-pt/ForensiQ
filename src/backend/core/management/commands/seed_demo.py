@@ -358,13 +358,15 @@ class Command(BaseCommand):
         # --------------------------------------------------------------
         # Cadeia de custódia — progredir cada item até ao estado alvo
         # --------------------------------------------------------------
+        # Nota: ``ChainOfCustody.timestamp`` é sempre fixado em ``save()``
+        # via ``timezone.now()`` (NTP-synced server-side, ISO/IEC 27037).
+        # Em produção, triggers BEFORE UPDATE também bloqueiam qualquer
+        # tentativa posterior de alterar — o demo aceita timestamps
+        # próximos do "agora" para todas as transições; a ordem canónica
+        # é dada pelo campo ``sequence`` (auto-incrementado).
         for occurrence, evidences, target_states in cases:
             for ev in evidences:
-                last_ts = ev.timestamp_seizure
                 for state in target_states:
-                    last_ts = last_ts + timedelta(hours=8)
-                    # Forçar timestamp via update após save (modelo usa
-                    # timezone.now() do servidor por defeito).
                     record = ChainOfCustody(
                         evidence=ev,
                         new_state=state,
@@ -378,11 +380,6 @@ class Command(BaseCommand):
                         ),
                     )
                     record.save()
-                    # Override timestamp para datas históricas plausíveis
-                    # (sem afectar hash, recalcula em update).
-                    ChainOfCustody.objects.filter(pk=record.pk).update(
-                        timestamp=last_ts,
-                    )
 
         # --------------------------------------------------------------
         # Output
