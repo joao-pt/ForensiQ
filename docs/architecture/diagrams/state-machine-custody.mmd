@@ -1,0 +1,28 @@
+%% ForensiQ — Máquina de Estados da Cadeia de Custódia
+%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i state-machine-custody.mmd -o state-machine-custody.png -b transparent -w 1600
+
+stateDiagram-v2
+    direction LR
+    [*] --> APREENDIDA : "criação<br/>(AGENT no terreno)"
+    APREENDIDA --> EM_TRANSPORTE : "AGENT entrega"
+    EM_TRANSPORTE --> RECEBIDA_LABORATORIO : "EXPERT recebe"
+    RECEBIDA_LABORATORIO --> EM_PERICIA : "EXPERT inicia"
+    EM_PERICIA --> CONCLUIDA : "EXPERT conclui"
+    CONCLUIDA --> DEVOLVIDA : "AGENT/EXPERT<br/>devolve ao titular"
+    CONCLUIDA --> DESTRUIDA : "ordem judicial<br/>destruição"
+    DEVOLVIDA --> [*]
+    DESTRUIDA --> [*]
+
+    note right of APREENDIDA
+        Imutável após criação.
+        Hash SHA-256 calculado e
+        encadeado com registo
+        anterior (ISO/IEC 27037).
+    end note
+
+    note left of CONCLUIDA
+        Ramo terminal exige
+        decisão explícita
+        AGENT ou autoridade
+        judicial.
+    end note

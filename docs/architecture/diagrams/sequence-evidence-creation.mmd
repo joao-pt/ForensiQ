@@ -1,0 +1,30 @@
+%% ForensiQ — Sequência: criação de uma evidência (Agent no terreno)
+%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i sequence-evidence-creation.mmd -o sequence-evidence-creation.png -b transparent -w 1800
+
+sequenceDiagram
+    autonumber
+    actor Agent as "Agente OPC<br/>(mobile)"
+    participant Wizard as "Wizard<br/>/evidences/new/"
+    participant API as "Django REST API<br/>/api/evidences/"
+    participant Auth as "JWTCookieAuth<br/>middleware"
+    participant CSP as "CSP middleware<br/>(nonce)"
+    participant DB as "PostgreSQL<br/>(Neon)"
+    participant FS as "Volume<br/>/data/media"
+
+    Agent ->> Wizard : "abre formulário"
+    Wizard ->> Wizard : "GPS automático<br/>(navigator.geolocation)"
+    Wizard ->> Wizard : "captura foto<br/>(input camera)"
+    Agent ->> Wizard : "preenche tipo, descrição,<br/>S/N, IMEI..."
+    Wizard ->> API : "POST /api/evidences/<br/>multipart/form-data<br/>cookie fq_access + CSRF"
+    API ->> Auth : "valida JWT cookie"
+    Auth -->> API : "user.profile = AGENT"
+    API ->> CSP : "verifica policy"
+    API ->> API : "validate_evidence(occurrence)<br/>ownership check (IDOR)"
+    API ->> API : "compute SHA-256 (metadados)<br/>com nonce determinístico"
+    API ->> FS : "guarda foto<br/>preserva EXIF"
+    API ->> DB : "INSERT evidence<br/>(trigger valida)"
+    DB -->> API : "201 Created<br/>code=ITM-2026-NNNNN"
+    API -->> Wizard : "JSON evidence"
+    Wizard ->> Agent : "Toast 'Item registado'<br/>sub-prompt: adicionar componente?"
+
+    note over API,DB : Trigger PG bloqueia UPDATE/DELETE — append-only.<br/>Hash SHA-256 verificável independentemente.

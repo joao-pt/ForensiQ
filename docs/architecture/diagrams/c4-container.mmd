@@ -1,0 +1,37 @@
+%% ForensiQ — C4 Nível 2 (Containers)
+%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i c4-container.mmd -o c4-container.png -b transparent -w 2000
+
+flowchart TB
+    User("Agente / Perito<br/>(browser)")
+
+    subgraph Edge["Fly.io · Frankfurt"]
+        Gunicorn["Gunicorn (WSGI)<br/>+ WhiteNoise (estáticos)<br/>HTTPS A+ (Let's Encrypt)"]
+    end
+
+    subgraph App["Django 5.2 · forensiq_project"]
+        Frontend["Frontend<br/>(templates Django + JS vanilla)<br/>Leaflet · NoOpenStreetMap"]
+        DRF["DRF API<br/>(ViewSets + Serializers)<br/>JWT cookies + CSRF"]
+        Middleware["Middleware<br/>CorrelationID · CSP nonce<br/>JWTCookieAuth · ContentSecurityPolicy"]
+        Models["Models + Triggers PG<br/>Evidence (immutable)<br/>ChainOfCustody (append-only)<br/>SHA-256 signatures"]
+        Cache["DatabaseCache<br/>(table forensiq_cache)<br/>throttle · stats"]
+        PDFGen["PDF Forense<br/>ReportLab + ISO/IEC 27037"]
+    end
+
+    Neon[("PostgreSQL · Neon.tech<br/>(Frankfurt, PgBouncer)")]
+    OSM[/"OpenStreetMap<br/>Nominatim · tile.osm.org"/]
+    IMEI[/"IMEIDB.xyz<br/>(API key)"/]
+    Volume[("Fly Volume /data/media<br/>fotografias")]
+
+    User -->|"HTTPS"| Gunicorn
+    Gunicorn --> Frontend
+    Gunicorn --> DRF
+    Frontend --> DRF
+    DRF --> Middleware
+    Middleware --> Models
+    Models --> Neon
+    DRF --> Cache --> Neon
+    DRF --> PDFGen
+    Frontend -.->|"reverse geocoding"| OSM
+    DRF -.->|"lookup IMEI"| IMEI
+    PDFGen -.->|"lê fotos"| Volume
+    DRF -.->|"upload fotos"| Volume

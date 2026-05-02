@@ -1,0 +1,88 @@
+%% ForensiQ — Modelo Entidade-Relação
+%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i er-forensiq.mmd -o er-forensiq.png -b transparent -w 2000
+
+erDiagram
+    User ||--o{ Occurrence : "regista (agent)"
+    User ||--o{ Evidence   : "regista (agent)"
+    User ||--o{ ChainOfCustody : "actua (agent)"
+    Occurrence ||--o{ Evidence : "contém"
+    Evidence ||--o{ Evidence : "sub_components (parent_evidence)"
+    Evidence ||--o{ ChainOfCustody : "tem custódia"
+    Evidence ||--o{ DigitalDevice : "(legacy) descreve"
+
+    User {
+        int id PK
+        string username UK
+        string first_name
+        string last_name
+        string email
+        enum profile "AGENT | EXPERT"
+        string badge_number
+        string phone
+        bool is_staff
+        datetime date_joined
+    }
+
+    Occurrence {
+        int id PK
+        string code UK "OCC-YYYY-NNNNN"
+        string number "NUIPC ou referência"
+        string description
+        datetime date_time
+        decimal gps_lat
+        decimal gps_lon
+        string address
+        int agent_id FK
+    }
+
+    Evidence {
+        int id PK
+        string code UK "ITM-YYYY-NNNNN"
+        int occurrence_id FK
+        int parent_evidence_id FK "self · profundidade max 3"
+        enum type "18 tipos taxonómicos"
+        string description
+        datetime timestamp_seizure
+        decimal gps_lat
+        decimal gps_lon
+        string serial_number
+        json type_specific_data
+        image photo
+        string integrity_hash "SHA-256 ISO 27037"
+        int agent_id FK
+    }
+
+    ChainOfCustody {
+        int id PK
+        string code UK "CC-YYYY-NNNNN"
+        int evidence_id FK
+        int sequence "ordem inalterável"
+        enum previous_state
+        enum new_state "máquina de estados"
+        int agent_id FK
+        datetime timestamp
+        text observations
+        string record_hash "SHA-256 encadeado"
+    }
+
+    DigitalDevice {
+        int id PK
+        int evidence_id FK
+        enum type
+        string brand
+        string commercial_name
+        string model
+        string imei
+        enum condition
+    }
+
+    AuditLog ||--o{ User : "actor"
+    AuditLog {
+        int id PK
+        string correlation_id
+        string action
+        string resource
+        int actor_id FK
+        json metadata
+        datetime created_at
+    }
