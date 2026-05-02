@@ -1137,6 +1137,7 @@ class AuditLog(models.Model):
         VIEW = 'VIEW', 'Visualização'
         CREATE = 'CREATE', 'Criação'
         EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
+        EXPORT_CSV = 'EXPORT_CSV', 'Exportação CSV'
 
     class ResourceType(models.TextChoices):
         """Tipos de recursos auditados."""

@@ -1,21 +1,24 @@
 'use strict';
 
 /**
- * ForensiQ — Lista de ocorrências (lista + mapa).
+ * ForensiQ — Lista de ocorrências (cards em mobile, tabela densa em desktop).
  *
- * Usa as primitives de .list-item do design system. Mapa Leaflet com
- * markers e popups tokenizados.
+ * O renderer é escolhido pelo componente `DataTable` (viewport / localStorage
+ * `fq:listmode`). A função ``renderRow`` continua a construir o card legacy —
+ * é passada como ``cardRenderer`` para preservar mobile-first sem refactor.
+ *
+ * O painel "Mapa" continua a ser servido pela mesma instância via tabs.
  */
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-let currentPage = 1;
 let searchTimeout = null;
 let allOccurrences = [];
 let leafletMap = null;
 let mapInitialized = false;
 let currentView = 'list';
 let currentStateFilter = null;
+let dataTable = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     if (!await Auth.requireAuth()) return;
@@ -28,21 +31,129 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     setupTabs();
 
-    document.getElementById('search-input').addEventListener('input', (e) => {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            currentPage = 1;
-            loadOccurrences(e.target.value.trim());
-        }, 400);
-    });
-
     const urlParams = new URLSearchParams(window.location.search);
     currentStateFilter = urlParams.get('state');
     renderStateFilterChip();
 
-    loadOccurrences();
+    mountDataTable();
+    setupSearch();
+    setupSidebarFilters();
     loadAllOccurrencesForMap();
 });
+
+// ----------------------------------------------------------
+// DataTable mount
+// ----------------------------------------------------------
+function mountDataTable() {
+    dataTable = DataTable.mount('#occurrences-list', {
+        endpoint: CONFIG.ENDPOINTS.OCCURRENCES,
+        defaultSort: '-date_time',
+        defaultPageSize: DataTable.effectiveRenderer() === 'cards' ? 20 : 50,
+        rowHref: (row) => `/occurrences/${row.id}/`,
+        columns: [
+            {
+                key: 'number', label: 'NUIPC',
+                sortable: true, format: 'mono',
+                width: '160px', sticky: true,
+            },
+            {
+                key: 'description', label: 'Descrição',
+                truncate: 90,
+            },
+            {
+                key: 'address', label: 'Morada',
+                truncate: 50, hideBelow: 1024,
+            },
+            {
+                key: 'date_time', label: 'Data',
+                sortable: true, format: 'date',
+                width: '140px',
+            },
+            {
+                key: 'agent.username', label: 'Agente',
+                width: '140px', hideBelow: 1024,
+            },
+            {
+                key: 'gps_lat', label: 'GPS',
+                format: 'badge-presence', width: '60px', align: 'center',
+            },
+        ],
+        filters: [
+            { key: 'date_after',  label: 'Desde', type: 'date' },
+            { key: 'date_before', label: 'Até',   type: 'date' },
+            { key: 'has_gps',     label: 'Com GPS', type: 'boolean' },
+        ],
+        cardRenderer: (row) => renderRow(row),
+        extraParams: () => (currentStateFilter ? { state: currentStateFilter } : {}),
+        onCount: (n) => {
+            const countEl = document.getElementById('occurrences-count');
+            if (countEl && currentView === 'list') {
+                countEl.textContent = `${n} ocorrência${n !== 1 ? 's' : ''}`;
+            }
+            const live = document.getElementById('results-announce');
+            if (live) live.textContent = `${n} resultado${n !== 1 ? 's' : ''} após filtragem`;
+            refreshExportLink();
+        },
+    });
+
+    // Inicializar inputs da sidebar a partir da URL.
+    const urlParams = new URLSearchParams(window.location.search);
+    const da = document.getElementById('filter-date-after');
+    const db = document.getElementById('filter-date-before');
+    const hg = document.getElementById('filter-has-gps');
+    if (da && urlParams.has('date_after')) da.value = urlParams.get('date_after');
+    if (db && urlParams.has('date_before')) db.value = urlParams.get('date_before');
+    if (hg && urlParams.has('has_gps')) hg.checked = urlParams.get('has_gps') === 'true';
+}
+
+function setupSearch() {
+    const input = document.getElementById('search-input');
+    if (!input) return;
+
+    // Pré-popular a partir da URL.
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('search')) input.value = urlParams.get('search');
+
+    input.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            if (dataTable) dataTable.setSearch(e.target.value.trim());
+        }, 400);
+    });
+}
+
+function setupSidebarFilters() {
+    const da = document.getElementById('filter-date-after');
+    const db = document.getElementById('filter-date-before');
+    const hg = document.getElementById('filter-has-gps');
+    const clear = document.getElementById('filter-clear');
+
+    if (da) da.addEventListener('change', () => dataTable && dataTable.setFilter('date_after', da.value || ''));
+    if (db) db.addEventListener('change', () => dataTable && dataTable.setFilter('date_before', db.value || ''));
+    if (hg) hg.addEventListener('change', () => dataTable && dataTable.setFilter('has_gps', hg.checked ? 'true' : ''));
+
+    if (clear) {
+        clear.addEventListener('click', () => {
+            if (da) da.value = '';
+            if (db) db.value = '';
+            if (hg) hg.checked = false;
+            if (!dataTable) return;
+            dataTable.setFilter('date_after', '');
+            dataTable.setFilter('date_before', '');
+            dataTable.setFilter('has_gps', '');
+        });
+    }
+}
+
+function refreshExportLink() {
+    const btn = document.getElementById('btn-export-csv');
+    if (!btn) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page');
+    params.delete('page_size');
+    const qs = params.toString();
+    btn.href = qs ? `/api/occurrences/csv/?${qs}` : '/api/occurrences/csv/';
+}
 
 function renderStateFilterChip() {
     if (!currentStateFilter) return;
@@ -106,7 +217,6 @@ function setupTabs() {
         });
     });
 
-    // Estado inicial de tabindex (roving)
     updateRovingFocus(tabList);
 }
 
@@ -177,7 +287,7 @@ function initMap() {
 
 async function loadAllOccurrencesForMap() {
     try {
-        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 200 });
+        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 100 });
         allOccurrences = data.results || [];
         if (mapInitialized) addMarkersToMap(allOccurrences);
     } catch (err) {
@@ -265,42 +375,9 @@ function addMarkersToMap(occurrences) {
 }
 
 // ----------------------------------------------------------
-// Lista
+// Card renderer (modo mobile / fq:listmode=cards) — preserva o layout
+// .list-item original. Usado pelo DataTable para mobile-first.
 // ----------------------------------------------------------
-async function loadOccurrences(search = '') {
-    const container = document.getElementById('occurrences-list');
-    const countEl   = document.getElementById('occurrences-count');
-
-    container.replaceChildren(renderLoading());
-
-    try {
-        const params = { page: currentPage, page_size: 20 };
-        if (search) params.search = search;
-        if (currentStateFilter) params.state = currentStateFilter;
-
-        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, params);
-        const occurrences = data.results || [];
-        const total = data.count || 0;
-
-        if (currentView === 'list') {
-            countEl.textContent = `${total} ocorrência${total !== 1 ? 's' : ''}`;
-        }
-
-        if (occurrences.length === 0) {
-            container.replaceChildren(renderEmpty(search));
-            document.getElementById('pagination').classList.add('hidden');
-            return;
-        }
-
-        container.replaceChildren();
-        occurrences.forEach(occ => container.appendChild(renderRow(occ)));
-        renderPagination(data);
-
-    } catch (err) {
-        container.replaceChildren(renderError());
-    }
-}
-
 function renderRow(occ) {
     const hasGps = !!(occ.gps_lat && occ.gps_lon);
 
@@ -372,95 +449,4 @@ function formatDate(iso) {
         day: '2-digit', month: 'short',
         hour: '2-digit', minute: '2-digit',
     });
-}
-
-function renderLoading() {
-    const wrap = document.createElement('div');
-    wrap.className = 'loading-overlay';
-    const sp = document.createElement('span');
-    sp.className = 'spinner';
-    const txt = document.createElement('span');
-    txt.textContent = 'A carregar ocorrências';
-    wrap.appendChild(sp);
-    wrap.appendChild(txt);
-    return wrap;
-}
-
-function renderEmpty(search) {
-    const wrap = document.createElement('div');
-    wrap.className = 'empty-state';
-
-    const title = document.createElement('div');
-    title.className = 'empty-state-title';
-    title.textContent = search ? `Sem resultados para "${search}"` : 'Sem ocorrências';
-    wrap.appendChild(title);
-
-    const p = document.createElement('p');
-    p.textContent = search
-        ? 'Tenta outro termo de pesquisa.'
-        : 'Começa por registar a primeira ocorrência.';
-    wrap.appendChild(p);
-
-    if (!search) {
-        const a = document.createElement('a');
-        a.href = '/occurrences/new/';
-        a.className = 'btn btn-primary mt-3';
-        a.textContent = 'Registar ocorrência';
-        wrap.appendChild(a);
-    }
-    return wrap;
-}
-
-function renderError() {
-    const wrap = document.createElement('div');
-    wrap.className = 'empty-state';
-    const title = document.createElement('div');
-    title.className = 'empty-state-title text-danger';
-    title.textContent = 'Erro ao carregar ocorrências';
-    wrap.appendChild(title);
-    const p = document.createElement('p');
-    p.textContent = 'Verifica a ligação e tenta recarregar.';
-    wrap.appendChild(p);
-    return wrap;
-}
-
-// ----------------------------------------------------------
-// Paginação
-// ----------------------------------------------------------
-function renderPagination(data) {
-    const container = document.getElementById('pagination');
-    if (!data.next && !data.previous) {
-        container.classList.add('hidden');
-        return;
-    }
-
-    container.classList.remove('hidden');
-    container.replaceChildren();
-
-    const prev = document.createElement('button');
-    prev.className = 'btn btn-ghost btn-sm';
-    prev.textContent = '← Anterior';
-    prev.disabled = !data.previous;
-    prev.addEventListener('click', () => changePage(-1));
-
-    const label = document.createElement('span');
-    label.className = 'text-muted text-sm';
-    label.textContent = `Página ${currentPage}`;
-
-    const next = document.createElement('button');
-    next.className = 'btn btn-ghost btn-sm';
-    next.textContent = 'Seguinte →';
-    next.disabled = !data.next;
-    next.addEventListener('click', () => changePage(1));
-
-    container.appendChild(prev);
-    container.appendChild(label);
-    container.appendChild(next);
-}
-
-function changePage(delta) {
-    currentPage += delta;
-    const search = document.getElementById('search-input').value.trim();
-    loadOccurrences(search);
-    window.scrollTo(0, 0);
 }

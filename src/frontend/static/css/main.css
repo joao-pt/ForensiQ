@@ -1944,7 +1944,314 @@ main {
 .login-error.visible { display: block; }
 
 /* ============================================================
-   18. REDUCED MOTION
+   18. DATA TABLE (modo tabela densa em desktop)
+   ============================================================
+   Convive com o renderer de cards (.list / .list-item) em mobile.
+   Tokens exclusivos do design system — zero "azul vintage do admin".
+*/
+
+.data-table-host {
+    width: 100%;
+}
+
+/* Sidebar de filtros (desktop ≥1024) — colapsa em-linha em tablet,
+   esconde-se em mobile (a tabela já não é visível). */
+.list-page-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sp-4);
+}
+
+@media (min-width: 1024px) {
+    .list-page-grid {
+        grid-template-columns: minmax(0, 1fr) 280px;
+        align-items: start;
+    }
+}
+
+.list-page-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-3);
+}
+
+@media (min-width: 1024px) {
+    .list-page-sidebar {
+        position: sticky;
+        top: calc(var(--navbar-h-desktop) + var(--sp-4));
+        max-height: calc(100vh - var(--navbar-h-desktop) - var(--sp-8));
+        overflow: auto;
+    }
+}
+
+@media (max-width: 767px) {
+    .list-page-sidebar {
+        display: none;            /* mobile usa cards, sem filtros laterais */
+    }
+}
+
+/* Skeleton loader (substitui spinner — zero ruído em desktop) */
+.data-table-skeleton {
+    padding: var(--sp-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+.data-table-skeleton-row {
+    height: 36px;
+    border-radius: var(--r-2);
+    background: linear-gradient(
+        90deg,
+        var(--bg-subtle) 0%,
+        var(--surface-hover) 50%,
+        var(--bg-subtle) 100%
+    );
+    background-size: 200% 100%;
+    animation: data-table-skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes data-table-skeleton-pulse {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+/* Tabela em si */
+.data-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--fs-sm);
+    color: var(--text);
+}
+
+.data-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-subtle);
+    color: var(--text-emphasis);
+    font-weight: var(--fw-medium);
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+    letter-spacing: var(--tracking-tight);
+}
+
+.data-table tbody td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    line-height: var(--lh-snug);
+}
+
+.data-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.data-table tbody tr.data-table-row:hover td {
+    background: var(--surface-hover);
+}
+
+.data-table tbody tr.data-table-row[role="link"] {
+    cursor: pointer;
+}
+
+.data-table tbody tr.data-table-row:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* Sticky col à esquerda (NUIPC). Apenas em desktop — em mobile a tabela
+   está oculta de qualquer forma. */
+@media (min-width: 768px) {
+    .data-table th.data-table-sticky-col,
+    .data-table td.data-table-sticky-col {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        background: inherit;
+    }
+    .data-table thead th.data-table-sticky-col {
+        z-index: 3;            /* fica por cima das linhas e das outras headers */
+        background: var(--bg-subtle);
+    }
+    .data-table tbody tr.data-table-row td.data-table-sticky-col {
+        background: var(--surface);
+    }
+    .data-table tbody tr.data-table-row:hover td.data-table-sticky-col {
+        background: var(--surface-hover);
+    }
+}
+
+/* Header sortable */
+.data-table-sort-btn {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    letter-spacing: inherit;
+}
+.data-table-sort-btn:hover {
+    color: var(--text-emphasis);
+}
+.data-table-sort-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--r-1);
+}
+.data-table-sort-icon {
+    width: 14px;
+    height: 14px;
+    opacity: 0.4;
+    transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+.data-table-sort-btn.is-active .data-table-sort-icon {
+    opacity: 1;
+}
+.data-table-sort-btn.is-desc .data-table-sort-icon {
+    transform: rotate(180deg);
+}
+
+/* Hide-below: esconde colunas em viewports estreitos (tablet landscape).
+   Aplicado pelo data-hide-below no <th>/<td>. */
+@media (max-width: 1023px) {
+    .data-table th[data-hide-below="1024"],
+    .data-table td[data-hide-below="1024"] {
+        display: none;
+    }
+}
+
+/* Pagination footer */
+.data-table-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-2);
+    margin-top: var(--sp-2);
+}
+.data-table-pagination-page {
+    color: var(--text-muted);
+    min-width: 110px;
+    text-align: center;
+}
+.data-table-pagination-info {
+    margin-left: auto;
+}
+.data-table-pagination-size {
+    width: auto;
+    padding: var(--sp-1) var(--sp-2);
+    font-size: var(--fs-xs);
+}
+
+/* Mode toggle (cards / tabela) — segmented control discreto, próximo do
+   botão "Nova". Só aparece em desktop. */
+.list-mode-toggle {
+    display: none;
+}
+@media (min-width: 768px) {
+    .list-mode-toggle {
+        display: inline-flex;
+    }
+}
+
+/* Toolbar genérica (pesquisa + acções) — partilhada por occurrences,
+   evidences, custody. Em mobile empilha; em desktop alinha em linha. */
+.toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4);
+    margin-bottom: var(--sp-4);
+}
+@media (min-width: 768px) {
+    .toolbar {
+        padding: 0;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+.toolbar-search {
+    flex: 1;
+    max-width: 480px;
+}
+.toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+/* Sidebar — checkboxes verticais para filtros multi-valor (ex: tipo) */
+.filter-checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    max-height: 280px;
+    overflow-y: auto;
+}
+.form-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-1) 0;
+    color: var(--text);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+.form-checkbox input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.list-page-sidebar details {
+    border-top: 1px solid var(--border);
+    padding-top: var(--sp-3);
+}
+.list-page-sidebar details:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+.list-page-sidebar summary {
+    font-weight: var(--fw-medium);
+    color: var(--text-emphasis);
+    cursor: pointer;
+    padding-bottom: var(--sp-2);
+    list-style: none;
+    user-select: none;
+}
+.list-page-sidebar summary::-webkit-details-marker {
+    display: none;
+}
+.list-page-sidebar summary::after {
+    content: '+';
+    float: right;
+    color: var(--text-muted);
+    transition: transform var(--t-fast) var(--ease);
+}
+.list-page-sidebar details[open] summary::after {
+    content: '−';
+}
+
+/* ============================================================
+   19. REDUCED MOTION
    ============================================================ */
 
 @media (prefers-reduced-motion: reduce) {
