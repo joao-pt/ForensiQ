@@ -131,8 +131,10 @@ function renderCaseHeader(occ) {
     // NUIPC (ou número manual) é o identificador primário para utilizador;
     // o código interno (OCC-YYYY-NNNNN) só aparece como tag secundária.
     const primary = occ.number || occ.code || '';
-    const secondary = occ.number && occ.code ? ` · ${occ.code}` : '';
-    document.getElementById('page-subtitle').textContent = primary + secondary;
+    const secondary = occ.number && occ.code ? occ.code : '';
+    // Page title leva o NUIPC (mais útil que "Caso" genérico — perito reconhece o NUIPC).
+    document.getElementById('page-title').textContent = primary || 'Caso';
+    document.getElementById('page-subtitle').textContent = secondary;
     document.getElementById('breadcrumb-title').textContent = primary;
     document.getElementById('case-number').textContent = primary;
     document.getElementById('case-description').textContent = occ.description || '—';
@@ -178,20 +180,19 @@ function renderCaseHeader(occ) {
 // ---------------------------------------------------------------------------
 
 function mapMarkerIcon({ variant }) {
-    // As cores são constantes da paleta ForensiQ; o SVG é gerado por Icons.svg
-    // (string estática, sem conteúdo externo). O divIcon do Leaflet aceita
-    // HTML — aqui o HTML é inteiramente controlado por nós.
+    // CSP-safe: dimensões via CSSStyleDeclaration setter (não inline style attr),
+    // resto via classes (.fq-map-marker / .fq-map-marker-{case,evidence}).
+    // SVG construído via Icons.element (createElementNS, sem innerHTML).
     const isCase = variant === 'case';
-    const bg = isCase ? '#1a237e' : '#ff6f00';
     const size = isCase ? 32 : 24;
-    const iconSvg = Icons.svg(isCase ? 'map-pin' : 'box', { size: isCase ? 16 : 14 });
-    const html =
-        `<div style="background:${bg};color:#fff;width:${size}px;height:${size}px;` +
-        `border-radius:50%;display:flex;align-items:center;justify-content:center;` +
-        `box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;">${iconSvg}</div>`;
+    const node = document.createElement('div');
+    node.className = 'fq-map-marker' + (isCase ? ' fq-map-marker-case' : ' fq-map-marker-evidence');
+    node.style.width = size + 'px';
+    node.style.height = size + 'px';
+    node.appendChild(Icons.element(isCase ? 'map-pin' : 'box', { size: isCase ? 16 : 14 }));
     return L.divIcon({
         className: '',
-        html,
+        html: node,
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
     });
