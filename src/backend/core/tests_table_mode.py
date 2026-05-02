@@ -1,4 +1,4 @@
-"""ForensiQ — Testes do modo tabela densa (F1 backend).
+"""ForensiQ — Testes do modo tabela densa (F1 backend + F3 CSV export).
 
 Cobre:
 - ``BoundedPageNumberPagination`` — cap defensivo a 100.
@@ -7,16 +7,20 @@ Cobre:
 - Preservação de ``IsOwnerOrReadOnly`` (AGENT só vê os seus) com filtros
   activos — anti-IDOR.
 - Convivência com filtros pré-existentes (``?state=`` em occurrences).
+- Endpoints de exportação CSV — cap 10k linhas, ownership, AuditLog.
 """
 
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from core.models import AuditLog, ChainOfCustody
 from core.tests_factories import (
+    ChainOfCustodyFactory,
     EvidenceMobileFactory,
     EvidenceVehicleFactory,
     OccurrenceFactory,
@@ -239,3 +243,99 @@ class ImmutabilityRegressionTest(APITestCase):
     def test_delete_evidence_returns_405(self):
         response = self.client.delete(f'/api/evidences/{self.evidence.id}/')
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+
+# ---------------------------------------------------------------------------
+# CSV export (F3)
+# ---------------------------------------------------------------------------
+
+
+def _consume_csv(response):
+    """Junta o conteúdo de um StreamingHttpResponse e devolve a string."""
+    chunks = b''.join(
+        chunk if isinstance(chunk, bytes) else chunk.encode('utf-8')
+        for chunk in response.streaming_content
+    )
+    return chunks.decode('utf-8')
+
+
+class CsvExportTest(APITestCase):
+    """Endpoints ``/api/<entity>/csv/`` produzem CSV streaming."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.agent = UserFactory.create()
+        cls.occ = OccurrenceFactory.create(agent=cls.agent)
+        cls.evidence = EvidenceMobileFactory.create(
+            occurrence=cls.occ, agent=cls.agent,
+        )
+        # Sequência inicial de custódia.
+        cls.custody = ChainOfCustodyFactory.create(
+            evidence=cls.evidence, agent=cls.agent,
+        )
+
+    def setUp(self):
+        self.client.force_authenticate(user=self.agent)
+
+    def test_occurrences_csv_returns_streaming(self):
+        response = self.client.get('/api/occurrences/csv/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.streaming)
+        self.assertIn('text/csv', response['Content-Type'])
+        self.assertIn('attachment', response['Content-Disposition'])
+        body = _consume_csv(response)
+        self.assertIn('NUIPC', body)
+        self.assertIn(self.occ.number, body)
+
+    def test_evidences_csv_includes_hash(self):
+        response = self.client.get('/api/evidences/csv/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = _consume_csv(response)
+        # Hash SHA-256 (64 hex chars) está sempre populado em Evidence.save().
+        self.assertIn(self.evidence.integrity_hash, body)
+
+    def test_custody_csv_includes_chain_hash(self):
+        response = self.client.get('/api/custody/csv/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = _consume_csv(response)
+        self.assertIn(self.custody.code, body)
+        self.assertIn(self.custody.record_hash, body)
+
+    def test_csv_logs_audit_export(self):
+        before = AuditLog.objects.filter(action=AuditLog.Action.EXPORT_CSV).count()
+        response = self.client.get('/api/occurrences/csv/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Consumir o body activa o iterador (e qualquer side-effect tardio).
+        _consume_csv(response)
+        after = AuditLog.objects.filter(action=AuditLog.Action.EXPORT_CSV).count()
+        self.assertEqual(after, before + 1)
+
+    def test_csv_respects_ownership(self):
+        """AGENT B não vê ocorrências de AGENT A no CSV."""
+        agent_b = UserFactory.create(username='agent_b_csv')
+        OccurrenceFactory.create(agent=agent_b)
+        self.client.force_authenticate(user=agent_b)
+        response = self.client.get('/api/occurrences/csv/')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = _consume_csv(response)
+        # Ocorrência do AGENT A não pode aparecer.
+        self.assertNotIn(self.occ.number, body)
+
+    def test_csv_respects_filters(self):
+        """``?type=VEHICLE`` num CSV de evidências exclui telemóveis."""
+        EvidenceVehicleFactory.create(occurrence=self.occ, agent=self.agent)
+        response = self.client.get('/api/evidences/csv/?type=VEHICLE')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        body = _consume_csv(response)
+        # Tipo Vehicle aparece com label legível.
+        self.assertIn('Veículo', body)
+        # Mobile (já em setUp) não deve aparecer no CSV filtrado.
+        self.assertNotIn(self.evidence.code, body)
+
+    def test_csv_413_when_over_cap(self):
+        """Se o resultado ultrapassar 10k linhas, devolve 413."""
+        with patch('core.views.CSV_EXPORT_MAX_ROWS', 0):
+            response = self.client.get('/api/occurrences/csv/')
+        self.assertEqual(
+            response.status_code, status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        )
