@@ -209,6 +209,7 @@ const DataTable = (function () {
             results: [],
             requestSeq: 0,
             renderer: effectiveRenderer(),
+            selected: new Set(),                 // IDs seleccionados (multi-select)
         };
 
         readStateFromUrl(state, schema);
@@ -261,13 +262,23 @@ const DataTable = (function () {
             if (state.search) params.search = state.search;
             Object.entries(state.filters).forEach(([k, v]) => {
                 if (v == null || v === '') return;
-                params[k] = Array.isArray(v) ? v.join(',') : v;
+                if (Array.isArray(v)) {
+                    if (v.length === 0) return;            // skipear arrays vazios
+                    params[k] = v;                          // api.js expande
+                } else {
+                    params[k] = v;
+                }
             });
             const extra = typeof schema.extraParams === 'function'
                 ? (schema.extraParams() || {}) : {};
             Object.entries(extra).forEach(([k, v]) => {
                 if (v != null && v !== '') params[k] = v;
             });
+
+            // URL reflecte sempre a intenção do utilizador, mesmo que o
+            // backend rejeite o pedido. Caso contrário um erro de filtro
+            // deixa o URL desactualizado e impede limpar/refresh.
+            writeStateToUrl(state, schema, extra);
 
             try {
                 const data = await API.get(schema.endpoint, params);
@@ -276,7 +287,6 @@ const DataTable = (function () {
                 state.total = data.count || 0;
                 state.next = data.next;
                 state.previous = data.previous;
-                writeStateToUrl(state, schema, extra);
                 if (typeof schema.onCount === 'function') {
                     schema.onCount(state.total);
                 }
@@ -354,7 +364,7 @@ const DataTable = (function () {
                 return;
             }
             const list = document.createElement('div');
-            list.className = 'list';
+            list.className = schema.cardsContainerClass || 'list';
             const cardRenderer = schema.cardRenderer || defaultCardRenderer;
             state.results.forEach((row) => {
                 const node = cardRenderer(row, schema);
@@ -386,6 +396,10 @@ const DataTable = (function () {
         function renderTable() {
             root.replaceChildren();
 
+            if (schema.selectable) {
+                root.appendChild(renderBulkBar());
+            }
+
             const wrap = document.createElement('div');
             wrap.className = 'data-table-wrap card p-0';
 
@@ -401,10 +415,76 @@ const DataTable = (function () {
             root.appendChild(renderPagination());
         }
 
+        function renderBulkBar() {
+            const bar = document.createElement('div');
+            bar.className = 'data-table-bulk';
+            bar.setAttribute('role', 'toolbar');
+            bar.setAttribute('aria-label', 'Acções em massa');
+            if (state.selected.size === 0) {
+                bar.classList.add('is-empty');
+                bar.setAttribute('aria-hidden', 'true');
+                return bar;
+            }
+            const label = document.createElement('span');
+            label.className = 'data-table-bulk-label';
+            label.textContent = `${state.selected.size} seleccionado${state.selected.size !== 1 ? 's' : ''}`;
+            bar.appendChild(label);
+
+            (schema.bulkActions || []).forEach((action) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm ' + (action.variant === 'primary' ? 'btn-primary' : 'btn-ghost');
+                btn.textContent = action.label;
+                btn.addEventListener('click', () => {
+                    const ids = Array.from(state.selected);
+                    if (typeof action.handler === 'function') {
+                        action.handler(ids, controller);
+                    }
+                });
+                bar.appendChild(btn);
+            });
+
+            const clear = document.createElement('button');
+            clear.type = 'button';
+            clear.className = 'btn btn-ghost btn-sm data-table-bulk-clear';
+            clear.textContent = 'Limpar selecção';
+            clear.addEventListener('click', () => {
+                state.selected.clear();
+                render();
+            });
+            bar.appendChild(clear);
+            return bar;
+        }
+
         function buildThead() {
             const thead = document.createElement('thead');
             const tr = document.createElement('tr');
             const cur = parseOrdering(state.ordering);
+
+            if (schema.selectable) {
+                const th = document.createElement('th');
+                th.scope = 'col';
+                th.className = 'data-table-checkbox-col';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.setAttribute('aria-label', 'Seleccionar tudo nesta página');
+                const visibleIds = state.results.map((r) => r.id);
+                cb.checked = visibleIds.length > 0
+                    && visibleIds.every((id) => state.selected.has(id));
+                cb.indeterminate = !cb.checked
+                    && visibleIds.some((id) => state.selected.has(id));
+                cb.addEventListener('change', () => {
+                    if (cb.checked) {
+                        visibleIds.forEach((id) => state.selected.add(id));
+                    } else {
+                        visibleIds.forEach((id) => state.selected.delete(id));
+                    }
+                    render();
+                });
+                th.appendChild(cb);
+                tr.appendChild(th);
+            }
+
             (schema.columns || []).forEach((col) => {
                 const th = document.createElement('th');
                 th.scope = 'col';
@@ -445,10 +525,11 @@ const DataTable = (function () {
 
         function buildTbody() {
             const tbody = document.createElement('tbody');
+            const colCount = (schema.columns || []).length + (schema.selectable ? 1 : 0);
             if (state.results.length === 0) {
                 const tr = document.createElement('tr');
                 const td = document.createElement('td');
-                td.colSpan = (schema.columns || []).length || 1;
+                td.colSpan = colCount || 1;
                 td.appendChild(renderEmpty());
                 tr.appendChild(td);
                 tbody.appendChild(tr);
@@ -457,6 +538,25 @@ const DataTable = (function () {
             state.results.forEach((row) => {
                 const tr = document.createElement('tr');
                 tr.className = 'data-table-row';
+                if (schema.selectable && state.selected.has(row.id)) {
+                    tr.classList.add('is-selected');
+                }
+                if (schema.selectable) {
+                    const td = document.createElement('td');
+                    td.className = 'data-table-checkbox-col';
+                    const cb = document.createElement('input');
+                    cb.type = 'checkbox';
+                    cb.setAttribute('aria-label', `Seleccionar item ${row.id}`);
+                    cb.checked = state.selected.has(row.id);
+                    cb.addEventListener('click', (e) => e.stopPropagation());
+                    cb.addEventListener('change', () => {
+                        if (cb.checked) state.selected.add(row.id);
+                        else state.selected.delete(row.id);
+                        render();
+                    });
+                    td.appendChild(cb);
+                    tr.appendChild(td);
+                }
                 const href = schema.rowHref ? schema.rowHref(row) : null;
                 if (href) {
                     tr.tabIndex = 0;
@@ -602,6 +702,13 @@ const DataTable = (function () {
             fetchAndRender();
         }
 
+        // Re-renderiza com o ``state.results`` actual sem voltar a chamar a API.
+        // Útil quando o consumidor enriquece dados extra (custódia, devices) e
+        // quer que o cardRenderer veja os novos dados sem trigger de fetch.
+        function refreshRender() {
+            render();
+        }
+
         function destroy() {
             window.removeEventListener('resize', onResize);
             window.removeEventListener('popstate', onPopState);
@@ -610,16 +717,30 @@ const DataTable = (function () {
             delete root.dataset.renderer;
         }
 
+        function getSelectedIds() {
+            return Array.from(state.selected);
+        }
+
+        function clearSelection() {
+            if (state.selected.size === 0) return;
+            state.selected.clear();
+            render();
+        }
+
         // Arranque
         fetchAndRender();
 
-        return {
+        const controller = {
             setSearch,
             setFilter,
             reload,
+            refreshRender,
             destroy,
+            getSelectedIds,
+            clearSelection,
             getState: () => ({ ...state }),
         };
+        return controller;
     }
 
     return { mount, getMode, setMode, effectiveRenderer };

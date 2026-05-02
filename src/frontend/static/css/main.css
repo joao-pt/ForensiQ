@@ -2136,6 +2136,47 @@ main {
     }
 }
 
+/* Multi-select — barra de acções em massa + coluna de checkbox */
+.data-table-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    margin-bottom: var(--sp-2);
+    background: var(--accent-tint);
+    border: 1px solid var(--accent-strong);
+    border-radius: var(--r-2);
+    color: var(--text-emphasis);
+    font-size: var(--fs-sm);
+}
+.data-table-bulk.is-empty {
+    display: none;
+}
+.data-table-bulk-label {
+    font-weight: var(--fw-medium);
+}
+.data-table-bulk-clear {
+    margin-left: auto;
+}
+
+.data-table-checkbox-col {
+    width: 40px;
+    text-align: center;
+}
+.data-table-checkbox-col input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.data-table tbody tr.is-selected td {
+    background: var(--accent-tint);
+}
+.data-table tbody tr.is-selected:hover td {
+    background: var(--accent-tint-hover);
+}
+
 /* Pagination footer */
 .data-table-pagination {
     display: flex;
@@ -2196,6 +2237,43 @@ main {
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2);
+}
+
+/* Ocorrências sem GPS — secção colapsável debaixo do mapa. */
+.no-gps-section {
+    margin-top: var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-3);
+}
+.no-gps-section[hidden] {
+    display: none;
+}
+.no-gps-section > summary {
+    font-weight: var(--fw-medium);
+    color: var(--text-emphasis);
+    cursor: pointer;
+    padding: var(--sp-2) 0;
+    list-style: none;
+    user-select: none;
+}
+.no-gps-section > summary::-webkit-details-marker {
+    display: none;
+}
+.no-gps-section > summary::after {
+    content: '+';
+    float: right;
+    color: var(--text-muted);
+}
+.no-gps-section[open] > summary::after {
+    content: '−';
+}
+.no-gps-section .list {
+    margin-top: var(--sp-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    background: var(--bg-subtle);
 }
 
 /* Sidebar — checkboxes verticais para filtros multi-valor (ex: tipo) */

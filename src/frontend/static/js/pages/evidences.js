@@ -77,6 +77,10 @@ function mountDataTable() {
                 width: '140px',
             },
             {
+                key: 'agent_name', label: 'Agente',
+                width: '160px', hideBelow: 1024,
+            },
+            {
                 key: 'photo', label: 'Foto',
                 width: '60px', align: 'center',
                 render: (raw) => document.createTextNode(raw ? '✓' : '—'),
