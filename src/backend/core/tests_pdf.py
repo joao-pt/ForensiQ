@@ -38,7 +38,7 @@ from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 # Fixtures reutilizáveis
 # ---------------------------------------------------------------------------
 
-def _make_agent(username='agente_pdf', badge='PSP-PDF-01'):
+def _make_agent(username='agente_pdf', badge='AGT-PDF-01'):
     return User.objects.create_user(
         username=username,
         password='TestPass123!',
@@ -131,7 +131,7 @@ class PDFGenerationUnitTest(TestCase):
 
     def test_pdf_evidence_without_gps(self):
         """PDF para evidência sem GPS deve ser gerado sem erros."""
-        agent2 = _make_agent('agente_pdf2', 'PSP-PDF-02')
+        agent2 = _make_agent('agente_pdf2', 'AGT-PDF-02')
         occ2 = _make_occurrence(agent2, 'OCC-PDF-002')
         evidence_no_gps = Evidence.objects.create(
             occurrence=occ2,
@@ -152,7 +152,7 @@ class PDFAPIEndpointTest(TestCase):
 
     @classmethod
     def setUpTestData(cls):
-        cls.agent = _make_agent('agente_api_pdf', 'PSP-API-PDF-01')
+        cls.agent = _make_agent('agente_api_pdf', 'AGT-API-PDF-01')
         cls.expert = User.objects.create_user(
             username='perito_api_pdf',
             password='TestPass123!',
@@ -231,7 +231,7 @@ class OccurrencePDFUnitTest(TestCase):
     """generate_occurrence_pdf gera bytes de PDF válido com itens e sub-itens."""
 
     def setUp(self):
-        self.agent = _make_agent(username='agente_caso', badge='PSP-CASO')
+        self.agent = _make_agent(username='agente_caso', badge='AGT-CASO')
         self.occurrence = _make_occurrence(self.agent, number='CASO-INT-01')
         self.phone = _make_evidence(self.occurrence, self.agent)
         # Sub-componente integrante (SIM dentro do telemóvel)

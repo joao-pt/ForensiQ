@@ -38,11 +38,11 @@ class UserModelTest(TestCase):
             username='agente01',
             password='test12345',
             profile=User.Profile.AGENT,
-            badge_number='PSP-1234',
+            badge_number='AGT-1234',
         )
         self.assertTrue(user.is_agent)
         self.assertFalse(user.is_expert)
-        self.assertEqual(user.badge_number, 'PSP-1234')
+        self.assertEqual(user.badge_number, 'AGT-1234')
 
     def test_create_expert(self):
         user = User.objects.create_user(

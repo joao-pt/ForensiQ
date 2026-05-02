@@ -69,15 +69,16 @@ class ContentSecurityPolicyMiddleware:
     """
     Middleware que adiciona o header Content-Security-Policy a todas as respostas.
 
-    Política CSP (hardened, sem unsafe-inline/unsafe-eval em script-src):
+    Política CSP (hardened, sem unsafe-inline/unsafe-eval em script-src nem style-src):
     - default-src 'self': bloqueia todos os recursos externos por defeito
     - script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com:
       scripts só correm do próprio domínio, CDN Cloudflare (Leaflet) ou
       quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
       'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79).
-    - style-src 'self' 'unsafe-inline' ...: mantém-se 'unsafe-inline'
-      apenas para CSS porque Leaflet e alguns componentes injectam style
-      attributes. Migrar para nonce/hash é trabalho da Wave 2d.
+    - style-src 'self' 'nonce-{nonce}' ...: scripts inline (Leaflet etc.)
+      foram migrados para classes/CSSStyleDeclaration. Restantes <style>
+      blocks (Leaflet runtime injecta um) precisam de nonce; o setter
+      element.style.X = ... do DOM API não é controlado pelo style-src.
     - connect-src: AJAX ao próprio domínio e geocoding OSM
     - img-src: imagens do domínio, data URIs e tiles OSM
     - font-src: fontes do domínio e CDNs usadas
@@ -109,22 +110,28 @@ class ContentSecurityPolicyMiddleware:
         self.get_response = get_response
 
     @staticmethod
-    def _build_policy(nonce: str) -> str:
-        """Monta o header CSP com o nonce do request corrente."""
-        return (
-            "default-src 'self'; "
-            f"script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com; "
-            "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
-            "connect-src 'self' https://nominatim.openstreetmap.org; "
-            "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com; "
-            "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
-            "object-src 'none'; "
-            "frame-src 'none'; "
-            "base-uri 'self'; "
-            "frame-ancestors 'none'; "
-            "form-action 'self'; "
-            "upgrade-insecure-requests"
-        )
+    def _build_policy(nonce: str, *, report_only: bool) -> str:
+        """Monta o header CSP com o nonce do request corrente.
+
+        `upgrade-insecure-requests` é ignorado por browsers em policies
+        Report-Only — incluímo-lo apenas no header enforced.
+        """
+        directives = [
+            "default-src 'self'",
+            f"script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com",
+            f"style-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+            "connect-src 'self' https://nominatim.openstreetmap.org",
+            "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com",
+            "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
+            "object-src 'none'",
+            "frame-src 'none'",
+            "base-uri 'self'",
+            "frame-ancestors 'none'",
+            "form-action 'self'",
+        ]
+        if not report_only:
+            directives.append("upgrade-insecure-requests")
+        return "; ".join(directives)
 
     def __call__(self, request):
         # Gera nonce criptograficamente seguro por request e anexa-o
@@ -134,10 +141,10 @@ class ContentSecurityPolicyMiddleware:
 
         response = self.get_response(request)
 
-        policy = self._build_policy(nonce)
-
         if 'Content-Security-Policy' not in response:
-            if settings.DEBUG:
+            report_only = settings.DEBUG
+            policy = self._build_policy(nonce, report_only=report_only)
+            if report_only:
                 response['Content-Security-Policy-Report-Only'] = policy
             else:
                 response['Content-Security-Policy'] = policy

@@ -56,7 +56,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     last_name = factory.Faker('last_name', locale='pt_PT')
     email = factory.LazyAttribute(lambda o: f'{o.username}@forensiq.test')
     profile = User.Profile.AGENT
-    badge_number = factory.Sequence(lambda n: f'PSP-{n:05d}')
+    badge_number = factory.Sequence(lambda n: f'AGT-{n:05d}')
     phone = factory.Faker('phone_number', locale='pt_PT')
     is_active = True
 
