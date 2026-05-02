@@ -39,6 +39,14 @@ const LEGACY_DEVICE_ICON = {
 
 let map = null;
 
+// Caches partilhados pelo cardRenderer da DataTable — preenchidos no
+// arranque (uma chamada por evidência) e relidos a cada render. Não
+// usamos const + Object.freeze: o conteúdo é mutado quando os dados
+// chegam.
+let custodyByEvidence = {};
+let devicesByEvidence = {};
+let evidenceTable = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
     if (!await Auth.requireAuth()) return;
 
@@ -68,12 +76,15 @@ async function loadOccurrenceHub() {
         const evidences = evidenceData.results || [];
         const evidenceIds = evidences.map((e) => e.id);
 
-        const [custodyByEvidence, devicesByEvidence] = await Promise.all([
+        const [custodyMap, devicesMap] = await Promise.all([
             loadCustodyForEvidences(evidenceIds),
             loadDevicesForEvidences(evidenceIds),
         ]);
+        custodyByEvidence = custodyMap;
+        devicesByEvidence = devicesMap;
 
-        renderEvidences(evidences, custodyByEvidence, devicesByEvidence);
+        document.getElementById('evidence-count').textContent = evidences.length;
+        mountEvidenceTable();
         renderCustodySummary(evidences, custodyByEvidence);
         renderDevices(evidences, devicesByEvidence);
         renderMap(occurrence, evidences);
@@ -461,12 +472,129 @@ function buildSubEvidenceCard(child) {
     return card;
 }
 
+function mountEvidenceTable() {
+    if (evidenceTable) {
+        evidenceTable.destroy();
+        evidenceTable = null;
+    }
+
+    evidenceTable = DataTable.mount('#evidence-container', {
+        endpoint: CONFIG.ENDPOINTS.EVIDENCES,
+        defaultSort: '-timestamp_seizure',
+        defaultPageSize: 50,
+        rowHref: (row) => `/evidences/${row.id}/`,
+        cardsContainerClass: 'evidence-grid',
+        selectable: true,
+        columns: [
+            {
+                key: 'code', label: 'Código',
+                sortable: true, format: 'mono',
+                width: '160px', sticky: true,
+            },
+            {
+                key: 'type', label: 'Tipo',
+                sortable: true, width: '180px',
+                render: (raw) => document.createTextNode(
+                    CONFIG.EVIDENCE_TYPES[raw] || raw || '—',
+                ),
+            },
+            {
+                key: 'description', label: 'Descrição',
+                truncate: 90,
+            },
+            {
+                key: 'parent_evidence_label', label: 'Pai',
+                width: '160px', hideBelow: 1024,
+                render: (raw) => document.createTextNode(raw || '—'),
+            },
+            {
+                key: 'timestamp_seizure', label: 'Apreendido',
+                sortable: true, format: 'date',
+                width: '140px',
+            },
+            {
+                key: 'agent_name', label: 'Agente',
+                width: '160px', hideBelow: 1024,
+            },
+            {
+                key: 'photo', label: 'Foto',
+                width: '60px', align: 'center',
+                render: (raw) => document.createTextNode(raw ? '✓' : '—'),
+            },
+            {
+                key: 'gps_lat', label: 'GPS',
+                width: '60px', align: 'center',
+                format: 'badge-presence',
+            },
+        ],
+        filters: [
+            { key: 'type',        label: 'Tipo',          type: 'multi' },
+            { key: 'date_after',  label: 'Desde',         type: 'date' },
+            { key: 'date_before', label: 'Até',           type: 'date' },
+            { key: 'has_gps',     label: 'Com GPS',       type: 'boolean' },
+        ],
+        bulkActions: [
+            {
+                id: 'cascade',
+                label: 'Transitar selecção…',
+                variant: 'primary',
+                handler: cascadeTransitionPrompt,
+            },
+        ],
+        cardRenderer: (row) => buildEvidenceCard(
+            row,
+            custodyByEvidence[row.id] || [],
+            devicesByEvidence[row.id] || [],
+        ),
+        extraParams: () => ({ occurrence: occurrenceId }),
+        onCount: (n) => {
+            const el = document.getElementById('evidence-count');
+            if (el) el.textContent = n;
+        },
+    });
+}
+
+async function cascadeTransitionPrompt(ids, controller) {
+    if (ids.length === 0) return;
+    const newState = window.prompt(
+        `Transitar ${ids.length} item${ids.length !== 1 ? 's' : ''} para que estado?\n\n` +
+        Object.entries(CONFIG.CUSTODY_STATES)
+            .map(([k, v]) => `  ${k}  →  ${v}`)
+            .join('\n'),
+        'EM_TRANSPORTE',
+    );
+    if (!newState) return;
+    if (!CONFIG.CUSTODY_STATES[newState]) {
+        alert(`Estado "${newState}" não é válido.`);
+        return;
+    }
+    try {
+        await API.post(`${CONFIG.ENDPOINTS.CUSTODY}cascade/`, {
+            evidence_ids: ids,
+            new_state: newState,
+            observations: `Transição em massa via tabela (${ids.length} itens).`,
+        });
+        if (typeof Toast !== 'undefined') {
+            Toast.show(`${ids.length} itens transitados para ${CONFIG.CUSTODY_STATES[newState]}.`, 'success');
+        }
+        controller.clearSelection();
+        controller.reload();
+        // Recarregar custódia (estado mudou).
+        const evList = controller.getState().results || [];
+        const map = await loadCustodyForEvidences(evList.map((e) => e.id));
+        Object.assign(custodyByEvidence, map);
+        controller.refreshRender();
+    } catch (err) {
+        alert('Erro na transição em massa: ' + (err.message || err));
+    }
+}
+
+// Mantemos a função antiga (nunca chamada agora) caso volte a ser útil.
+// eslint-disable-next-line no-unused-vars
 function renderEvidences(evidences, custodyMap, devicesMap) {
     const container = document.getElementById('evidence-container');
     document.getElementById('evidence-count').textContent = evidences.length;
 
-    // ISO/IEC 27037: o pai e os componentes internos (SIM, SD…) são apreendidos
-    // juntos e não devem ser apresentados como itens soltos.
     const childrenByParent = {};
     evidences.forEach((e) => {
         if (e.parent_evidence) {

@@ -70,8 +70,8 @@ function mountDataTable() {
                 width: '140px',
             },
             {
-                key: 'agent.username', label: 'Agente',
-                width: '140px', hideBelow: 1024,
+                key: 'agent_name', label: 'Agente',
+                width: '160px', hideBelow: 1024,
             },
             {
                 key: 'gps_lat', label: 'GPS',
@@ -346,13 +346,20 @@ function addMarkersToMap(occurrences) {
 
     const icon = makeMarkerIcon();
     const bounds = [];
+    const noGps = [];
     let added = 0;
 
     occurrences.forEach(occ => {
-        if (!occ.gps_lat || !occ.gps_lon) return;
+        if (!occ.gps_lat || !occ.gps_lon) {
+            noGps.push(occ);
+            return;
+        }
         const lat = parseFloat(occ.gps_lat);
         const lon = parseFloat(occ.gps_lon);
-        if (isNaN(lat) || isNaN(lon)) return;
+        if (isNaN(lat) || isNaN(lon)) {
+            noGps.push(occ);
+            return;
+        }
 
         L.marker([lat, lon], { icon })
             .bindPopup(buildPopupNode(occ), { maxWidth: 260 })
@@ -366,12 +373,32 @@ function addMarkersToMap(occurrences) {
         leafletMap.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 });
     }
 
+    renderNoGpsList(noGps);
+
     if (currentView === 'map') {
         const countEl = document.getElementById('occurrences-count');
         if (countEl) {
             countEl.textContent = `${added} de ${occurrences.length} com GPS`;
         }
     }
+}
+
+function renderNoGpsList(occurrences) {
+    const section = document.getElementById('no-gps-section');
+    const list = document.getElementById('no-gps-list');
+    const count = document.getElementById('no-gps-count');
+    if (!section || !list) return;
+
+    if (occurrences.length === 0) {
+        section.hidden = true;
+        list.replaceChildren();
+        return;
+    }
+
+    section.hidden = false;
+    if (count) count.textContent = String(occurrences.length);
+    list.replaceChildren();
+    occurrences.forEach((occ) => list.appendChild(renderRow(occ)));
 }
 
 // ----------------------------------------------------------

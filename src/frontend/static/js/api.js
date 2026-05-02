@@ -53,7 +53,20 @@ const API = (() => {
     }
 
     async function get(url, params = {}) {
-        const queryString = new URLSearchParams(params).toString();
+        // Expandir arrays como múltiplos params (?type=A&type=B em vez de
+        // ?type=A,B). django-filter MultipleChoiceFilter espera o primeiro.
+        const usp = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+            if (v == null) return;
+            if (Array.isArray(v)) {
+                v.forEach((item) => {
+                    if (item != null && item !== '') usp.append(k, String(item));
+                });
+            } else if (v !== '') {
+                usp.set(k, String(v));
+            }
+        });
+        const queryString = usp.toString();
         const fullUrl = queryString ? `${url}?${queryString}` : url;
         return request(fullUrl, { method: 'GET' });
     }
