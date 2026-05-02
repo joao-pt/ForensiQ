@@ -258,6 +258,13 @@
     padding: 0;
 }
 
+/* Atributo hidden HTML5 — garantir que ganha sempre a `display:flex/grid`
+   das classes de componentes (occurrence_detail, wizard, modais). Evita
+   bugs em que o JS faz `el.hidden = true` mas o CSS ignora. */
+[hidden] {
+    display: none !important;
+}
+
 html {
     font-size: 16px;
     -webkit-text-size-adjust: 100%;
@@ -437,19 +444,23 @@ hr {
     }
 }
 
-/* Cabeçalho de página — título + sub + acção */
+/* Cabeçalho de página — título + sub + acção. No mobile permite quebrar
+   linha para que título e botões não compitam pelo espaço lateral. */
 .page-header {
     display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--sp-4);
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-3);
     padding: 0 var(--sp-4);
 }
 
 @media (min-width: 768px) {
     .page-header {
-        padding: 0;
+        flex-direction: row;
         align-items: center;
+        justify-content: space-between;
+        gap: var(--sp-4);
+        padding: 0;
     }
 }
 
@@ -459,12 +470,77 @@ hr {
     line-height: var(--lh-tight);
     letter-spacing: var(--tracking-tight);
     color: var(--text-emphasis);
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 .page-subtitle {
     font-size: var(--fs-sm);
     color: var(--text-muted);
     margin-top: var(--sp-1);
+}
+
+/* ---------- Section label com contador (partilhado entre páginas) ---------- */
+
+.section-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-4);
+    margin-bottom: var(--sp-3);
+}
+
+@media (min-width: 768px) {
+    .section-label-row {
+        padding: 0;
+        flex-wrap: nowrap;
+    }
+}
+
+.section-label-row .section-label {
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.section-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    background: var(--surface-hover);
+    color: var(--text-muted);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semi);
+    border-radius: var(--r-pill);
+    border: 1px solid var(--border);
+}
+
+/* Acção secundária à direita de uma section-label (link "Ver completo →"). */
+.section-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--accent);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-medium);
+    text-decoration: none;
+    white-space: nowrap;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--r-2);
+    transition: background var(--t-fast) var(--ease);
+}
+.section-action:hover {
+    background: var(--surface-hover);
+}
+.section-action svg {
+    flex-shrink: 0;
 }
 
 /* ============================================================
@@ -482,7 +558,9 @@ hr {
     border-bottom: 1px solid var(--border);
     position: sticky;
     top: 0;
-    z-index: 50;
+    /* Acima do Leaflet (.leaflet-pane usa 400-700) — para que o navbar
+       fique sempre visível em páginas com mapa. */
+    z-index: 900;
     backdrop-filter: saturate(1.2) blur(6px);
 }
 
@@ -543,7 +621,10 @@ hr {
     .nav-brand-name { display: none; }
 }
 
-/* Breadcrumb — path de navegação */
+/* Breadcrumb — path de navegação. No desktop mostra a hierarquia completa.
+   No mobile (<768px) o breadcrumb completo não cabe na navbar; é substituído
+   por um único pill "← Voltar a {parent}" — UX adequada para o contexto de
+   first-responder (operação rápida, possivelmente com luvas). */
 .breadcrumb {
     display: flex;
     align-items: center;
@@ -568,9 +649,57 @@ hr {
     color: var(--text);
 }
 
+@media (max-width: 767px) {
+    /* Mantém apenas o último link (parent imediato) como botão "voltar". */
+    .breadcrumb a:not(:last-of-type),
+    .breadcrumb .breadcrumb-sep,
+    .breadcrumb .breadcrumb-current {
+        display: none;
+    }
+
+    .breadcrumb a:last-of-type {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 6px 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text);
+        min-height: 36px;
+    }
+
+    .breadcrumb a:last-of-type::before {
+        content: '';
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        background-color: currentColor;
+        -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m15 18-6-6 6-6'/></svg>") no-repeat center / contain;
+        mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m15 18-6-6 6-6'/></svg>") no-repeat center / contain;
+    }
+
+    /* Quando o breadcrumb fica vazio (página raiz ex.: /dashboard/), oculta-o. */
+    .breadcrumb:not(:has(a)) {
+        display: none;
+    }
+}
+
+/* Breadcrumb separator — chevron SVG via mask. O texto interno (/, ›)
+   é mantido por compatibilidade mas não é mostrado (color:transparent +
+   font-size:0). Linguagem visual unificada com o resto do design system. */
 .breadcrumb-sep {
-    opacity: 0.4;
+    display: inline-flex;
+    align-self: center;
     flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    color: transparent;
+    font-size: 0;
+    line-height: 0;
+    background-color: var(--text-subtle);
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m9 18 6-6-6-6'/></svg>") no-repeat center / contain;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m9 18 6-6-6-6'/></svg>") no-repeat center / contain;
+    opacity: 0.7;
 }
 
 .breadcrumb-current {
@@ -667,7 +796,9 @@ hr {
     border: 1px solid var(--border);
     border-radius: var(--r-3);
     box-shadow: var(--shadow-lg);
-    z-index: 60;
+    /* Acima do Leaflet (.leaflet-pane usa 400-700) — antes ficava tapado
+       pelo mapa em páginas de ocorrência. */
+    z-index: 1000;
 }
 
 .user-menu-panel[hidden] { display: none; }
@@ -1290,6 +1421,26 @@ textarea.form-control {
 .status-dot.warning { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-tint); }
 .status-dot.danger  { background: var(--danger);  box-shadow: 0 0 0 3px var(--danger-tint); }
 .status-dot.accent  { background: var(--accent);  box-shadow: 0 0 0 3px var(--accent-tint); }
+
+/* Marcadores Leaflet — partilhados entre lista de ocorrências e detalhe.
+   CSP-safe: substituem os style="" inline antes injectados por JS. */
+.fq-marker-dot {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.fq-map-marker {
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    border: 2px solid #fff;
+}
+.fq-map-marker-case     { background: #1a237e; }
+.fq-map-marker-evidence { background: #ff6f00; }
 
 /* Chip maior, para filtros/tags */
 .chip {

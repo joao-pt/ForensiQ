@@ -145,7 +145,7 @@
 }
 
 .wizard-next:hover {
-    background: var(--accent-dark, #e65100);
+    background: var(--accent-strong);
 }
 
 .wizard-next:disabled {
@@ -226,6 +226,24 @@
     object-fit: cover;
     border-radius: var(--radius);
     margin-top: 8px;
+}
+
+/* GPS step — input row + sub-component breadcrumb. Substituem style="" inline (CSP-safe). */
+.wizard-gps-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.wizard-gps-col {
+    flex: 1;
+    min-width: 120px;
+}
+
+.wizard-parent-breadcrumb {
+    font-size: 0.8125rem;
+    margin-top: 4px;
 }
 
 /* Responsive tweaks */

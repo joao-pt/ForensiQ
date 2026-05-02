@@ -7,17 +7,44 @@
  */
 
 /* =============================================================
-   1. STATS GRID — métrica numérica no topo
-   Mobile: escondida (distrai, há página dedicada em /stats/).
-   Desktop ≥768px: visível em 4 colunas.
+   Ordem mobile (perito no terreno): primeiro acções rápidas, depois
+   últimas ocorrências (continuidade), depois stats em modo discreto.
+   Em desktop a ordem volta a ser stats > breakdown > actions+recent.
+   ============================================================= */
+
+.page > .stats-grid             { order: 4; }
+.page > #evidences-breakdown    { order: 5; }
+.page > .dashboard-layout       { order: 1; }
+
+@media (min-width: 768px) {
+    .page > .stats-grid             { order: 0; }
+    .page > #evidences-breakdown    { order: 0; }
+    .page > .dashboard-layout       { order: 0; }
+}
+
+/* =============================================================
+   1. STATS GRID — secundário em mobile (compacto, scrollable horizontal),
+   destacado em desktop (grid 4 colunas).
    ============================================================= */
 
 .stats-grid {
-    display: none;
+    display: flex;
+    flex-direction: row;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-4);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.stats-grid::-webkit-scrollbar { display: none; }
+
+.stats-grid .stat-card {
+    flex: 0 0 140px;
 }
 
 #evidences-breakdown {
-    display: none;
+    margin: 0 var(--sp-4);
 }
 
 @media (min-width: 768px) {
@@ -26,10 +53,12 @@
         grid-template-columns: repeat(4, 1fr);
         gap: var(--sp-4);
         padding: 0;
+        overflow: visible;
     }
+    .stats-grid .stat-card { flex: 1 1 auto; }
 
     #evidences-breakdown {
-        display: block;
+        margin: 0;
     }
 }
 
@@ -184,14 +213,29 @@
 
 .quick-actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: var(--sp-3);
     padding: 0 var(--sp-4);
 }
 
-@media (min-width: 480px) {
-    .quick-actions {
-        grid-template-columns: repeat(2, 1fr);
+/* Mobile (<=600px): as duas primeiras acções (Nova Ocorrência + Novo Item)
+   ocupam linha completa — são as decisões principais do agente no terreno.
+   As restantes ficam em 2 colunas como secundárias. */
+@media (max-width: 600px) {
+    .quick-actions > .action-btn:nth-child(-n+2) {
+        grid-column: 1 / -1;
+        min-height: 76px;
+    }
+    .quick-actions > .action-btn:nth-child(-n+2) .action-icon {
+        width: 44px;
+        height: 44px;
+    }
+    .quick-actions > .action-btn:nth-child(-n+2) .action-icon svg {
+        width: 22px;
+        height: 22px;
+    }
+    .quick-actions > .action-btn:nth-child(-n+2) .action-text strong {
+        font-size: var(--fs-md);
     }
 }
 

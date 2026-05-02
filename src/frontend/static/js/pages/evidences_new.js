@@ -816,7 +816,7 @@ function setGpsButtonLabel(btn, text) {
 
 function showGpsStatus(message, type) {
     var el = document.getElementById('gps-status');
-    el.style.display = 'block';
+    el.hidden = false;
     el.className = 'gps-status gps-status-' + type;
     el.textContent = message;
 }
@@ -860,10 +860,10 @@ function buildSummary() {
     var parentId = document.getElementById('parent_evidence').value;
     var parentRow = document.getElementById('sum-parent-row');
     if (parentId) {
-        parentRow.style.display = '';
+        parentRow.hidden = false;
         setText('sum-parent', '#' + parentId);
     } else {
-        parentRow.style.display = 'none';
+        parentRow.hidden = true;
     }
 
     var lat = document.getElementById('gps_lat').value;
@@ -875,19 +875,19 @@ function buildSummary() {
     var tsdRow = document.getElementById('sum-tsd-row');
     var keys = Object.keys(tsd);
     if (keys.length) {
-        tsdRow.style.display = '';
+        tsdRow.hidden = false;
         var txt = keys.map(function (k) { return k + ': ' + tsd[k]; }).join(', ');
         setText('sum-tsd', txt);
     } else {
-        tsdRow.style.display = 'none';
+        tsdRow.hidden = true;
     }
 
     var photoRow = document.getElementById('sum-photo-row');
     if (selectedPhoto) {
-        photoRow.style.display = '';
+        photoRow.hidden = false;
         document.getElementById('sum-photo').src = document.getElementById('preview-img').src;
     } else {
-        photoRow.style.display = 'none';
+        photoRow.hidden = true;
     }
 }
 
@@ -986,7 +986,7 @@ function setSubmitting(loading) {
 
     nextBtn.disabled = loading;
     nextBtn.textContent = loading ? 'A registar...' : 'Registar';
-    spinner.style.display = loading ? 'block' : 'none';
+    spinner.hidden = !loading;
 
     if (wizard.backBtn) wizard.backBtn.disabled = loading;
 }
