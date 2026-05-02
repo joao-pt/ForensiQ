@@ -85,6 +85,8 @@ function mountDataTable() {
         onCount: (n) => {
             const countEl = document.getElementById('custody-count');
             if (countEl) countEl.textContent = `${n} ${n === 1 ? 'transição' : 'transições'}`;
+            const live = document.getElementById('results-announce');
+            if (live) live.textContent = `${n} resultado${n !== 1 ? 's' : ''} após filtragem`;
             refreshExportLink();
         },
     });

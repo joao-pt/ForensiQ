@@ -90,6 +90,9 @@ function mountDataTable() {
             if (countEl && currentView === 'list') {
                 countEl.textContent = `${n} ocorrência${n !== 1 ? 's' : ''}`;
             }
+            const live = document.getElementById('results-announce');
+            if (live) live.textContent = `${n} resultado${n !== 1 ? 's' : ''} após filtragem`;
+            refreshExportLink();
         },
     });
 
@@ -140,6 +143,16 @@ function setupSidebarFilters() {
             dataTable.setFilter('has_gps', '');
         });
     }
+}
+
+function refreshExportLink() {
+    const btn = document.getElementById('btn-export-csv');
+    if (!btn) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('page');
+    params.delete('page_size');
+    const qs = params.toString();
+    btn.href = qs ? `/api/occurrences/csv/?${qs}` : '/api/occurrences/csv/';
 }
 
 function renderStateFilterChip() {
