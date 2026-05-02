@@ -1,0 +1,90 @@
+# Contexto privado Cowork — NUNCA entra no GitHub
+_cowork/
+about-me.md
+project-context.md
+github-workflow.md
+tarefas-agendadas.md
+
+# Configuração local Claude Code (não tem ficheiros sensíveis mas não pertence ao repo)
+.claude/
+
+# Reports / outputs temporários (gerados ad-hoc, não fazem parte do repo)
+.tmp-audit/
+.remember/
+semgrep-report.json
+semgrep-stderr.txt
+precommit-scan-*.md
+
+# LaTeX build artefacts (mantemos só os .tex e o PDF final em docs/report/)
+src_latex/*.aux
+src_latex/*.bbl
+src_latex/*.blg
+src_latex/*.fdb_latexmk
+src_latex/*.fls
+src_latex/*.log
+src_latex/*.out
+src_latex/*.toc
+
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+venv/
+.venv/
+env/
+
+# Django
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Coverage / Testing
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.pytest_cache/
+.tox/
+
+# Environment
+.env
+*.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LaTeX (auxiliares em src_latex/ e docs/report/)
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+docs/report/bibliography.bib
+
+# Node (se necessário no futuro)
+node_modules/
+
+# Credentials
+*.pem
+*.key
+credentials.json
