@@ -25,227 +25,164 @@
         </div>
     </header>
 
-    <!-- Stats grid -->
-    <section class="stats-grid" id="stats-grid"
-             aria-busy="true" aria-live="polite" aria-label="Estatísticas do painel">
-
-        <a class="stat-card" data-accent="info" href="/occurrences/"
-           data-nav="/occurrences/" role="button" tabindex="0"
-           aria-label="Abrir lista de ocorrências">
-            <div class="stat-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                </svg>
-            </div>
-            <div class="stat-value mono-tab" id="stat-occurrences">
-                <div class="skeleton skeleton-value">&nbsp;</div>
-            </div>
-            <div class="stat-label">Ocorrências</div>
-            <div class="stat-sub" id="stat-occurrences-sub"></div>
-        </a>
-
-        <a class="stat-card" data-accent="accent" href="/evidences/"
-           data-nav="/evidences/" role="button" tabindex="0"
-           aria-label="Abrir lista de itens apreendidos">
-            <div class="stat-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="5" y="11" width="14" height="9" rx="2"/>
-                    <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                </svg>
-            </div>
-            <div class="stat-value mono-tab" id="stat-evidences">
-                <div class="skeleton skeleton-value">&nbsp;</div>
-            </div>
-            <div class="stat-label">Itens</div>
-            <div class="stat-sub" id="stat-evidences-sub"></div>
-        </a>
-
-        <a class="stat-card" data-accent="success" href="/evidences/?state=EM_PERICIA"
-           data-nav="/evidences/?state=EM_PERICIA" role="button" tabindex="0"
-           aria-label="Filtrar itens em perícia">
-            <div class="stat-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="9"/>
-                    <path d="M9.5 12.5 11 14l3.5-3.5"/>
-                </svg>
-            </div>
-            <div class="stat-value mono-tab" id="stat-analysis">
-                <div class="skeleton skeleton-value">&nbsp;</div>
-            </div>
-            <div class="stat-label">Em perícia</div>
-            <div class="stat-sub" id="stat-analysis-sub"></div>
-        </a>
-
-        <a class="stat-card" data-accent="warning" href="/evidences/?state=EM_TRANSPORTE"
-           data-nav="/evidences/?state=EM_TRANSPORTE" role="button" tabindex="0"
-           aria-label="Filtrar itens em trânsito">
-            <div class="stat-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
-                    <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
-                </svg>
-            </div>
-            <div class="stat-value mono-tab" id="stat-custody">
-                <div class="skeleton skeleton-value">&nbsp;</div>
-            </div>
-            <div class="stat-label">Em trânsito</div>
-            <div class="stat-sub" id="stat-custody-sub"></div>
-        </a>
-    </section>
-
-    <!-- Breakdown por tipo de item -->
-    <section class="card" id="evidences-breakdown" aria-live="polite">
-        <div class="card-header">
+    <!-- Cadeia de custódia — single hero card com flow visualization.
+         River bar (proporcional ao count por estado) + cards clicáveis
+         por baixo para deep-linking ao filtro da listagem. -->
+    <section class="card custody-flow-card" id="custody-flow"
+             aria-busy="true" aria-live="polite"
+             aria-label="Distribuição actual da cadeia de custódia">
+        <div class="custody-flow-header">
             <div>
-                <div class="card-title">Itens por tipo</div>
-                <div class="card-subtitle">Distribuição agregada</div>
+                <div class="card-title">Cadeia de custódia</div>
+                <div class="card-subtitle">Distribuição actual dos itens por estado</div>
+            </div>
+            <div class="custody-flow-total">
+                <span class="custody-flow-total-num mono-tab" id="custody-flow-total-num">—</span>
+                <span class="custody-flow-total-label">itens</span>
             </div>
         </div>
-        <div class="evidences-type-chart" id="evidences-type-chart" role="list">
-            <div class="skeleton skeleton-text">&nbsp;</div>
+
+        <!-- River bar — segmentos coloridos proporcionais por estado -->
+        <div class="custody-river" id="custody-river" role="img"
+             aria-label="Barra proporcional dos estados da cadeia"></div>
+
+        <!-- Cards clicáveis por estado — preenchidos via JS -->
+        <div class="custody-flow-states" id="custody-flow-states" role="list"></div>
+    </section>
+
+    <!-- Quick actions — AGENT (full width) -->
+    <section id="agent-actions" class="hidden">
+        <div class="section-label">Acções rápidas</div>
+        <div class="quick-actions">
+            <button class="action-btn" data-nav="/occurrences/new/" type="button">
+                <span class="action-icon accent" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Nova Ocorrência</strong>
+                    <small>Registar cena de crime</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/evidences/new/" type="button">
+                <span class="action-icon success" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-3z"/>
+                        <path d="m9 12 2 2 4-4"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Novo Item</strong>
+                    <small>Apreender prova digital</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/occurrences/" type="button">
+                <span class="action-icon info" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Ocorrências</strong>
+                    <small>Ver todas as ocorrências</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/evidences/" type="button">
+                <span class="action-icon warning" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="5" y="11" width="14" height="9" rx="2"/>
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Itens</strong>
+                    <small>Consultar itens apreendidos</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/custodies/" type="button">
+                <span class="action-icon info" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+                        <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Custódias</strong>
+                    <small>Transferências recentes</small>
+                </span>
+            </button>
         </div>
     </section>
 
-    <!-- 2 colunas no desktop -->
-    <div class="dashboard-layout">
+    <!-- Quick actions — EXPERT (full width) -->
+    <section id="expert-actions" class="hidden">
+        <div class="section-label">Acções rápidas</div>
+        <div class="quick-actions">
+            <button class="action-btn" data-nav="/custodies/" type="button">
+                <span class="action-icon info" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+                        <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Cadeia de Custódia</strong>
+                    <small>Gerir transferências</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/evidences/" type="button">
+                <span class="action-icon success" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="5" y="11" width="14" height="9" rx="2"/>
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Itens</strong>
+                    <small>Consultar itens em perícia</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/occurrences/" type="button">
+                <span class="action-icon info" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Ocorrências</strong>
+                    <small>Ver todas as ocorrências</small>
+                </span>
+            </button>
+            <button class="action-btn" data-nav="/reports/" type="button">
+                <span class="action-icon warning" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                         stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <path d="M14 3v6h6M9 13h6M9 17h4"/>
+                    </svg>
+                </span>
+                <span class="action-text">
+                    <strong>Relatórios PDF</strong>
+                    <small>Gerar relatórios forenses</small>
+                </span>
+            </button>
+        </div>
+    </section>
 
-        <!-- Quick actions — AGENT -->
-        <section id="agent-actions" class="hidden">
-            <div class="section-label">Acções rápidas</div>
-            <div class="quick-actions">
-                <button class="action-btn" data-nav="/occurrences/new/" type="button">
-                    <span class="action-icon accent" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 5v14M5 12h14"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Nova Ocorrência</strong>
-                        <small>Registar cena de crime</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/evidences/new/" type="button">
-                    <span class="action-icon success" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-3z"/>
-                            <path d="m9 12 2 2 4-4"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Novo Item</strong>
-                        <small>Apreender prova digital</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/occurrences/" type="button">
-                    <span class="action-icon info" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Ocorrências</strong>
-                        <small>Ver todas as ocorrências</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/evidences/" type="button">
-                    <span class="action-icon warning" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="5" y="11" width="14" height="9" rx="2"/>
-                            <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Itens</strong>
-                        <small>Consultar itens apreendidos</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/custodies/" type="button">
-                    <span class="action-icon info" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
-                            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Custódias</strong>
-                        <small>Transferências recentes</small>
-                    </span>
-                </button>
-            </div>
-        </section>
-
-        <!-- Quick actions — EXPERT -->
-        <section id="expert-actions" class="hidden">
-            <div class="section-label">Acções rápidas</div>
-            <div class="quick-actions">
-                <button class="action-btn" data-nav="/custodies/" type="button">
-                    <span class="action-icon info" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
-                            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Cadeia de Custódia</strong>
-                        <small>Gerir transferências</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/evidences/" type="button">
-                    <span class="action-icon success" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="5" y="11" width="14" height="9" rx="2"/>
-                            <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Itens</strong>
-                        <small>Consultar itens em perícia</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/occurrences/" type="button">
-                    <span class="action-icon info" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Ocorrências</strong>
-                        <small>Ver todas as ocorrências</small>
-                    </span>
-                </button>
-                <button class="action-btn" data-nav="/reports/" type="button">
-                    <span class="action-icon warning" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                            <path d="M14 3v6h6M9 13h6M9 17h4"/>
-                        </svg>
-                    </span>
-                    <span class="action-text">
-                        <strong>Relatórios PDF</strong>
-                        <small>Gerar relatórios forenses</small>
-                    </span>
-                </button>
-            </div>
-        </section>
-
-        <!-- Recent occurrences -->
-        <section class="recent-section">
-            <div class="section-label">Últimas ocorrências</div>
-            <div class="card p-0">
-                <div id="recent-occurrences" class="list" aria-live="polite">
+    <!-- Últimas ocorrências (full width, debaixo das acções) -->
+    <section class="recent-section">
+        <div class="section-label">Últimas ocorrências</div>
+        <div class="card p-0">
+            <div id="recent-occurrences" class="list" aria-live="polite">
                 <div class="skeleton-row">
                     <div class="skeleton-row-content">
                         <div class="skeleton skeleton-row-title">&nbsp;</div>
@@ -267,10 +204,9 @@
                     </div>
                     <div class="skeleton skeleton-row-date">&nbsp;</div>
                 </div>
-                </div>
             </div>
-        </section>
-    </div><!-- /dashboard-layout -->
+        </div>
+    </section>
 </div>
 {% endblock %}
 

@@ -248,8 +248,8 @@ function renderTransitionUI(user) {
     allowedNextStates = VALID_TRANSITIONS[currentState] || [];
     if (allowedNextStates.length === 0) return;
 
-    const container = document.getElementById('new-transition-container');
-    container.hidden = false;
+    const btn = document.getElementById('btn-new-transition');
+    if (btn) btn.hidden = false;
 
     const select = document.getElementById('new-state');
     const stateMap = Object.fromEntries(STATE_FLOW.map(s => [s.key, s]));
