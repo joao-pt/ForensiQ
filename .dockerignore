@@ -1,0 +1,30 @@
+# ForensiQ — Ficheiros excluídos do Docker build
+.git
+.gitignore
+.env
+*.env
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.venv
+venv
+node_modules
+
+# Contexto privado Cowork
+_cowork/
+
+# Documentação (não necessária no container)
+docs/
+src_latex/
+README.md
+LICENSE
+
+# Ficheiros de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ficheiros do Fly.io
+fly.toml

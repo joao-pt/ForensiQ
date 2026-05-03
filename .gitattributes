@@ -1,0 +1,43 @@
+# Normalização de line-endings — força LF no repositório
+# independentemente do sistema operativo do cliente.
+#
+# Contexto: ForensiQ é desenvolvido em ambiente misto (Windows host +
+# Cowork sandbox Linux + CI GitHub Actions Ubuntu). Sem esta
+# configuração, editores no Windows convertem LF→CRLF e poluem diffs
+# com alterações espúrias de line-endings.
+
+# Por omissão, detectar texto vs binário automaticamente e normalizar para LF.
+* text=auto eol=lf
+
+# Ficheiros de texto explícitos — sempre LF.
+*.py         text eol=lf
+*.md         text eol=lf
+*.txt        text eol=lf
+*.json       text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.toml       text eol=lf
+*.cfg        text eol=lf
+*.ini        text eol=lf
+*.html       text eol=lf
+*.css        text eol=lf
+*.js         text eol=lf
+*.sh         text eol=lf
+*.sql        text eol=lf
+Dockerfile   text eol=lf
+
+# Ficheiros binários — nunca tocar em line-endings.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.zip    binary
+*.tar.gz binary
+*.db     binary
+*.sqlite binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.eot    binary
