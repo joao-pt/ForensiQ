@@ -617,7 +617,10 @@ hr {
     color: var(--text-emphasis);
 }
 
-@media (max-width: 479px) {
+/* Texto da marca: mostrado em todas as larguras realistas (cabe a partir
+   de 360px com folga). Esconde-se apenas em ecrãs muito pequenos (foldables
+   compactos, smartwatches). */
+@media (max-width: 339px) {
     .nav-brand-name { display: none; }
 }
 
