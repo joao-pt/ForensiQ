@@ -1,10 +1,30 @@
 /**
  * ForensiQ — Dashboard.
  *
- * Estrutura: Cadeia de custódia (hero) → Acções rápidas → Últimas ocorrências.
+ * Estrutura desktop: Cadeia de custódia (hero) → Acções rápidas → Últimas ocorrências.
+ * Estrutura mobile (≤767px): Acções rápidas (primeiro — perito no terreno
+ * quer agir, não consultar estatísticas) → Cadeia de custódia → Últimas ocorrências.
  * Tudo em coluna única, full-width. Quem quiser estatísticas detalhadas
  * (itens por tipo, etc.) tem o atalho ``Estatísticas`` no menu de utilizador.
  */
+
+/* =============================================================
+   ORDEM MOBILE-FIRST (perito no terreno: acções > estatísticas)
+   ``.page`` é flex column (main.css :432); usar order resolve sem
+   alterar HTML.
+   ============================================================= */
+
+.page > #agent-actions,
+.page > #expert-actions   { order: 1; }
+.page > .custody-flow-card { order: 2; }
+.page > .recent-section    { order: 3; }
+
+@media (min-width: 768px) {
+    .page > .custody-flow-card { order: 1; }
+    .page > #agent-actions,
+    .page > #expert-actions   { order: 2; }
+    .page > .recent-section    { order: 3; }
+}
 
 /* =============================================================
    1. CADEIA DE CUSTÓDIA — hero card
