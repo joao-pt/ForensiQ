@@ -1,0 +1,326 @@
+% proposta.tex — Proposta Inicial · ForensiQ · UC 21184
+% Compilar: latexmk -pdf -output-directory=../docs/report proposta.tex
+\documentclass[a4paper,11pt]{article}
+
+% ── Codificação e língua ──────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+% NOTA: descomentar quando texlive-lang-portuguese estiver instalado
+% \usepackage[portuguese]{babel}
+
+% ── Layout ────────────────────────────────────────────────────────────
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{parskip}            % espaço entre parágrafos, sem indentação
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Tabelas e listas ─────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.5em}
+
+% ── Fontes e tipografia ──────────────────────────────────────────────
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Imagens ──────────────────────────────────────────────────────────
+\usepackage{graphicx}
+
+% ── Hyperlinks ────────────────────────────────────────────────────────
+\usepackage[colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black]{hyperref}
+
+% ── Cabeçalhos ────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small ForensiQ — Proposta Inicial}
+\fancyhead[R]{\small UC 21184 · 2025/26}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ── Tradução de títulos automáticos (sem babel) ──────────────────────
+\renewcommand{\contentsname}{Índice}
+\renewcommand{\refname}{Referências}
+\renewcommand{\tablename}{Tabela}
+\renewcommand{\figurename}{Figura}
+
+% ── Bibliografia ──────────────────────────────────────────────────────
+\usepackage[round,authoryear]{natbib}
+\bibliographystyle{plainnat}
+
+% ══════════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── CAPA ──────────────────────────────────────────────────────────────
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+
+{\Large\bfseries Universidade Aberta}\\[0.3cm]
+{\large Departamento de Ciências e Tecnologia}\\[0.3cm]
+{\large Licenciatura em Engenharia Informática}\\[2cm]
+
+{\LARGE\bfseries ForensiQ}\\[0.4cm]
+{\large Plataforma Modular de Gestão de Prova Digital\\para First Responders}\\[2.5cm]
+
+{\large\bfseries Proposta Inicial}\\[0.3cm]
+{\large UC 21184 — Projeto de Engenharia Informática}\\[1.5cm]
+
+\begin{tabular}{rl}
+\textbf{Estudante:} & João Rodrigues — 2203474 \\
+\textbf{Orientador:} & Professor Pedro Duarte Pestana \\
+\textbf{Data:} & 22 de março de 2026 \\
+\textbf{Versão:} & 1.0 \\
+\end{tabular}
+
+\vfill
+{\small 2.º Semestre · 2025/2026}
+\end{titlepage}
+
+% ── ÍNDICE (opcional, não conta para as 4 páginas) ───────────────────
+\tableofcontents
+\newpage
+
+% ══════════════════════════════════════════════════════════════════════
+% SINOPSE
+% ══════════════════════════════════════════════════════════════════════
+\section{Sinopse}
+
+Os agentes que chegam primeiro a uma cena de crime — os \emph{first responders} —
+recorrem actualmente a métodos manuais (papel, fotografias avulsas, anotações)
+para registar e preservar a prova digital apreendida. Esta ausência de
+padronização traduz-se em vulnerabilidades processuais reais: cadeia de custódia
+inconsistente, prova sem localização verificável e procedimentos que variam de
+agente para agente. O problema é identificado da experiência directa do estudante
+como perito digital forense na Polícia de Segurança Pública (PSP).
+
+O ForensiQ é uma aplicação web \emph{mobile-first} que digitaliza e padroniza
+este processo, do momento da apreensão no terreno até à chegada ao laboratório e
+remessa das conclusões da perícia. Distingue-se dos sistemas existentes (SAFE,
+Axon Evidence) por ser desenhado para o agente sem formação técnica avançada, por
+seguir os procedimentos da PSP, e por garantir integridade dos registos via
+\emph{hash} SHA-256 conforme a norma ISO/IEC~27037
+\citep{iso27037}. Diferencia-se do Projecto~\#38 da orientação
+\citep{pestana2025} por não adquirir prova — apenas a gerir e controlar após
+apreensão.
+
+O resultado esperado é um protótipo funcional demonstrável num \emph{smartphone}
+no terreno, com API REST documentada, módulo de forense digital completo e cadeia
+de custódia com registo imutável verificável. O sucesso é medido pelos critérios
+de aceitação observáveis definidos na Secção~\ref{sec:mvp}.
+
+% ══════════════════════════════════════════════════════════════════════
+% MVP
+% ══════════════════════════════════════════════════════════════════════
+\section{MVP — Funcionalidades e Critérios de Aceitação}
+\label{sec:mvp}
+
+O produto mínimo viável é composto por seis funcionalidades, cada uma com
+critérios de aceitação observáveis e verificáveis em demonstração.
+
+\subsection{F1 — Autenticação com perfis}
+
+Dado email e password válidos de agente, o sistema autentica e devolve token JWT
+em menos de 2~segundos; dado email inválido, devolve erro~401 sem expor
+informação interna. Os perfis agente e perito forense digital têm permissões
+distintas verificáveis.
+
+\subsection{F2 — Registo de prova com fotografia e metadados GPS}
+
+Um agente autenticado cria um registo de prova com fotografia, tipo, descrição e
+localização GPS capturada automaticamente pelo \emph{browser}. O registo recebe
+identificador único, \emph{timestamp} do servidor e \emph{hash} SHA-256 dos
+metadados. Verificável num \emph{smartphone} em menos de 30~segundos.
+
+\subsection{F3 — Cadeia de custódia com máquina de estados e log imutável}
+
+A prova percorre estados em ordem fixa sem possibilidade de retrocesso:
+
+\begin{center}
+\small
+\texttt{APREENDIDA $\rightarrow$ EM TRANSPORTE $\rightarrow$ RECEBIDA NO LABORATÓRIO $\rightarrow$ EM PERÍCIA $\rightarrow$ CONCLUÍDA $\rightarrow$ DEVOLVIDA/DESTRUÍDA}
+\end{center}
+
+Cada transição regista: agente responsável, \emph{timestamp} e \emph{hash} do
+registo nesse momento. Nenhuma transição pode ser saltada. O registo é
+\emph{append-only} — sem \texttt{UPDATE} nem \texttt{DELETE} na tabela de
+custódia. Qualquer alteração directa na base de dados é detectável via
+\emph{hash} \citep{casey2011,acpo2012}.
+
+\subsection{F4 — Módulo de forense digital (ficha de dispositivo)}
+
+O perito preenche ficha completa de dispositivo digital (tipo, marca, modelo,
+estado, número de série) associada a uma prova existente.
+
+\subsection{F5 — API REST documentada}
+
+Mínimo 10 \emph{endpoints} funcionais documentados e testáveis via Swagger~UI
+(drf-spectacular).
+
+\subsection{F6 — Exportação de relatório de ocorrência em PDF}
+
+Relatório gerado automaticamente com todos os registos de prova e histórico de
+custódia da ocorrência. Acessível aos perfis agente e perito, permitindo ao
+agente juntar o relatório ao expediente físico.
+
+% ══════════════════════════════════════════════════════════════════════
+% STACK TECNOLÓGICA
+% ══════════════════════════════════════════════════════════════════════
+\section{Stack Tecnológica}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Componente} & \textbf{Tecnologia} & \textbf{Justificação} \\
+\midrule
+Backend         & Django + DRF          & Estrutura convencional; autenticação e ORM built-in \\
+Frontend        & HTML/CSS/JS vanilla   & Mobile-first sem overhead de framework; suficiente para MVP \\
+Base de dados   & PostgreSQL            & Integridade referencial; append-only para logs de custódia \\
+Autenticação    & JWT + RBAC            & Dois perfis: agente e perito forense digital \\
+API docs        & drf-spectacular       & Documentação Swagger UI automática \\
+Geolocalização  & Geolocation API + Leaflet.js & Sem API paga; funciona em telemóvel \\
+Integridade     & SHA-256 (hashlib)     & Hash dos metadados conforme ISO/IEC~27037 \\
+CI/CD           & GitHub Actions        & Pipeline de testes automáticos a cada push \\
+\bottomrule
+\end{tabular}
+\caption{Stack tecnológica do ForensiQ.}
+\end{table}
+
+% ══════════════════════════════════════════════════════════════════════
+% ARQUITECTURA C4 NÍVEL 1
+% ══════════════════════════════════════════════════════════════════════
+\section{Esboço de Arquitectura — C4 Nível 1 (Contexto)}
+
+A Figura~\ref{fig:c4context} apresenta o sistema ForensiQ, os seus utilizadores
+e o sistema externo com que interage, segundo a notação C4 \citep{brown2014}.
+
+O \textbf{Agente} (first responder) regista provas no terreno via smartphone —
+captura fotografia, localização GPS e metadados — e exporta relatórios em PDF
+para juntar ao expediente físico. O \textbf{Perito forense digital} gere a
+cadeia de custódia no laboratório, preenche fichas de dispositivo e exporta
+relatórios. O único sistema externo é a \textbf{Browser Geolocation API}, que
+fornece coordenadas GPS do dispositivo do agente.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/c4-context.png}
+\caption{Diagrama de contexto C4 (Nível 1) do ForensiQ.}
+\label{fig:c4context}
+\end{figure}
+
+O diagrama C4 de nível 2 (contentores: aplicação web, API REST e base de dados)
+será produzido durante as semanas~3--4 e depositado em
+\texttt{docs/architecture/}.
+
+% ══════════════════════════════════════════════════════════════════════
+% CALENDÁRIO
+% ══════════════════════════════════════════════════════════════════════
+\newpage
+\section{Calendário Detalhado}
+
+\begin{longtable}{@{}llp{7.5cm}l@{}}
+\toprule
+\textbf{Sem.} & \textbf{Datas} & \textbf{Conteúdo planeado} & \textbf{Marco} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Sem.} & \textbf{Datas} & \textbf{Conteúdo planeado} & \textbf{Marco} \\
+\midrule
+\endhead
+
+1 & 17--21 mar &
+  Configuração do repositório a partir do template.
+  Definição de stack e MVP. Envio de sinopse, MVP e calendário ao orientador. &  \\
+\midrule
+
+2 & 24--28 mar &
+  Finalizar proposta inicial. Submeter na plataforma da UC.
+  Aguardar feedback e aceitação do orientador. &
+  \textbf{Proposta (25 mar)} \\
+\midrule
+
+3 & 31 mar--4 abr &
+  Requisitos MoSCoW finais. Diagrama C4 nível 1 e nível 2.
+  Modelo de dados ER (PostgreSQL). &  \\
+\midrule
+
+4 & 7--11 abr &
+  ADRs obrigatórios (Django, PostgreSQL, SHA-256, máquina de estados, vanilla JS).
+  Início da estrutura Django (\texttt{manage.py}, modelos). &  \\
+\midrule
+
+5 & 14--17 abr &
+  Wireframes mobile-first (ecrãs principais).
+  Implementação F1: autenticação JWT com perfis agente e perito. &  \\
+\midrule
+
+6 & 22--25 abr &
+  Implementação F2: registo de prova com fotografia e GPS.
+  Implementação F3: cadeia de custódia (máquina de estados, log append-only). &  \\
+\midrule
+
+7 & 28 abr--2 mai &
+  Testes de integração dos módulos F1--F3. Preparação e execução da demo interna
+  ao orientador (via Teams). &
+  \textbf{Demo interna} \\
+\midrule
+
+8 & 5--6 mai &
+  Redacção e submissão do relatório intercalar.
+  Incorporação de feedback do orientador. &
+  \textbf{Intercalar (6 mai)} \\
+\midrule
+
+9 & 7--9 mai &
+  Implementação F4: módulo de forense digital (ficha de dispositivo).
+  Início F5: endpoints da API REST. &  \\
+\midrule
+
+10 & 12--16 mai &
+  Conclusão F5: API REST com 10+ endpoints + Swagger UI.
+  Implementação F6: exportação de relatório PDF. &  \\
+\midrule
+
+11 & 19--23 mai &
+  Testes de integração (Postman/Newman).
+  Configuração GitHub Actions CI. HTTPS. &  \\
+\midrule
+
+12 & 26--30 mai &
+  Testes end-to-end. Correcção de defeitos.
+  Testes em dispositivo móvel real. &  \\
+\midrule
+
+13 & 2--6 jun &
+  Polimento da interface. Início da redacção dos capítulos 4 e 5
+  do relatório final. &  \\
+\midrule
+
+14 & 9--13 jun &
+  Revisão completa do relatório final.
+  Correcções de última hora no código e documentação. &  \\
+\midrule
+
+15 & 16--20 jun &
+  Preparação da defesa oral (15 minutos). Ensaio com simulação de perguntas
+  do júri. Reunião de preparação com orientador (Teams). &
+  \textbf{Prep. defesa} \\
+\midrule
+
+16 & 24 jun &
+  Submissão do relatório final e código na plataforma da UC. &
+  \textbf{Final (24 jun)} \\
+
+\bottomrule
+\end{longtable}
+
+% ══════════════════════════════════════════════════════════════════════
+% REFERÊNCIAS
+% ══════════════════════════════════════════════════════════════════════
+\newpage
+\bibliography{bibliography}
+
+\end{document}

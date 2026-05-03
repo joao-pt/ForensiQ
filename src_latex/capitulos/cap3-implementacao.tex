@@ -1,0 +1,251 @@
+% =============================================================================
+% Cap. 3 — Implementação (estado actual à data do intercalar, conforme guia §3)
+% =============================================================================
+
+\section{Implementação --- Estado actual}
+\label{cap:implementacao}
+
+Este capítulo documenta o estado de implementação à data deste
+relatório intercalar (3~de~Maio~de~2026), apresentando a
+decomposição de tarefas com precedências (\S\ref{sec:tasks}), o
+estado por componente (\S\ref{sec:components}), o cumprimento dos
+critérios de aceitação (\S\ref{sec:acceptance}), os desvios ao plano
+(\S\ref{sec:deviations}) --- incluindo o reconhecimento honesto da
+demo interna síncrona não realizada na janela prevista ---,
+a demonstração em produção (\S\ref{sec:demo}), o estado dos testes
+automatizados (\S\ref{sec:tests-state}) e o calendário actualizado
+para a fase restante (\S\ref{sec:calendario-restante}).
+
+\subsection{Decomposição do trabalho}
+\label{sec:tasks}
+
+O trabalho foi decomposto em onze tarefas principais com precedências
+implícitas, conforme a Tabela~\ref{tab:tasks}.
+
+\begin{longtable}{@{}cL{6.0cm}L{4.5cm}L{2.0cm}@{}}
+\toprule
+\textbf{T} & \textbf{Tarefa} & \textbf{Precedências} & \textbf{Estado} \\
+\midrule
+\endhead
+T1  & Configuração do repositório, proposta e MoSCoW            & ---       & Concluída \\
+T2  & ADRs 0001--0010 com alternativas consideradas             & T1        & Concluída \\
+T3  & Modelo de dados core                                      & T2        & Concluída \\
+T4  & Autenticação JWT em \emph{cookies} HttpOnly + CSRF        & T3        & Concluída \\
+T5  & API REST e \emph{viewsets}                                & T3, T4    & Concluída \\
+T6  & \emph{Frontend} \emph{vanilla} \emph{mobile-first}        & T5        & Concluída \\
+T7  & Imutabilidade tripla (ORM, DRF, \emph{triggers} PG)       & T3, T5    & Concluída \\
+T8  & Auditoria interna de segurança e correcções               & T7        & Concluída \\
+T9  & \emph{Deployment} Fly.io + Neon; HSTS \emph{preload}      & T6        & Concluída \\
+T10 & \emph{Wizard} de evidência, \emph{lookups}, exportação PDF & T5, T6   & Concluída \\
+T11 & Relatório intercalar                                      & T1--T10   & Em curso \\
+\bottomrule
+\caption{Decomposição de tarefas com precedências.}
+\label{tab:tasks}
+\end{longtable}
+
+\subsection{Estado final por componente}
+\label{sec:components}
+
+A Tabela~\ref{tab:components} resume o estado de cada componente. O
+estado verde indica conclusão validada por testes; amarelo indica
+funcionalidade entregue com limitação reconhecida; vermelho indica
+funcionalidade fora do âmbito do MVP ou ainda em curso.
+
+\begin{longtable}{@{}L{4cm}L{2cm}L{8cm}@{}}
+\toprule
+\textbf{Componente} & \textbf{Estado} & \textbf{Observação} \\
+\midrule
+\endhead
+\emph{Backend} Django + DRF                  & \cellcolor{green!12}\textcolor{successgreen}{verde}  & 213 testes a passar; modelos, \emph{viewsets}, serializadores, permissões. \\
+\midrule
+Cadeia de custódia (SHA-256 encadeado)       & \cellcolor{green!12}\textcolor{successgreen}{verde}  & \texttt{transaction.atomic} + \texttt{select\_for\_update} (correcções da auditoria interna). \\
+\midrule
+Imutabilidade tripla                         & \cellcolor{green!12}\textcolor{successgreen}{verde}  & ORM + DRF + \emph{triggers} PostgreSQL (\emph{migration} 0002). \\
+\midrule
+Autenticação JWT em \emph{cookies}           & \cellcolor{green!12}\textcolor{successgreen}{verde}  & HttpOnly + Secure + SameSite=Strict; CSRF \emph{double-submit}; \emph{rate limit} 5/min. \\
+\midrule
+\emph{Frontend} \emph{vanilla}               & \cellcolor{green!12}\textcolor{successgreen}{verde}  & 13 vistas \emph{mobile-first}; sem \emph{build step}; tema dia/noite com sunset NOAA. \\
+\midrule
+Mapa Leaflet + OpenStreetMap                 & \cellcolor{green!12}\textcolor{successgreen}{verde}  & Leaflet 1.9.4 com SRI SHA-512; Referrer-Policy \texttt{strict-origin-when-cross-origin}. \\
+\midrule
+Exportação PDF (RF6)                         & \cellcolor{green!12}\textcolor{successgreen}{verde}  & ReportLab; \texttt{/api/evidences/<id>/pdf/} e \texttt{/api/occurrences/<id>/pdf/} com declaração ISO/IEC~27037. \\
+\midrule
+Exportação CSV                               & \cellcolor{green!12}\textcolor{successgreen}{verde}  & \emph{Streaming} com \emph{cap} de 10 000 linhas; respeita \emph{ownership}; \emph{audit log} regista cada exportação. \\
+\midrule
+Lookup IMEI/VIN                              & \cellcolor{green!12}\textcolor{successgreen}{verde}  & \texttt{DatabaseCache} 30 dias (IMEI) e 180 dias (VIN). \\
+\midrule
+\emph{Deployment}                            & \cellcolor{green!12}\textcolor{successgreen}{verde}  & Fly.io fra + Neon; HTTPS A+ (Qualys); HSTS \emph{preload} submetido; Mozilla Observatory A+. \\
+\midrule
+Cobertura de testes                          & \cellcolor{orange!15}\textcolor{warningorange}{amarelo} & 67{,}4\% global; áreas com cobertura insuficiente reconhecidas (\texttt{validators.py}, \texttt{imei\_lookup.py}, \texttt{seed\_demo.py}). \\
+\midrule
+\emph{Backups} de \texttt{media/}            & \cellcolor{red!15}\textcolor{dangerred}{vermelho}    & Volume Fly.io persistente sem \emph{backup} externo automatizado; trabalho futuro. \\
+\midrule
+SAST/SCA/DAST em CI                          & \cellcolor{red!15}\textcolor{dangerred}{vermelho}    & Fora do âmbito do MVP; documentado para Fase~3. \\
+\bottomrule
+\caption{Estado por componente à data do intercalar.}
+\label{tab:components}
+\end{longtable}
+
+\subsection{Cumprimento dos critérios de aceitação}
+\label{sec:acceptance}
+
+A Tabela~\ref{tab:acceptance} confronta o estado dos requisitos
+funcionais (RF) e não-funcionais (RNF) inscritos em
+\texttt{docs/scope/requirements.tex} (v1.0) com a sua verificação
+empírica à data deste intercalar. Os requisitos \emph{Must have}
+foram todos cumpridos. Os \emph{Should have} foram cumpridos. Os
+\emph{Could have} estão parcialmente cumpridos. Os \emph{Won't have}
+permaneceram fora do âmbito.
+
+\begin{longtable}{@{}cL{8.5cm}L{2.0cm}L{2.5cm}@{}}
+\toprule
+\textbf{ID} & \textbf{Requisito} & \textbf{Prioridade} & \textbf{Estado} \\
+\midrule
+\endhead
+RF01 & Autenticação JWT com perfis                       & Must  & \cellcolor{green!12}Cumprido \\
+RF02 & Ocorrências com georreferenciação                 & Must  & \cellcolor{green!12}Cumprido \\
+RF03 & Registo de prova com foto, GPS, \emph{hash}       & Must  & \cellcolor{green!12}Cumprido \\
+RF04 & Ficha de dispositivo digital                       & Must  & \cellcolor{green!12}Cumprido \\
+RF05 & Cadeia de custódia \emph{append-only} encadeada    & Must  & \cellcolor{green!12}Cumprido \\
+RF06 & Exportação PDF                                     & Must  & \cellcolor{green!12}Cumprido \\
+RF07 & API REST com 10+ \emph{endpoints} documentados     & Must  & \cellcolor{green!12}Cumprido (mais de 12 \emph{endpoints}) \\
+RF08 & \emph{Dashboard} por estado                        & Should & \cellcolor{green!12}Cumprido \\
+RF09 & Pesquisa e filtragem                               & Should & \cellcolor{green!12}Cumprido \\
+RF10 & Perfis adicionais (coordenador, magistrado)        & Could & \cellcolor{orange!15}Estrutura preparada (ADR-0006) \\
+RF11 & Verificação de IMEI via \emph{API} externa         & Could & \cellcolor{green!12}Cumprido (ADR-0008) \\
+RF12 & \emph{Dashboard} analítico                         & Could & \cellcolor{green!12}Cumprido (\texttt{/stats/}) \\
+RF13 & Despachos judiciais                                & Could & \cellcolor{red!15}Não realizado \\
+RF14--RF17 & Integração PSP, dados reais, módulos QBF, \emph{app} nativa & Won't & \cellcolor{gray!15}Fora do âmbito \\
+\midrule
+RNF01 & HTTPS obrigatório                                 & Must  & \cellcolor{green!12}Cumprido (HSTS \emph{preload} + Qualys A+) \\
+RNF02 & \emph{Mobile-first} utilizável com uma só mão      & Must  & \cellcolor{green!12}Cumprido (WCAG 2.1 AA) \\
+RNF03 & Integridade SHA-256 e \emph{append-only}           & Must  & \cellcolor{green!12}Cumprido \\
+RNF04 & Resposta inferior a 2 s                           & Should & \cellcolor{green!12}Verificado em produção \\
+RNF05 & Testes automatizados em módulos críticos           & Should & \cellcolor{green!12}213 testes a passar \\
+RNF06 & \emph{Deployment} público                         & Could & \cellcolor{green!12}\href{https://forensiq.pt}{forensiq.pt} \\
+\bottomrule
+\caption{Cumprimento dos requisitos funcionais e não-funcionais.}
+\label{tab:acceptance}
+\end{longtable}
+
+\subsection{Desvios ao plano}
+\label{sec:deviations}
+
+A execução afastou-se em três pontos do plano apresentado na
+proposta; todos foram comunicados ao orientador.
+
+\paragraph{\emph{Stack} do \emph{backend}.}
+A proposta indicava \emph{``Django + DRF''} como opção principal,
+sem alternativa. A escolha foi confirmada em ADR-0002 e mantida.
+Sem desvio.
+
+\paragraph{Demo interna síncrona não realizada na janela prevista
+(Sem.~7).}
+O calendário do orientador previa demo interna síncrona via Teams
+entre 28~de~Abril e 2~de~Maio de 2026 (Sem.~7). A demo síncrona
+\emph{não foi realizada} nessa janela. O autor reconhece o desvio.
+Como mitigação, propõe-se ao orientador, em comunicação paralela a
+este relatório, que a demonstração seja feita de forma \emph{assíncrona}
+através do site em produção \href{https://forensiq.pt}{forensiq.pt},
+com credenciais de demonstração entregues por canal separado. Esta
+modalidade permite ao orientador exercitar todos os fluxos críticos
+(criação de ocorrência, registo de evidência com GPS e fotografia,
+transição de custódia, exportação de PDF) sem necessidade de
+configurar ambiente local. Caso o orientador prefira demo síncrona,
+o autor está disponível para a agendar nas semanas 9~ou~10
+(7--16~mai), com a vantagem de já ter incorporado o feedback do
+intercalar.
+
+\paragraph{Auditorias internas extras (16, 18 e 19~Abr).}
+O plano original avançava da implementação directamente para o
+relatório intercalar. Em meados de Abril realizaram-se três
+auditorias internas (segurança, \emph{design}, taxonomia) que
+detectaram pontos a corrigir, em particular uma \emph{race
+condition} na cadeia de custódia (\emph{fix~B-C3}) e a necessidade
+de tornar o cálculo do \emph{hash} puro (\emph{fix~B-C2}). O esforço
+adicional consumiu cerca de uma semana mas foi essencial para a
+robustez actual.
+
+\subsection{Demonstração em produção}
+\label{sec:demo}
+
+O ambiente de produção em \href{https://forensiq.pt}{forensiq.pt} é
+uma cópia plenamente funcional do ForensiQ, alojada em Fly.io
+Frankfurt com PostgreSQL gerido pela Neon na mesma região
+(\S\ref{sec:c4-l2}). Está disponível um conjunto de demonstração
+realista, gerado pelo \emph{management command}
+\texttt{seed\_demo} (\texttt{src/backend/core/management/commands/seed\_demo.py}),
+com cinco ocorrências em cidades portuguesas (Lisboa, Porto,
+Coimbra, Braga, Faro), respectivos NUIPCs e treze itens de prova
+distribuídos pelos vários tipos da taxonomia, incluindo cartões SIM
+como sub-componentes hierárquicos. As fotografias são imagens
+\emph{placeholder} sintéticas geradas pelo \emph{seed} para evitar
+qualquer dado pessoal real.
+
+O acesso à demonstração é feito com três contas geradas no momento
+do \emph{seed} com \emph{passwords} aleatórias (16 caracteres):
+\texttt{agente.demo} (perfil \texttt{AGENT}, badge GNR-12345),
+\texttt{perito.demo} (perfil \texttt{EXPERT}, badge PJ-LPC-007) e
+\texttt{pedro.pestana} (perfil \texttt{EXPERT} com \emph{flag}
+\texttt{is\_staff}, badge UAB-ORIENT). As \emph{passwords} são
+entregues ao orientador em comunicação paralela ao envio deste
+relatório, e devem ser rodadas por ele ao primeiro acesso.
+
+\subsection{Estado dos testes automatizados}
+\label{sec:tests-state}
+
+À data deste intercalar, a \emph{suite} automatizada do ForensiQ
+contém \textbf{213 testes a passar} sob \texttt{pytest 9.0.3}
+(execução em \(\texttt{2026{-}05{-}03}\), tempo total
+\(\texttt{0:02:47}\)). A distribuição por \emph{suite} é:
+\texttt{tests.py} (14 testes de modelos), \texttt{tests\_api.py}
+(83 testes de API: autenticação, IDOR, imutabilidade, transições,
+\emph{throttle}, \emph{lookups}, estatísticas, CSP, \emph{rate
+limiting}), \texttt{tests\_pdf.py} (18 testes de exportação PDF),
+\texttt{tests\_frontend.py} (54 testes de vistas e \emph{templates}),
+\texttt{tests\_new\_features.py} (22 testes de funcionalidades
+introduzidas em iterações posteriores) e \texttt{tests\_table\_mode.py}
+(22 testes de modo tabela e exportação CSV).
+
+A cobertura medida por \texttt{coverage.py} é de \textbf{67{,}4\%}
+global em \texttt{core/} (1881 \emph{statements}, 536 não cobertos).
+A leitura honesta destes números é a seguinte: a cobertura
+concentra-se nas áreas críticas para integridade forense ---
+\texttt{models.py} (78{,}9\%), \texttt{views.py} (75{,}1\%),
+\texttt{pdf\_export.py} (86{,}7\%), \texttt{middleware.py} (90{,}7\%) ---;
+a baixa cobertura global é puxada por três módulos:
+\texttt{seed\_demo.py} (\emph{script} de demonstração executado
+manualmente, intencionalmente sem testes), \texttt{imei\_lookup.py}
+(integração externa que exigiria \emph{mocking} mais sofisticado) e
+\texttt{validators.py} (cujos casos felizes estão cobertos
+indirectamente pelos testes de criação de evidência). O reforço da
+cobertura é uma das prioridades das semanas 9--10
+(\S\ref{sec:calendario-restante}).
+
+\subsection{Calendário actualizado para a fase restante}
+\label{sec:calendario-restante}
+
+A Tabela~\ref{tab:calendario-restante} apresenta o calendário
+actualizado para a fase restante, da semana seguinte ao intercalar
+até à entrega do relatório final em 24~de~Junho de 2026.
+
+\begin{longtable}{@{}L{1cm}L{2.4cm}L{11.0cm}@{}}
+\toprule
+\textbf{Sem.} & \textbf{Datas} & \textbf{Trabalho previsto} \\
+\midrule
+\endhead
+9--10 & 7--16 mai & Reforço de cobertura de testes (alvo $\geq 75\%$); \emph{property-based testing} de validadores; eventual demo síncrona com o orientador. \\
+\midrule
+11--12 & 19--30 mai & Polimento da \emph{interface} \emph{mobile-first}; tabela de auditoria visual no \emph{dashboard}; preparação dos anexos do relatório final (manifesto de testes, capturas de ecrã). \\
+\midrule
+13 & 2--6 jun & Revisão geral; validação cruzada dos critérios de aceitação; congelamento do âmbito. \\
+\midrule
+14 & 9--13 jun & Redacção dos Capítulos~4 (Testes) e~5 (Conclusões) do relatório final; bibliografia APA consolidada. \\
+\midrule
+15 & 16--20 jun & Reunião de preparação para defesa com o orientador (síncrono); ensaio de perguntas de júri. \\
+\midrule
+16 & 24 jun & Submissão do relatório final e do código. \\
+\bottomrule
+\caption{Calendário actualizado para a fase restante.}
+\label{tab:calendario-restante}
+\end{longtable}
