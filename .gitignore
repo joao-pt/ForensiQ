@@ -5,6 +5,10 @@ project-context.md
 github-workflow.md
 tarefas-agendadas.md
 
+# Pasta privada com correspondência do orientador / propostas / ficheiros UAb
+# (contém PDFs de email, candidaturas e materiais administrativos da UC)
+21184 - Projeto de Engenharia Informática/
+
 # Configuração local Claude Code (não tem ficheiros sensíveis mas não pertence ao repo)
 .claude/
 
@@ -28,6 +32,14 @@ src_latex/*.fls
 src_latex/*.log
 src_latex/*.out
 src_latex/*.toc
+src_latex/*.lof
+src_latex/*.lot
+src_latex/*.synctex.gz
+# PDF compilado vive em docs/report/ — não duplicar o intermediário
+src_latex/intercalar.pdf
+src_latex/proposta.pdf
+# Backups / drafts temporários
+src_latex/APAGAR_EM_1_DIA/
 
 # Python
 __pycache__/
