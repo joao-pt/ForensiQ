@@ -1,226 +1,179 @@
 /**
- * ForensiQ — Dashboard
+ * ForensiQ — Dashboard.
  *
- * Primitivos já em main.css: .card, .list, .skeleton*, .section-label,
- * .page, .page-header. Este ficheiro contém apenas componentes
- * específicos do painel (stats grid, quick actions, type breakdown).
+ * Estrutura: Cadeia de custódia (hero) → Acções rápidas → Últimas ocorrências.
+ * Tudo em coluna única, full-width. Quem quiser estatísticas detalhadas
+ * (itens por tipo, etc.) tem o atalho ``Estatísticas`` no menu de utilizador.
  */
 
 /* =============================================================
-   Ordem mobile (perito no terreno): primeiro acções rápidas, depois
-   últimas ocorrências (continuidade), depois stats em modo discreto.
-   Em desktop a ordem volta a ser stats > breakdown > actions+recent.
+   1. CADEIA DE CUSTÓDIA — hero card
    ============================================================= */
 
-.page > .stats-grid             { order: 4; }
-.page > #evidences-breakdown    { display: none; }
-.page > .dashboard-layout       { order: 1; }
-
-@media (min-width: 768px) {
-    .page > .stats-grid             { order: 0; }
-    .page > #evidences-breakdown    { display: block; order: 0; }
-    .page > .dashboard-layout       { order: 0; }
+.custody-flow-card {
+    padding: var(--sp-5) var(--sp-5) var(--sp-4);
+    margin-bottom: var(--sp-6);
 }
 
-/* =============================================================
-   1. STATS GRID — secundário em mobile (compacto, scrollable horizontal),
-   destacado em desktop (grid 4 colunas).
-   ============================================================= */
-
-.stats-grid {
+.custody-flow-header {
     display: flex;
-    flex-direction: row;
-    gap: var(--sp-2);
-    padding: 0 var(--sp-4);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-4);
 }
 
-.stats-grid::-webkit-scrollbar { display: none; }
-
-.stats-grid .stat-card {
-    flex: 0 0 140px;
-}
-
-#evidences-breakdown {
-    margin: 0 var(--sp-4);
-}
-
-@media (min-width: 768px) {
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: var(--sp-4);
-        padding: 0;
-        overflow: visible;
-    }
-    .stats-grid .stat-card { flex: 1 1 auto; }
-
-    #evidences-breakdown {
-        margin: 0;
-    }
-}
-
-.stat-card {
-    position: relative;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-3);
-    padding: var(--sp-4);
+.custody-flow-total {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    overflow: hidden;
+    align-items: flex-end;
+    line-height: 1;
 }
-
-/* Accent strip — cor depende do data-accent */
-.stat-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2px;
-    background: var(--border);
-}
-
-.stat-card[data-accent="accent"]::before   { background: var(--accent); }
-.stat-card[data-accent="info"]::before     { background: var(--info); }
-.stat-card[data-accent="success"]::before  { background: var(--success); }
-.stat-card[data-accent="warning"]::before  { background: var(--warning); }
-.stat-card[data-accent="danger"]::before   { background: var(--danger); }
-
-.stat-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-    width: 24px;
-    height: 24px;
-}
-
-.stat-icon svg {
-    width: 20px;
-    height: 20px;
-}
-
-.stat-card[data-accent="accent"]  .stat-icon { color: var(--accent); }
-.stat-card[data-accent="info"]    .stat-icon { color: var(--info); }
-.stat-card[data-accent="success"] .stat-icon { color: var(--success); }
-.stat-card[data-accent="warning"] .stat-icon { color: var(--warning); }
-
-.stat-value {
+.custody-flow-total-num {
     font-size: var(--fs-3xl);
     font-weight: var(--fw-bold);
-    line-height: 1.1;
-    letter-spacing: var(--tracking-tight);
     color: var(--text-emphasis);
+    letter-spacing: var(--tracking-tight);
 }
-
-.stat-value .skeleton-value {
-    height: 36px;
-    width: 60px;
-}
-
-.stat-label {
-    font-size: var(--fs-sm);
-    color: var(--text-muted);
-    font-weight: var(--fw-medium);
-}
-
-.stat-sub {
+.custody-flow-total-label {
     font-size: var(--fs-xs);
-    color: var(--text-subtle);
-    min-height: 14px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 2px;
 }
 
-.stats-grid[aria-busy="true"] .stat-sub:empty::after {
-    content: '\00a0';
+/* River bar — segmentos coloridos proporcionais.
+   Cada segmento usa um --state-* como cor. Estados sem itens recebem
+   um gap (border-only) para se distinguirem visualmente. */
+.custody-river {
+    display: flex;
+    height: 14px;
+    border-radius: var(--r-pill);
+    background: var(--bg-subtle);
+    overflow: hidden;
+    margin-bottom: var(--sp-5);
+    border: 1px solid var(--border);
+}
+.custody-river-segment {
+    flex: 0 0 0;
+    transition: flex var(--t-slow) var(--ease);
+    min-width: 0;
+}
+.custody-river-segment.is-empty {
+    flex: 0 0 8px !important;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent 0 4px,
+        var(--border-strong) 4px 5px
+    );
+    opacity: 0.4;
 }
 
-/* =============================================================
-   2. EVIDÊNCIAS POR TIPO — breakdown bar chart
-   ============================================================= */
+/* Cards de estado — clicáveis, mostram count e label.
+   Grid responsivo: 7 cols em desktop, 4 em tablet, 2 em mobile. */
+.custody-flow-states {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--sp-2);
+}
+@media (min-width: 600px) {
+    .custody-flow-states {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+@media (min-width: 1024px) {
+    .custody-flow-states {
+        grid-template-columns: repeat(7, 1fr);
+        gap: var(--sp-3);
+    }
+}
 
-.evidences-type-chart {
+.flow-state-card {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-2);
-    padding: var(--sp-1) 0;
+    gap: 2px;
+    padding: var(--sp-3) var(--sp-2);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--state-color, var(--border-strong));
+    border-radius: var(--r-2);
+    color: inherit;
+    text-decoration: none;
+    transition: background var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease),
+                transform var(--t-fast) var(--ease);
+    min-width: 0;
 }
-
-.type-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 1.3fr) 3fr auto;
-    align-items: center;
-    gap: var(--sp-3);
-    padding: 4px 0;
-}
-
-.type-row-label {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-2);
-    font-size: var(--fs-sm);
-    color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.type-row-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 18px;
-    height: 18px;
-    color: var(--text-muted);
-    flex-shrink: 0;
-}
-
-.type-row-icon svg {
-    width: 16px;
-    height: 16px;
-}
-
-.type-row-bar {
-    height: 6px;
-    border-radius: var(--r-pill);
+.flow-state-card:hover {
     background: var(--surface-hover);
-    overflow: hidden;
+    border-color: var(--border-strong);
+    transform: translateY(-1px);
+}
+.flow-state-card:active {
+    transform: translateY(0);
+}
+.flow-state-card.is-empty {
+    opacity: 0.55;
+}
+.flow-state-card.is-empty:hover {
+    opacity: 1;
 }
 
-.type-row-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    border-radius: var(--r-pill);
-    transition: width 0.5s var(--ease);
+.flow-state-count {
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-bold);
+    line-height: 1.1;
+    color: var(--text-emphasis);
+    font-variant-numeric: tabular-nums;
 }
-
-.type-row-count {
-    font-size: var(--fs-sm);
+.flow-state-label {
+    font-size: var(--fs-xs);
     color: var(--text-muted);
-    font-weight: var(--fw-semi);
-    min-width: 32px;
-    text-align: right;
+    line-height: 1.25;
+    word-break: break-word;
+}
+.flow-state-pct {
+    font-size: var(--fs-micro);
+    color: var(--text-subtle);
+    margin-top: 2px;
     font-variant-numeric: tabular-nums;
 }
 
+/* Cores por estado — mapping para --state-* tokens (já existem em main.css). */
+.flow-state-card[data-state="APREENDIDA"]            { --state-color: var(--state-apreendida); }
+.flow-state-card[data-state="EM_TRANSPORTE"]         { --state-color: var(--state-em-transporte); }
+.flow-state-card[data-state="RECEBIDA_LABORATORIO"]  { --state-color: var(--state-recebida-laboratorio); }
+.flow-state-card[data-state="EM_PERICIA"]            { --state-color: var(--state-em-pericia); }
+.flow-state-card[data-state="CONCLUIDA"]             { --state-color: var(--state-concluida); }
+.flow-state-card[data-state="DEVOLVIDA"]             { --state-color: var(--state-devolvida); }
+.flow-state-card[data-state="DESTRUIDA"]             { --state-color: var(--state-destruida); }
+
 /* =============================================================
-   3. QUICK ACTIONS — grid de botões rápidos
+   2. QUICK ACTIONS — agora full width
    ============================================================= */
 
 .quick-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--sp-3);
-    padding: 0 var(--sp-4);
+    padding: 0;
+    margin-bottom: var(--sp-6);
 }
 
-/* Mobile (<=600px): as duas primeiras acções (Nova Ocorrência + Novo Item)
-   ocupam linha completa — são as decisões principais do agente no terreno.
-   As restantes ficam em 2 colunas como secundárias. */
+@media (min-width: 768px) {
+    .quick-actions {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (min-width: 1024px) {
+    .quick-actions {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
+/* Mobile (<=600px): primeiras 2 acções full-width (decisões principais
+   do agente no terreno: nova ocorrência + novo item). */
 @media (max-width: 600px) {
     .quick-actions > .action-btn:nth-child(-n+2) {
         grid-column: 1 / -1;
@@ -236,12 +189,6 @@
     }
     .quick-actions > .action-btn:nth-child(-n+2) .action-text strong {
         font-size: var(--fs-md);
-    }
-}
-
-@media (min-width: 768px) {
-    .quick-actions {
-        padding: 0;
     }
 }
 
@@ -262,12 +209,10 @@
     min-height: 64px;
     font-family: inherit;
 }
-
 .action-btn:hover {
     background: var(--surface-hover);
     border-color: var(--border-strong);
 }
-
 .action-btn:active {
     transform: scale(0.98);
 }
@@ -283,7 +228,6 @@
     color: var(--text-muted);
     flex-shrink: 0;
 }
-
 .action-icon svg {
     width: 18px;
     height: 18px;
@@ -302,13 +246,11 @@
     min-width: 0;
     flex: 1;
 }
-
 .action-text strong {
     font-size: var(--fs-sm);
     font-weight: var(--fw-semi);
     color: var(--text-emphasis);
 }
-
 .action-text small {
     font-size: var(--fs-xs);
     color: var(--text-muted);
@@ -316,30 +258,11 @@
 }
 
 /* =============================================================
-   4. RECENT OCCURRENCES — lista compacta
+   3. RECENT OCCURRENCES — secção compacta
    ============================================================= */
 
 .recent-section {
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-}
-
-/* =============================================================
-   5. DASHBOARD LAYOUT — 2 colunas no desktop
-   ============================================================= */
-
-.dashboard-layout {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-6);
-}
-
-@media (min-width: 1024px) {
-    .dashboard-layout {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: var(--sp-6);
-        align-items: start;
-    }
 }

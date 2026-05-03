@@ -1,70 +1,62 @@
 /* ForensiQ — timeline de cadeia de custódia (/evidences/<id>/custody/) */
 
-/* Scroll horizontal para tabelas em mobile (partilhado com custody_list).
-   No mobile (<768px) ocultamos as colunas secundárias (custodiante, anterior,
-   acções) para evitar scroll horizontal forçado. Desktop mostra tudo. */
-.custody-table-scroll {
-    width: 100%;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+/* Header — botões à direita lado a lado */
+.page-header-actions {
+    display: flex;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
 }
 
-@media (min-width: 768px) {
-    .custody-table-scroll .data-table {
-        min-width: 680px;
-    }
+/* ----------------------------------------------------------------
+   Sidebar — três cartões empilhados verticalmente em desktop e
+   mobile. O hash ocupa toda a largura do cartão e quebra natural-
+   mente, sem ficar comprimido em coluna estreita.
+---------------------------------------------------------------- */
+
+.custody-layout {
+    padding: 0;
 }
 
-@media (max-width: 767px) {
-    .custody-table-scroll .data-table {
-        width: 100%;
-    }
-    /* Hide secondary columns on mobile: 2=ESTADO ANTERIOR, 3=PARA, 6=ACÇÕES.
-       Mantém visíveis: 1=EVIDÊNCIA, 4=ESTADO, 5=DATA/HORA. */
-    .custody-table-scroll .data-table th:nth-child(2),
-    .custody-table-scroll .data-table td:nth-child(2),
-    .custody-table-scroll .data-table th:nth-child(3),
-    .custody-table-scroll .data-table td:nth-child(3),
-    .custody-table-scroll .data-table th:nth-child(6),
-    .custody-table-scroll .data-table td:nth-child(6) {
-        display: none;
-    }
-}
-
-/* Cartão de identidade do item de prova — usa tokens consistentes do design
-   system. Layout em coluna no mobile (legível, sem competir por espaço). */
-.evidence-header {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-3);
-    padding: var(--sp-4);
+.custody-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
     margin-bottom: var(--sp-6);
 }
 
-.evidence-header h3 {
-    margin: 0;
+.sidebar-card {
+    padding: var(--sp-4);
+}
+
+.sidebar-card-label {
+    margin-bottom: var(--sp-2);
+}
+
+.sidebar-card h3 {
+    margin: 0 0 var(--sp-3);
     font-size: var(--fs-md);
     font-weight: var(--fw-semi);
     line-height: 1.3;
     color: var(--text);
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
-/* dl de metadados (Tipo, Apreensão, Hash) — uma linha por entrada. */
-.evidence-meta {
-    display: grid;
-    grid-template-columns: 1fr;
+.sidebar-meta {
+    display: flex;
+    flex-direction: column;
     gap: var(--sp-3);
-    margin-top: var(--sp-3);
+    margin: 0;
 }
 
-.evidence-meta > div {
+.sidebar-meta > div {
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
 
-.evidence-meta dt {
+.sidebar-meta dt {
     font-size: var(--fs-xs);
     color: var(--text-subtle);
     text-transform: uppercase;
@@ -72,7 +64,7 @@
     font-weight: var(--fw-semi);
 }
 
-.evidence-meta dd {
+.sidebar-meta dd {
     margin: 0;
     font-size: var(--fs-sm);
     color: var(--text);
@@ -80,15 +72,121 @@
     overflow-wrap: anywhere;
 }
 
+/* Hash em monospace, full width do cartão. break-all garante que
+   se quebra em qualquer carácter (necessário com hex de 64 chars
+   sem espaços). */
+.hash-block {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    line-height: 1.45;
+    color: var(--text);
+    background: var(--bg-subtle);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-2);
+    border: 1px solid var(--border);
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    user-select: all;
+    transition: background var(--t-fast) var(--ease);
+}
+.hash-block:hover {
+    background: var(--surface-hover);
+}
+
+/* ----------------------------------------------------------------
+   Barra de progresso de estados — 7 passos. Em desktop ocupa toda
+   a largura disponível sem scroll. Em mobile encolhe os labels e
+   mantém-se sem scroll horizontal — labels vão para 2 linhas.
+---------------------------------------------------------------- */
+
+.state-progress {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: var(--sp-6);
+    padding: var(--sp-3) 0;
+}
+
+.state-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    position: relative;
+}
+
+.state-step::after {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    z-index: 0;
+}
+
+.state-step:last-child::after {
+    display: none;
+}
+
+.state-step.done::after {
+    background: var(--accent);
+}
+
+.state-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--border);
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--fs-xs);
+    color: #fff;
+    border: 2px solid var(--bg);
+}
+
+.state-step.done .state-step-dot {
+    background: var(--accent);
+}
+
+.state-step.current .state-step-dot {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.state-step-label {
+    font-size: 0.6875rem;
+    text-align: center;
+    margin-top: var(--sp-1);
+    color: var(--text-subtle);
+    line-height: 1.25;
+    padding: 0 4px;
+    width: 100%;
+}
+
+.state-step.done .state-step-label,
+.state-step.current .state-step-label {
+    color: var(--text);
+    font-weight: var(--fw-medium);
+}
+
 @media (min-width: 768px) {
-    .evidence-meta {
-        grid-template-columns: repeat(2, 1fr);
-        gap: var(--sp-4);
+    .state-step-label {
+        font-size: var(--fs-xs);
     }
 }
 
-/* Timeline cronológica — cada registo é um cartão alinhado a um ponto na linha
-   vertical. Spacing/font-sizes uniformizados com tokens do design system. */
+/* ----------------------------------------------------------------
+   Timeline cronológica — linha vertical centrada no ponto.
+   Padding-left = 32, dot left -25, dot 14px → centro a 14 do container.
+   Linha em left:13 width:2 → centro a 14. Match exacto.
+---------------------------------------------------------------- */
+
 .timeline {
     position: relative;
     padding-left: 32px;
@@ -98,7 +196,7 @@
 .timeline::before {
     content: '';
     position: absolute;
-    left: 11px;
+    left: 13px;
     top: 8px;
     bottom: 8px;
     width: 2px;
@@ -126,7 +224,6 @@
     z-index: 1;
 }
 
-/* Cores coerentes com state-pill e --state-* tokens (main.css) */
 .timeline-dot.state-APREENDIDA           { background: var(--state-apreendida); }
 .timeline-dot.state-EM_TRANSPORTE        { background: var(--state-em-transporte); }
 .timeline-dot.state-RECEBIDA_LABORATORIO { background: var(--state-recebida-laboratorio); }
@@ -189,116 +286,38 @@
     overflow-wrap: anywhere;
 }
 
-.hash-label {
-    display: block;
-    font-size: var(--fs-xs);
-    color: var(--text-subtle);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: var(--fw-semi);
-    margin-bottom: 2px;
-}
+/* ----------------------------------------------------------------
+   Layout grid — em desktop: sidebar (320px) à esquerda + main.
+---------------------------------------------------------------- */
 
-/* Barra de progresso de estados — 6 passos com label.
-   Mobile (<768px): scroll horizontal com 60px por step (texto encolhe).
-   Desktop: 80px confortável. */
-.state-progress {
-    display: flex;
-    align-items: stretch;
-    gap: 0;
-    margin: 0 calc(-1 * var(--sp-4)) var(--sp-4);
-    padding: var(--sp-3) var(--sp-4);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-}
-
-.state-step {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 0 0 60px;
-    min-width: 60px;
-    position: relative;
-}
-
-.state-step::after {
-    content: '';
-    position: absolute;
-    top: 13px;
-    right: -50%;
-    width: 100%;
-    height: 2px;
-    background: var(--border);
-    z-index: 0;
-}
-
-.state-step:last-child::after {
-    display: none;
-}
-
-.state-step.done::after {
-    background: var(--accent);
-}
-
-.state-step-dot {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--border);
-    z-index: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: var(--fs-xs);
-    color: #fff;
-    border: 2px solid var(--bg);
-}
-
-.state-step.done .state-step-dot {
-    background: var(--accent);
-}
-
-.state-step.current .state-step-dot {
-    background: var(--accent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
-}
-
-.state-step-label {
-    font-size: 0.6875rem;
-    text-align: center;
-    margin-top: var(--sp-1);
-    color: var(--text-subtle);
-    max-width: 60px;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.state-step.done .state-step-label,
-.state-step.current .state-step-label {
-    color: var(--text);
-    font-weight: var(--fw-medium);
-}
-
-@media (min-width: 768px) {
-    .state-progress {
-        margin: 0 0 var(--sp-6);
-        padding: 0;
+@media (min-width: 1024px) {
+    .custody-layout {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: var(--sp-6);
+        align-items: start;
     }
-    .state-step {
-        flex: 1;
-        min-width: 80px;
+
+    .custody-sidebar {
+        position: sticky;
+        top: calc(var(--navbar-h-desktop) + var(--sp-4));
+        margin-bottom: 0;
     }
-    .state-step-label {
-        max-width: 100px;
-        font-size: var(--fs-xs);
+
+    .timeline {
+        padding-left: 40px;
+    }
+
+    /* dot continua em left:-25 com 14px → centro em 40-25+7=22; linha
+       em left:21, width:2 → centro em 22. Match exacto. */
+    .timeline::before {
+        left: 21px;
     }
 }
 
-.new-transition-btn {
-    margin-bottom: var(--sp-4);
-}
+/* ----------------------------------------------------------------
+   Modal de transição (cascade)
+---------------------------------------------------------------- */
 
 .modal-overlay {
     display: flex;
@@ -313,11 +332,6 @@
 
 .modal-overlay[hidden] {
     display: none !important;
-}
-
-.modal-overlay.open,
-.modal-overlay.active {
-    display: flex;
 }
 
 .modal {
@@ -340,59 +354,6 @@
     margin-top: 16px;
     justify-content: flex-end;
 }
-
-/* ---- Desktop ---- */
-
-@media (min-width: 768px) {
-    .evidence-header {
-        padding: 20px 24px;
-    }
-
-    .timeline {
-        padding-left: 40px;
-    }
-
-    .timeline-card {
-        padding: 16px 20px;
-    }
-
-    .state-step {
-        min-width: 80px;
-    }
-
-    .state-step-label {
-        font-size: 0.6875rem;
-        max-width: 80px;
-    }
-}
-
-/* Edge padding em mobile — sem isto, evidence-header e timeline ficam
-   colados aos limites do viewport (UX má quando se usa em telemóvel). */
-.custody-layout {
-    padding: 0 var(--sp-4);
-}
-
-@media (min-width: 768px) {
-    .custody-layout {
-        padding: 0;
-    }
-}
-
-@media (min-width: 1024px) {
-    .custody-layout {
-        display: grid;
-        grid-template-columns: 280px 1fr;
-        gap: 24px;
-        align-items: start;
-    }
-
-    .custody-layout .evidence-header {
-        position: sticky;
-        top: 72px;
-    }
-}
-
-/* ---------- Cascade checklist (modal de transição) ---------- */
 
 .cascade-list {
     display: flex;

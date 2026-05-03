@@ -23,53 +23,64 @@
             <h1 class="page-title">Cadeia de custódia</h1>
             <p class="page-subtitle" id="evidence-subtitle">A carregar…</p>
         </div>
-        <a href="/evidences/" id="btn-back-evidence" class="btn btn-ghost btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m15 18-6-6 6-6"/>
-            </svg>
-            Voltar ao item
-        </a>
+        <div class="page-header-actions">
+            <a href="/evidences/" id="btn-back-evidence" class="btn btn-ghost btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="m15 18-6-6 6-6"/>
+                </svg>
+                Voltar ao item
+            </a>
+            <button class="btn btn-primary btn-sm" id="btn-new-transition" hidden>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Registar transição
+            </button>
+        </div>
     </header>
 
     <div class="custody-layout">
 
-        <!-- Sidebar: identidade do item -->
-        <aside class="card evidence-header" id="evidence-header" hidden>
-            <div class="section-label px-0 mb-2">Item de prova</div>
-            <h3 id="evidence-description">—</h3>
-            <dl class="evidence-meta">
-                <div>
-                    <dt>Tipo</dt>
-                    <dd id="evidence-type">—</dd>
-                </div>
-                <div>
-                    <dt>Apreensão</dt>
-                    <dd class="mono" id="evidence-timestamp">—</dd>
-                </div>
-                <div>
-                    <dt>Hash SHA-256</dt>
-                    <dd class="hash hash-block" id="evidence-hash" title="Hash de integridade SHA-256 — clique para copiar">—</dd>
-                </div>
-            </dl>
+        <!-- Sidebar: identidade do item, em três blocos empilhados.
+             Cada bloco tem o seu próprio cartão para clareza visual:
+             1) Item de prova, 2) Apreensão, 3) Hash de integridade. -->
+        <aside class="custody-sidebar" id="evidence-header" hidden>
+            <section class="card sidebar-card">
+                <div class="section-label sidebar-card-label">Item de prova</div>
+                <h3 id="evidence-description">—</h3>
+                <dl class="sidebar-meta">
+                    <div>
+                        <dt>Tipo</dt>
+                        <dd id="evidence-type">—</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="card sidebar-card">
+                <div class="section-label sidebar-card-label">Apreensão</div>
+                <dl class="sidebar-meta">
+                    <div>
+                        <dt>Data / hora</dt>
+                        <dd class="mono" id="evidence-timestamp">—</dd>
+                    </div>
+                </dl>
+            </section>
+
+            <section class="card sidebar-card">
+                <div class="section-label sidebar-card-label">Hash SHA-256</div>
+                <div class="hash-block" id="evidence-hash"
+                     title="Hash de integridade — clique para copiar">—</div>
+            </section>
         </aside>
 
-        <!-- Coluna principal: progresso + botão + timeline -->
+        <!-- Coluna principal: progresso + timeline -->
         <div class="custody-main">
 
-            <!-- Barra de progresso dos estados -->
-            <div class="state-progress" id="state-progress" aria-label="Progresso da cadeia de custódia"></div>
-
-            <!-- Botão de nova transição (só para quem tem permissão) -->
-            <div id="new-transition-container" hidden>
-                <button class="btn btn-primary" id="btn-new-transition">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    Registar transição
-                </button>
-            </div>
+            <!-- Barra de progresso dos estados (cabe no viewport, sem scroll) -->
+            <div class="state-progress" id="state-progress"
+                 aria-label="Progresso da cadeia de custódia"></div>
 
             <!-- Timeline -->
             <div id="timeline-container" class="timeline" aria-busy="true" aria-live="polite">

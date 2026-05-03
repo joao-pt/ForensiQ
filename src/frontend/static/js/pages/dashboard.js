@@ -1,15 +1,30 @@
 'use strict';
 
-document.addEventListener('DOMContentLoaded', async function () {
-    var authenticated = await Auth.requireAuth();
-    if (!authenticated) return;
+/**
+ * ForensiQ — Dashboard.
+ *
+ * Hero: Cadeia de custódia (river bar + cards clicáveis por estado).
+ * Acções rápidas (full width) + Últimas ocorrências em baixo.
+ * Distribuição por tipo de item migrou para /stats/.
+ */
 
-    var user = Auth.getUser();
+const STATE_FLOW = [
+    { key: 'APREENDIDA',           label: 'Apreendida' },
+    { key: 'EM_TRANSPORTE',        label: 'Em transporte' },
+    { key: 'RECEBIDA_LABORATORIO', label: 'No laboratório' },
+    { key: 'EM_PERICIA',           label: 'Em perícia' },
+    { key: 'CONCLUIDA',            label: 'Concluída' },
+    { key: 'DEVOLVIDA',            label: 'Devolvida' },
+    { key: 'DESTRUIDA',            label: 'Destruída' },
+];
+
+document.addEventListener('DOMContentLoaded', async function () {
+    if (!await Auth.requireAuth()) return;
+
+    const user = Auth.getUser();
     initDashboard(user);
     loadStats();
     loadRecentOccurrences();
-
-    // Logout e user-menu são cuidados por user-menu.js (carregado no base.html).
 
     document.querySelectorAll('[data-nav]').forEach(function (el) {
         el.addEventListener('click', function () {
@@ -21,15 +36,15 @@ document.addEventListener('DOMContentLoaded', async function () {
 function initDashboard(user) {
     if (!user) return;
 
-    var greeting = document.getElementById('greeting');
-    var hour = new Date().getHours();
-    var salutation = 'Bom dia';
+    const greeting = document.getElementById('greeting');
+    const hour = new Date().getHours();
+    let salutation = 'Bom dia';
     if (hour >= 13 && hour < 20) salutation = 'Boa tarde';
     else if (hour >= 20 || hour < 6) salutation = 'Boa noite';
     greeting.textContent = salutation + ', ' + (user.first_name || user.username);
 
-    var profileInfo = document.getElementById('profile-info');
-    var profileLabel = CONFIG.PROFILES[user.profile] || user.profile;
+    const profileInfo = document.getElementById('profile-info');
+    const profileLabel = CONFIG.PROFILES[user.profile] || user.profile;
     profileInfo.replaceChildren();
     profileInfo.textContent = profileLabel;
 
@@ -40,79 +55,41 @@ function initDashboard(user) {
     }
 }
 
-/**
- * Carrega estatísticas agregadas do endpoint `/api/stats/dashboard/` da
- * Wave 2c. Se estiver indisponível (503 ou falha de rede), recai para
- * `/api/stats/` legacy e, em último caso, mostra "—" nos números.
- */
 async function loadStats() {
-    var grid = document.getElementById('stats-grid');
-    var breakdown = document.getElementById('evidences-breakdown');
+    const flowCard = document.getElementById('custody-flow');
+    if (flowCard) flowCard.setAttribute('aria-busy', 'true');
 
-    if (grid) grid.setAttribute('aria-busy', 'true');
-
-    var data = await fetchDashboardStats();
+    const data = await fetchDashboardStats();
 
     if (!data) {
-        setStat('stat-occurrences', '—');
-        setStat('stat-evidences', '—');
-        setStat('stat-analysis', '—');
-        setStat('stat-custody', '—');
-        setStatSub('stat-occurrences-sub', 'indisponível');
-        setStatSub('stat-evidences-sub', 'indisponível');
-        setStatSub('stat-analysis-sub', 'indisponível');
-        setStatSub('stat-custody-sub', 'indisponível');
-        renderBreakdown({});
-        if (grid) grid.setAttribute('aria-busy', 'false');
+        renderCustodyFlow({ total: 0, byState: {}, withoutCustody: 0, error: true });
+        if (flowCard) flowCard.setAttribute('aria-busy', 'false');
         return;
     }
 
-    // Novo shape (Wave 2c+):
-    //   total_occurrences, open_occurrences, total_evidences,
-    //   evidences_by_type, custodies_in_transit, evidences_in_analysis
-    // O legado "devices"/"total_devices" foi descontinuado em favor da
-    // taxonomia Evidence (sub_components) — agora mostramos "Em perícia".
-    var occTotal = pickNumber(data.total_occurrences, data.occurrences);
-    var occOpen = pickNumber(data.open_occurrences, null);
-    var evTotal = pickNumber(data.total_evidences, data.evidences);
-    var inAnalysis = pickNumber(data.evidences_in_analysis,
-                                (data.custody_by_state || {}).EM_PERICIA);
-    var inTransit = pickNumber(data.custodies_in_transit,
-                               (data.custody_by_state || {}).EM_TRANSPORTE);
-    var byType = data.evidences_by_type || data.evidence_by_type || {};
+    const total = pickNumber(data.total_evidences, data.evidences);
+    const byState = data.evidences_by_current_state
+        || data.custody_by_state          // fallback ao endpoint legado
+        || {};
+    const withoutCustody = pickNumber(data.evidences_without_custody, 0);
 
-    setStat('stat-occurrences', occTotal);
-    setStat('stat-evidences', evTotal);
-    setStat('stat-analysis', inAnalysis);
-    setStat('stat-custody', inTransit);
-
-    if (occOpen !== null && occOpen !== undefined) {
-        setStatSub('stat-occurrences-sub', occOpen + ' em aberto');
-    }
-
-    renderBreakdown(byType);
-
-    if (grid) grid.setAttribute('aria-busy', 'false');
-    if (breakdown) breakdown.setAttribute('aria-busy', 'false');
+    renderCustodyFlow({ total, byState, withoutCustody });
+    if (flowCard) flowCard.setAttribute('aria-busy', 'false');
 }
 
 async function fetchDashboardStats() {
-    // 1. Tenta o endpoint novo agregado (Wave 2c)
     try {
-        var r = await fetch(CONFIG.ENDPOINTS.STATS_DASHBOARD, { credentials: 'include' });
+        const r = await fetch(CONFIG.ENDPOINTS.STATS_DASHBOARD, { credentials: 'include' });
         if (r.ok) return await r.json();
         if (r.status === 503) {
             console.warn('Serviço de estatísticas temporariamente indisponível.');
             return null;
         }
-        // 404 → provavelmente Wave 2c ainda não aterrou; tenta legacy
     } catch (err) {
         console.warn('Falha ao contactar /api/stats/dashboard/:', err);
     }
-
-    // 2. Fallback para endpoint legacy
     try {
-        var r2 = await fetch(CONFIG.ENDPOINTS.STATS_LEGACY, { credentials: 'include' });
+        const r2 = await fetch(CONFIG.ENDPOINTS.STATS_LEGACY, { credentials: 'include' });
         if (r2.ok) return await r2.json();
     } catch (err2) {
         console.error('Falha também em /api/stats/:', err2);
@@ -126,77 +103,90 @@ function pickNumber(a, b) {
     return 0;
 }
 
-function setStat(id, value) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = value;
-}
+/**
+ * Renderiza a "river bar" + cards clicáveis por estado.
+ *
+ * - River: 7 segmentos com flex proporcional ao count. Estados a 0
+ *   recebem um sliver com hatching (8px) para denunciar a sua presença.
+ * - Cards: count grande + label + percentagem; click navega para
+ *   /evidences/?state=<KEY> (já filtrável pelo backend).
+ */
+function renderCustodyFlow({ total, byState, withoutCustody, error }) {
+    const totalEl = document.getElementById('custody-flow-total-num');
+    const river = document.getElementById('custody-river');
+    const states = document.getElementById('custody-flow-states');
+    if (!totalEl || !river || !states) return;
 
-function setStatSub(id, text) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = text || '';
-}
+    const totalCovered = STATE_FLOW.reduce(
+        (acc, s) => acc + (Number(byState[s.key]) || 0), 0,
+    );
+    const totalShown = total || (totalCovered + (withoutCustody || 0));
 
-function renderBreakdown(byType) {
-    var chart = document.getElementById('evidences-type-chart');
-    if (!chart) return;
-    chart.replaceChildren();
+    totalEl.textContent = error ? '—' : String(totalShown);
 
-    var entries = Object.keys(byType || {}).map(function (k) {
-        return { type: k, count: Number(byType[k]) || 0 };
-    }).filter(function (e) { return e.count > 0; });
+    river.replaceChildren();
+    states.replaceChildren();
 
-    if (entries.length === 0) {
-        var empty = document.createElement('p');
-        empty.className = 'text-muted';
-        empty.textContent = 'Sem itens registados.';
-        chart.appendChild(empty);
+    if (error) {
+        const msg = document.createElement('p');
+        msg.className = 'text-muted';
+        msg.style.padding = 'var(--sp-3)';
+        msg.textContent = 'Não foi possível carregar a distribuição de custódia.';
+        states.appendChild(msg);
         return;
     }
 
-    entries.sort(function (a, b) { return b.count - a.count; });
-    var max = entries[0].count || 1;
+    const denominator = totalCovered || 1;
 
-    entries.forEach(function (e) {
-        var row = document.createElement('div');
-        row.className = 'type-row';
-        row.setAttribute('role', 'listitem');
+    STATE_FLOW.forEach((s) => {
+        const count = Number(byState[s.key]) || 0;
+        const pct = totalCovered > 0 ? (count / denominator) * 100 : 0;
 
-        var label = document.createElement('div');
-        label.className = 'type-row-label';
-        var icon = document.createElement('span');
-        icon.className = 'type-row-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        var svgIcon = Icons.forEvidenceElement(e.type, { size: 16 });
-        if (svgIcon) icon.appendChild(svgIcon);
-        var name = document.createElement('span');
-        name.textContent = CONFIG.EVIDENCE_TYPES[e.type] || e.type;
-        label.appendChild(icon);
-        label.appendChild(name);
+        // River segment.
+        const seg = document.createElement('div');
+        seg.className = 'custody-river-segment' + (count === 0 ? ' is-empty' : '');
+        seg.dataset.state = s.key;
+        seg.style.flex = count > 0 ? `${count} 1 0` : '';
+        seg.style.background = count > 0 ? `var(--state-${s.key.toLowerCase().replace(/_/g, '-')})` : '';
+        seg.title = `${s.label}: ${count} ${count === 1 ? 'item' : 'itens'}`;
+        river.appendChild(seg);
 
-        var barWrap = document.createElement('div');
-        barWrap.className = 'type-row-bar';
-        var bar = document.createElement('div');
-        bar.className = 'type-row-bar-fill';
-        bar.style.width = Math.max(2, (e.count / max) * 100) + '%';
-        barWrap.appendChild(bar);
+        // Card.
+        const card = document.createElement('a');
+        card.className = 'flow-state-card' + (count === 0 ? ' is-empty' : '');
+        card.dataset.state = s.key;
+        card.href = `/evidences/?state=${s.key}`;
+        card.setAttribute('role', 'listitem');
+        card.setAttribute('aria-label',
+            `${s.label}: ${count} ${count === 1 ? 'item' : 'itens'} — abrir lista filtrada`);
 
-        var val = document.createElement('div');
-        val.className = 'type-row-count mono';
-        val.textContent = String(e.count);
+        const countEl = document.createElement('div');
+        countEl.className = 'flow-state-count';
+        countEl.textContent = String(count);
 
-        row.appendChild(label);
-        row.appendChild(barWrap);
-        row.appendChild(val);
-        chart.appendChild(row);
+        const labelEl = document.createElement('div');
+        labelEl.className = 'flow-state-label';
+        labelEl.textContent = s.label;
+
+        const pctEl = document.createElement('div');
+        pctEl.className = 'flow-state-pct';
+        pctEl.textContent = totalCovered > 0
+            ? `${pct.toFixed(0)}%`
+            : '—';
+
+        card.appendChild(countEl);
+        card.appendChild(labelEl);
+        card.appendChild(pctEl);
+        states.appendChild(card);
     });
 }
 
 async function loadRecentOccurrences() {
-    var container = document.getElementById('recent-occurrences');
+    const container = document.getElementById('recent-occurrences');
 
     try {
-        var data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 5 });
-        var occurrences = data.results || [];
+        const data = await API.get(CONFIG.ENDPOINTS.OCCURRENCES, { page_size: 5 });
+        const occurrences = data.results || [];
 
         container.replaceChildren();
 
@@ -210,8 +200,8 @@ async function loadRecentOccurrences() {
         });
     } catch (err) {
         container.replaceChildren();
-        var empty = buildEmptyState(null, 'Erro ao carregar ocorrências.');
-        var p = empty.querySelector('p');
+        const empty = buildEmptyState(null, 'Erro ao carregar ocorrências.');
+        const p = empty.querySelector('p');
         if (p) p.classList.add('text-danger');
         container.appendChild(empty);
         console.error('Erro:', err);
@@ -219,46 +209,44 @@ async function loadRecentOccurrences() {
 }
 
 function buildOccurrenceRow(occ) {
-    var date = new Date(occ.date_time).toLocaleDateString('pt-PT', {
+    const date = new Date(occ.date_time).toLocaleDateString('pt-PT', {
         day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
+        hour: '2-digit', minute: '2-digit',
     });
 
-    var row = document.createElement('a');
+    const row = document.createElement('a');
     row.className = 'list-item';
     row.href = '/occurrences/' + occ.id + '/';
 
-    var content = document.createElement('div');
+    const content = document.createElement('div');
     content.className = 'list-item-content';
 
-    var num = document.createElement('div');
+    const num = document.createElement('div');
     num.className = 'list-item-title';
     num.textContent = occ.number;
     content.appendChild(num);
 
-    var desc = document.createElement('div');
+    const desc = document.createElement('div');
     desc.className = 'list-item-subtitle';
-    var snippet = (occ.description || '').substring(0, 80);
+    const snippet = (occ.description || '').substring(0, 80);
     desc.textContent = (occ.description || '').length > 80 ? snippet + '...' : snippet;
     content.appendChild(desc);
 
     if (occ.address) {
-        var addr = document.createElement('div');
+        const addr = document.createElement('div');
         addr.className = 'list-item-subtitle text-subtle';
         addr.textContent = occ.address;
         content.appendChild(addr);
     }
 
-    var right = document.createElement('div');
+    const right = document.createElement('div');
     right.className = 'list-item-meta mono';
     right.textContent = date;
 
     row.appendChild(content);
     row.appendChild(right);
 
-    // Chevron — alinha o estilo das linhas com as listagens /occurrences/
-    // e /evidences/ (que já mostram chevron à direita).
-    var chev = Icons.element('chevron-right', { size: 16 });
+    const chev = Icons.element('chevron-right', { size: 16 });
     if (chev) {
         chev.classList.add('list-item-chevron');
         row.appendChild(chev);
@@ -268,16 +256,16 @@ function buildOccurrenceRow(occ) {
 }
 
 function buildEmptyState(iconName, message) {
-    var wrapper = document.createElement('div');
+    const wrapper = document.createElement('div');
     wrapper.className = 'empty-state';
     if (iconName) {
-        var ic = document.createElement('div');
+        const ic = document.createElement('div');
         ic.className = 'empty-state-icon';
-        var svgIcon = Icons.element(iconName, { size: 22 });
+        const svgIcon = Icons.element(iconName, { size: 22 });
         if (svgIcon) ic.appendChild(svgIcon);
         wrapper.appendChild(ic);
     }
-    var p = document.createElement('p');
+    const p = document.createElement('p');
     p.textContent = message;
     wrapper.appendChild(p);
     return wrapper;
