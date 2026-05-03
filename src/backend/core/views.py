@@ -1085,12 +1085,20 @@ class MediaServeView(APIView):
         if not target.is_file():
             raise Http404('Ficheiro não encontrado.')
 
-        # Ownership: extrai occurrence number do path
-        # (evidencias/<number>/<uuid>_<filename>).
+        # Ownership: extrai occurrence code do path
+        # (evidencias/<code>/<uuid>_<filename>). O ``code`` é o
+        # OCC-YYYY-NNNNN gerado pelo sistema (sem caracteres especiais);
+        # NUIPCs reais contêm ``/`` que partia o path em segmentos extra
+        # e fazia o lookup falhar (ex.: NUIPC.812/2026.LISBOA).
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == 'evidencias':
-            occurrence_number = parts[1]
-            occurrence = Occurrence.objects.filter(number=occurrence_number).first()
+            occurrence_ref = parts[1]
+            # Compatibilidade com uploads antigos (anteriores ao fix):
+            # tentar primeiro pelo ``code``, depois pelo ``number``.
+            occurrence = (
+                Occurrence.objects.filter(code=occurrence_ref).first()
+                or Occurrence.objects.filter(number=occurrence_ref).first()
+            )
             if occurrence is None:
                 raise Http404('Ocorrência não encontrada.')
             if not _user_can_access_occurrence(request.user, occurrence):

@@ -292,8 +292,15 @@ class EvidenceQuerySet(models.QuerySet):
 
 
 def evidence_photo_path(instance, filename):
-    """Caminho de upload: evidencias/<occurrence_number>/<uuid>_<filename>."""
-    return f'evidencias/{instance.occurrence.number}/{uuid.uuid4().hex[:8]}_{filename}'
+    """Caminho de upload: evidencias/<occurrence_code>/<uuid>_<filename>.
+
+    Usa o ``code`` da ocorrência (formato OCC-YYYY-NNNNN, gerado pelo
+    sistema, sem caracteres especiais) em vez do ``number`` (NUIPC),
+    porque NUIPCs reais contêm ``/`` (ex.: ``NUIPC.812/2026.LISBOA``)
+    que parte o path para múltiplos segmentos e impede o
+    ``MediaServeView`` de fazer o lookup correcto da ocorrência.
+    """
+    return f'evidencias/{instance.occurrence.code}/{uuid.uuid4().hex[:8]}_{filename}'
 
 
 class Evidence(models.Model):
