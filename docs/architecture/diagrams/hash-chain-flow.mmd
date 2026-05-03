@@ -1,0 +1,52 @@
+%% ForensiQ — Fluxograma do cálculo de hash encadeado
+%% Fonte: src/backend/core/models.py:989-1031 (compute_record_hash)
+%% Render: mmdc -i hash-chain-flow.mmd -o hash-chain-flow.png -w 1400 -t neutral
+
+flowchart TB
+    classDef field fill:#e3f2fd,stroke:#1565c0
+    classDef proc fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef out fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef tampered fill:#ffebee,stroke:#c62828,stroke-width:3px
+
+    subgraph PREV["Registo anterior N-1"]
+      H_PREV["record_hash<sub>N-1</sub><br/>64 chars hex"]:::out
+    end
+
+    subgraph NEW["Novo registo N"]
+      F1["sequence = N"]:::field
+      F2["evidence_id"]:::field
+      F3["previous_state"]:::field
+      F4["new_state"]:::field
+      F5["agent_id"]:::field
+      F6["timestamp ISO 8601<br/>servidor NTP-synced"]:::field
+      F7["observations"]:::field
+    end
+
+    H_PREV --> CONCAT
+    F1 --> CONCAT
+    F2 --> CONCAT
+    F3 --> CONCAT
+    F4 --> CONCAT
+    F5 --> CONCAT
+    F6 --> CONCAT
+    F7 --> CONCAT
+
+    CONCAT["Concatenação UTF-8 com separador '|'<br/>{prev_hash}|seq=N|{ev_id}|{prev_state}|{new_state}|{agent}|{ts}|{obs}"]:::proc
+    CONCAT --> SHA["hashlib.sha256<br/>.hexdigest"]:::proc
+    SHA --> OUT["record_hash<sub>N</sub><br/>64 chars hex"]:::out
+    OUT --> NEXT["entrada N+1<br/>usa record_hash<sub>N</sub> como prev_hash"]
+
+    subgraph TAMPER["Detecção de adulteração"]
+      direction LR
+      H0["record_hash<sub>0</sub><br/>= 0 x 64"]:::out
+      H1["record_hash<sub>1</sub><br/>SEIZED to IN_TRANSIT"]:::tampered
+      H2["record_hash<sub>2</sub><br/>invalidado"]
+      H3["record_hash<sub>3</sub><br/>invalidado"]
+      H0 --> H1 --> H2 --> H3
+      A_TAMPER["Adulteração no registo 1<br/>quebra cadeia"]
+      A_TAMPER -.->|invalida| H1
+      H1 -.->|propaga| H2
+      H2 -.->|propaga| H3
+    end
+
+    OUT -.->|"recálculo independente<br/>verifica integridade"| TAMPER

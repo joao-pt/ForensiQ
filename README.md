@@ -12,14 +12,15 @@
 
 ## Estado actual
 
-🟢 **MVP funcional em produção · Fase 2 em curso (Relatório Intercalar prazo 6 mai 2026).**
+🟢 **MVP funcional em produção · Sem. 7 · Relatório Intercalar pronto para entrega 6 mai 2026.**
 
-- Backend Django 5 + DRF com 169 testes a passar.
-- Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like).
-- 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence).
-- Frontend HTML/CSS/JS vanilla, mobile-first; mapa Leaflet/OpenStreetMap; PDF export ReportLab.
-- HTTPS A+ no SSL Labs, HSTS preload submetido, CSP com nonce por request.
-- Auditorias completas (auditoria de segurança 2026-04-16, auditoria de design 2026-04-18, sweep UX 2026-05-02).
+- Backend Django 5 + DRF com **213 testes** a passar (cobertura 67,4%).
+- Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
+- 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
+- Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select e CSV export streaming (cap 10k).
+- Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com 5 ocorrências PT realistas e fotos placeholder.
+- HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
+- Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
 
 ---
 
@@ -96,18 +97,23 @@
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (169 a passar)
+### Testes (213 a passar · cobertura 67,4%)
 | Suite | Casos | Cobertura |
 |---|---|---|
-| `tests.py` | 14 | Modelos (User, Occurrence, Evidence, DigitalDevice, ChainOfCustody) |
-| `tests_api.py` | 96 | API (auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle) |
-| `tests_frontend.py` | 45 | Frontend views, templates, redirect, conteúdo HTML |
-| `tests_pdf.py` | 14 | PDF export (geração, sanitização, content-type, 404, com/sem dispositivos) |
+| `tests.py` | Modelos | User, Occurrence, Evidence, DigitalDevice, ChainOfCustody |
+| `tests_api.py` | API | auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle |
+| `tests_frontend.py` | Frontend | views, templates, redirect, conteúdo HTML, JWT cookie |
+| `tests_pdf.py` | PDF export | geração, sanitização, content-type, 404, com/sem dispositivos |
+| `tests_new_features.py` | Cascade + CSV | cascade custody, CSV streaming, audit log |
+| `tests_table_mode.py` | Modo tabela densa | DataTable, multi-select, sort, paginação |
+| `tests_factories.py` | Helpers | factory-boy fixtures partilhadas |
+
+Cobertura por módulo: modelos 78,9% · views 75,1% · pdf_export 86,7%.
 
 ```bash
 cd src/backend
 ../../.venv/Scripts/python.exe -m pytest -q
-# 169 passed
+# 213 passed
 ```
 
 ### Conformidade
@@ -123,20 +129,34 @@ cd src/backend
 ```
 ForensiQ/
 ├── docs/
-│   ├── architecture/adr/      # ADRs 0001-0010
-│   ├── compliance/            # SSL Labs, HSTS, HTTP Observatory
-│   ├── design/                # Auditoria de design 2026-04-18 (interactiva)
-│   ├── deployment/            # Guia Fly.io
-│   └── scope/                 # changelog.md, plan.md
+│   ├── scope/                       # § 5 do guia: âmbito + planeamento
+│   │   ├── proposta.md / .tex       # Sinopse, MVP, critérios de aceitação
+│   │   ├── requirements.md / .tex   # MoSCoW (RF01-17, RNF01-06)
+│   │   ├── risks.md / .tex          # R01-R10 + matriz de controlos forenses
+│   │   ├── changelog.md             # Uma entrada por semana (Sem 1-7)
+│   │   └── iso27037-traceability.tex/pdf  # Mapeamento à norma
+│   ├── architecture/                # § 5 do guia: design
+│   │   ├── c4-context.png           # C4 nv 1
+│   │   ├── c4-containers.png        # C4 nv 2
+│   │   ├── data-model.png           # ER PostgreSQL
+│   │   ├── adr/                     # ADRs 0001-0010
+│   │   └── diagrams/                # C4 + ER + state machine + hash-chain-flow + immutability-3-layers (Mermaid)
+│   ├── design/                      # § 5 do guia: interface
+│   │   ├── wireframes.pdf           # Protótipo de navegação (pós-implementação, abordagem code-first justificada via § 7)
+│   │   ├── auditoria-de-design.html # Auditoria estruturada (34 achados, 18 abr 2026)
+│   │   └── screens/                 # Capturas usadas no wireframes.pdf
+│   ├── compliance/external-tests/   # Qualys SSL Labs, HSTS Preload, Mozilla Observatory
+│   ├── deployment/                  # Guia Fly.io
+│   └── report/                      # PDFs entregáveis (proposta.pdf, intercalar.pdf)
 ├── src/
-│   ├── backend/               # Django 5 + DRF
-│   │   ├── core/              # App principal (modelos, views, serializers, tests)
-│   │   ├── forensiq_project/  # Settings, URLs raiz
-│   │   └── manage.py
-│   └── frontend/              # Templates Django + CSS/JS vanilla
-├── src_latex/                 # Relatórios LaTeX (proposta, intercalar) + figuras C4/ER
-├── Dockerfile                 # Multi-stage build
-├── fly.toml                   # Config Fly.io
+│   ├── backend/                     # Django 5 + DRF
+│   │   ├── core/                    # App principal (models, views, serializers, tests)
+│   │   ├── forensiq_project/        # Settings, URLs raiz, test_settings
+│   │   └── manage.py                # + comando seed_demo
+│   └── frontend/                    # Templates Django + CSS/JS vanilla
+├── src_latex/                       # Fonte LaTeX (proposta, intercalar) + figuras
+├── Dockerfile                       # Multi-stage build
+├── fly.toml                         # Config Fly.io (region fra)
 └── README.md
 ```
 
@@ -230,4 +250,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (Claude, principalm
 
 ---
 
-*Última actualização: 2 mai 2026 · Sem. 9 · 169 testes a passar*
+*Última actualização: 3 mai 2026 · Sem. 7 (28 abr - 4 mai) · 213 testes a passar · cobertura 67,4%*

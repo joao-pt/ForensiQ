@@ -1,6 +1,10 @@
 % =============================================================================
-% ForensiQ — Mapeamento de Requisitos ISO/IEC 27037
+% ForensiQ — Mapeamento de Requisitos ISO/IEC 27037 (v1.2)
 % UC 21184 · Projeto de Engenharia Informática · UAb
+% Versão 1.2 (3 maio 2026): Refeita a partir do código real para corrigir
+% desvios da v1.1 (12 abr 2026), que referia estados em inglês inexistentes
+% (RECEIVED, IN_EXAMINATION, ...) e tipos antigos (USB_DRIVE, HARD_DRIVE,
+% SD_CARD) substituídos pela taxonomia digital-first do ADR-0010.
 % =============================================================================
 \documentclass[a4paper,11pt]{article}
 
@@ -18,7 +22,7 @@
     linkcolor=black,
     urlcolor=blue,
     pdfauthor={João Rodrigues},
-    pdftitle={ForensiQ — Mapeamento ISO/IEC 27037}
+    pdftitle={ForensiQ — Mapeamento ISO/IEC 27037 v1.2}
 }
 
 \newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
@@ -28,154 +32,250 @@
 % =============================================================================
 
 \begin{center}
-    {\LARGE\bfseries Mapeamento de Requisitos ISO/IEC 27037}\\[0.8em]
+    {\LARGE\bfseries Mapeamento de Requisitos ISO/IEC 27037}\\[0.4em]
     {\large ForensiQ --- Plataforma Modular de Gestão de Prova Digital\\
-    para First Responders}\\[1.2em]
+    para \emph{First Responders}}\\[1.2em]
     \begin{tabular}{ll}
-        \textbf{Versão:} & 1.1 · 12 abril 2026 \\
-        \textbf{Norma:} & ISO/IEC 27037:2012 \\
+        \textbf{Versão:} & 1.2 · 3 maio 2026 \\
+        \textbf{Norma:}  & ISO/IEC 27037:2012 \\
+        \textbf{Estado:} & Aceite, alinhada ao código de produção \\
     \end{tabular}
 \end{center}
 
-\vspace{0.5em}
-\hrule
-\vspace{1.5em}
+\vspace{0.5em}\hrule\vspace{1.5em}
 
-% =============================================================================
 \section{Introdução}
-% =============================================================================
 
-Este documento apresenta a matriz de rastreabilidade entre os requisitos da norma
-ISO/IEC 27037:2012 (\emph{Guidelines for identification, collection, acquisition
-and preservation of digital evidence}) e as funcionalidades implementadas na
-plataforma ForensiQ.
+Este documento apresenta a matriz de rastreabilidade entre os requisitos
+da norma ISO/IEC~27037:2012 (\emph{Guidelines for identification,
+collection, acquisition and preservation of digital evidence}) e as
+funcionalidades implementadas na plataforma ForensiQ. A versão~1.2
+substitui a~1.1 (12~abr~2026), que descrevia estados em inglês e tipos
+de evidência inexistentes no código actual; a presente versão é
+refeita a partir do código de produção e ancora cada controlo num
+caminho \texttt{ficheiro:linha} verificável.
 
-ISO/IEC 27037 é a norma internacional que estabelece práticas comuns para o
-manuseamento de prova digital, desde a identificação até à preservação, com ênfase
-em garantir integridade, cadeia de custódia e rastreabilidade. ForensiQ foi
-concebida com base nestes princípios, incorporando controlos técnicos e
-organizacionais em todas as camadas da aplicação.
-
-% =============================================================================
 \section{Matriz de Rastreabilidade}
-% =============================================================================
 
-\subsection*{Secção 5 --- Princípios gerais de manuseamento de prova digital}
+\subsection*{§5.1 --- Princípios gerais}
 
-\subsubsection*{§5.1 — Princípios gerais}
+\textbf{Implementação.} Controlo de acesso baseado em papéis com dois
+perfis operacionais: \texttt{AGENT} (recolha de prova) e \texttt{EXPERT}
+(perícia), distinguidos pelo campo \texttt{User.profile}
+(\texttt{src/backend/core/models.py:123--129}). O perfil
+administrativo é representado pela flag \texttt{is\_staff} do Django.
+\emph{Tokens} JWT em \emph{cookies} HttpOnly~+ Secure~+ SameSite=Strict
+(\texttt{src/backend/core/auth.py:33--58}), com rotação de \emph{refresh}
+e \emph{blacklist}
+(\texttt{src/backend/forensiq\_project/settings.py:174--184}). Auditoria
+transversal em \texttt{AuditLog} com \texttt{correlation\_id} por pedido
+(\texttt{models.py:1199--1206}; \texttt{audit.py:83--134}).
 
-Implementação: Controlo de acesso baseado em papéis (RBAC) com dois perfis principais:
-AGENT (recolha de prova no terreno) e EXPERT (perito forense). Tokens JWT com
-rotação automática e blacklist. Endpoints protegidos por autorização granular.
-Todas as operações auditadas com correlation IDs.
+\subsection*{§5.2 --- Identificação de prova digital}
 
-\subsubsection*{§5.2 — Identificação de prova digital}
+\textbf{Implementação.} Modelo \texttt{Evidence}
+(\texttt{models.py:306--724}) com campos obrigatórios:
+\begin{itemize}
+    \item \texttt{type} (\texttt{EvidenceType} \emph{enum},
+          \texttt{models.py:332--353}) com 18 tipos digital-first
+          (ADR-0010): 14 raízes (\texttt{MOBILE\_DEVICE},
+          \texttt{COMPUTER}, \texttt{STORAGE\_MEDIA},
+          \texttt{GAMING\_CONSOLE}, \texttt{GPS\_TRACKER},
+          \texttt{SMART\_TAG}, \texttt{CCTV\_DEVICE},
+          \texttt{VEHICLE}, \texttt{DRONE}, \texttt{IOT\_DEVICE},
+          \texttt{NETWORK\_DEVICE}, \texttt{DIGITAL\_FILE},
+          \texttt{RFID\_NFC\_CARD}, \texttt{OTHER\_DIGITAL}) e 4
+          sub-componentes típicos (\texttt{SIM\_CARD},
+          \texttt{MEMORY\_CARD}, \texttt{INTERNAL\_DRIVE},
+          \texttt{VEHICLE\_COMPONENT});
+    \item \texttt{description}, \texttt{serial\_number},
+          \texttt{gps\_lat}/\texttt{gps\_lon}, \texttt{timestamp\_seizure}
+          --- todos validados em \texttt{Evidence.clean}
+          (\texttt{models.py:630--723});
+    \item identificador legível \texttt{code} no formato
+          \texttt{ITM-YYYY-NNNNN}, gerado dentro de transacção atómica com
+          retentativa (\texttt{\_next\_yearly\_code},
+          \texttt{models.py:35--85}).
+\end{itemize}
 
-Implementação: Modelo Evidence com campos obrigatórios: tipo (STORAGE\_MEDIA, USB\_DRIVE,
-HARD\_DRIVE, SD\_CARD, etc.), descrição textual, número de série único,
-georreferenciação GPS, e timestamp UTC registados no servidor. Cada evidência tem
-ID único e código de barras gerado automaticamente.
+\subsection*{§5.3 --- Recolha e aquisição de prova}
 
-\subsubsection*{§5.3 — Recolha e aquisição de prova}
+\textbf{Implementação.} Registo fotográfico obrigatório em
+\texttt{Evidence.photo} (\texttt{ImageField} validado por
+\texttt{validate\_image\_max\_size}, máximo 25~MB).
+Geo-referenciação capturada via \texttt{Geolocation API} no
+\emph{wizard} \emph{frontend} (\texttt{evidences\_new.html:40--289}, 8
+passos) e gravada como \texttt{gps\_lat}/\texttt{gps\_lon}.
+\emph{Timestamp} sempre do servidor (\texttt{timezone.now()}, NTP-synced),
+nunca do cliente (\texttt{ChainOfCustody.save}, \texttt{models.py:1081}).
+Exportação PDF da ocorrência e do item em
+\texttt{src/backend/core/pdf\_export.py} (gerador ReportLab) com
+declaração ISO/IEC~27037 incorporada.
 
-Implementação: Registro fotográfico obrigatório com upload de imagens. Metadados GPS
-capturados automaticamente via API de localização do navegador. Timestamp UTC do
-servidor garante origem confiável. Exportação de PDF com cadeia de custódia completa
-e evidências referenciadas.
+\subsection*{§5.4 --- Preservação de integridade}
 
-\subsubsection*{§5.4 — Preservação de integridade}
+\textbf{Implementação.} \emph{Hash} SHA-256 calculado automaticamente:
+\begin{itemize}
+    \item Em \texttt{Evidence.save}, a função
+          \texttt{compute\_integrity\_hash}
+          (\texttt{models.py:554--584}) cobre os metadados e o
+          \emph{hash} dos \emph{bytes} da fotografia
+          (\texttt{\_compute\_photo\_hash}, \texttt{models.py:534--552});
+    \item Em \texttt{ChainOfCustody.save}, a função
+          \texttt{compute\_record\_hash}
+          (\texttt{models.py:989--1031}) é pura, recebe o
+          \emph{previous\_hash} como parâmetro e produz um \emph{hash}
+          encadeado, reproduzível por qualquer perito independente.
+\end{itemize}
 
-Implementação: Hash SHA-256 calculado automaticamente no momento de criação de cada
-evidência. Imutabilidade implementada em 3 camadas:
+A imutabilidade está implementada em \emph{três camadas} de defesa em
+profundidade:
 \begin{enumerate}
-    \item Read-only no modelo Django após criação
-    \item Validação no serializador DRF
-    \item Triggers PostgreSQL que rejeitam atualizações de campos críticos
+    \item ORM Django: \texttt{Evidence.save}
+          (\texttt{models.py:586--617}) e
+          \texttt{ChainOfCustody.save}
+          (\texttt{models.py:1044--1107}) rejeitam alterações com
+          \texttt{ValidationError}; os respectivos \texttt{delete}
+          também (\texttt{models.py:619--624, 1109--1114}).
+    \item Django REST Framework: \texttt{EvidenceViewSet}
+          (\texttt{views.py:384}), \texttt{DigitalDeviceViewSet}
+          (\texttt{views.py:566}) e \texttt{ChainOfCustodyViewSet}
+          (\texttt{views.py:602}) declaram
+          \texttt{http\_method\_names = ['get', 'post', 'head', 'options']}.
+    \item PostgreSQL: \emph{triggers} \texttt{BEFORE UPDATE} e
+          \texttt{BEFORE DELETE} sobre \texttt{core\_evidence},
+          \texttt{core\_chainofcustody} e \texttt{core\_digitaldevice}
+          (\texttt{src/backend/core/migrations/0002\_add\_immutability\_triggers.py:36--115}).
 \end{enumerate}
-Qualquer tentativa de modificação é registada no AuditLog.
 
-\subsubsection*{§5.5 — Cadeia de custódia}
+\subsection*{§5.5 --- Cadeia de custódia}
 
-Implementação: Modelo ChainOfCustody com registo append-only imutável. Máquina de
-estados com 7 estados: RECEIVED, IN\_EXAMINATION, EXAMINED, STORED, ARCHIVED,
-DESTROYED, RELEASED. Hash encadeado tipo blockchain: cada transição referencia o
-hash da anterior, impedindo inserção retroativa de registos.
+\textbf{Implementação.} Modelo \texttt{ChainOfCustody}
+(\texttt{models.py:858--1114}) com registo \emph{append-only}.
+Máquina de estados linear de \textbf{7 estados} em português:
+\texttt{APREENDIDA} $\rightarrow$ \texttt{EM\_TRANSPORTE} $\rightarrow$
+\texttt{RECEBIDA\_LABORATORIO} $\rightarrow$ \texttt{EM\_PERICIA}
+$\rightarrow$ \texttt{CONCLUIDA} $\rightarrow$ \texttt{DEVOLVIDA} ou
+\texttt{DESTRUIDA}, definida em \texttt{VALID\_TRANSITIONS}
+(\texttt{models.py:883--892}). A ordem canónica de cada cadeia é dada
+pelo campo \texttt{sequence} e pelo \texttt{UniqueConstraint(evidence,
+sequence)} (\texttt{models.py:957--962}). A escrita serializa-se com
+\texttt{transaction.atomic} + \texttt{select\_for\_update}
+(\texttt{models.py:1064--1097}). O encadeamento de \emph{hashes}
+permite, por recálculo independente, detectar qualquer adulteração
+posterior.
 
-\subsection*{Secção 6 --- Competência de pessoal e processo}
+\subsection*{§6.1 --- Competência do pessoal}
 
-\subsubsection*{§6.1 — Competência do pessoal}
+\textbf{Implementação.} Sistema de papéis diferenciados aplicado por
+\emph{permission classes} dedicadas em
+\texttt{src/backend/core/permissions.py}: \texttt{IsAgent},
+\texttt{IsExpert}, \texttt{IsAgentOrExpert} e
+\texttt{IsOwnerOrReadOnly}. \texttt{AGENT} cria ocorrências e
+evidências e só vê os recursos próprios; \texttt{EXPERT} consulta e
+participa nas transições de custódia; \emph{staff} acede ao
+\emph{Django Admin} (com prefixo configurável via
+\texttt{ADMIN\_URL\_PREFIX}). A filtragem por
+\texttt{request.user} aplica-se ao nível do \texttt{get\_queryset()}
+de cada \emph{viewset}.
 
-Implementação: Sistema de papéis diferenciados. AGENT pode criar ocorrências e
-evidências, mas sem acesso a dados de outros agentes. EXPERT tem acesso completo
-para análise e relatórios. Dashboard mostra apenas dados relevantes ao perfil.
-Permissões aplicadas ao nível de queryset (filtragem automática por agent-id).
+\subsection*{§6.2 --- Documentação do processo}
 
-\subsubsection*{§6.2 — Documentação do processo}
+\textbf{Implementação.} Geração automática de PDF forense em
+\texttt{pdf\_export.py}: \texttt{generate\_evidence\_pdf} e
+\texttt{generate\_occurrence\_pdf}, com identificação da ocorrência
+(NUIPC, GPS, agente), inventário da prova (com indentação para
+sub-componentes), cadeia de custódia em tabela cronológica e
+declaração de integridade no rodapé com referência explícita à
+ISO/IEC~27037:2012. Exportação CSV em \emph{streaming} disponível em
+\texttt{/api/occurrences/csv/}, \texttt{/api/evidences/csv/} e
+\texttt{/api/custody/csv/} (\texttt{views.py}).
 
-Implementação: Exportação de PDF em conformidade com ISO, incluindo: dados da
-ocorrência, lista de evidências com metadados, cadeia de custódia com transições
-datadas, assinatura digital do perito e carimbo temporal. Registo de todas as
-transições de estado com observações opcionais do utilizador. Auditoria completa
-descarregável em formato estruturado.
+\subsection*{§7.1 --- Dispositivos digitais}
 
-\subsection*{Secção 7 --- Tipos de prova digital}
+\textbf{Implementação.} Modelo \texttt{DigitalDevice}
+(\texttt{models.py:730--851}) regista, em ficha técnica complementar a
+\texttt{Evidence}: tipo, marca, modelo, nome comercial,
+\texttt{condition}, IMEI (validado por algoritmo de Luhn,
+\texttt{validators.py:47--66}), número de série e notas. O
+modelo coexiste com a hierarquia
+\texttt{Evidence.parent\_evidence} (até três níveis,
+\texttt{MAX\_TREE\_DEPTH=3}, \texttt{models.py:318}) por razões de
+compatibilidade.
 
-\subsubsection*{§7.1 — Dispositivos digitais}
+\subsection*{§7.2 --- Suportes de armazenamento}
 
-Implementação: Modelo DigitalDevice com ficha completa: tipo (smartphone, computador,
-tablet, servidor, etc.), marca, modelo, IMEI (se aplicável), estado de origem,
-número de série, data de aquisição, notas técnicas. Possibilita rastreamento
-completo e identificação única de cada dispositivo.
+\textbf{Implementação.} A taxonomia de \texttt{Evidence} (ADR-0010)
+inclui os suportes relevantes: \texttt{STORAGE\_MEDIA} (\emph{pen}~USB
+ou disco externo), \texttt{INTERNAL\_DRIVE} (HDD/SSD/NVMe),
+\texttt{MEMORY\_CARD} (SD/microSD/CF), \texttt{SIM\_CARD},
+\texttt{RFID\_NFC\_CARD}, \texttt{DIGITAL\_FILE}. Campos específicos
+(IMEI, IMSI, ICCID, MAC, VIN) ficam em
+\texttt{Evidence.type\_specific\_data} (\texttt{JSONField}) com
+serialização determinística (\texttt{sort\_keys=True},
+\texttt{separators=(',', ':')}, \texttt{ensure\_ascii=False},
+\texttt{models.py:566--571}).
 
-\subsubsection*{§7.2 — Suportes de armazenamento}
+\subsection*{Auditabilidade}
 
-Implementação: Modelo Evidence com taxonomia de tipos: STORAGE\_MEDIA, USB\_DRIVE,
-HARD\_DRIVE, SD\_CARD, MEMORY\_CARD, SIM\_CARD, MICRO\_SD, CLOUD\_STORAGE.
-Cada tipo tem campos específicos e validações apropriadas.
+\textbf{Implementação.} \texttt{AuditLog} (\texttt{models.py:1121--1259})
+regista \texttt{user}, \texttt{action} (VIEW, CREATE, EXPORT\_PDF,
+EXPORT\_CSV), \texttt{resource\_type}, \texttt{resource\_id},
+\texttt{ip\_address}, \texttt{correlation\_id} (UUID por pedido) e
+\texttt{timestamp} do servidor. \texttt{IP} é extraído por
+\texttt{get\_client\_ip} com \emph{whitelist} de \emph{proxies}
+confiáveis (\texttt{audit.py:48--80}). Índices compostos garantem
+\emph{queries} rápidas por utilizador, acção, recurso e correlation.
 
-\subsection*{Segurança e auditabilidade do sistema}
+\subsection*{Segurança da infra-estrutura}
 
-\subsubsection*{Auditabilidade}
+\textbf{Implementação.} HTTPS estrito com HSTS de um ano,
+\texttt{includeSubDomains} e \texttt{preload}
+(\texttt{settings.py:284--286}); CSP \emph{nonce-based} (sem
+\texttt{unsafe-inline}) em
+\texttt{ContentSecurityPolicyMiddleware}
+(\texttt{middleware.py:68--155}); \texttt{Referrer-Policy:
+strict-origin-when-cross-origin} (ADR-0007); \emph{rate-limiting}
+DRF (anon~10/min, user~60/min, auth~5/min,
+\texttt{settings.py:142--150}); paginação obrigatória de 50 itens
+(\texttt{BoundedPageNumberPagination}, \texttt{pagination.py}).
+Validação externa em
+\texttt{docs/compliance/external-tests/}: HSTS \emph{Preload Submission}
+aceite, Mozilla HTTP Observatory~A+, Qualys SSL Labs~A+
+(18~abr~2026).
 
-Implementação: Módulo AuditLog estruturado registando: utilizador, ação, recurso,
-parâmetros, timestamp, IP, correlation ID, resultado. Logs consultáveis via Django
-Admin protegido e via endpoint GET com permissões apropriadas. Impossível modificar
-histórico após registo.
+\subsection*{Protecção contra IDOR}
 
-\subsubsection*{Segurança da infraestrutura}
-
-Implementação: CSP (Content Security Policy) restritiva. HSTS para forçar HTTPS.
-Rate limiting (10 requisições/minuto para utilizadores anónimos). CSRF via token
-csrftoken. select-for-update() para evitar race conditions na cadeia de custódia.
-Django Admin em URL aleatória, não em /admin. Passwords com hash PBKDF2.
-
-\subsubsection*{Proteção contra acesso não autorizado (IDOR)}
-
-Implementação: Filtro automático de querysets por agent-id do utilizador
-autenticado. Cada agente vê apenas suas ocorrências e provas. Testes de IDOR
-executados para endpoints críticos. Validação ao nível do serializador confirma
-que o agente tem permissão de escrita/leitura.
+\textbf{Implementação.} \texttt{get\_queryset()} de cada \emph{viewset}
+filtra automaticamente por \texttt{agent=request.user} quando o perfil
+é \texttt{AGENT}, garantindo que um agente só vê os recursos da sua
+ocorrência. \texttt{IsOwnerOrReadOnly} valida \emph{ownership} em
+escritas. Testes \texttt{AuthorizationIDORTest} em
+\texttt{src/backend/core/tests\_api.py} exercitam o caminho cruzado
+agente~A vs.\ agente~B, verificando rejeição com \texttt{404}
+(em vez de \texttt{403}, para evitar enumeração).
 
 % =============================================================================
 \section{Tabela de Cobertura de Requisitos}
 % =============================================================================
 
-\begin{longtable}{L{2cm} L{10cm} L{2.5cm}}
+\begin{longtable}{L{1.6cm} L{8.5cm} L{4cm}}
     \toprule
-    \textbf{Req. ISO} & \textbf{Descrição} & \textbf{Cobertura} \\
+    \textbf{Req. ISO} & \textbf{Descrição} & \textbf{Estado} \\
     \midrule
     \endhead
-    §5.1 & Princípios gerais de manuseamento & [OK] \\
-    §5.2 & Identificação de prova digital & [OK] \\
-    §5.3 & Recolha e aquisição de prova & [OK] \\
-    §5.4 & Preservação de integridade & [OK] \\
-    §5.5 & Cadeia de custódia & [OK] \\
-    §6.1 & Competência de pessoal & [OK] \\
-    §6.2 & Documentação de processo & [OK] \\
-    §7.1 & Dispositivos digitais & [OK] \\
-    §7.2 & Suportes de armazenamento & [OK] \\
-    --- & Auditabilidade do sistema & [OK] \\
-    --- & Segurança de infraestrutura & [OK] \\
+    §5.1 & Princípios gerais de manuseamento & Implementado \\
+    §5.2 & Identificação de prova digital & Implementado \\
+    §5.3 & Recolha e aquisição de prova & Implementado \\
+    §5.4 & Preservação de integridade (3 camadas) & Implementado \\
+    §5.5 & Cadeia de custódia (7 estados, hash encadeado) & Implementado \\
+    §6.1 & Competência de pessoal (RBAC) & Implementado \\
+    §6.2 & Documentação do processo (PDF/CSV) & Implementado \\
+    §7.1 & Dispositivos digitais & Implementado \\
+    §7.2 & Suportes de armazenamento & Implementado \\
+    --- & Auditabilidade (\texttt{AuditLog}, \texttt{correlation\_id}) & Implementado \\
+    --- & Segurança da infra-estrutura (HSTS preload, CSP nonce, etc.) & Implementado \\
+    --- & Protecção contra IDOR & Implementado \\
     \bottomrule
 \end{longtable}
 
@@ -184,33 +284,36 @@ que o agente tem permissão de escrita/leitura.
 % =============================================================================
 
 \begin{itemize}
-    \item \textbf{Imutabilidade multicamada:} A implementação em 3 camadas
-          (aplicação + API + base de dados) garante que mesmo um atacante com
-          acesso à base de dados não consegue modificar retroativamente uma evidência
-          sem deixar vestígios.
-
-    \item \textbf{Rastreabilidade granular:} Cada operação é registada com ID de
-          correlação, permitindo auditar toda a cadeia de acontecimentos num processo.
-
-    \item \textbf{Conformidade com ISO:} Embora ForensiQ não seja certificada ISO/IEC
-          27037, segue os princípios e controlos definidos pela norma, em particular
-          no que respeita a integridade, cadeia de custódia e competência de pessoal.
-
-    \item \textbf{Extensibilidade:} A arquitetura permite adicionar novas camadas de
-          forense digital (Química, Biologia, Física) sem comprometer a estrutura base
-          de prova digital.
+    \item \textbf{Imutabilidade em três camadas:} mesmo um atacante com
+          acesso directo à base de dados não consegue alterar
+          retroactivamente uma evidência ou um registo de custódia ---
+          \emph{triggers} PostgreSQL bloqueiam \texttt{UPDATE} e
+          \texttt{DELETE}.
+    \item \textbf{Verificabilidade externa:} qualquer perito
+          independente pode recalcular um \emph{hash} de
+          \texttt{ChainOfCustody} a partir dos campos públicos do registo
+          e do \emph{hash} da raiz da cadeia ($0 \times 64$).
+    \item \textbf{Conformidade:} o ForensiQ não é certificado
+          ISO/IEC~27037, mas implementa os princípios e os controlos
+          previstos na norma. As lacunas para um \emph{deployment} real
+          (cifra de \texttt{media/} em repouso, \emph{backup}
+          automatizado de \emph{media}, \emph{pentest} externo formal)
+          estão registadas em
+          \texttt{docs/compliance/rgpd-art32-checklist.md}.
 \end{itemize}
 
 % =============================================================================
 \section{Histórico de Alterações}
 % =============================================================================
 
-\begin{longtable}{L{2cm} L{3cm} L{7.5cm} L{2.5cm}}
+\begin{longtable}{L{1.6cm} L{2.6cm} L{10cm}}
     \toprule
-    \textbf{Versão} & \textbf{Data} & \textbf{Alteração} & \textbf{Referência} \\
+    \textbf{Versão} & \textbf{Data} & \textbf{Alteração} \\
     \midrule
     \endhead
-    1.0 & 12 abr 2026 & Documento inicial com mapeamento completo & --- \\
+    1.0 & 22 mar 2026 & Documento inicial. \\
+    1.1 & 12 abr 2026 & Primeira matriz de rastreabilidade. \\
+    1.2 & 3 mai 2026  & Refeita a partir do código de produção: estados PT (APREENDIDA \dots DESTRUIDA) em vez de inglês; 18 tipos digital-first (ADR-0010) em vez de USB\_DRIVE/HARD\_DRIVE/SD\_CARD; referências a \texttt{ficheiro:linha} adicionadas. \\
     \bottomrule
 \end{longtable}
 

@@ -1,0 +1,29 @@
+%% ForensiQ — Defesa em profundidade: 3 camadas de imutabilidade
+%% Fonte:
+%%   Camada 1 — src/backend/core/models.py (Evidence.save/delete, ChainOfCustody.save/delete)
+%%   Camada 2 — src/backend/core/views.py:384, 566, 602 (http_method_names)
+%%   Camada 3 — src/backend/core/migrations/0002_add_immutability_triggers.py
+%% Render: mmdc -i immutability-3-layers.mmd -o immutability-3-layers.png -w 1400 -t neutral
+
+flowchart TB
+    classDef attacker fill:#ffebee,stroke:#c62828
+    classDef layer fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef blocked fill:#e8f5e9,stroke:#2e7d32
+
+    A["Atacante ou erro"]:::attacker
+
+    A -->|"PATCH /api/custody/&lt;id&gt;<br/>DELETE /api/evidences/&lt;id&gt;"| L2
+    A -->|"chamada Python directa<br/>obj.save com pk ja existente<br/>obj.delete"| L1
+    A -->|"acesso directo BD<br/>UPDATE core_chainofcustody SET ...<br/>DELETE FROM core_evidence WHERE ..."| L3
+
+    L1["Camada 1 — ORM Django<br/>Evidence.save em models.py:586<br/>ChainOfCustody.save em models.py:1044<br/>raise ValidationError se pk ja existe<br/>delete sempre proibido"]:::layer
+
+    L2["Camada 2 — DRF Viewsets<br/>EvidenceViewSet views.py:384<br/>DigitalDeviceViewSet views.py:566<br/>ChainOfCustodyViewSet views.py:602<br/>http_method_names = get post head options"]:::layer
+
+    L3["Camada 3 — PostgreSQL<br/>BEFORE UPDATE TRIGGER + BEFORE DELETE TRIGGER<br/>core_evidence + core_chainofcustody + core_digitaldevice<br/>RAISE EXCEPTION ISO/IEC 27037<br/>migrations 0002_add_immutability_triggers"]:::layer
+
+    L1 -->|ValidationError| BLK
+    L2 -->|405 Method Not Allowed| BLK
+    L3 -->|PG ERROR| BLK
+
+    BLK["Bloqueado<br/>tentativa registada em AuditLog<br/>core/audit.py log_access"]:::blocked
