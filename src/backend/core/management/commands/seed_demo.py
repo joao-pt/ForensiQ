@@ -329,7 +329,21 @@ class Command(BaseCommand):
                 'Samsung Galaxy S23 do suspeito.',
             ),
         )
-        cases.append((c2, [e2a, e2b], [
+        e2c = Evidence.objects.create(
+            occurrence=c2, type=Evidence.EvidenceType.SIM_CARD,
+            description='Cartão SIM (operadora NOS) extraído do Samsung.',
+            parent_evidence=e2b,
+            timestamp_seizure=now - timedelta(days=9, hours=1),
+            gps_lat=None, gps_lon=None,
+            serial_number='8935106789012345678',
+            agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.SIM_CARD,
+                'Porto · 03',
+                'SIM NOS — sub-componente do Samsung.',
+            ),
+        )
+        cases.append((c2, [e2a, e2b, e2c], [
             ChainOfCustody.CustodyState.APREENDIDA,
             ChainOfCustody.CustodyState.EM_TRANSPORTE,
             ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
@@ -461,8 +475,7 @@ class Command(BaseCommand):
         )
         e5c = Evidence.objects.create(
             occurrence=c5, type=Evidence.EvidenceType.GPS_TRACKER,
-            description='Localizador GPS magnético, Concox JM-VL01, com '
-                        'cartão SIM Vodafone.',
+            description='Localizador GPS magnético, Concox JM-VL01.',
             parent_evidence=e5a,
             timestamp_seizure=now - timedelta(days=2),
             gps_lat=Decimal('37.0194'), gps_lon=Decimal('-7.9304'),
@@ -474,7 +487,21 @@ class Command(BaseCommand):
                 'Concox JM-VL01 oculto no porta-luvas.',
             ),
         )
-        cases.append((c5, [e5a, e5b, e5c], [
+        e5d = Evidence.objects.create(
+            occurrence=c5, type=Evidence.EvidenceType.SIM_CARD,
+            description='Cartão SIM Vodafone M2M usado pelo localizador GPS.',
+            parent_evidence=e5c,
+            timestamp_seizure=now - timedelta(days=2),
+            gps_lat=None, gps_lon=None,
+            serial_number='8935107654321098765',
+            agent=agent,
+            photo=_make_placeholder_photo(
+                Evidence.EvidenceType.SIM_CARD,
+                'Faro · 04',
+                'SIM Vodafone — sub-componente do GPS tracker.',
+            ),
+        )
+        cases.append((c5, [e5a, e5b, e5c, e5d], [
             ChainOfCustody.CustodyState.APREENDIDA,
             ChainOfCustody.CustodyState.EM_TRANSPORTE,
         ]))
