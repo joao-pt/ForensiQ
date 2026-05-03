@@ -1036,11 +1036,27 @@ class DashboardStatsView(APIView):
             if r['new_state'] == ChainOfCustody.CustodyState.EM_PERICIA
         )
 
+        # Distribuição completa por estado actual de custódia. Usado pelo
+        # dashboard para a visualização "Cadeia de custódia" (river bar +
+        # cards). Itens sem qualquer registo ainda ficam fora — não foram
+        # apreendidos formalmente, é o caso de seed parcial / wizard a meio.
+        evidences_by_current_state = {
+            state: 0 for state, _ in ChainOfCustody.CustodyState.choices
+        }
+        for r in latest_by_ev.values():
+            evidences_by_current_state[r['new_state']] = (
+                evidences_by_current_state.get(r['new_state'], 0) + 1
+            )
+        # Itens sem nenhum registo de custódia (raros — wizard incompleto).
+        evidences_without_custody = total_evidences - len(latest_by_ev)
+
         return Response({
             'total_occurrences': total_occurrences,
             'open_occurrences': open_occurrences,
             'total_evidences': total_evidences,
             'evidences_by_type': evidences_by_type,
+            'evidences_by_current_state': evidences_by_current_state,
+            'evidences_without_custody': evidences_without_custody,
             'custodies_in_transit': custodies_in_transit,
             'evidences_in_analysis': evidences_in_analysis,
         })

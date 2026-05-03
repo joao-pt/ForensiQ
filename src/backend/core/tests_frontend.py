@@ -86,10 +86,14 @@ class DashboardPageTest(AuthenticatedFrontendTestCase):
         self.assertTemplateUsed(response, 'dashboard.html')
 
     def test_dashboard_contains_stats(self):
-        """A página do dashboard deve conter a grelha de estatísticas."""
+        """A página do dashboard deve conter a hero section da cadeia de custódia.
+
+        Substituiu a antiga grelha ``stats-grid``: o cartão único
+        ``custody-flow`` é agora o ponto focal do painel.
+        """
         response = self.client.get(reverse('dashboard'))
         content = response.content.decode('utf-8')
-        self.assertIn('id="stats-grid"', content)
+        self.assertIn('id="custody-flow"', content)
 
     def test_dashboard_contains_agent_actions(self):
         """A página do dashboard deve conter as acções do agente."""
