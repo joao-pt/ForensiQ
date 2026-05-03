@@ -4,6 +4,43 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 7 · 28 abr – 4 mai
+
+**Feito:**
+- feat(table-mode): **modo tabela densa para desktop** entregue em 5 fases (PR #1 *feat/dense-table-mode*) — F1 base, F2 evidences, F3 custody+CSV, F4 a11y+lint, F5 *bugfix* filtros + agente + mapa sem-GPS + multi-select; PR #2 com correcções pós-merge
+- feat(api): cascade endpoint `/api/custody/cascade/` para transições atómicas múltiplas; CSV export streaming em `/api/{occurrences,evidences,custody}/csv/` com cap de 10k linhas e audit log
+- feat(ux): **redesign do dashboard + custody timeline** (3 mai) — dashboard com cadeia de custódia em barra horizontal, acções rápidas reordenadas; timeline com state progress + hashes encadeados visíveis
+- feat(ux): UX *sweep* mobile-first 2 mai — perito no terreno, polish e consistência (cascade custody, modal sub-itens, filtros search)
+- feat(demo): comando `manage.py seed_demo` para reset+seed em produção — 5 ocorrências realistas com NUIPCs PT (Lisboa, Porto, Coimbra, Braga, Faro), 12 itens com SIM filhos no Samsung e GPS *tracker*, fotos *placeholder* JPEG por item
+- fix(mobile): navbar mostra 'ForensiQ' em mobile $\geq$ 340px; dashboard mobile mostra acções rápidas antes da cadeia de custódia; *upload path* usa `occurrence.code` em vez de `number`
+- chore(audit): auditorias internas de segurança (16 abr), design (18 abr) e taxonomia (19 abr) consolidadas; correcções *fix B-C2* (cálculo de hash puro, sem leitura de DB fora de `select_for_update`) e *fix B-C3* (race condition na inserção de `ChainOfCustody`) integradas em `core/models.py:989-1107`
+- feat(security): triggers PostgreSQL `BEFORE UPDATE/DELETE` em `core_evidence`, `core_chainofcustody`, `core_digitaldevice` (migration `0002_add_immutability_triggers`) — defesa em profundidade ao nível da BD para conformidade ISO/IEC 27037 §5.4
+- feat(security): JWT em cookies HttpOnly + Secure + **SameSite=Strict** (auth.py:66); access 60 min, refresh 7 dias com rotação e blacklist; CSRF double-submit
+- feat(taxonomy): taxonomia digital-first com 18 tipos de Evidence (ADR-0010); hierarquia `parent_evidence` até 3 níveis com validação anti-ciclos
+- feat(deploy): submissão à lista HSTS Preload (Chromium/Mozilla/Edge/Apple); Mozilla HTTP Observatory A+; Qualys SSL Labs A+ (relatórios em `docs/compliance/external-tests/`)
+- test: suite cresceu para **213 testes** (de 94 anteriores); cobertura `coverage.py` em 67,4% (modelos 78,9%, views 75,1%, pdf_export 86,7%); `tests_factories.py` extraídos como helpers; novas suites `tests_new_features.py` e `tests_table_mode.py`
+- docs: README reescrito (2 mai) — diagramas Mermaid, evidência de testes externos
+- docs(photo-capture): documenta estado actual e *backlog* (réguas, multi-foto, OCR)
+- docs: ADR-0006 (extensibilidade modular, 12 abr), ADR-0007 (SRI + Referrer-Policy, 13 abr), ADR-0008 (cache de IMEI/VIN em DatabaseCache, 19 abr), ADR-0009 (JWT cookies HttpOnly, 19 abr), ADR-0010 (taxonomia digital-first, 19 abr)
+- docs: `docs/scope/iso27037-traceability.tex` v1.2 (3 mai) — refeita a partir do código real para corrigir desvios da v1.1 (estados em inglês inexistentes, tipos antigos USB_DRIVE/HARD_DRIVE/SD_CARD substituídos pela taxonomia ADR-0010)
+- docs: ADR-0009 actualizado para reflectir SameSite=Strict e lifetimes 60 min / 7 dias (alinhamento com o código de produção)
+- docs: 2 diagramas Mermaid novos em `docs/architecture/diagrams/` — `hash-chain-flow` e `immutability-3-layers`
+- docs: relatório intercalar `src_latex/intercalar.tex` redigido de raiz (3 capítulos conforme guia §3) — entrega 6 mai
+- docs(scope): revisão contra `guia_projecto_estudantes_uab.pdf` v4.0 (Mar 2026) — gaps identificados e tapados antes da entrega:
+  - `docs/scope/proposta.md`, `requirements.md`, `risks.md` criados em Markdown (mirror dos `.tex` autoritativos) para conformidade com §5 do guia
+  - PNGs C4 e ER copiados para `docs/architecture/{c4-context,c4-containers,data-model}.png` com os nomes exactos exigidos
+  - `docs/design/wireframes.pdf` (6 págs) criado com nota metodológica (abordagem code-first justificada via §7), mapa de navegação e capturas das vistas-chave
+
+**Bloqueou:**
+- ⚠️ **Demo interna síncrona não realizada** na janela prevista pelo orientador (28 abr – 2 mai). Mitigação proposta ao orientador: site em produção `forensiq.pt` com credenciais de demonstração serve de demo assíncrona; demo síncrona disponibilizada para Sem. 9–10 (7–16 mai) caso o orientador prefira
+
+**Próxima semana:**
+- Submeter o relatório intercalar até 6 mai (4ª-feira)
+- Reforçar cobertura de testes (alvo ≥ 75%); property-based testing de validadores; mocks de httpx para `imei_lookup`
+- Eventual demo síncrona com o orientador
+
+---
+
 ## Sem. 6 · 21–27 abr
 
 **Feito:**

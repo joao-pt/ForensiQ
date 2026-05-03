@@ -26,9 +26,9 @@ Adicionalmente, com cookies aparece naturalmente o risco de CSRF. O Django já t
 2. **Atributos dos cookies:**
    - `HttpOnly = True` — bloqueia leitura por JS (mitiga XSS).
    - `Secure = True` em produção (`False` em testes e dev local via `test_settings.py`).
-   - `SameSite = "Lax"` — permite navegação normal (login redirect) e bloqueia envio em requests cross-site de terceiros.
-   - `Path = "/"` e `Domain = None` (herda o domínio actual).
-   - `Max-Age` ligado à vida do token (access ~15 min, refresh ~24 h — mantidos em `SIMPLE_JWT` settings).
+   - `SameSite = "Strict"` (ver `core/auth.py:66`) — bloqueia envio em qualquer pedido cross-site, incluindo navegação a partir de origens externas. Decisão tomada após auditoria de segurança de 19/abr/2026: a postura mais restritiva é compatível com o fluxo do ForensiQ (todos os pedidos partem do mesmo *origin*) e elimina vectores residuais de CSRF/clickjacking que `Lax` ainda permitiria.
+   - `Path = "/"` para `fq_access`; `Path = "/api/auth/"` para `fq_refresh` (limita o âmbito do *refresh* aos endpoints de autenticação); `Domain = None` (herda o domínio actual).
+   - `Max-Age` ligado à vida do token: access **60 min**, refresh **7 dias** (configuráveis via env vars `JWT_ACCESS_TOKEN_LIFETIME_MINUTES` e `JWT_REFRESH_TOKEN_LIFETIME_DAYS` em `forensiq_project/settings.py:174-178`). A janela mais longa do refresh é compensada pela rotação automática (ver ponto 5) e pela blacklist em cada refresh.
 3. **CSRF double-submit:** Em cada login bem-sucedido, além dos cookies JWT, o servidor também envia o cookie `csrftoken` (via `@ensure_csrf_cookie`). O frontend lê-o em JS e replica-o no header `X-CSRFToken` em pedidos `POST/PUT/PATCH/DELETE`. A autenticação DRF é feita por `core.auth.JWTCookieAuthentication`, que delega em `rest_framework_simplejwt` para validar o token e em `enforce_csrf()` para validar o header. Pedidos `GET` não exigem CSRF.
 4. **Endpoints dedicados:** `POST /api/auth/login/` (emite cookies), `POST /api/auth/refresh/` (lê `fq_refresh` do cookie, rotaciona ambos), `POST /api/auth/logout/` (blacklist do refresh + `Max-Age=0` nos cookies). Todos com `AuthRateThrottle` (5/min) para travar força bruta.
 5. **Rotação de refresh:** `simplejwt` configurado com `ROTATE_REFRESH_TOKENS=True` e `BLACKLIST_AFTER_ROTATION=True` — cada refresh emite um novo refresh e blacklist do anterior, reduzindo a janela de replay.
