@@ -199,7 +199,7 @@ class Command(BaseCommand):
             last_name='Silva',
             email='agente.demo@forensiq.pt',
             profile=User.Profile.AGENT,
-            badge_number='GNR-12345',
+            badge_number='PSP-12345',
             phone='+351 912 345 678',
         )
         users_to_print.append(('AGENT (first responder)', agent.username, agent_pw))
@@ -230,6 +230,18 @@ class Command(BaseCommand):
             is_staff=True,
             is_superuser=False,
         )
+        # Atribui ao orientador todas as permissões `view_*` dos modelos do
+        # app `core` — perfil de auditor: pode entrar no Django Admin e
+        # consultar todos os modelos (User, Occurrence, Evidence,
+        # DigitalDevice, ChainOfCustody, AuditLog) em modo só-leitura, sem
+        # poder editar nem eliminar (princípio do menor privilégio,
+        # consistente com a postura ISO/IEC 27037 + RGPD Art. 32).
+        from django.contrib.auth.models import Permission
+        view_perms = Permission.objects.filter(
+            content_type__app_label='core',
+            codename__startswith='view_',
+        )
+        prof.user_permissions.set(view_perms)
         users_to_print.append(('Orientador (EXPERT + staff)', prof.username, prof_pw))
 
         # --------------------------------------------------------------

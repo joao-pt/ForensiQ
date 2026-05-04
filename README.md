@@ -14,7 +14,7 @@
 
 🟢 **MVP funcional em produção · Sem. 7 · Relatório Intercalar pronto para entrega 6 mai 2026.**
 
-- Backend Django 5 + DRF com **213 testes** a passar (cobertura 67,4%).
+- Backend Django 5 + DRF com **213 testes** a passar (cobertura 71,5%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
 - Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select e CSV export streaming (cap 10k).
@@ -29,7 +29,7 @@
 ### Modelo de dados forense
 - `User` (perfis **AGENT** / **EXPERT**, badge_number, phone)
 - `Occurrence` — caso/cena de crime (NUIPC, GPS, address, agent)
-- `Evidence` — item apreendido com taxonomia de **18 tipos** (`MOBILE_DEVICE`, `COMPUTER`, `STORAGE_MEDIA`, `GAMING_CONSOLE`, `GPS_TRACKER`, `IOT_DEVICE`, `NETWORKING`, `BIOMETRIC`, `WEARABLE`, `VEHICLE_INFO`, `MEDIA_RECORDER`, `OPTICAL_DISC`, `PRINTED_DOCUMENT`, `CRYPTO_HW`, `LICENSE_KEY`, `CLOUD_ACCOUNT`, `EMAIL_ACCOUNT`, `OTHER`) e hierarquia de **sub_components** (parent_evidence)
+- `Evidence` — item apreendido com taxonomia de **18 tipos digital-first** (ADR-0010): 14 raízes — `MOBILE_DEVICE`, `COMPUTER`, `STORAGE_MEDIA`, `GAMING_CONSOLE`, `GPS_TRACKER`, `SMART_TAG`, `CCTV_DEVICE`, `VEHICLE`, `DRONE`, `IOT_DEVICE`, `NETWORK_DEVICE`, `DIGITAL_FILE`, `RFID_NFC_CARD`, `OTHER_DIGITAL` — e 4 sub-componentes — `SIM_CARD`, `MEMORY_CARD`, `INTERNAL_DRIVE`, `VEHICLE_COMPONENT` — com hierarquia até 3 níveis via `parent_evidence`
 - `DigitalDevice` (legacy, coexiste com `Evidence.sub_components`)
 - `ChainOfCustody` — máquina de estados linear (APREENDIDA → EM_TRANSPORTE → RECEBIDA_LABORATORIO → EM_PERICIA → CONCLUIDA → DEVOLVIDA / DESTRUIDA)
 - `AuditLog` com correlation_id por request
@@ -97,18 +97,19 @@
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (213 a passar · cobertura 67,4%)
+### Testes (213 a passar · cobertura 71,5%)
 | Suite | Casos | Cobertura |
 |---|---|---|
-| `tests.py` | Modelos | User, Occurrence, Evidence, DigitalDevice, ChainOfCustody |
-| `tests_api.py` | API | auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle |
-| `tests_frontend.py` | Frontend | views, templates, redirect, conteúdo HTML, JWT cookie |
-| `tests_pdf.py` | PDF export | geração, sanitização, content-type, 404, com/sem dispositivos |
-| `tests_new_features.py` | Cascade + CSV | cascade custody, CSV streaming, audit log |
-| `tests_table_mode.py` | Modo tabela densa | DataTable, multi-select, sort, paginação |
-| `tests_factories.py` | Helpers | factory-boy fixtures partilhadas |
+| `tests.py` | 14 testes de modelos | User, Occurrence, Evidence, DigitalDevice, ChainOfCustody |
+| `tests_api.py` | 83 testes de API | auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle |
+| `tests_frontend.py` | 54 testes de Frontend | views, templates, redirect, conteúdo HTML, JWT cookie |
+| `tests_pdf.py` | 18 testes PDF export | geração, sanitização, content-type, 404, com/sem dispositivos |
+| `tests_new_features.py` | 22 testes Cascade + CSV | cascade custody, CSV streaming, audit log |
+| `tests_table_mode.py` | 22 testes Modo tabela densa | DataTable, multi-select, sort, paginação |
+| `tests_factories.py` | Helpers | factory-boy fixtures partilhadas (não conta para o total) |
 
-Cobertura por módulo: modelos 78,9% · views 75,1% · pdf_export 86,7%.
+Cobertura global em `core/`: 71,5% (1881 statements, 536 não cobertos).
+Por módulo: modelos 78,9% · views 75,1% · pdf_export 86,7% · middleware 90,7%.
 
 ```bash
 cd src/backend
@@ -208,7 +209,7 @@ python manage.py runserver
 
 ```bash
 cd src/backend
-python -m pytest -q                   # 169 testes
+python -m pytest -q                   # 213 testes
 python -m pytest --cov=core           # com coverage
 ```
 
@@ -250,4 +251,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (Claude, principalm
 
 ---
 
-*Última actualização: 3 mai 2026 · Sem. 7 (28 abr - 4 mai) · 213 testes a passar · cobertura 67,4%*
+*Última actualização: 4 mai 2026 · Sem. 8 (5-6 mai) · 213 testes a passar · cobertura 71,5%*
