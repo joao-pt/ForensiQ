@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'django_filters',
     'drf_spectacular',
+    'drf_spectacular_sidecar',
     # ForensiQ
     'core',
 ]
@@ -192,6 +193,11 @@ IMEIDB_BASE_URL = os.environ.get('IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
 IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
 
 # --- drf-spectacular (Swagger / OpenAPI) ---
+# SWAGGER_UI_DIST/FAVICON_HREF: por defeito o drf-spectacular carrega assets
+# de cdn.jsdelivr.net, que não está na allowlist do CSP (cdnjs.cloudflare.com
+# apenas). Apontamos para o pacote sidecar `drf-spectacular-sidecar` que
+# serve os mesmos ficheiros via STATIC_URL — fica dentro de 'self' no CSP
+# e elimina dependência externa em produção.
 SPECTACULAR_SETTINGS = {
     'TITLE': 'ForensiQ API',
     'DESCRIPTION': (
@@ -201,6 +207,9 @@ SPECTACULAR_SETTINGS = {
     ),
     'VERSION': '0.1.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
 }
 
 # --- CORS ---

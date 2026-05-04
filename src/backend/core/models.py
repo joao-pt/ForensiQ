@@ -1064,9 +1064,24 @@ class ChainOfCustody(models.Model):
         for _ in range(CODE_MAX_ATTEMPTS):
             try:
                 with transaction.atomic():
+                    # Lock pessimista na Evidence parent para cobrir o caso
+                    # degenerado em que ainda não existe registo de custódia
+                    # para esta evidência: nesse caso .first() devolveria None
+                    # e o select_for_update() em core_chainofcustody não
+                    # adquiriria nenhum lock (não há row), permitindo que
+                    # dois pedidos concorrentes calculassem ambos sequence=1
+                    # e gerassem IntegrityError tardio (B-C4 da revisão
+                    # pré-intercalar). Bloqueando a Evidence parent, qualquer
+                    # criação de cadeia para a mesma evidência fica
+                    # serializada do início ao fim.
+                    Evidence.objects.select_for_update().filter(
+                        pk=self.evidence_id
+                    ).first()
+
                     # Auto-determinar previous_state e sequence a partir do
                     # último registo. select_for_update() garante serialização
-                    # entre escritores concorrentes na mesma evidência.
+                    # entre escritores concorrentes na mesma evidência quando
+                    # já existem registos.
                     last_record = (
                         ChainOfCustody.objects
                         .select_for_update()
