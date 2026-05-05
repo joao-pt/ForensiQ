@@ -26,7 +26,7 @@ OCCURRENCE_FORWARD_SQL = """
     BEGIN
         RAISE EXCEPTION
             'Registos de ocorrência são imutáveis (ISO/IEC 27037). '
-            'Operação bloqueada: %%', TG_OP;
+            'Operação bloqueada: %', TG_OP;
     END;
     $$ LANGUAGE plpgsql;
 
