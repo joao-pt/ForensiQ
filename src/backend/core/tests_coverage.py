@@ -286,10 +286,24 @@ class ExceptionHandlerTest(TestCase):
         resp = forensiq_exception_handler(exc, {})
         self.assertEqual(resp.status_code, 400)
 
-    def test_non_django_error_delegates_to_drf(self):
+    def test_non_django_error_returns_generic_500_in_production(self):
+        """Excepcoes nao-DRF em producao sao mascaradas com 500 generico.
+
+        Comportamento adicionado em chore(api) commit 2927437: o handler
+        intercepta ``response is None`` (DRF nao sabia processar) e devolve
+        Response 500 com mensagem generica em vez de propagar o stack
+        trace para o cliente (OWASP A05:2021 Security Misconfiguration).
+
+        O teste corre com DEBUG=False (test_settings.py), portanto a
+        ramificacao de mascaramento dispara.
+        """
         exc = ValueError('Algo inesperado')
         resp = forensiq_exception_handler(exc, {})
-        self.assertIsNone(resp)
+        self.assertIsNotNone(resp)
+        self.assertEqual(resp.status_code, 500)
+        self.assertIn('detail', resp.data)
+        # Nao deve vazar 'Algo inesperado' nem nada do tipo na resposta.
+        self.assertNotIn('inesperado', resp.data['detail'])
 
 
 # =========================================================================
@@ -363,9 +377,17 @@ class PDFContentValidationTest(TestCase):
         )
 
     def _extract_pdf_text(self, pdf_bytes):
-        """Extrai texto bruto do PDF via fallback simples."""
-        text = pdf_bytes.decode('latin-1', errors='ignore')
-        return text
+        """Extrai texto do PDF usando pypdf.
+
+        ReportLab comprime streams com ASCII85+FlateDecode, pelo que ler
+        os bytes em bruto e procurar substrings nao funciona — o texto
+        nao aparece descomprimido. Usamos pypdf para descodificar cada
+        pagina e concatenar.
+        """
+        from io import BytesIO
+        from pypdf import PdfReader
+        reader = PdfReader(BytesIO(pdf_bytes))
+        return '\n'.join(page.extract_text() or '' for page in reader.pages)
 
     def test_evidence_pdf_contains_sha256_hash(self):
         from core.pdf_export import generate_evidence_pdf
@@ -559,7 +581,9 @@ class SerializerEdgeCasesTest(APITestCase):
         })
         self.assertEqual(resp.status_code, 201)
         self.assertIsNotNone(resp.data.get('code'))
-        self.assertTrue(resp.data['code'].startswith('EVI-'))
+        # Formato gerado por core/models.py:Evidence.save() — ITM-YYYY-NNNNN
+        # (ITM = item; o prefixo original "EVI-" foi renomeado em PR posterior).
+        self.assertRegex(resp.data['code'], r'^ITM-\d{4}-\d{5}$')
 
 
 # =========================================================================
@@ -597,7 +621,14 @@ class RecordHashIntegrityTest(TestCase):
         self.assertNotEqual(c1.record_hash, c2.record_hash)
 
     def test_hash_chain_links_correctly(self):
-        """O hash do segundo registo inclui o hash do primeiro (blockchain)."""
+        """O record_hash do segundo registo encadeia com o do primeiro.
+
+        ChainOfCustody nao armazena `previous_hash` como campo; o
+        encadeamento e feito em ``compute_record_hash(previous_hash=...)``
+        que e funcao pura. Verificamos que recomputar o hash de ``c2``
+        passando ``c1.record_hash`` como entrada reproduz exactamente o
+        valor que foi gravado, e que e diferente do hash de ``c1``.
+        """
         c1 = ChainOfCustody.objects.create(
             evidence=self.ev,
             new_state=ChainOfCustody.CustodyState.APREENDIDA,
@@ -610,7 +641,11 @@ class RecordHashIntegrityTest(TestCase):
             agent=self.agent,
             observations='Segundo registo',
         )
-        self.assertEqual(c2.previous_hash, c1.record_hash)
+        self.assertNotEqual(c1.record_hash, c2.record_hash)
+        self.assertEqual(
+            c2.compute_record_hash(previous_hash=c1.record_hash),
+            c2.record_hash,
+        )
 
     def test_evidence_integrity_hash_not_empty(self):
         """Cada evidencia criada tem um hash SHA-256 de integridade."""
