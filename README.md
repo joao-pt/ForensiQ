@@ -1,5 +1,11 @@
 # ForensiQ — Plataforma Modular de Gestão de Prova Digital para First Responders
 
+[![CI](https://github.com/joao-pt/ForensiQ/actions/workflows/ci.yml/badge.svg)](https://github.com/joao-pt/ForensiQ/actions/workflows/ci.yml)
+[![Security](https://github.com/joao-pt/ForensiQ/actions/workflows/security.yml/badge.svg)](https://github.com/joao-pt/ForensiQ/actions/workflows/security.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Django 5](https://img.shields.io/badge/django-5.x-092e20.svg)](https://docs.djangoproject.com/)
+
 > Digitalizar e padronizar a recolha, registo e cadeia de custódia de prova digital — do terreno ao laboratório, em conformidade com a ISO/IEC 27037.
 
 **Estudante:** João M. M. Rodrigues · 2203474
@@ -12,15 +18,27 @@
 
 ## Estado actual
 
-🟢 **MVP funcional em produção · Sem. 7 · Relatório Intercalar pronto para entrega 6 mai 2026.**
+🟢 **MVP funcional em produção · Sem. 9 (janela de revisão alargada) · Relatório Intercalar aprovado em 5 mai 2026.**
 
-- Backend Django 5 + DRF com **213 testes** a passar (cobertura 71,5%).
+- Backend Django 5 + DRF com **293 testes a passar (100%)** (cobertura ≥75%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
 - Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select e CSV export streaming (cap 10k).
 - Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com 5 ocorrências PT realistas e fotos placeholder.
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
+
+### Credenciais de demonstração
+
+Em <https://forensiq.pt> (e em qualquer instância populada via `python manage.py seed_demo` seguido de `python manage.py seed_mobile_users`):
+
+| Username | Perfil | Password | Uso |
+|---|---|---|---|
+| `perito` | EXPERT | `1234` | Consulta, perícia, cadeia de custódia, exportação PDF |
+| `agente` | AGENT | `1234` | Criação de ocorrências e itens no terreno, captura de foto/GPS |
+| `pedro.pestana` | EXPERT + superuser | (definida pelo orientador) | Edição via `/admin/` para User/Occurrence/DigitalDevice |
+
+As credenciais demo são para avaliação académica e demo do orientador; **não usar em instalações reais**. Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no admin mesmo para o superuser, preservando o argumento ISO/IEC 27037 sobre imutabilidade da prova.
 
 ---
 
@@ -97,24 +115,26 @@
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (213 a passar · cobertura 71,5%)
+### Testes (293 a passar · cobertura ≥75%)
+
 | Suite | Casos | Cobertura |
 |---|---|---|
-| `tests.py` | 14 testes de modelos | User, Occurrence, Evidence, DigitalDevice, ChainOfCustody |
-| `tests_api.py` | 83 testes de API | auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle |
-| `tests_frontend.py` | 54 testes de Frontend | views, templates, redirect, conteúdo HTML, JWT cookie |
-| `tests_pdf.py` | 18 testes PDF export | geração, sanitização, content-type, 404, com/sem dispositivos |
-| `tests_new_features.py` | 22 testes Cascade + CSV | cascade custody, CSV streaming, audit log |
-| `tests_table_mode.py` | 22 testes Modo tabela densa | DataTable, multi-select, sort, paginação |
-| `tests_factories.py` | Helpers | factory-boy fixtures partilhadas (não conta para o total) |
-
-Cobertura global em `core/`: 71,5% (1881 statements, 536 não cobertos).
-Por módulo: modelos 78,9% · views 75,1% · pdf_export 86,7% · middleware 90,7%.
+| `tests.py` | 14 modelos | User, Occurrence, Evidence, DigitalDevice, ChainOfCustody |
+| `tests_api.py` | 83 API | auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle |
+| `tests_frontend.py` | 54 frontend (server-side) | views, templates, redirect, conteúdo HTML, JWT cookie |
+| `tests_pdf.py` | 18 PDF export | geração, sanitização, content-type, 404, com/sem dispositivos |
+| `tests_new_features.py` | 22 cascade + CSV | cascade custody, CSV streaming, audit log |
+| `tests_table_mode.py` | 22 modo tabela densa | DataTable, multi-select, sort, paginação |
+| `tests_coverage.py` | 69 cobertura adicional | exception handler, edge cases serializers, PDF content (via `pypdf`), hash chain, dashboard stats, IMEI lookup |
+| `tests_frontend_js_namespace.py` | 11 namespace JS | extracção de identificadores top-level + detecção de colisões cross-template |
+| `tests_factories.py` | — helpers | factory-boy fixtures partilhadas (não conta para o total) |
 
 ```bash
 cd src/backend
 ../../.venv/Scripts/python.exe -m pytest -q
-# 213 passed
+# 293 passed
+../../.venv/Scripts/python.exe -m pytest --cov=core --cov-report=term-missing
+# Cobertura ≥75% global em core/
 ```
 
 ### Conformidade
@@ -173,7 +193,13 @@ cd ForensiQ
 python3 -m venv .venv
 .venv/Scripts/activate          # Windows
 # source .venv/bin/activate     # Linux/macOS
+
+# Produção (apenas runtime):
 pip install -r src/backend/requirements.txt
+
+# Desenvolvimento (runtime + testes + linting + pre-commit):
+pip install -r src/backend/requirements.txt -r src/backend/requirements-dev.txt
+pre-commit install
 ```
 
 ### 2. Variáveis de ambiente
@@ -234,6 +260,23 @@ Detalhe completo em `docs/architecture/adr/`.
 
 ---
 
+## Contribuir
+
+Ver [`CONTRIBUTING.md`](CONTRIBUTING.md) para o workflow de Conventional Commits em PT-PT, política de *branches* e processo de Pull Request. Reportar vulnerabilidades via [`SECURITY.md`](SECURITY.md) (GitHub Security Advisory privado, não issue público). Código de conduta em [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1).
+
+## Roadmap pós-entrega final
+
+Trabalho assumido como *future work* no relatório, a executar após avaliação da UC 21184:
+
+- **RGPD Art. 32 alínea c)** — migrar `media/` para object storage com SSE-KMS, snapshots automáticos da base de dados Neon e teste de restauro trimestral (`docs/operations/disaster-recovery.md` pendente)
+- **RGPD Art. 32 alínea d)** — DAST automatizado em CI (OWASP ZAP weekly); SAST/SCA já cobertos por `.github/workflows/security.yml` (pip-audit, bandit, gitleaks, trivy)
+- **Pentest externo** de caixa-preta (estudante MIEI ou empresa parceira da UAb)
+- **Cobertura ≥85%** — módulos prioritários: `core/serializers.py`, `core/pdf_export.py`
+- **i18n** — `gettext` em Django + JSON catalog no frontend; pt-PT por defeito + en-US adicional
+- **Novos papéis** — coordenador (visão multi-NUIPC) e magistrado (acesso *read-only* a casos arquivados com justificação)
+- **Réguas e multi-foto** em captura de evidência fotográfica (ver `docs/architecture/photo-capture-status.md`)
+- **OCR** em ecrãs de telemóvel apreendidos (Tesseract + pré-processamento)
+
 ## Referências
 
 - Casey, E. (2011). *Digital Evidence and Computer Crime* (3rd ed.). Academic Press.
@@ -251,4 +294,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 4 mai 2026 · Sem. 8 (5-6 mai) · 213 testes a passar · cobertura 71,5%*
+*Última actualização: 17 mai 2026 · Sem. 9 (janela de revisão alargada) · **293 testes a passar (100%)** · cobertura ≥75%*
