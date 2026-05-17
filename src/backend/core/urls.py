@@ -15,6 +15,7 @@ Router DRF com os seguintes endpoints:
 - /api/stats/                          — stats agregadas (legacy)
 - /api/stats/dashboard/                — payload estável do dashboard (Wave 2d)
 - /api/health/                         — healthcheck (liveness + DB)
+- /api/reverse-geocode/                — geocodificação inversa (proxy Nominatim)
 """
 
 from django.urls import path
@@ -28,6 +29,7 @@ from .views import (
     EvidenceViewSet,
     EvidenceVINLookupView,
     OccurrenceViewSet,
+    ReverseGeocodeView,
     StatsView,
     UserViewSet,
     healthcheck,
@@ -43,8 +45,7 @@ router.register(r'devices', DigitalDeviceViewSet, basename='device')
 router.register(r'custody', ChainOfCustodyViewSet, basename='custody')
 
 # Endpoints customizados — registados antes do router para não colidirem
-# com as rotas auto-geradas (``/evidences/<pk>/`` é greedy sobre inteiros,
-# mas ``lookup/imei/<imei>`` usa prefixo textual portanto não conflita).
+# com as rotas auto-geradas.
 urlpatterns = [
     path(
         'evidences/lookup/imei/<str:imei>/',
@@ -56,6 +57,7 @@ urlpatterns = [
         EvidenceVINLookupView.as_view(),
         name='evidence-lookup-vin',
     ),
+    path('reverse-geocode/', ReverseGeocodeView.as_view(), name='reverse-geocode'),
     path('stats/', StatsView.as_view(), name='stats'),
     path('stats/dashboard/', DashboardStatsView.as_view(), name='stats-dashboard'),
     path('health/', healthcheck, name='healthcheck'),
