@@ -1,21 +1,44 @@
-"""Reset + seed do ambiente de demonstração.
+"""Seed interactivo do ambiente de demonstração.
 
-Uso (produção via Fly):
+O comando suporta três modos:
 
-    fly ssh console -C "python manage.py seed_demo --confirm"
+* ``--users-only`` cria/actualiza apenas os dois utilizadores demo
+  (perfis AGENT e EXPERT). Idempotente, não destrutivo.
+* ``--reset`` apaga TODOS os dados em ``core_*`` e recria utilizadores +
+  cinco ocorrências realistas com cadeia de custódia em vários estados.
+* Sem flags: comporta-se como ``--reset`` se a base estiver vazia. Se já
+  houver dados, falha com instruções claras (evita destruição acidental).
 
-Cria 3 utilizadores (AGENT, EXPERT, orientador), 5 ocorrências realistas
-com cadeia de custódia em vários estados e 10+ itens. Truncar tabelas
-core_* preserva o esquema; auth e migrations ficam intactos.
+Credenciais para os dois utilizadores são pedidas interactivamente via
+prompt (``input()`` para username, ``getpass.getpass()`` para password).
+Em ambientes não-interactivos (CI, ``fly ssh console -C "..."``) podem
+ser passadas via flags ``--agent-username``, ``--agent-password``,
+``--expert-username``, ``--expert-password`` combinadas com ``--no-input``.
 
-NÃO mexe em ``/data/media/`` — uma execução posterior do mesmo comando
-deixa fotos antigas órfãs. Para limpeza completa use ``--wipe-media``.
+Este comando **nunca** cria ou promove superusers — responsabilidade
+dissociada por design. Quem precisa de superuser para o ``/admin/``
+corre o built-in do Django: ``python manage.py createsuperuser``.
+
+Não mexe em ``MEDIA_ROOT/`` por defeito. Para limpeza completa use
+``--reset --wipe-media``.
+
+Exemplos:
+
+    # Local interactivo (modo recomendado):
+    python manage.py seed_demo --reset
+
+    # Só utilizadores, sem mexer em dados:
+    python manage.py seed_demo --users-only
+
+    # Não-interactivo (CI, Fly):
+    python manage.py seed_demo --reset --no-input \\
+        --agent-username=ag1 --agent-password=Aa12345! \\
+        --expert-username=pe1 --expert-password=Ee12345!
 """
 
 from __future__ import annotations
 
-import secrets
-import string
+import getpass
 import shutil
 from datetime import timedelta
 from decimal import Decimal
@@ -24,6 +47,8 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
@@ -44,15 +69,15 @@ User = get_user_model()
 # Paleta de cores por tipo de evidência — coerente com a UI (badges).
 # Os hex são usados como fundo das placeholders para distinção visual.
 _TYPE_PALETTE = {
-    Evidence.EvidenceType.MOBILE_DEVICE:    ('#1E3A8A', 'Telemóvel'),
-    Evidence.EvidenceType.COMPUTER:         ('#166534', 'Computador'),
-    Evidence.EvidenceType.STORAGE_MEDIA:    ('#5B21B6', 'Armazenamento'),
-    Evidence.EvidenceType.DRONE:            ('#C2410C', 'Drone'),
-    Evidence.EvidenceType.VEHICLE:          ('#991B1B', 'Viatura'),
+    Evidence.EvidenceType.MOBILE_DEVICE:     ('#1E3A8A', 'Telemóvel'),
+    Evidence.EvidenceType.COMPUTER:          ('#166534', 'Computador'),
+    Evidence.EvidenceType.STORAGE_MEDIA:     ('#5B21B6', 'Armazenamento'),
+    Evidence.EvidenceType.DRONE:             ('#C2410C', 'Drone'),
+    Evidence.EvidenceType.VEHICLE:           ('#991B1B', 'Viatura'),
     Evidence.EvidenceType.VEHICLE_COMPONENT: ('#374151', 'Componente'),
-    Evidence.EvidenceType.SIM_CARD:         ('#0E7490', 'SIM'),
-    Evidence.EvidenceType.MEMORY_CARD:      ('#0F766E', 'Cartão SD'),
-    Evidence.EvidenceType.GPS_TRACKER:      ('#A16207', 'GPS Tracker'),
+    Evidence.EvidenceType.SIM_CARD:          ('#0E7490', 'SIM'),
+    Evidence.EvidenceType.MEMORY_CARD:       ('#0F766E', 'Cartão SD'),
+    Evidence.EvidenceType.GPS_TRACKER:       ('#A16207', 'GPS Tracker'),
 }
 
 
@@ -77,80 +102,175 @@ def _load_font(size: int):
 
 
 def _make_placeholder_photo(evidence_type: str, label: str, sub: str) -> ContentFile:
-    """Gera uma fotografia JPEG simulada (1024x768) para o item.
-
-    Usada apenas em demo — uma placeholder mostra cor por tipo + label
-    (código do item) + linha secundária (descrição truncada). O hash
-    SHA-256 é calculado normalmente sobre os bytes desta placeholder.
-    """
+    """Gera uma fotografia JPEG simulada (1024x768) para o item demo."""
     color_hex, type_label = _TYPE_PALETTE.get(
         evidence_type, ('#1F2937', 'Item de prova'),
     )
     bg = _hex_to_rgb(color_hex)
     img = Image.new('RGB', (1024, 768), color=bg)
     draw = ImageDraw.Draw(img)
-
-    # Faixa lateral mais escura (acento visual à esquerda).
     accent = tuple(max(0, c - 40) for c in bg)
     draw.rectangle([(0, 0), (16, 768)], fill=accent)
-
-    # Texto principal: tipo + código.
     f_xl = _load_font(64)
     f_lg = _load_font(36)
     f_md = _load_font(24)
-
     draw.text((48, 48),  type_label.upper(), font=f_md, fill=(255, 255, 255, 200))
     draw.text((48, 96),  label,              font=f_xl, fill='white')
     draw.text((48, 200), sub[:80],           font=f_lg, fill=(255, 255, 255, 220))
-
-    # Marca canto inferior — "ForensiQ DEMO" para que ninguém confunda
-    # com prova real.
     draw.text((48, 700), 'ForensiQ — DEMO (placeholder)', font=f_md, fill=(255, 255, 255, 180))
-
     buf = BytesIO()
     img.save(buf, format='JPEG', quality=80, optimize=True)
     return ContentFile(buf.getvalue(), name='placeholder.jpg')
 
 
-def _random_password(length: int = 16) -> str:
-    """Password com letras, dígitos e símbolos seguros (sem ambíguos)."""
-    alphabet = string.ascii_letters + string.digits + '!@#$%&*'
-    while True:
-        pw = ''.join(secrets.choice(alphabet) for _ in range(length))
-        # Garantir variedade — pelo menos 1 dígito e 1 símbolo.
-        if any(c.isdigit() for c in pw) and any(c in '!@#$%&*' for c in pw):
-            return pw
-
-
 class Command(BaseCommand):
-    help = 'Reset+seed da BD com utilizadores e casos de demonstração.'
+    help = (
+        'Seed interactivo: cria utilizadores demo (AGENT/EXPERT) e, com '
+        '--reset, popula a BD com cinco ocorrências realistas + itens.'
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--confirm', action='store_true',
-            help='Obrigatório — confirma que se aceita perder TODOS os dados.',
+            '--reset', action='store_true',
+            help='Apaga TODOS os dados core_* antes de criar. Operação destrutiva.',
+        )
+        parser.add_argument(
+            '--users-only', action='store_true',
+            help='Cria/actualiza só os utilizadores demo, sem mexer em ocorrências.',
         )
         parser.add_argument(
             '--wipe-media', action='store_true',
-            help='Apaga também o conteúdo de MEDIA_ROOT/evidencias/.',
+            help='Com --reset, apaga também MEDIA_ROOT/evidencias/.',
         )
         parser.add_argument(
-            '--orientador-email', default='pedro.pestana@uab.pt',
-            help='Email do orientador (default: pedro.pestana@uab.pt).',
+            '--no-input', action='store_true',
+            help='Modo não-interactivo; exige todas as flags --agent-* e --expert-*.',
         )
+        parser.add_argument('--agent-username', help='Username para o perfil AGENT.')
+        parser.add_argument('--agent-password', help='Password para o perfil AGENT.')
+        parser.add_argument('--expert-username', help='Username para o perfil EXPERT.')
+        parser.add_argument('--expert-password', help='Password para o perfil EXPERT.')
+
+    # ----- entry point -----
 
     def handle(self, *args, **options):
-        if not options['confirm']:
+        self._no_input = options['no_input']
+        reset = options['reset']
+        users_only = options['users_only']
+
+        if reset and users_only:
+            raise CommandError('--reset e --users-only são mutuamente exclusivos.')
+
+        has_data = Occurrence.objects.exists() or Evidence.objects.exists()
+        if has_data and not reset and not users_only:
             raise CommandError(
-                'Operação destrutiva. Re-corre com --confirm para prosseguir.'
+                'Base de dados já contém ocorrências ou itens.\n'
+                'Re-corre com:\n'
+                '  --reset       para apagar e recriar tudo (destrutivo)\n'
+                '  --users-only  para apenas criar/actualizar os utilizadores'
             )
 
+        # Recolha de credenciais (prompts ou flags).
+        agent_username = self._get_credential(
+            options.get('agent_username'), 'agent-username',
+            'Username para o utilizador AGENT', secret=False,
+        )
+        agent_password = self._get_credential(
+            options.get('agent_password'), 'agent-password',
+            'Password para o utilizador AGENT', secret=True,
+        )
+        expert_username = self._get_credential(
+            options.get('expert_username'), 'expert-username',
+            'Username para o utilizador EXPERT', secret=False,
+        )
+        expert_password = self._get_credential(
+            options.get('expert_password'), 'expert-password',
+            'Password para o utilizador EXPERT', secret=True,
+        )
+
+        if agent_username == expert_username:
+            raise CommandError(
+                'Username do AGENT e do EXPERT têm de ser distintos.'
+            )
+
+        if reset:
+            self._reset_database(wipe_media=options['wipe_media'])
+
+        agent = self._upsert_user(
+            username=agent_username, password=agent_password,
+            profile=User.Profile.AGENT,
+            first_name='Agente', last_name='Demo',
+            email=f'{agent_username}@forensiq.demo',
+            badge_number='AGENT-DEMO',
+        )
+        expert = self._upsert_user(
+            username=expert_username, password=expert_password,
+            profile=User.Profile.EXPERT,
+            first_name='Perito', last_name='Demo',
+            email=f'{expert_username}@forensiq.demo',
+            badge_number='EXPERT-DEMO',
+        )
+
+        if users_only:
+            self._print_summary([agent, expert], cases_created=False)
+            return
+
+        # Modo --reset (acabámos de truncar) ou BD vazia → criar cases.
+        cases = self._create_cases(agent, expert)
+        self._print_summary([agent, expert], cases_created=True, cases=cases)
+
+    # ----- helpers de input -----
+
+    def _get_credential(self, value, flag_name, prompt_label, *, secret):
+        if value:
+            return value.strip()
+        if self._no_input:
+            raise CommandError(
+                f'--no-input exige que forneças --{flag_name} via argumento.'
+            )
+        prompter = getpass.getpass if secret else input
+        result = prompter(f'{prompt_label}: ').strip()
+        if not result:
+            raise CommandError(f'{prompt_label} não pode estar vazio.')
+        return result
+
+    # ----- helpers de DB -----
+
+    def _upsert_user(self, *, username, password, **defaults):
+        user, created = User.objects.update_or_create(
+            username=username,
+            defaults={
+                **defaults,
+                'is_staff': False,
+                'is_superuser': False,
+                'is_active': True,
+            },
+        )
+        # CWE-521: validar antes de aplicar. Aqui não bloqueia — apenas avisa.
+        # A escolha de password fraca é do operador (demo local).
+        try:
+            validate_password(password, user=user)
+        except ValidationError as exc:
+            self.stdout.write(self.style.WARNING(
+                f"AVISO: password de '{username}' não cumpre os validators:"
+            ))
+            for msg in exc.messages:
+                self.stdout.write(self.style.WARNING(f'   • {msg}'))
+            self.stdout.write(self.style.WARNING(
+                '   (Aceite na mesma — assume-se uso em demo, não em produção real.)'
+            ))
+        user.set_password(password)
+        user.save(update_fields=['password'])
+        verb = 'criado' if created else 'actualizado'
+        self.stdout.write(f"   Utilizador '{username}' [{verb}, perfil={defaults['profile']}].")
+        return user
+
+    @transaction.atomic
+    def _reset_database(self, *, wipe_media):
         self.stdout.write(self.style.WARNING('A apagar dados existentes...'))
-        # Em PostgreSQL os triggers ``BEFORE DELETE`` (migration 0002)
-        # bloqueiam qualquer DELETE — protecção ISO/IEC 27037. ``TRUNCATE``
-        # não dispara esses triggers (só dispararia `BEFORE TRUNCATE` se
-        # tivessem sido criados, e não foram), pelo que serve para o
-        # caso de seed/demo.
+        # Em PostgreSQL os triggers BEFORE DELETE (migration 0002) bloqueiam
+        # qualquer DELETE — protecção ISO/IEC 27037. TRUNCATE não dispara
+        # esses triggers, pelo que serve para o caso de seed/demo.
         if connection.vendor == 'postgresql':
             with connection.cursor() as cursor:
                 cursor.execute('''
@@ -165,15 +285,14 @@ class Command(BaseCommand):
                 ''')
         else:
             # SQLite (testes) — sem triggers, basta o queryset delete.
-            with transaction.atomic():
-                ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
-                DigitalDevice.objects.all().delete()
-                Evidence.objects.all()._raw_delete(Evidence.objects.db)
-                Occurrence.objects.all().delete()
-                AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
-                User.objects.all().delete()
+            ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
+            DigitalDevice.objects.all().delete()
+            Evidence.objects.all()._raw_delete(Evidence.objects.db)
+            Occurrence.objects.all().delete()
+            AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
+            User.objects.all().delete()
 
-        if options['wipe_media']:
+        if wipe_media:
             media_root = Path(settings.MEDIA_ROOT)
             evidencias_dir = media_root / 'evidencias'
             if evidencias_dir.exists():
@@ -184,75 +303,17 @@ class Command(BaseCommand):
                 evidencias_dir.mkdir(parents=True, exist_ok=True)
 
         self.stdout.write(self.style.SUCCESS('Tabelas truncadas.'))
-        self.stdout.write('A criar utilizadores...')
 
-        # --------------------------------------------------------------
-        # 3 utilizadores
-        # --------------------------------------------------------------
-        users_to_print = []
+    # ----- criação de casos forenses -----
 
-        agent_pw = _random_password()
-        agent = User.objects.create_user(
-            username='agente.demo',
-            password=agent_pw,
-            first_name='João',
-            last_name='Silva',
-            email='agente.demo@forensiq.pt',
-            profile=User.Profile.AGENT,
-            badge_number='PSP-12345',
-            phone='+351 912 345 678',
-        )
-        users_to_print.append(('AGENT (first responder)', agent.username, agent_pw))
-
-        expert_pw = _random_password()
-        expert = User.objects.create_user(
-            username='perito.demo',
-            password=expert_pw,
-            first_name='Ana',
-            last_name='Costa',
-            email='perito.demo@forensiq.pt',
-            profile=User.Profile.EXPERT,
-            badge_number='PJ-LPC-007',
-            phone='+351 933 555 010',
-        )
-        users_to_print.append(('EXPERT (perito forense)', expert.username, expert_pw))
-
-        prof_pw = _random_password()
-        prof = User.objects.create_user(
-            username='pedro.pestana',
-            password=prof_pw,
-            first_name='Pedro',
-            last_name='Duarte Pestana',
-            email=options['orientador_email'],
-            profile=User.Profile.EXPERT,
-            badge_number='UAB-ORIENT',
-            phone='',
-            is_staff=True,
-            is_superuser=False,
-        )
-        # Atribui ao orientador todas as permissões `view_*` dos modelos do
-        # app `core` — perfil de auditor: pode entrar no Django Admin e
-        # consultar todos os modelos (User, Occurrence, Evidence,
-        # DigitalDevice, ChainOfCustody, AuditLog) em modo só-leitura, sem
-        # poder editar nem eliminar (princípio do menor privilégio,
-        # consistente com a postura ISO/IEC 27037 + RGPD Art. 32).
-        from django.contrib.auth.models import Permission
-        view_perms = Permission.objects.filter(
-            content_type__app_label='core',
-            codename__startswith='view_',
-        )
-        prof.user_permissions.set(view_perms)
-        users_to_print.append(('Orientador (EXPERT + staff)', prof.username, prof_pw))
-
-        # --------------------------------------------------------------
-        # 5 ocorrências realistas (datas espaçadas)
-        # --------------------------------------------------------------
-        self.stdout.write('A criar ocorrências e evidências...')
+    def _create_cases(self, agent, expert):
+        """Cria 5 ocorrências realistas com itens e cadeia de custódia."""
+        self.stdout.write('A criar ocorrências e itens...')
 
         now = timezone.now()
         cases = []
 
-        # Caso 1 — assalto à mão armada com tele móvel apreendido (em transporte).
+        # Caso 1 — assalto à mão armada com telemóvel apreendido.
         c1 = Occurrence.objects.create(
             number='NUIPC.812/2026.LISBOA',
             description=(
@@ -300,7 +361,7 @@ class Command(BaseCommand):
             ChainOfCustody.CustodyState.EM_TRANSPORTE,
         ]))
 
-        # Caso 2 — cyberbullying, computador + smartphone (em perícia).
+        # Caso 2 — cyberbullying, computador + smartphone.
         c2 = Occurrence.objects.create(
             number='NUIPC.0345/2026.PORTO',
             description=(
@@ -396,7 +457,7 @@ class Command(BaseCommand):
             ChainOfCustody.CustodyState.CONCLUIDA,
         ]))
 
-        # Caso 4 — drone derrubado em zona reservada (em laboratório).
+        # Caso 4 — drone derrubado em zona reservada.
         c4 = Occurrence.objects.create(
             number='NUIPC.205/2026.BRAGA',
             description=(
@@ -442,7 +503,7 @@ class Command(BaseCommand):
             ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
         ]))
 
-        # Caso 5 — viatura com componentes electrónicos (em transporte).
+        # Caso 5 — viatura com componentes electrónicos.
         c5 = Occurrence.objects.create(
             number='NUIPC.1789/2026.FARO',
             description=(
@@ -518,49 +579,49 @@ class Command(BaseCommand):
             ChainOfCustody.CustodyState.EM_TRANSPORTE,
         ]))
 
-        # --------------------------------------------------------------
-        # Cadeia de custódia — progredir cada item até ao estado alvo
-        # --------------------------------------------------------------
-        # Nota: ``ChainOfCustody.timestamp`` é sempre fixado em ``save()``
-        # via ``timezone.now()`` (NTP-synced server-side, ISO/IEC 27037).
-        # Em produção, triggers BEFORE UPDATE também bloqueiam qualquer
-        # tentativa posterior de alterar — o demo aceita timestamps
-        # próximos do "agora" para todas as transições; a ordem canónica
-        # é dada pelo campo ``sequence`` (auto-incrementado).
+        # Cadeia de custódia — progredir cada item até ao estado alvo.
+        # ChainOfCustody.timestamp é sempre fixado em save() via
+        # timezone.now() (NTP-synced server-side, ISO/IEC 27037).
+        # A ordem canónica é dada pelo campo sequence (auto-incrementado).
+        lab_states = (
+            ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+            ChainOfCustody.CustodyState.EM_PERICIA,
+            ChainOfCustody.CustodyState.CONCLUIDA,
+        )
         for occurrence, evidences, target_states in cases:
             for ev in evidences:
                 for state in target_states:
                     record = ChainOfCustody(
                         evidence=ev,
                         new_state=state,
-                        agent=expert if state in (
-                            ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-                            ChainOfCustody.CustodyState.EM_PERICIA,
-                            ChainOfCustody.CustodyState.CONCLUIDA,
-                        ) else agent,
-                        observations=(
-                            f'Transição de demonstração para {state}.'
-                        ),
+                        agent=expert if state in lab_states else agent,
+                        observations=f'Transição de demonstração para {state}.',
                     )
                     record.save()
 
-        # --------------------------------------------------------------
-        # Output
-        # --------------------------------------------------------------
+        return cases
+
+    # ----- output -----
+
+    def _print_summary(self, users, *, cases_created, cases=None):
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('=' * 60))
         self.stdout.write(self.style.SUCCESS('SEED COMPLETO'))
         self.stdout.write(self.style.SUCCESS('=' * 60))
-        for label, username, pw in users_to_print:
-            self.stdout.write(f'{label}')
-            self.stdout.write(f'   username: {username}')
-            self.stdout.write(f'   password: {pw}')
-            self.stdout.write('')
-        self.stdout.write(self.style.SUCCESS(
-            f'{len(cases)} ocorrências, '
-            f'{sum(len(es) for _, es, _ in cases)} itens, '
-            f'{ChainOfCustody.objects.count()} transições de custódia.'
+        for user in users:
+            self.stdout.write(f'   {user.profile:<8}  {user.username}')
+        self.stdout.write('')
+        if cases_created and cases:
+            num_items = sum(len(es) for _, es, _ in cases)
+            num_custody = ChainOfCustody.objects.count()
+            self.stdout.write(self.style.SUCCESS(
+                f'{len(cases)} ocorrências, {num_items} itens, '
+                f'{num_custody} transições de custódia.'
+            ))
+        self.stdout.write('')
+        self.stdout.write(self.style.WARNING(
+            'Para superuser administrativo: `python manage.py createsuperuser`.'
         ))
         self.stdout.write(self.style.WARNING(
-            'IMPORTANTE: rotaciona estas passwords após o primeiro login.'
+            'Rotacionar passwords após cessar o uso desta demo.'
         ))
