@@ -29,6 +29,7 @@ const CONFIG = Object.freeze({
         STATS_LEGACY: '/api/stats/',
         LOOKUP_IMEI: '/api/evidences/lookup/imei/',
         LOOKUP_VIN: '/api/evidences/lookup/vin/',
+        REVERSE_GEOCODE: '/api/reverse-geocode/',
         HEALTH: '/api/health/',
     },
 

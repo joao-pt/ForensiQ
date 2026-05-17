@@ -148,6 +148,7 @@ REST_FRAMEWORK = {
         'pdf_export': '30/minute',
         'csv_export': '10/minute',
         'schema': '30/minute',
+        'reverse_geocode': '10/minute',
     },
 }
 
@@ -168,6 +169,7 @@ if TESTING:
         'pdf_export': '10000/minute',
         'csv_export': '10000/minute',
         'schema': '10000/minute',
+        'reverse_geocode': '10000/minute',
     }
 
 # --- SimpleJWT ---

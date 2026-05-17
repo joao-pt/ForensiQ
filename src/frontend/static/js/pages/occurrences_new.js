@@ -118,13 +118,10 @@ function showGpsStatus(message, type) {
     el.textContent = message;
 }
 
-/* ---- Reverse geocoding (Nominatim) ---- */
+/* ---- Reverse geocoding (backend proxy — GDPR) ---- */
 
 function reverseGeocode(lat, lon) {
-    fetch('https://nominatim.openstreetmap.org/reverse?lat=' + lat + '&lon=' + lon + '&format=json', {
-        headers: { 'Accept-Language': 'pt' }
-    })
-    .then(function (res) { return res.ok ? res.json() : null; })
+    API.get(CONFIG.ENDPOINTS.REVERSE_GEOCODE, { lat: lat, lon: lon })
     .then(function (data) {
         if (!data || !data.address) return;
         var addressEl = document.getElementById('address');
@@ -132,7 +129,7 @@ function reverseGeocode(lat, lon) {
             var parts = [
                 data.address.road,
                 data.address.house_number,
-                data.address.city || data.address.town || data.address.village,
+                data.address.city,
                 data.address.country
             ].filter(Boolean);
             addressEl.value = parts.join(', ');

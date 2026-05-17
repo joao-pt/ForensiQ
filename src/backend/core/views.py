@@ -15,12 +15,15 @@ Endpoints:
 - /api/stats/              — dashboard agregado
 - /api/stats/dashboard/    — payload estável consumido pelo dashboard (Wave 2d)
 - /api/health/             — healthcheck (liveness + DB)
+- /api/reverse-geocode/    — geocodificação inversa (proxy Nominatim, GDPR)
 """
 
 import csv
 import logging
 import mimetypes
 from pathlib import Path
+
+import httpx
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -906,6 +909,99 @@ class EvidenceVINLookupView(APIView):
             'note': (
                 'Abre o URL numa nova aba e confirma os dados manualmente.'
             ),
+        })
+
+
+# ---------------------------------------------------------------------------
+# Reverse Geocode — proxy server-side para Nominatim (GDPR)
+# ---------------------------------------------------------------------------
+
+class ReverseGeocodeView(APIView):
+    """GET /api/reverse-geocode/?lat=XX&lon=YY — geocodificação inversa.
+
+    Proxy server-side para o Nominatim (OpenStreetMap) de modo a que as
+    coordenadas GPS nunca saiam para terceiros a partir do browser do agente
+    (requisito GDPR — dados de localização de ocorrências policiais).
+
+    Throttle: 10 req/min por utilizador (scope ``reverse_geocode``).
+    """
+
+    permission_classes = [IsAuthenticated, IsAgentOrExpert]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'reverse_geocode'
+
+    _NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
+    _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
+    _TIMEOUT_SECONDS = 5
+
+    def get(self, request):
+        # --- validação dos parâmetros ---
+        lat_raw = request.query_params.get('lat')
+        lon_raw = request.query_params.get('lon')
+
+        if not lat_raw or not lon_raw:
+            return Response(
+                {'detail': 'Parâmetros "lat" e "lon" são obrigatórios.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            lat = float(lat_raw)
+            lon = float(lon_raw)
+        except (ValueError, TypeError):
+            return Response(
+                {'detail': '"lat" e "lon" devem ser números válidos.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not (-90 <= lat <= 90):
+            return Response(
+                {'detail': '"lat" deve estar entre -90 e 90.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not (-180 <= lon <= 180):
+            return Response(
+                {'detail': '"lon" deve estar entre -180 e 180.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # --- chamada ao Nominatim (server-side) ---
+        try:
+            resp = httpx.get(
+                self._NOMINATIM_URL,
+                params={'lat': lat, 'lon': lon, 'format': 'json'},
+                headers={
+                    'User-Agent': self._USER_AGENT,
+                    'Accept-Language': 'pt',
+                },
+                timeout=self._TIMEOUT_SECONDS,
+            )
+            resp.raise_for_status()
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as exc:
+            log.warning('Nominatim unreachable: %s', exc)
+            return Response(
+                {'detail': 'Serviço de geocodificação indisponível.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        data = resp.json()
+        address = data.get('address', {})
+
+        # Devolver apenas os campos que o frontend precisa para compor
+        # a morada (road, house_number, city/town/village, country).
+        return Response({
+            'display_name': data.get('display_name', ''),
+            'address': {
+                'road': address.get('road', ''),
+                'house_number': address.get('house_number', ''),
+                'city': (
+                    address.get('city')
+                    or address.get('town')
+                    or address.get('village')
+                    or ''
+                ),
+                'country': address.get('country', ''),
+            },
         })
 
 
