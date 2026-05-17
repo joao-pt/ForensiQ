@@ -1,4 +1,7 @@
-# ForensiQ — Backend Dependencies
+# ForensiQ — Backend (produção)
+# Para desenvolvimento, instalar também `requirements-dev.txt`:
+#   pip install -r requirements.txt -r requirements-dev.txt
+
 # Django + REST Framework
 django>=5.0,<6.0
 djangorestframework>=3.15,<4.0
@@ -6,7 +9,7 @@ djangorestframework-simplejwt>=5.3,<6.0
 drf-spectacular>=0.27,<1.0
 drf-spectacular-sidecar>=2024.7,<2027
 
-# Database
+# Base de dados
 dj-database-url>=2.1,<3.0
 psycopg2-binary>=2.9,<3.0
 python-dotenv>=1.0,<2.0
@@ -21,18 +24,6 @@ django-cors-headers>=4.3,<5.0
 # Produção
 gunicorn>=22.0,<23.0
 whitenoise>=6.7,<7.0
-
-# Testing
-# pytest: CVE-2025-71176 fix em 9.0.3
-pytest>=9.0.3,<10.0
-pytest-django>=4.8,<5.0
-factory-boy>=3.3,<4.0
-coverage[toml]>=7.6,<8.0
-
-# Linting / formatação (dev; mantidos em requirements para CI reproducível)
-ruff>=0.6,<1.0
-# black: CVE-2026-32274 fix em 26.3.1
-black>=26.3.1,<27.0
 
 # PDF export (ReportLab — ISO/IEC 27037)
 reportlab>=4.0,<5.0
