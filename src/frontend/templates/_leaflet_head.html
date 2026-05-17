@@ -1,8 +1,10 @@
+{% load static %}
 {% comment %}
-    Inclui o CSS do Leaflet (1.9.4) com SRI e referrer policy.
+    Inclui o CSS do Leaflet (1.9.4) servido localmente.
     Usado em qualquer template com mapa para evitar duplicação de <link>
-    e manter a integrity hash num único sítio. Ver audit finding #34.
+    e manter o path num único sítio.
+
+    Motivo: dados de localização de ocorrências policiais não devem sair
+    para CDNs de terceiros (requisito GDPR). Ver code-review finding #34.
 {% endcomment %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
-      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw=="
-      crossorigin="anonymous" referrerpolicy="no-referrer">
+<link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.min.css' %}">
