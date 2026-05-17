@@ -23,6 +23,12 @@ Uma entrada por semana, até domingo à noite.
 - chore(repo): adicionados `LICENSE` (MIT, © 2026 João Rodrigues), `SECURITY.md` (política de divulgação responsável + GitHub Security Advisory privado), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `.editorconfig`, `.github/dependabot.yml` (pip + github-actions semanais), `.pre-commit-config.yaml` (ruff, black, semgrep `p/owasp-top-ten` + `p/django`)
 - chore(deps): `requirements.txt` reduzido às dependências de produção; novo `requirements-dev.txt` com `pytest`, `pytest-django`, `factory-boy`, `coverage`, `pypdf`, `ruff`, `black`, `pre-commit`
 - chore(env): `.env.example` completado com `JWT_SIGNING_KEY` (cai para `SECRET_KEY` se vazio), `TRUSTED_PROXIES` (CSV de redes CIDR confiáveis para X-Forwarded-For), `IMEIDB_API_TOKEN` e bloco de exemplo para produção Fly.io
+- refactor(seed): consolidação dos dois comandos de seed num único `seed_demo` interactivo. Novas flags `--reset` (destrutivo), `--users-only` (idempotente, só utilizadores), `--no-input` + `--agent-username`/`--agent-password`/`--expert-username`/`--expert-password` para CI. Remove credenciais hardcoded e referências hardcoded ao orientador no código. Quem precisa de superuser corre `python manage.py createsuperuser` separadamente — responsabilidades dissociadas. Acrescenta 4 smoke tests em `tests_coverage.py` (suite cresce para 297 testes)
+- ci(workflow): `.github/workflows/ci.yml` passa a instalar `requirements-dev.txt` (corrige `ModuleNotFoundError: factory_boy` no runner após a separação prod/dev introduzida nesta mesma semana)
+- docs(security): remove tabela com credenciais demo do README e da entrada Sem.8 do changelog; instância em produção continua a funcionar, credenciais partilhadas por canal privado
+- fix(validators): `DigitalDevice.imei` passa a exigir checksum Luhn em todos os caminhos de escrita — o anterior `RegexValidator(r'^(\d{15})?$')` aceitava qualquer sequência de 15 dígitos (ex.: `111111111111111` passava), divergindo silenciosamente do path `Evidence._validate_type_specific_data` que já chamava `validate_imei`. Substituído por `_digital_device_imei_validator` que delega em `validate_imei` quando o campo está preenchido. Migração `0014_alter_digitaldevice_imei` sem alteração de schema. `DigitalDeviceFactory` actualizado para gerar IMEIs Luhn-válidos via `_luhn_complete()` helper
+- feat(validators): novos helpers *advisory* não-bloqueantes — `validate_vin_advisory` calcula o check digit ISO 3779 (posição 9, fórmula FMVSS 115) e devolve aviso se falhar (sem rejeitar — muitos veículos europeus não cumprem); `validate_imsi_advisory` devolve aviso se o MCC não está na lista PT + UE comum (`_KNOWN_MCC` com 20 entries). Acrescenta 9 testes em `tests_coverage.py` (5 VIN + 4 IMSI advisory)
+- fix(frontend): `handleSubmit` em `evidences_new.js` passa a bloquear VIN inválido client-side (antes só o botão "Abrir vindecoder.eu" validava; submeter sem clicar deixava passar). Adicionada função `isValidVin` + listener `input` em tempo real no campo VIN que mostra aviso amarelo quando o check digit ISO 3779 não corresponde (espelha `vinCheckDigitMatches` do backend, defesa em profundidade)
 
 **Bloqueou:** Nada.
 
@@ -33,7 +39,7 @@ Uma entrada por semana, até domingo à noite.
 ## Sem. 8 · 5–11 mai 2026
 
 **Feito:**
-- feat(seed): novo management command `python manage.py seed_mobile_users` — cria `perito` (perfil EXPERT) e `agente` (perfil AGENT) com password fixa `1234` para input móvel rápido na demonstração; promove `pedro.pestana` a `is_superuser=True` para edição directa de User/Occurrence/DigitalDevice via `/admin/` (sem tocar Evidence/ChainOfCustody/AuditLog, que mantêm `has_change_permission=False`). Idempotente e não destrutivo
+- feat(seed): novo management command interino para criar dois utilizadores de demonstração (perfis AGENT e EXPERT) de forma idempotente, complementando o `seed_demo` original. Substituído na semana seguinte (ver Sem.9) por flags em `seed_demo`, consolidando a lógica de seed num único comando
 - fix(migrations): correcção de sintaxe PostgreSQL em `0013_protect_occurrence` — `RAISE EXCEPTION '...' %% USING ERRCODE = 'forbidden_action'` corrigido para `... % USING ERRCODE = 'forbidden_action'` (no formato simples do `RAISE`, `%` é o placeholder, não escape)
 
 **Bloqueou:** Nada.

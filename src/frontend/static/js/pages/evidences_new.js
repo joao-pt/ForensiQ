@@ -562,6 +562,43 @@ function isValidImsi(imsi) {
     return /^\d{14,15}$/.test(imsi);
 }
 
+// VIN: 17 caracteres ISO 3779, sem I/O/Q. Espelho parcial de
+// core/validators.py:validate_vin — apenas estrutura. O check digit
+// (posicao 9) e tratado em vinCheckDigitMatches() como aviso, nao bloqueio.
+function isValidVin(vin) {
+    if (!vin) return false;
+    var v = String(vin).trim().toUpperCase();
+    if (v.length !== 17) return false;
+    if (/[IOQ]/.test(v)) return false;
+    return /^[A-HJ-NPR-Z0-9]{17}$/.test(v);
+}
+
+// Tabela FMVSS 115 — espelho de core/validators.py:_VIN_VALUES/_VIN_WEIGHTS.
+// Letras I, O, Q ausentes deliberadamente (rejeitadas por isValidVin).
+var VIN_VALUES = {
+    A: 1, B: 2, C: 3, D: 4, E: 5, F: 6, G: 7, H: 8,
+    J: 1, K: 2, L: 3, M: 4, N: 5,
+    P: 7, R: 9,
+    S: 2, T: 3, U: 4, V: 5, W: 6, X: 7, Y: 8, Z: 9,
+    '0': 0, '1': 1, '2': 2, '3': 3, '4': 4,
+    '5': 5, '6': 6, '7': 7, '8': 8, '9': 9
+};
+var VIN_WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+
+function vinCheckDigitMatches(vin) {
+    if (!isValidVin(vin)) return false;
+    var v = String(vin).toUpperCase();
+    var sum = 0;
+    for (var i = 0; i < 17; i++) {
+        var val = VIN_VALUES[v.charAt(i)];
+        if (val === undefined) return false;
+        sum += val * VIN_WEIGHTS[i];
+    }
+    var rem = sum % 11;
+    var check = rem === 10 ? 'X' : String(rem);
+    return v.charAt(8) === check;
+}
+
 async function onLookupImei() {
     var input = document.getElementById('tsd-imei');
     var status = document.getElementById('imei-status');
@@ -676,6 +713,27 @@ function buildVinGroup() {
     status.className = 'lookup-status';
     status.setAttribute('role', 'status');
     group.appendChild(status);
+
+    // Feedback live do check digit ISO 3779 (aviso, nao bloqueio).
+    // So dispara quando ja ha 17 caracteres validos estruturalmente.
+    input.addEventListener('input', function () {
+        var v = input.value.trim().toUpperCase();
+        if (v.length !== 17) {
+            setLookupStatus(status, '', '');
+            return;
+        }
+        if (!isValidVin(v)) {
+            setLookupStatus(status, 'error',
+                'VIN inválido: 17 caracteres ISO 3779 (sem I, O ou Q).');
+            return;
+        }
+        if (!vinCheckDigitMatches(v)) {
+            setLookupStatus(status, 'warn',
+                'Check digit ISO 3779 não corresponde — confirme.');
+            return;
+        }
+        setLookupStatus(status, '', '');
+    });
 
     var hint = document.createElement('small');
     hint.className = 'text-muted';
@@ -1026,6 +1084,26 @@ async function handleSubmit() {
             'IMSI deve ter 14 ou 15 dígitos numéricos.');
         Toast.show('IMSI inválido.', 'error');
         return;
+    }
+    var vinInput = document.getElementById('tsd-vin');
+    if (vinInput && vinInput.value) {
+        var vinVal = vinInput.value.trim().toUpperCase();
+        if (!isValidVin(vinVal)) {
+            showError('submit-error',
+                'VIN inválido (17 caracteres alfanuméricos ISO 3779, sem I, O ou Q).');
+            Toast.show('VIN inválido.', 'error');
+            vinInput.focus();
+            return;
+        }
+        // Aviso nao bloqueante: check digit ISO 3779 falha mas estrutura ok.
+        // Veiculos europeus muitas vezes nao cumprem FMVSS 115.
+        if (!vinCheckDigitMatches(vinVal)) {
+            var vinStatusEl = document.getElementById('vin-status');
+            if (vinStatusEl) {
+                setLookupStatus(vinStatusEl, 'warn',
+                    'VIN aceite, mas check digit ISO 3779 não corresponde — confirme.');
+            }
+        }
     }
 
     setSubmitting(true);
