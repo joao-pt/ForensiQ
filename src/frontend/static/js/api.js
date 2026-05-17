@@ -8,7 +8,8 @@
 
 'use strict';
 
-const API = (() => {
+// Idem `auth.js` — apenas `window.API`, sem `const API` no top-level.
+window.API = (() => {
     const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
     function buildHeaders(method, extra) {

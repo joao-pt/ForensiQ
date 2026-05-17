@@ -9,7 +9,10 @@
 
 'use strict';
 
-const Auth = (() => {
+// Exposto exclusivamente em `window.Auth` (assignment, sem `const` no top
+// level) para evitar declaracoes globais detectadas pelo teste estrutural
+// `tests_frontend_js_namespace.py`.
+window.Auth = (() => {
     let userCache = null;
 
     function getCsrfToken() {
