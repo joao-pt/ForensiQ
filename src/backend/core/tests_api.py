@@ -1131,7 +1131,7 @@ class EndToEndFlowTest(BaseAPITestCase):
             'type': 'SMARTPHONE',
             'model': 'Apple iPhone 13 Pro',
             'serial_number': 'MGLN3LL/A',
-            'imei': '358623072123456',
+            'imei': '358623072123455',  # Luhn-válido (check digit 5)
         })
         self.assertEqual(device_response.status_code, status.HTTP_201_CREATED)
         # device_id é devolvido pela resposta mas não precisamos de o
