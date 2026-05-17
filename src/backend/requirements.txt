@@ -3,7 +3,7 @@
 #   pip install -r requirements.txt -r requirements-dev.txt
 
 # Django + REST Framework
-django>=5.0,<6.0
+django>=6.0.5,<7.0
 djangorestframework>=3.15,<4.0
 djangorestframework-simplejwt>=5.3,<6.0
 drf-spectacular>=0.27,<1.0
