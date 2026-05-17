@@ -747,3 +747,89 @@ class OccurrenceCodeTest(APITestCase):
             self.assertEqual(resp.status_code, 201)
         codes = Occurrence.objects.values_list('code', flat=True)
         self.assertEqual(len(set(codes)), len(codes))
+
+
+# =========================================================================
+# 13. SEED COMMAND - smoke test do seed_demo --users-only --no-input
+# =========================================================================
+
+class SeedDemoUsersOnlyTest(TestCase):
+    """Smoke test do management command ``seed_demo`` em modo --users-only.
+
+    Verifica que o command corre sem erro em modo nao-interactivo, cria
+    dois utilizadores com os perfis correctos e e idempotente (re-correr
+    nao duplica nem falha).
+    """
+
+    def test_users_only_creates_two_users(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command(
+            'seed_demo',
+            '--users-only',
+            '--no-input',
+            '--agent-username=smoke-agent',
+            '--agent-password=SmokeAgent1!',
+            '--expert-username=smoke-expert',
+            '--expert-password=SmokeExpert1!',
+            stdout=out,
+        )
+
+        agent = User.objects.get(username='smoke-agent')
+        expert = User.objects.get(username='smoke-expert')
+        self.assertEqual(agent.profile, User.Profile.AGENT)
+        self.assertEqual(expert.profile, User.Profile.EXPERT)
+        self.assertFalse(agent.is_superuser)
+        self.assertFalse(expert.is_superuser)
+        self.assertTrue(agent.check_password('SmokeAgent1!'))
+        self.assertTrue(expert.check_password('SmokeExpert1!'))
+
+    def test_users_only_is_idempotent(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        for _ in range(2):
+            call_command(
+                'seed_demo',
+                '--users-only',
+                '--no-input',
+                '--agent-username=idem-agent',
+                '--agent-password=IdemAgent1!',
+                '--expert-username=idem-expert',
+                '--expert-password=IdemExpert1!',
+                stdout=StringIO(),
+            )
+
+        self.assertEqual(
+            User.objects.filter(username__in=['idem-agent', 'idem-expert']).count(),
+            2,
+        )
+
+    def test_no_input_without_flags_raises(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        from io import StringIO
+
+        with self.assertRaises(CommandError):
+            call_command(
+                'seed_demo', '--users-only', '--no-input', stdout=StringIO(),
+            )
+
+    def test_same_username_for_both_profiles_raises(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        from io import StringIO
+
+        with self.assertRaises(CommandError):
+            call_command(
+                'seed_demo',
+                '--users-only',
+                '--no-input',
+                '--agent-username=same',
+                '--agent-password=Same1234!',
+                '--expert-username=same',
+                '--expert-password=Same1234!',
+                stdout=StringIO(),
+            )
