@@ -6,17 +6,15 @@
  * Hero: Cadeia de custódia (river bar + cards clicáveis por estado).
  * Acções rápidas (full width) + Últimas ocorrências em baixo.
  * Distribuição por tipo de item migrou para /stats/.
+ *
+ * Tudo encapsulado num IIFE — zero declarações no escopo global. Evita
+ * colisões com identifiers expostos por outros scripts carregados na
+ * mesma página (pattern partilhado com toast.js / custody_states.js).
  */
 
-const STATE_FLOW = [
-    { key: 'APREENDIDA',           label: 'Apreendida' },
-    { key: 'EM_TRANSPORTE',        label: 'Em transporte' },
-    { key: 'RECEBIDA_LABORATORIO', label: 'No laboratório' },
-    { key: 'EM_PERICIA',           label: 'Em perícia' },
-    { key: 'CONCLUIDA',            label: 'Concluída' },
-    { key: 'DEVOLVIDA',            label: 'Devolvida' },
-    { key: 'DESTRUIDA',            label: 'Destruída' },
-];
+(() => {
+
+const { STATE_FLOW } = window.CustodyStates;
 
 document.addEventListener('DOMContentLoaded', async function () {
     if (!await Auth.requireAuth()) return;
@@ -270,3 +268,5 @@ function buildEmptyState(iconName, message) {
     wrapper.appendChild(p);
     return wrapper;
 }
+
+})();

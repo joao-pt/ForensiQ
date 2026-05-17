@@ -554,39 +554,43 @@ function mountEvidenceTable() {
     });
 }
 
-async function cascadeTransitionPrompt(ids, controller) {
-    if (ids.length === 0) return;
-    const newState = window.prompt(
-        `Transitar ${ids.length} item${ids.length !== 1 ? 's' : ''} para que estado?\n\n` +
-        Object.entries(CONFIG.CUSTODY_STATES)
-            .map(([k, v]) => `  ${k}  →  ${v}`)
-            .join('\n'),
-        'EM_TRANSPORTE',
-    );
-    if (!newState) return;
-    if (!CONFIG.CUSTODY_STATES[newState]) {
-        alert(`Estado "${newState}" não é válido.`);
-        return;
-    }
-    try {
-        await API.post(`${CONFIG.ENDPOINTS.CUSTODY}cascade/`, {
-            evidence_ids: ids,
-            new_state: newState,
-            observations: `Transição em massa via tabela (${ids.length} itens).`,
-        });
-        if (typeof Toast !== 'undefined') {
-            Toast.show(`${ids.length} itens transitados para ${CONFIG.CUSTODY_STATES[newState]}.`, 'success');
-        }
-        controller.clearSelection();
-        controller.reload();
-        // Recarregar custódia (estado mudou).
-        const evList = controller.getState().results || [];
-        const map = await loadCustodyForEvidences(evList.map((e) => e.id));
-        Object.assign(custodyByEvidence, map);
-        controller.refreshRender();
-    } catch (err) {
-        alert('Erro na transição em massa: ' + (err.message || err));
-    }
+function cascadeTransitionPrompt(ids, controller) {
+    if (!Array.isArray(ids) || ids.length === 0) return;
+
+    const rows = (controller.getState().results || []).filter((r) => ids.includes(r.id));
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const items = ids.map((id) => {
+        const row = byId.get(id);
+        const records = custodyByEvidence[id] || [];
+        const last = records.length > 0 ? records[records.length - 1] : null;
+        return {
+            id,
+            code: row ? row.code : `#${id}`,
+            currentState: last ? last.new_state : '',
+        };
+    });
+
+    TransitionModal.open({
+        items,
+        title: items.length === 1 ? 'Transitar item' : `Transitar ${items.length} itens`,
+        onSubmit: async ({ ids: submitIds, newState, observations }) => {
+            await API.post(`${CONFIG.ENDPOINTS.CUSTODY}cascade/`, {
+                evidence_ids: submitIds,
+                new_state: newState,
+                observations: observations || `Transição em massa via tabela (${submitIds.length} itens).`,
+            });
+            const label = CONFIG.CUSTODY_STATES[newState] || newState;
+            Toast.success(submitIds.length === 1
+                ? `Item transitado para ${label}.`
+                : `${submitIds.length} itens transitados para ${label}.`);
+            controller.clearSelection();
+            controller.reload();
+            const evList = controller.getState().results || [];
+            const map = await loadCustodyForEvidences(evList.map((e) => e.id));
+            Object.assign(custodyByEvidence, map);
+            controller.refreshRender();
+        },
+    });
 }
 
 // Mantemos a função antiga (nunca chamada agora) caso volte a ser útil.

@@ -45,7 +45,10 @@ const API = (() => {
             const message = errorData.detail
                 || Object.values(errorData).flat().join(' ')
                 || `Erro ${response.status}`;
-            throw new Error(message);
+            const err = new Error(message);
+            err.data = errorData;
+            err.status = response.status;
+            throw err;
         }
 
         if (response.status === 204) return null;

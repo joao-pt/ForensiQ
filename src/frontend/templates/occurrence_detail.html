@@ -13,6 +13,7 @@
 
 {% block extra_css %}
 {% include "_leaflet_head.html" %}
+<link rel="stylesheet" href="{% static 'css/components/transition_modal.css' %}">
 <link rel="stylesheet" href="{% static 'css/pages/occurrence_detail.css' %}">
 {% endblock %}
 
@@ -141,5 +142,7 @@
 {% block extra_js %}
 {% include "_leaflet_js.html" %}
 <script src="{% static 'js/toast.js' %}"></script>
+<script src="{% static 'js/custody_states.js' %}"></script>
+<script src="{% static 'js/transition_modal.js' %}"></script>
 <script src="{% static 'js/pages/occurrence_detail.js' %}"></script>
 {% endblock %}
