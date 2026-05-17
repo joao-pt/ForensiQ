@@ -249,7 +249,7 @@ STATICFILES_DIRS = [
 ]
 STORAGES = {
     # Storage por omissão (para ImageField/FileField nos modelos).
-    # Sem esta chave, Django 5.x lança InvalidStorageError ao gravar media.
+    # Sem esta chave, Django 5.x+ lança InvalidStorageError ao gravar media.
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
     },

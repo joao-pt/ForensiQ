@@ -16,8 +16,10 @@ O ForensiQ necessita de uma estrutura de backend que suporte:
 
 A stack inicialmente considerada incluía FastAPI, mas foi revista para Django + DRF por ser mais convencional, com ORM maduro e sistema de autenticação integrado — facilitando a defesa do projeto perante o júri.
 
+> _Nota: a versão do Django foi bumpada para 6.0.5 (LTS) em 17 mai 2026 — ver [ADR-0011](ADR-0011-upgrade-django-6.md)._
+
 ## Decision
-1. **Framework:** Django 5.x + Django REST Framework
+1. **Framework:** Django 6.x (LTS) + Django REST Framework
 2. **Estrutura:** Projeto `forensiq_project` com app `core` em `src/backend/`
 3. **User model:** `AbstractUser` customizado com campo `profile` (AGENT/EXPERT) e `badge_number`
 4. **Modelos core:** User, Occurrence, Evidence, DigitalDevice, ChainOfCustody
@@ -42,6 +44,6 @@ A stack inicialmente considerada incluía FastAPI, mas foi revista para Django +
 - Testes integrados com `django.test.TestCase`
 
 ### Negativas
-- Django é síncrono por defeito (assíncrono parcial em Django 5.x, mas não prioritário para MVP)
+- Django é síncrono por defeito (assíncrono parcial desde Django 5.x e mantido em 6.x, mas não prioritário para MVP)
 - Overhead de configuração inicial maior que FastAPI para APIs simples
 - Necessidade de manter `python-dotenv` para carregar `.env` (Django não o faz nativamente)

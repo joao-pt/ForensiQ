@@ -8,7 +8,7 @@ flowchart TB
         Gunicorn["Gunicorn (WSGI)<br/>+ WhiteNoise (estáticos)<br/>HTTPS A+ (Let's Encrypt)"]
     end
 
-    subgraph App["Django 5.2 · forensiq_project"]
+    subgraph App["Django 6.0 · forensiq_project"]
         Frontend["Frontend<br/>(templates Django + JS vanilla)<br/>Leaflet · NoOpenStreetMap"]
         DRF["DRF API<br/>(ViewSets + Serializers)<br/>JWT cookies + CSRF"]
         Middleware["Middleware<br/>CorrelationID · CSP nonce<br/>JWTCookieAuth · ContentSecurityPolicy"]

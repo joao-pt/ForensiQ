@@ -4,7 +4,7 @@
 [![Security](https://github.com/joao-pt/ForensiQ/actions/workflows/security.yml/badge.svg)](https://github.com/joao-pt/ForensiQ/actions/workflows/security.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
-[![Django 5](https://img.shields.io/badge/django-5.x-092e20.svg)](https://docs.djangoproject.com/)
+[![Django 6](https://img.shields.io/badge/django-6.x-092e20.svg)](https://docs.djangoproject.com/)
 
 > Digitalizar e padronizar a recolha, registo e cadeia de custódia de prova digital — do terreno ao laboratório, em conformidade com a ISO/IEC 27037.
 
@@ -20,7 +20,7 @@
 
 🟢 **MVP funcional em produção · Sem. 9 (janela de revisão alargada) · Relatório Intercalar aprovado em 5 mai 2026.**
 
-- Backend Django 5 + DRF com **293 testes a passar (100%)** (cobertura ≥75%).
+- Backend Django 6 + DRF com **293 testes a passar (100%)** (cobertura ≥75%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
 - Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select e CSV export streaming (cap 10k).
@@ -183,7 +183,7 @@ ForensiQ/
 │   ├── deployment/                  # Guia Fly.io
 │   └── report/                      # PDFs entregáveis (proposta.pdf, intercalar.pdf)
 ├── src/
-│   ├── backend/                     # Django 5 + DRF
+│   ├── backend/                     # Django 6 + DRF
 │   │   ├── core/                    # App principal (models, views, serializers, tests)
 │   │   ├── forensiq_project/        # Settings, URLs raiz, test_settings
 │   │   └── manage.py                # + comando interactivo `seed_demo` (cria utilizadores e dados)
