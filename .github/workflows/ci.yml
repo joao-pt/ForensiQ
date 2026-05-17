@@ -34,7 +34,7 @@ jobs:
 
     steps:
       - name: Checkout do repositório
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Configurar Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -47,8 +47,12 @@ jobs:
         working-directory: src/backend
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install coverage
+          # `requirements-dev.txt` traz factory-boy (usado por tests_factories.py
+          # e importado por toda a suite) e pypdf (usado pela extracção em
+          # tests_coverage.py::PDFContentValidationTest desde o commit 21e402c).
+          # Sem ele, o runner falha com ModuleNotFoundError mesmo que pytest e
+          # coverage estejam disponíveis.
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Verificar configurações de deploy (Django check)
         working-directory: src/backend
@@ -66,7 +70,7 @@ jobs:
 
       - name: Upload do relatório de cobertura
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report-py${{ matrix.python-version }}
           path: src/backend/coverage.xml

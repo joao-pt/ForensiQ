@@ -27,7 +27,14 @@ from core.middleware import ContentSecurityPolicyMiddleware, CorrelationIDMiddle
 from core.models import ChainOfCustody, Evidence, Occurrence, User
 from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOnly
 from core.throttles import AuthRateThrottle
-from core.validators import validate_imei, validate_imsi, validate_vin
+from core.models import DigitalDevice
+from core.validators import (
+    validate_imei,
+    validate_imsi,
+    validate_imsi_advisory,
+    validate_vin,
+    validate_vin_advisory,
+)
 from core.tests_factories import (
     ChainOfCustodyFactory,
     DigitalDeviceFactory,
@@ -135,6 +142,103 @@ class ValidateIMSITest(TestCase):
     def test_imsi_none_raises(self):
         with self.assertRaises(DjangoValidationError):
             validate_imsi(None)
+
+
+class VinCheckDigitAdvisoryTest(TestCase):
+    """Cobertura de ``core.validators.validate_vin_advisory`` (ISO 3779)."""
+
+    # VIN sintético com 17 uns: soma=89, 89%11=1 → check digit '1' (posição 9).
+    VALID_CHECK_DIGIT_VIN = '11111111111111111'
+    # VIN americano real (Honda) — check digit 'X' calculado por FMVSS 115.
+    VALID_NHTSA_VIN = '1M8GDM9AXKP042788'
+    # Volkswagen europeu — estrutura válida, check digit NÃO confere.
+    EUROPEAN_NON_NHTSA_VIN = 'WVWZZZ3CZWE123456'
+
+    def test_valid_check_digit_returns_none(self):
+        self.assertIsNone(validate_vin_advisory(self.VALID_CHECK_DIGIT_VIN))
+
+    def test_nhtsa_compliant_vin_returns_none(self):
+        self.assertIsNone(validate_vin_advisory(self.VALID_NHTSA_VIN))
+
+    def test_european_vin_with_wrong_check_digit_returns_advisory(self):
+        msg = validate_vin_advisory(self.EUROPEAN_NON_NHTSA_VIN)
+        self.assertIsNotNone(msg)
+        self.assertIn('ISO 3779', msg)
+
+    def test_structurally_invalid_vin_returns_none(self):
+        # VINs com letras proibidas ou comprimento errado já são rejeitados
+        # por validate_vin; o advisory devolve None nesses casos.
+        self.assertIsNone(validate_vin_advisory('TOO_SHORT'))
+        self.assertIsNone(validate_vin_advisory('WVWZZZ3CZWI123456'))  # com I
+        self.assertIsNone(validate_vin_advisory(None))
+
+    def test_advisory_does_not_raise_on_invalid_check_digit(self):
+        # validate_vin continua a aceitar VINs estruturalmente válidos
+        # mesmo com check digit errado — o advisory é o único sinal.
+        validate_vin(self.EUROPEAN_NON_NHTSA_VIN)  # não levanta
+
+
+class ImsiAdvisoryTest(TestCase):
+    """Cobertura de ``core.validators.validate_imsi_advisory`` (MCC PT/UE)."""
+
+    def test_portuguese_mcc_268_returns_none(self):
+        self.assertIsNone(validate_imsi_advisory('268011234567890'))
+
+    def test_spanish_mcc_214_returns_none(self):
+        self.assertIsNone(validate_imsi_advisory('214071234567890'))
+
+    def test_unknown_mcc_999_returns_advisory(self):
+        msg = validate_imsi_advisory('999011234567890')
+        self.assertIsNotNone(msg)
+        self.assertIn('999', msg)
+
+    def test_structurally_invalid_imsi_returns_none(self):
+        # IMSIs com formato errado já são rejeitados por validate_imsi;
+        # o advisory devolve None nesses casos.
+        self.assertIsNone(validate_imsi_advisory('123'))
+        self.assertIsNone(validate_imsi_advisory('26801123456789A'))
+        self.assertIsNone(validate_imsi_advisory(None))
+
+
+class DigitalDeviceImeiValidationTest(TestCase):
+    """Regressão: DigitalDevice.imei deve exigir checksum Luhn.
+
+    Antes do fix, ``RegexValidator(r'^(\\d{15})?$')`` aceitava qualquer
+    sequência de 15 dígitos sem verificar Luhn — divergindo do path
+    ``Evidence._validate_type_specific_data`` que já exigia o checksum.
+    """
+
+    def setUp(self):
+        agent = UserFactory.create()
+        occ = OccurrenceFactory.create(agent=agent)
+        self.evidence = EvidenceMobileFactory.create(occurrence=occ, agent=agent)
+
+    def test_invalid_luhn_imei_rejected_on_save(self):
+        dev = DigitalDevice(
+            evidence=self.evidence,
+            type=DigitalDevice.DeviceType.SMARTPHONE,
+            imei='111111111111111',  # 15 dígitos, Luhn falha
+        )
+        with self.assertRaises(DjangoValidationError):
+            dev.save()
+
+    def test_empty_imei_accepted(self):
+        dev = DigitalDevice(
+            evidence=self.evidence,
+            type=DigitalDevice.DeviceType.SMARTPHONE,
+            imei='',
+        )
+        dev.save()  # não levanta — campo opcional
+        self.assertEqual(dev.imei, '')
+
+    def test_valid_luhn_imei_accepted(self):
+        dev = DigitalDevice(
+            evidence=self.evidence,
+            type=DigitalDevice.DeviceType.SMARTPHONE,
+            imei='490154203237518',  # exemplo 3GPP, Luhn ✓
+        )
+        dev.save()  # não levanta
+        self.assertEqual(dev.imei, '490154203237518')
 
 
 # =========================================================================
@@ -747,3 +851,89 @@ class OccurrenceCodeTest(APITestCase):
             self.assertEqual(resp.status_code, 201)
         codes = Occurrence.objects.values_list('code', flat=True)
         self.assertEqual(len(set(codes)), len(codes))
+
+
+# =========================================================================
+# 13. SEED COMMAND - smoke test do seed_demo --users-only --no-input
+# =========================================================================
+
+class SeedDemoUsersOnlyTest(TestCase):
+    """Smoke test do management command ``seed_demo`` em modo --users-only.
+
+    Verifica que o command corre sem erro em modo nao-interactivo, cria
+    dois utilizadores com os perfis correctos e e idempotente (re-correr
+    nao duplica nem falha).
+    """
+
+    def test_users_only_creates_two_users(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        out = StringIO()
+        call_command(
+            'seed_demo',
+            '--users-only',
+            '--no-input',
+            '--agent-username=smoke-agent',
+            '--agent-password=SmokeAgent1!',
+            '--expert-username=smoke-expert',
+            '--expert-password=SmokeExpert1!',
+            stdout=out,
+        )
+
+        agent = User.objects.get(username='smoke-agent')
+        expert = User.objects.get(username='smoke-expert')
+        self.assertEqual(agent.profile, User.Profile.AGENT)
+        self.assertEqual(expert.profile, User.Profile.EXPERT)
+        self.assertFalse(agent.is_superuser)
+        self.assertFalse(expert.is_superuser)
+        self.assertTrue(agent.check_password('SmokeAgent1!'))
+        self.assertTrue(expert.check_password('SmokeExpert1!'))
+
+    def test_users_only_is_idempotent(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        for _ in range(2):
+            call_command(
+                'seed_demo',
+                '--users-only',
+                '--no-input',
+                '--agent-username=idem-agent',
+                '--agent-password=IdemAgent1!',
+                '--expert-username=idem-expert',
+                '--expert-password=IdemExpert1!',
+                stdout=StringIO(),
+            )
+
+        self.assertEqual(
+            User.objects.filter(username__in=['idem-agent', 'idem-expert']).count(),
+            2,
+        )
+
+    def test_no_input_without_flags_raises(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        from io import StringIO
+
+        with self.assertRaises(CommandError):
+            call_command(
+                'seed_demo', '--users-only', '--no-input', stdout=StringIO(),
+            )
+
+    def test_same_username_for_both_profiles_raises(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        from io import StringIO
+
+        with self.assertRaises(CommandError):
+            call_command(
+                'seed_demo',
+                '--users-only',
+                '--no-input',
+                '--agent-username=same',
+                '--agent-password=Same1234!',
+                '--expert-username=same',
+                '--expert-password=Same1234!',
+                stdout=StringIO(),
+            )
