@@ -1,30 +1,21 @@
 'use strict';
 
+/**
+ * ForensiQ — Timeline da cadeia de custódia de um item.
+ *
+ * Tudo encapsulado num IIFE — zero declarações no escopo global. Pattern
+ * alinhado com toast.js / custody_states.js para evitar colisões com
+ * identifiers de outros scripts carregados na mesma página.
+ */
+
+(() => {
+
+const { STATE_FLOW, VALID_TRANSITIONS } = window.CustodyStates;
+
 const evidenceId = parseInt(window.location.pathname.match(/\/evidences?\/(\d+)\//)?.[1], 10);
 let currentState = null;
 let allowedNextStates = [];
 let subEvidences = [];  // Sub-componentes directos do item principal.
-
-const STATE_FLOW = [
-    { key: 'APREENDIDA',           label: 'Apreendida' },
-    { key: 'EM_TRANSPORTE',        label: 'Em Transporte' },
-    { key: 'RECEBIDA_LABORATORIO', label: 'No Laboratório' },
-    { key: 'EM_PERICIA',           label: 'Em Perícia' },
-    { key: 'CONCLUIDA',            label: 'Concluída' },
-    { key: 'DEVOLVIDA',            label: 'Devolvida' },
-    { key: 'DESTRUIDA',            label: 'Destruída' },
-];
-
-const VALID_TRANSITIONS = {
-    '':                    ['APREENDIDA'],
-    'APREENDIDA':          ['EM_TRANSPORTE'],
-    'EM_TRANSPORTE':       ['RECEBIDA_LABORATORIO'],
-    'RECEBIDA_LABORATORIO':['EM_PERICIA'],
-    'EM_PERICIA':          ['CONCLUIDA'],
-    'CONCLUIDA':           ['DEVOLVIDA', 'DESTRUIDA'],
-    'DEVOLVIDA':           [],
-    'DESTRUIDA':           [],
-};
 
 document.addEventListener('DOMContentLoaded', async () => {
     const authenticated = await Auth.requireAuth();
@@ -38,8 +29,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.getElementById('btn-new-transition').addEventListener('click', openTransitionModal);
-    document.getElementById('btn-cancel-transition').addEventListener('click', closeTransitionModal);
-    document.getElementById('btn-submit-transition').addEventListener('click', submitTransition);
 
     if (!evidenceId) {
         const container = document.getElementById('timeline-container');
@@ -250,152 +239,57 @@ function renderTransitionUI(user) {
 
     const btn = document.getElementById('btn-new-transition');
     if (btn) btn.hidden = false;
-
-    const select = document.getElementById('new-state');
-    const stateMap = Object.fromEntries(STATE_FLOW.map(s => [s.key, s]));
-    select.replaceChildren();
-    allowedNextStates.forEach(key => {
-        const s = stateMap[key] || { label: key };
-        const opt = document.createElement('option');
-        opt.value = key;
-        opt.textContent = s.label;
-        select.appendChild(opt);
-    });
 }
 
 function openTransitionModal() {
-    const err = document.getElementById('transition-error');
-    err.classList.remove('visible');
-    err.textContent = '';
-    document.getElementById('observations').value = '';
-    renderCascadeChecklist();
-    document.getElementById('transition-modal').hidden = false;
-}
-
-function closeTransitionModal() {
-    document.getElementById('transition-modal').hidden = true;
-}
-
-/**
- * Renderiza checklist de sub-itens no modal de transição. Cada sub-item
- * aparece pré-marcado para a cascade; ao desmarcar mostra um aviso
- * amarelo a explicar a consequência.
- */
-function renderCascadeChecklist() {
-    const section = document.getElementById('cascade-section');
-    const list = document.getElementById('cascade-list');
-    const warn = document.getElementById('cascade-warning');
-    if (!section || !list) return;
-
-    if (!subEvidences || subEvidences.length === 0) {
-        section.hidden = true;
-        return;
-    }
-    section.hidden = false;
-    warn.classList.add('hidden');
-    list.replaceChildren();
-
-    // Item principal — sempre marcado e desactivado (não dá para excluir
-    // o "alvo" da própria transição).
-    const mainRow = buildCascadeRow({
-        id: evidenceId,
-        label: 'Item principal',
-        checked: true,
-        disabled: true,
-    });
-    list.appendChild(mainRow);
-
-    subEvidences.forEach((sub) => {
-        const typeLabel = (CONFIG.EVIDENCE_TYPES && CONFIG.EVIDENCE_TYPES[sub.type]) || sub.type;
-        const codePrefix = sub.code ? `${sub.code} · ` : '';
-        const row = buildCascadeRow({
-            id: sub.id,
-            label: `${codePrefix}${typeLabel}`,
+    const cascadeItems = [
+        {
+            id: evidenceId,
+            label: 'Item principal',
             checked: true,
-            disabled: false,
-        });
-        list.appendChild(row);
+            disabled: true,
+        },
+        ...subEvidences.map((sub) => {
+            const typeLabel = (CONFIG.EVIDENCE_TYPES && CONFIG.EVIDENCE_TYPES[sub.type]) || sub.type;
+            const codePrefix = sub.code ? `${sub.code} · ` : '';
+            return {
+                id: sub.id,
+                label: `${codePrefix}${typeLabel}`,
+                checked: true,
+            };
+        }),
+    ];
+
+    // O modal partilhado precisa do estado actual de cada item para calcular
+    // os destinos comuns. Em cascade assumimos que sub-componentes estão
+    // sincronizados com o pai (regra UX da timeline); na maior parte dos
+    // casos é verdade. Se algum estiver desalinhado, o backend rejeita
+    // atomicamente e o utilizador vê a mensagem específica.
+    const items = cascadeItems.map((c) => ({
+        id: c.id,
+        code: c.label,
+        currentState: currentState || '',
+    }));
+
+    TransitionModal.open({
+        items,
+        cascadeItems: subEvidences.length > 0 ? cascadeItems : undefined,
+        title: 'Registar transição',
+        onSubmit: async ({ ids, newState, observations }) => {
+            // Endpoint cascade é seguro mesmo com 1 evidência só
+            // (transação atómica + auditoria por registo).
+            await API.post(CONFIG.ENDPOINTS.CUSTODY + 'cascade/', {
+                evidence_ids: ids,
+                new_state: newState,
+                observations,
+            });
+            Toast.success(ids.length === 1
+                ? 'Transição registada com sucesso.'
+                : `Transição aplicada a ${ids.length} itens.`);
+            const user = Auth.getUser();
+            await loadEvidenceAndTimeline(user);
+        },
     });
-
-    // Listener: avisar se o utilizador desmarcar algum sub.
-    list.addEventListener('change', () => {
-        const anyOff = Array.from(list.querySelectorAll('input[type="checkbox"]:not(:disabled)'))
-            .some((cb) => !cb.checked);
-        warn.classList.toggle('hidden', !anyOff);
-    });
 }
 
-function buildCascadeRow(opts) {
-    const wrapper = document.createElement('label');
-    wrapper.className = 'cascade-row';
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.value = String(opts.id);
-    cb.checked = opts.checked;
-    cb.disabled = opts.disabled;
-    const span = document.createElement('span');
-    span.textContent = opts.label;
-    wrapper.appendChild(cb);
-    wrapper.appendChild(span);
-    return wrapper;
-}
-
-async function submitTransition() {
-    const btn = document.getElementById('btn-submit-transition');
-    const errorEl = document.getElementById('transition-error');
-    const newState = document.getElementById('new-state').value;
-    const observations = document.getElementById('observations').value.trim();
-    const list = document.getElementById('cascade-list');
-
-    // Recolhe todos os IDs marcados (incluindo o principal, que está sempre).
-    const selectedIds = list
-        ? Array.from(list.querySelectorAll('input[type="checkbox"]:checked'))
-            .map((cb) => parseInt(cb.value, 10))
-            .filter((n) => Number.isFinite(n))
-        : [evidenceId];
-    const ids = selectedIds.length > 0 ? selectedIds : [evidenceId];
-
-    btn.disabled = true;
-    btn.textContent = 'A registar…';
-    errorEl.classList.remove('visible');
-
-    try {
-        // Sempre via cascade — endpoint é seguro mesmo com 1 evidência só
-        // (transação atómica + auditoria por registo).
-        await API.post(CONFIG.ENDPOINTS.CUSTODY + 'cascade/', {
-            evidence_ids: ids,
-            new_state: newState,
-            observations,
-        });
-
-        closeTransitionModal();
-        const n = ids.length;
-        Toast.success(n === 1
-            ? 'Transição registada com sucesso.'
-            : `Transição aplicada a ${n} itens.`);
-        const user = Auth.getUser();
-        await loadEvidenceAndTimeline(user);
-
-    } catch (err) {
-        // Endpoint cascade devolve { evidence_id, evidence_code, error }
-        // se uma transição específica falhar.
-        let msg = 'Erro ao registar transição.';
-        if (err && err.data) {
-            if (err.data.evidence_code && err.data.error) {
-                const errorDetail = typeof err.data.error === 'object'
-                    ? Object.values(err.data.error).flat().join('; ')
-                    : err.data.error;
-                msg = `Falhou em ${err.data.evidence_code}: ${errorDetail}`;
-            } else if (err.data.detail) {
-                msg = err.data.detail;
-            } else if (err.data.new_state) {
-                msg = err.data.new_state[0] || msg;
-            }
-        }
-        errorEl.textContent = msg;
-        errorEl.classList.add('visible');
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Confirmar';
-    }
-}
+})();
