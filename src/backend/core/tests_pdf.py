@@ -115,7 +115,7 @@ class PDFGenerationUnitTest(TestCase):
             brand='Samsung',
             model='Galaxy S23',
             condition=DigitalDevice.DeviceCondition.FUNCTIONAL,
-            imei='123456789012345',
+            imei='123456789012347',  # Luhn-válido (check digit 7)
             serial_number='SN-DEV-001',
         )
         # Adicionar registo de custódia
