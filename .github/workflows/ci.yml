@@ -47,8 +47,12 @@ jobs:
         working-directory: src/backend
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install coverage
+          # `requirements-dev.txt` traz factory-boy (usado por tests_factories.py
+          # e importado por toda a suite) e pypdf (usado pela extracção em
+          # tests_coverage.py::PDFContentValidationTest desde o commit 21e402c).
+          # Sem ele, o runner falha com ModuleNotFoundError mesmo que pytest e
+          # coverage estejam disponíveis.
+          pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Verificar configurações de deploy (Django check)
         working-directory: src/backend
