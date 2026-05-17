@@ -33,7 +33,7 @@ Uma entrada por semana, até domingo à noite.
 ## Sem. 8 · 5–11 mai 2026
 
 **Feito:**
-- feat(seed): novo management command `python manage.py seed_mobile_users` — cria `perito` (perfil EXPERT) e `agente` (perfil AGENT) com password fixa `1234` para input móvel rápido na demonstração; promove `pedro.pestana` a `is_superuser=True` para edição directa de User/Occurrence/DigitalDevice via `/admin/` (sem tocar Evidence/ChainOfCustody/AuditLog, que mantêm `has_change_permission=False`). Idempotente e não destrutivo
+- feat(seed): novo management command `python manage.py seed_mobile_users` — cria dois utilizadores de demonstração (perfis AGENT e EXPERT) para input móvel rápido na demo do orientador e promove a conta do orientador a `is_superuser=True` para edição directa de User/Occurrence/DigitalDevice via `/admin/` (sem tocar Evidence/ChainOfCustody/AuditLog, que mantêm `has_change_permission=False`). Idempotente e não destrutivo. Credenciais geradas partilhadas por canal privado, fora do repositório
 - fix(migrations): correcção de sintaxe PostgreSQL em `0013_protect_occurrence` — `RAISE EXCEPTION '...' %% USING ERRCODE = 'forbidden_action'` corrigido para `... % USING ERRCODE = 'forbidden_action'` (no formato simples do `RAISE`, `%` é o placeholder, não escape)
 
 **Bloqueou:** Nada.

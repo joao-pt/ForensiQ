@@ -28,17 +28,18 @@
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
 
-### Credenciais de demonstração
+### Demonstração
 
-Em <https://forensiq.pt> (e em qualquer instância populada via `python manage.py seed_demo` seguido de `python manage.py seed_mobile_users`):
+A instância em <https://forensiq.pt> está pré-populada para fins de avaliação académica. **As credenciais para o orientador foram partilhadas por canal privado** — não constam neste repositório por princípio de segurança (ISO/IEC 27037 §5.4 e OWASP A07:2021 *Identification and Authentication Failures*).
 
-| Username | Perfil | Password | Uso |
-|---|---|---|---|
-| `perito` | EXPERT | `1234` | Consulta, perícia, cadeia de custódia, exportação PDF |
-| `agente` | AGENT | `1234` | Criação de ocorrências e itens no terreno, captura de foto/GPS |
-| `pedro.pestana` | EXPERT + superuser | (definida pelo orientador) | Edição via `/admin/` para User/Occurrence/DigitalDevice |
+Para correr uma instância local com dados realistas:
 
-As credenciais demo são para avaliação académica e demo do orientador; **não usar em instalações reais**. Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no admin mesmo para o superuser, preservando o argumento ISO/IEC 27037 sobre imutabilidade da prova.
+```bash
+python manage.py seed_demo            # 5 ocorrências PT, 12 itens forenses, fotos placeholder
+python manage.py seed_mobile_users    # 2 utilizadores AGENT/EXPERT para testes mobile
+```
+
+Ambos os comandos são idempotentes e não destrutivos. Detalhes em [`src/backend/core/management/commands/`](src/backend/core/management/commands/). Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no admin mesmo para superusers, preservando o argumento ISO/IEC 27037 sobre imutabilidade da prova.
 
 ---
 
