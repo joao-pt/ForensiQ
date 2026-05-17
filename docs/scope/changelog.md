@@ -4,6 +4,44 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 9 · 12–17 mai 2026 (janela de revisão alargada)
+
+**Feito:**
+- chore(vendor): Leaflet 1.9.4 servido localmente em `src/frontend/static/vendor/leaflet/` — elimina dependência de CDN externo (unpkg/Cloudflare) e fortalece conformidade RGPD (sem fuga de IP do utilizador para terceiros ao carregar a página com mapa)
+- feat(geocode): proxy server-side para reverse geocoding via Nominatim — o cliente deixa de chamar `nominatim.openstreetmap.org` directamente; o backend faz a consulta com `User-Agent` controlado, cacheia em `DatabaseCache` e devolve apenas o endereço resolvido (remove exposição de GPS+User-Agent para terceiros)
+- chore(api): handler 500 genérico em produção (`core/exceptions.py`) — excepções não-DRF são mascaradas com mensagem genérica para evitar vazamento de stack traces (OWASP A05:2021 *Security Misconfiguration*); DEBUG=True mantém detalhe completo em desenvolvimento
+- feat(custody): modal partilhado *Transitar Selecção* + endpoint `/api/custody/cascade/` — UX consolidada para transições multi-item com confirmação atómica; intersecção de próximos estados válidos calculada client-side via `custody_states.commonNextStates()`
+- test(core): testes adicionais em `core/tests_coverage.py` cobrindo exception handler, *edge cases* de serializers, validação de conteúdo de PDF (hash, tipo, custódia) e cadeia de hashes; suite cresce de 213 para **293 testes** (286 a passar antes da Sem.9, 293 a passar depois)
+- test(frontend): novo `core/tests_frontend_js_namespace.py` percorre todos os templates Django, extrai cada `<script>` carregado e verifica que nenhum identificador `const`/`let`/`var`/`function`/`class` é declarado duas vezes no escopo global — protege contra colisões silenciosas após refactors
+- fix(tests): corrigidos os 7 testes em `tests_coverage.py` que falhavam contra o código actual:
+  - `ExceptionHandlerTest::test_non_django_error_*` — actualizado para o novo comportamento (Response 500 genérico em vez de delegação)
+  - `PDFContentValidationTest` (×4) — extracção de texto via `pypdf` em vez de `pdf_bytes.decode('latin-1')` (que falha em streams ASCII85+FlateDecode do ReportLab)
+  - `SerializerEdgeCasesTest::test_evidence_code_auto_generated` — assertion actualizada para o prefixo real `ITM-YYYY-NNNNN` (não `EVI-`)
+  - `RecordHashIntegrityTest::test_hash_chain_links_correctly` — refactor para verificar `c2.record_hash == c2.compute_record_hash(previous_hash=c1.record_hash)` em vez de aceder a campo `previous_hash` inexistente
+- frontend(p1): IMEI client-side passa a executar checksum Luhn (espelho de `core/validators.py:_luhn_check`); IMSI valida 14–15 dígitos numéricos antes do submit; foto do *item* em `evidence_detail.html` com `loading="lazy"` + `decoding="async"`
+- frontend(namespace): `auth.js` e `api.js` migrados de `const Auth = …` / `const API = …` para `window.Auth = …` / `window.API = …` para passarem invisíveis ao teste estrutural de colisões globais
+- chore(repo): adicionados `LICENSE` (MIT, © 2026 João Rodrigues), `SECURITY.md` (política de divulgação responsável + GitHub Security Advisory privado), `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), `.editorconfig`, `.github/dependabot.yml` (pip + github-actions semanais), `.pre-commit-config.yaml` (ruff, black, semgrep `p/owasp-top-ten` + `p/django`)
+- chore(deps): `requirements.txt` reduzido às dependências de produção; novo `requirements-dev.txt` com `pytest`, `pytest-django`, `factory-boy`, `coverage`, `pypdf`, `ruff`, `black`, `pre-commit`
+- chore(env): `.env.example` completado com `JWT_SIGNING_KEY` (cai para `SECRET_KEY` se vazio), `TRUSTED_PROXIES` (CSV de redes CIDR confiáveis para X-Forwarded-For), `IMEIDB_API_TOKEN` e bloco de exemplo para produção Fly.io
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Entrega final do relatório (fase 3 pós-intercalar) — capítulos de implementação, avaliação e conclusões; consolidação final de docs (incluindo ADRs em LaTeX se o relatório os embutir directamente).
+
+---
+
+## Sem. 8 · 5–11 mai 2026
+
+**Feito:**
+- feat(seed): novo management command `python manage.py seed_mobile_users` — cria `perito` (perfil EXPERT) e `agente` (perfil AGENT) com password fixa `1234` para input móvel rápido na demonstração; promove `pedro.pestana` a `is_superuser=True` para edição directa de User/Occurrence/DigitalDevice via `/admin/` (sem tocar Evidence/ChainOfCustody/AuditLog, que mantêm `has_change_permission=False`). Idempotente e não destrutivo
+- fix(migrations): correcção de sintaxe PostgreSQL em `0013_protect_occurrence` — `RAISE EXCEPTION '...' %% USING ERRCODE = 'forbidden_action'` corrigido para `... % USING ERRCODE = 'forbidden_action'` (no formato simples do `RAISE`, `%` é o placeholder, não escape)
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Janela de revisão alargada solicitada pelo orientador — auditoria interna do código antes da entrega final, completar docs e fix de testes em aberto.
+
+---
+
 ## Sem. 7 · 28 abr – 4 mai
 
 **Feito:**
