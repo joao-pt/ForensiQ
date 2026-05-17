@@ -17,7 +17,7 @@ import uuid
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
-from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import IntegrityError, models, transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
@@ -727,6 +727,19 @@ class Evidence(models.Model):
 # Dispositivo Digital
 # ---------------------------------------------------------------------------
 
+def _digital_device_imei_validator(value):
+    r"""Aceita string vazia (campo opcional) ou IMEI Luhn-válido.
+
+    Cobre o caminho directo DigitalDevice.save() — sem ele, o anterior
+    RegexValidator(r'^(\d{15})?$') aceitava qualquer 15 dígitos sem
+    verificar Luhn, divergindo do path Evidence._validate_type_specific_data
+    que já exigia checksum via validate_imei.
+    """
+    if not value:
+        return
+    validate_imei(value)
+
+
 class DigitalDevice(models.Model):
     """Dispositivo digital associado a uma evidência."""
 
@@ -797,9 +810,9 @@ class DigitalDevice(models.Model):
         max_length=20,
         blank=True,
         default='',
-        validators=[RegexValidator(regex=r'^(\d{15})?$', message='IMEI deve conter exactamente 15 dígitos.')],
+        validators=[_digital_device_imei_validator],
         verbose_name='IMEI',
-        help_text='International Mobile Equipment Identity (15 dígitos).',
+        help_text='International Mobile Equipment Identity (15 dígitos com checksum Luhn).',
     )
     serial_number = models.CharField(
         max_length=100,
@@ -835,7 +848,7 @@ class DigitalDevice(models.Model):
     def save(self, *args, **kwargs):
         """
         Override: chama full_clean() antes de gravar para garantir que
-        validadores de campo (RegexValidator do IMEI, etc.) correm em todos
+        validadores de campo (Luhn do IMEI, etc.) correm em todos
         os caminhos de escrita (não apenas via ModelForm/DRF).
 
         Fix B-C1 da auditoria 2026-04-19.
