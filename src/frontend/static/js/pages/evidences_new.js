@@ -539,6 +539,29 @@ function buildImeiGroup(opts) {
     return group;
 }
 
+// Espelho do _luhn_check em core/validators.py:27-44. Implementação de
+// defesa em profundidade — o servidor valida sempre; este check evita
+// roundtrips para IMEIs evidentemente invalidos.
+function isValidImeiLuhn(imei) {
+    if (!/^\d{15}$/.test(imei)) return false;
+    var sum = 0;
+    for (var i = 0; i < 15; i++) {
+        var digit = parseInt(imei.charAt(i), 10);
+        if (i % 2 === 1) {
+            digit *= 2;
+            if (digit > 9) digit -= 9;
+        }
+        sum += digit;
+    }
+    return sum % 10 === 0;
+}
+
+// IMSI: 14 ou 15 digitos (MCC 3 + MNC 2-3 + MSIN 9-10). Os primeiros
+// digitos identificam pais e operador. Servidor valida em core/validators.py.
+function isValidImsi(imsi) {
+    return /^\d{14,15}$/.test(imsi);
+}
+
 async function onLookupImei() {
     var input = document.getElementById('tsd-imei');
     var status = document.getElementById('imei-status');
@@ -548,6 +571,12 @@ async function onLookupImei() {
     var imei = (input.value || '').trim();
     if (!/^\d{15}$/.test(imei)) {
         setLookupStatus(status, 'error', 'IMEI deve ter 15 dígitos.');
+        input.focus();
+        return;
+    }
+    if (!isValidImeiLuhn(imei)) {
+        setLookupStatus(status, 'error',
+            'IMEI inválido (falha verificação Luhn). Confirme os dígitos.');
         input.focus();
         return;
     }
@@ -982,6 +1011,23 @@ function getCsrfToken() {
 
 async function handleSubmit() {
     clearErrors();
+
+    // Validacao client-side defensiva (server faz authoritative validation).
+    var imeiInput = document.getElementById('tsd-imei');
+    if (imeiInput && imeiInput.value && !isValidImeiLuhn(imeiInput.value.trim())) {
+        showError('submit-error',
+            'IMEI inválido (falha checksum Luhn). Corrija no passo de detalhes.');
+        Toast.show('IMEI inválido — verifique os dígitos.', 'error');
+        return;
+    }
+    var imsiInput = document.getElementById('tsd-imsi');
+    if (imsiInput && imsiInput.value && !isValidImsi(imsiInput.value.trim())) {
+        showError('submit-error',
+            'IMSI deve ter 14 ou 15 dígitos numéricos.');
+        Toast.show('IMSI inválido.', 'error');
+        return;
+    }
+
     setSubmitting(true);
 
     try {
