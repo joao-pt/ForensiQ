@@ -371,11 +371,19 @@ class CustodyTimelinePageTest(AuthenticatedFrontendTestCase):
         content = response.content.decode('utf-8')
         self.assertIn('id="timeline-container"', content)
 
-    def test_custody_timeline_page_contains_transition_modal(self):
-        """A página de timeline deve conter o modal de transição."""
+    def test_custody_timeline_page_loads_transition_modal_script(self):
+        """A página deve carregar o componente TransitionModal e o helper
+        CustodyStates. O modal HTML deixou de estar inline no template; é
+        construído dinamicamente por ``transition_modal.js`` quando o
+        utilizador clica em "Registar transição" (refactor 2026-05-17 para
+        partilhar o componente com a página de detalhe da ocorrência).
+        """
         response = self.client.get(reverse('custody_timeline', kwargs={'evidence_id': 1}))
         content = response.content.decode('utf-8')
-        self.assertIn('id="transition-modal"', content)
+        self.assertIn('custody_states.js', content)
+        self.assertIn('transition_modal.js', content)
+        # O botão que dispara a abertura do modal continua a ter de existir.
+        self.assertIn('id="btn-new-transition"', content)
 
     def test_custody_timeline_page_contains_evidence_header(self):
         """A página de timeline deve conter o cabeçalho da evidência."""
