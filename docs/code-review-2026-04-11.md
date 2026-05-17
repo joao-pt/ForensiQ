@@ -2,7 +2,7 @@
 
 **Data:** 11 de abril de 2026
 **Versão:** 0.1.0
-**Ambiente:** Django 5.0 + DRF + PostgreSQL / Fly.io (Frankfurt)
+**Ambiente:** Django 5.0 + DRF + PostgreSQL / Fly.io (Frankfurt) _(→ 6.0.5 desde mai 2026, ver ADR-0011)_
 **Domínio:** forensiq.pt
 
 ---
