@@ -28,17 +28,30 @@
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
 
-### Credenciais de demonstração
+### Demonstração
 
-Em <https://forensiq.pt> (e em qualquer instância populada via `python manage.py seed_demo` seguido de `python manage.py seed_mobile_users`):
+A instância em <https://forensiq.pt> está pré-populada para fins de avaliação académica. **As credenciais para o orientador foram partilhadas por canal privado** — não constam neste repositório por princípio de segurança (ISO/IEC 27037 §5.4 e OWASP A07:2021 *Identification and Authentication Failures*).
 
-| Username | Perfil | Password | Uso |
-|---|---|---|---|
-| `perito` | EXPERT | `1234` | Consulta, perícia, cadeia de custódia, exportação PDF |
-| `agente` | AGENT | `1234` | Criação de ocorrências e itens no terreno, captura de foto/GPS |
-| `pedro.pestana` | EXPERT + superuser | (definida pelo orientador) | Edição via `/admin/` para User/Occurrence/DigitalDevice |
+Para correr uma instância local com dados realistas, há um único comando interactivo:
 
-As credenciais demo são para avaliação académica e demo do orientador; **não usar em instalações reais**. Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no admin mesmo para o superuser, preservando o argumento ISO/IEC 27037 sobre imutabilidade da prova.
+```bash
+# Modo interactivo (pede username/password para AGENT e EXPERT em prompts):
+python manage.py seed_demo --reset
+
+# Só (cria/actualiza) os 2 utilizadores demo, sem mexer em ocorrências:
+python manage.py seed_demo --users-only
+
+# Não-interactivo (CI/scripts) — exige todas as credenciais como flags:
+python manage.py seed_demo --reset --no-input \
+    --agent-username=ag --agent-password=Aa12345! \
+    --expert-username=pe --expert-password=Ee12345!
+```
+
+O `--reset` apaga TODOS os dados em `core_*` (com `--wipe-media` apaga também as fotos). Sem flags, o comando comporta-se como `--reset` se a base estiver vazia, ou falha com instruções claras se já houver dados (evita destruição acidental).
+
+Para um superuser administrativo (acesso ao `/admin/`), corre o built-in do Django em separado: `python manage.py createsuperuser`. O `seed_demo` nunca cria nem promove superusers — responsabilidades dissociadas por design.
+
+Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no admin mesmo para superusers, preservando o argumento ISO/IEC 27037 sobre imutabilidade da prova.
 
 ---
 
@@ -173,7 +186,7 @@ ForensiQ/
 │   ├── backend/                     # Django 5 + DRF
 │   │   ├── core/                    # App principal (models, views, serializers, tests)
 │   │   ├── forensiq_project/        # Settings, URLs raiz, test_settings
-│   │   └── manage.py                # + comando seed_demo
+│   │   └── manage.py                # + comando interactivo `seed_demo` (cria utilizadores e dados)
 │   └── frontend/                    # Templates Django + CSS/JS vanilla
 ├── src_latex/                       # Fonte LaTeX (proposta, intercalar) + figuras
 ├── Dockerfile                       # Multi-stage build
