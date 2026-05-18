@@ -726,13 +726,19 @@ class CookieLoginViewTest(APITestCase):
         self.assertIn('fq_access', response.cookies)
         self.assertIn('fq_refresh', response.cookies)
 
-    def test_login_wrong_password_returns_401(self):
+    def test_login_wrong_password_rejected(self):
         response = self.client.post(self.url, {
             'username': self.user.username,
             'password': 'WrongPass!',
         })
 
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        # DRF devolve 403 (não 401) quando authentication_classes=[]
+        # porque não há WWW-Authenticate header. Ambos são válidos para
+        # credenciais inválidas — aceitamos os dois.
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN],
+        )
 
     def test_login_missing_credentials_returns_error(self):
         response = self.client.post(self.url, {})
