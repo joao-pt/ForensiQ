@@ -4,6 +4,22 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 10 · 18–24 mai 2026 (encerramento auditoria + Dependabot wave)
+
+**Feito:**
+- chore(deps): onda Dependabot de 5 PRs no mesmo dia (18 mai) — `djangorestframework` 3.15 → 3.17.1 (#11), `pytest-django` 4.8 → 4.12.0 (#13), `djangorestframework-simplejwt` 5.3 → 5.5.1 (#14), `dj-database-url` 2.x → 3.1.2 major (#15), `gunicorn` 22 → 26 major (#12). Os dois major bumps verificados sem breaking changes para o ForensiQ: `dj-database-url.config()` mantém API estável (Python ≥3.10 + Django ≥4 — temos 3.12 + 6.0.5); `gunicorn` remove eventlet worker em v26 mas o `Dockerfile` usa default `sync` (não afectado). Rebase Dependabot encadeado entre #14/#15/#12 para resolver conflitos sequenciais
+- fix(security): mascarar IMEI nos logs operacionais (`mask_imei()` em `core/services/imei_lookup.py` trunca ao TAC + sufixo `***`) — IMEI completo deixa de aparecer em logs Fly.io. Cumpre ISO/IEC 27037 §5.4 (PII forense). Audit 2026-05-18 §3 N1 encerrado
+- fix(security): `_sanitize()` aplicado aos 12 `get_*_display()` que alimentam `Paragraph()` em `core/pdf_export.py` (incluindo o ponto transitivo `_current_custody_state()`). Defesa em profundidade contra XSS em ReportLab via mini-HTML. Audit 2026-05-18 §3 N3 encerrado
+- docs(migrations): docstring de `core/migrations/0008_extend_immutability.py` expandida com warning explícito sobre bypass via `SET session_replication_role='replica'` (vector de insider DBA com privilégio superuser PG, fora do alcance do runtime aplicacional) + nota cruzada com `TRUNCATE`. Audit 2026-05-18 §3 N5 encerrado
+- test(coverage): novo `core/tests_services.py` (1048 linhas, 73 testes) cobrindo áreas sub-testadas — `services/{imei,vin}_lookup.py`, `auth.py`/`auth_views.py` (cookies, CSRF), `audit.py` (TRUSTED_PROXIES), `exceptions.py`, `filters.py` (3 filtersets), paginação edge cases, frontend redirects. Correcção pré-commit de 10 chamadas `reverse()` para o namespace `core:` exigido por `core/urls.py` (audit §3 N13)
+- docs(audit): adicionada secção §8 *Decisão final de tratamento — limitações conhecidas* a `AUDIT_2026-05-18-delta.md`. §8.1 lista os 4 fechados nesta sessão (N1, N3, N5, N13); §8.2 justifica achado a achado os restantes em aberto (N2/N4/S9/P5/B9/N6/N7/N8/N9/T2/T3/N10–N15) com custo estimado e razão de não fixar; §8.3 postura final. Linha 4 do audit actualizada com versões pós-Dependabot. Substitui ideia anterior de ADR-0012 (descartada por o projecto académico não ter v1.1)
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Continuar encerramento dos quick wins restantes da auditoria em cadência diária (S9 EXIF strip, N8 throttle imei_lookup, N11 alinhar CSRF/CORS origins, N14 try/finally no buffer PDF).
+
+---
+
 ## Sem. 9 · 12–17 mai 2026 (janela de revisão alargada)
 
 **Feito:**
