@@ -19,6 +19,31 @@ Referência ISO/IEC 27037 § 5.3 — integridade dos metadados de prova.
 A migration é no-op em SQLite (testes). Em Postgres cria/substitui
 a função auxiliar; o trigger existente continua a ser a garantia
 principal.
+
+Limitação conhecida — bypass via `session_replication_role`
+-----------------------------------------------------------
+Triggers PostgreSQL `BEFORE UPDATE/DELETE` (esta migration + 0002)
+podem ser desactivados na sessão actual por quem detenha privilégio
+de role suficiente, via::
+
+    SET session_replication_role = 'replica';
+    -- UPDATE/DELETE bypassam os triggers nesta sessão
+    -- ...comandos SQL directos...
+    SET session_replication_role = 'origin';
+
+Em Neon.tech (produção do ForensiQ) este comando exige privilégios
+equivalentes a `superuser`, reservados ao role administrativo da
+plataforma — **não estão acessíveis ao runtime Django** (utilizador
+`forensiq_app` com `pg_write_all_data` mas sem `BYPASSRLS` nem
+`superuser`). O vector é portanto de **insider DBA**, não de
+ataque remoto via aplicação.
+
+Também `TRUNCATE` não dispara triggers `FOR EACH ROW` — ver
+`docs/AUDIT_2026-05-18-delta.md` §3 N6 e `seed_demo.py:272-285`
+para a janela usada em fixtures de desenvolvimento.
+
+Documentação introduzida em resposta à auditoria 2026-05-18 §3 N5
+e §4.2 (matriz de cobertura dos triggers).
 """
 
 from django.db import migrations
