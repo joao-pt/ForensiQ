@@ -68,7 +68,7 @@ from .serializers import (
     UserDetailSerializer,
     UserSerializer,
 )
-from .services.imei_lookup import LookupError as ImeiLookupError, lookup_imei
+from .services.imei_lookup import LookupError as ImeiLookupError, lookup_imei, mask_imei
 from .services.vin_lookup import build_vindecoder_url
 from .validators import validate_imei, validate_vin
 
@@ -852,7 +852,7 @@ class EvidenceIMEILookupView(APIView):
         if not data.get('normalised_complete'):
             raw_keys = list(data.get('raw', {}).keys())
             log.warning(
-                'imeidb schema drift imei=%s raw_keys=%s', imei, raw_keys
+                'imeidb schema drift imei=%s raw_keys=%s', mask_imei(imei), raw_keys
             )
             return Response(
                 {

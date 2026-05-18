@@ -286,8 +286,8 @@ def _custody_table(custody_records, styles):
         Paragraph('Observações', styles['label']),
     ]]
     for idx, rec in enumerate(custody_records, start=1):
-        prev = rec.get_previous_state_display() if rec.previous_state else '(início)'
-        new = rec.get_new_state_display()
+        prev = _sanitize(rec.get_previous_state_display()) if rec.previous_state else '(início)'
+        new = _sanitize(rec.get_new_state_display())
         table_data.append([
             Paragraph(str(idx), styles['value']),
             Paragraph(f'{prev} → {new}', styles['value']),
@@ -362,7 +362,7 @@ def _render_item_identification(evidence, styles):
 
     rows = [
         ('Código:', evidence.code or f'#{evidence.pk}'),
-        ('Tipo:', evidence.get_type_display()),
+        ('Tipo:', _sanitize(evidence.get_type_display())),
         ('Nº de série:', _sanitize(evidence.serial_number) or '—'),
         ('Data / Hora de apreensão:', _fmt_datetime(evidence.timestamp_seizure)),
         ('Localização GPS:', _fmt_gps(evidence.gps_lat, evidence.gps_lon)),
@@ -422,7 +422,7 @@ def _render_sub_components(evidence, styles):
         sub_label = sub.code or f'#{sub.pk}'
         block = [
             Paragraph(
-                f'3.{i}. {sub.get_type_display()} ({sub_label})',
+                f'3.{i}. {_sanitize(sub.get_type_display())} ({sub_label})',
                 styles['subsection'],
             ),
         ]
@@ -443,7 +443,7 @@ def _render_sub_components(evidence, styles):
         for j, dev in enumerate(legacy_devices, start=start):
             block = [
                 Paragraph(
-                    f'3.{j}. {dev.get_type_display()} (dispositivo legado)',
+                    f'3.{j}. {_sanitize(dev.get_type_display())} (dispositivo legado)',
                     styles['subsection'],
                 ),
             ]
@@ -451,7 +451,7 @@ def _render_sub_components(evidence, styles):
                 ('Marca:', _sanitize(dev.brand) or '—'),
                 ('Nome comercial:', _sanitize(dev.commercial_name) or '—'),
                 ('Modelo (SKU):', _sanitize(dev.model) or '—'),
-                ('Estado:', dev.get_condition_display()),
+                ('Estado:', _sanitize(dev.get_condition_display())),
                 ('IMEI:', _sanitize(dev.imei) or '—'),
                 ('Nº de série:', _sanitize(dev.serial_number) or '—'),
                 ('Observações:', _sanitize(dev.notes) or '—'),
@@ -546,11 +546,15 @@ def generate_evidence_pdf(evidence):
 # ---------------------------------------------------------------------------
 
 def _current_custody_state(evidence):
-    """Devolve (label, record) do estado actual de custódia. ``None`` se não há."""
+    """Devolve (label sanitizado, record) do estado actual de custódia.
+
+    O label é sanitizado à partida porque vai sempre alimentar
+    ``Paragraph()`` no PDF (auditoria 2026-05-18 §3 N3).
+    """
     last = evidence.custody_chain.order_by('-sequence').first()
     if last is None:
         return ('—', None)
-    return (last.get_new_state_display(), last)
+    return (_sanitize(last.get_new_state_display()), last)
 
 
 def generate_occurrence_pdf(occurrence):
@@ -703,7 +707,7 @@ def generate_occurrence_pdf(occurrence):
             else:
                 identity = brand
             story.append(Paragraph(
-                f'Item {owner_label} · {dev.get_type_display()} · {identity}',
+                f'Item {owner_label} · {_sanitize(dev.get_type_display())} · {identity}',
                 styles['value'],
             ))
 

@@ -81,6 +81,20 @@ def _timeout() -> float:
 _RAW_DROP_KEYS = ('device_image',)
 
 
+def mask_imei(imei) -> str:
+    """Trunca o IMEI ao TAC (8 dígitos) para uso em logs operacionais.
+
+    O IMEI completo é PII forense (ISO/IEC 27037) — identifica um único
+    dispositivo. Em logs (Fly.io, ficheiros) basta o TAC (Type Allocation
+    Code, primeiros 8 dígitos) para correlacionar com a marca/modelo sem
+    expor o identificador único do equipamento. Auditoria 2026-05-18 §3 N1.
+    """
+    s = str(imei or '')
+    if len(s) < 8:
+        return '***'
+    return f'{s[:8]}***'
+
+
 # ---------------------------------------------------------------------------
 # API pública
 # ---------------------------------------------------------------------------
@@ -120,12 +134,12 @@ def lookup_imei(imei: str) -> dict:
         with httpx.Client(timeout=_timeout()) as client:
             response = client.get(url, headers=headers)
     except httpx.TimeoutException:
-        log.warning('imeidb timeout imei=%s', imei)
+        log.warning('imeidb timeout imei=%s', mask_imei(imei))
         raise LookupError(
             'Tempo esgotado ao consultar imeidb.xyz. Preenche manualmente.'
         )
     except httpx.RequestError as exc:
-        log.warning('imeidb network error imei=%s err=%s', imei, exc)
+        log.warning('imeidb network error imei=%s err=%s', mask_imei(imei), exc)
         raise LookupError(
             'Erro de rede ao consultar imeidb.xyz. Preenche manualmente.'
         )
@@ -135,13 +149,13 @@ def lookup_imei(imei: str) -> dict:
     try:
         payload = response.json()
     except ValueError:
-        log.warning('imeidb non-json body imei=%s', imei)
+        log.warning('imeidb non-json body imei=%s', mask_imei(imei))
         raise LookupError('Resposta de imeidb.xyz não é JSON válido.')
 
     if not isinstance(payload, dict):
         log.warning(
             'imeidb payload not a dict imei=%s type=%s',
-            imei, type(payload).__name__,
+            mask_imei(imei), type(payload).__name__,
         )
         raise LookupError('Resposta de imeidb.xyz em formato inesperado.')
 
@@ -151,7 +165,7 @@ def lookup_imei(imei: str) -> dict:
         api_msg = payload.get('message') or ''
         log.warning(
             'imeidb success=false imei=%s code=%s msg=%s',
-            imei, api_code, api_msg,
+            mask_imei(imei), api_code, api_msg,
         )
         raise LookupError(_message_for_api_code(api_code, api_msg))
 
