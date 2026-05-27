@@ -1,9 +1,9 @@
 # Auditoria ForensiQ — Delta 2026-05-18
 
 **Escopo:** delta vs [`AUDIT_2026-04-16.md`](AUDIT_2026-04-16.md) (snapshot histórico imutável).
-**Stack (snapshot do commit `2183600`):** Django 6.0.5 + DRF 3.17.1 + djangorestframework-simplejwt 5.5.1 + dj-database-url 3.1.2 + gunicorn 26 + PostgreSQL (Neon) + Fly.io. Dev: pytest-django 4.12. Frontend templates Django + JS vanilla.
+**Stack (snapshot do commit `2183600`; updates de Sem.10/11 listados em §8.1):** Django 6.0.5 + DRF 3.17.1 + djangorestframework-simplejwt 5.5.1 + dj-database-url 3.1.2 + gunicorn 26 + PostgreSQL (Neon) + Fly.io. Dev: pytest-django 4.12. Frontend templates Django + JS vanilla.
 **Método:** 3 agentes Explore (segurança · backend/arquitectura · frontend/testes/CI) + leitura directa de `models.py`, `serializers.py`, `views.py`, `auth.py`, `middleware.py`, `audit.py`, `pdf_export.py`, `services/{imei,vin}_lookup.py`, `migrations/0002,0008`. 3 sub-auditorias focadas: PDF export, triggers PG, services externos.
-**Veredito executivo:** **8 dos 10 itens do Top-10 de abr 2026 estão resolvidos**. O hardening de segurança crítica (JWT HttpOnly, CSP nonce, hash determinístico, IDOR, TRUSTED_PROXIES) materializou-se em código, com cobertura de testes adicional (+121%, 382 testes). Persistem riscos **operacionais** (EXIF em uploads, retenção AuditLog, custo IMEI sem quota) e **forenses de nível superior** (PDF sem assinatura/PDF-A, TRUNCATE não bloqueado, `session_replication_role`). Dois achados da auditoria de abr eram **falsos positivos** quando reverificados (B11, ip_address fallback).
+**Veredito executivo:** **8 dos 10 itens do Top-10 de abr 2026 estão resolvidos**. O hardening de segurança crítica (JWT HttpOnly, CSP nonce, hash determinístico, IDOR, TRUSTED_PROXIES) materializou-se em código, com cobertura de testes adicional (+128%, 393 testes pós-Sem.11). Em Sem.11 foram encerrados **S9** (EXIF strip — último 🟠 Alto operacional), **N8** (throttle dedicado `imei_lookup`), **N11** (alinhamento CSRF/CORS) e **N14** (try/finally em PDF). Persistem riscos **arquitecturais** sem v1.1 (N2 PDF/A-3u + X.509, N4 PDF assíncrono, P5 PurgeCSS) e **operacionais de monitorização** (B9 retenção AuditLog, N9 quota IMEI). Dois achados da auditoria de abr eram **falsos positivos** quando reverificados (B11, ip_address fallback).
 
 > **Nota pós-auditoria (mesmo dia, após commit `2183600`):** o Dependabot completou a onda de 5 PRs ainda em 2026-05-18, levando os pins de DRF 3.15 → 3.17.1 (#11), pytest-django 4.8 → 4.12 (#13), simplejwt 5.3 → 5.5.1 (#14), dj-database-url 2.x → 3.1.2 (#15) e gunicorn 22 → 26 (#12). Os bumps `dj-database-url` e `gunicorn` são major mas verificados sem breaking changes para o ForensiQ (API `config()` estável; worker default `sync` no Dockerfile, eventlet removido em gunicorn 26 não aplicável). Nenhum dos achados N1–N15 foi alterado por estes bumps.
 
@@ -53,7 +53,7 @@ Cada item cita o ID original da auditoria de abr e a evidência exacta (`file:li
 
 | ID | Severidade | Descrição actual |
 |----|-----------|------------------|
-| **S9** | 🟠 Alto | **EXIF strip ausente em uploads de fotografia**. `grep -i "exif|getexif|exif_transpose"` em `src/backend/` → 0 ocorrências. `Pillow.verify()` é chamado para validar formato (`core/models.py:69-109`), mas os metadados EXIF (GPS, modelo de câmara, timestamp original) **permanecem na foto gravada**. Impacto forense: dados sensíveis de cena podem ser exfiltrados de relatórios PDF/exports legítimos. |
+| **S9** | ✅ Fechado Sem.11 | EXIF strip implementado em 2026-05-27 — ver §8.1. |
 | **B3** | 🟡 Baixo→Médio | `AuditLog.ip_address` tem fallback `'0.0.0.0'` em `audit.py:80` — risco residual reduzido. Mantém-se aberto enquanto não houver `default='0.0.0.0'` no campo do model. |
 | **B9** | 🟡 Médio | `AuditLog` sem política de retenção. Não há management command, cron Fly nem campo `expires_at`. PostgreSQL acumula indefinidamente. |
 | **B14** | 🟢 Baixo (re-avaliado) | `AuditLog.details` é `JSONField` (`models.py:1245`) e não `TextField` — codificação JSON escapa `\n`. Log injection clássica está mitigada. Persiste risco baixo de "logical injection" se os campos forem renderizados sem escape em dashboards futuros. |
@@ -75,13 +75,13 @@ Cada item cita o ID original da auditoria de abr e a evidência exacta (`file:li
 | **N5** | 🟠 Alto | **`session_replication_role = 'replica'` não documentado nem defendido**. Um operador com role PG suficiente pode desactivar triggers de imutabilidade na sua sessão. Não há comment em migrations 0002/0008 a alertar; o `ALTER TABLE DISABLE TRIGGER` é tecnicamente inevitável mas tipicamente requer superuser. | `core/migrations/0002_*.py`, `0008_*.py` — nenhuma menção. |
 | **N6** | 🟡 Médio | **`TRUNCATE` não bloqueado por triggers**. `BEFORE DELETE FOR EACH ROW` não dispara em `TRUNCATE`. O ataque é via SQL directo (não API), e `seed_demo.py:272-285` documenta-o explicitamente para fixtures, mas vale registar. | Migrations 0002/0008. |
 | **N7** | 🟡 Médio | **`AuditLog` sem trigger PG de imutabilidade** (só protecção ORM `save()/delete()`). Em SQLite (testes) e em PG (produção), a defesa depende 100% do método `save()` ser chamado — `Model.objects.filter(...).update(...)` ou `delete()` bypass. | `core/models.py:1269-1287` (ORM only). |
-| **N8** | 🟡 Médio | **Sem rate-limit interno para IMEI lookup** (existe `reverse_geocode: 10/min`; falta `imei_lookup` scope). Um agente pode esgotar o saldo `imeidb.xyz` com 60 reqs/min (limite `user`). | `forensiq_project/settings.py:143-152` — sem scope `imei_lookup`. |
+| **N8** | ✅ Fechado Sem.11 | Scope DRF `imei_lookup: 5/min` adicionado em 2026-05-27. | Ver §8.1. |
 | **N9** | 🟡 Médio | **Sem monitorização de quota/saldo IMEIDB**. Resposta 402 "payment required" → apenas log warning. Sem contador interno nem alerta Fly.io. | `core/services/imei_lookup.py:174`. |
 | **N10** | 🟢 Baixo | **`AuditLog.timestamp` sem `sequence` field**. Dois inserts concorrentes podem ter mesmo microssegundo. Correlação por `correlation_id` mitiga, mas subóptimo forensicamente vs ChainOfCustody que tem `sequence`. | `core/models.py:1238`. |
-| **N11** | 🟢 Baixo | **CSRF/CORS origin divergência**. `CSRF_TRUSTED_ORIGINS` (3 entradas) ≠ `CORS_ALLOWED_ORIGINS` (5 entradas). Ambas restritivas — risco baixo, mas indica drift de configuração. | `forensiq_project/settings.py:218-232`. |
+| **N11** | ✅ Fechado Sem.11 | Lista canónica `_FRONTEND_ORIGINS_PROD` reutilizada por CORS/CSRF em 2026-05-27. | Ver §8.1. |
 | **N12** | 🟢 Baixo | **N+1 latente em `pdf_export.py`**. `evidence.digital_devices.all()` no loop (`pdf_export.py:683`) e `custody_chain.order_by('-sequence').first()` em sub-componentes (`pdf_export.py:550,648-649`). Mitigado se a view fizer `prefetch_related` — verificar `views.py:336,605-606`. | `core/pdf_export.py:550,683`; `core/views.py:336,605-606`. |
 | **N13** | 🟢 Baixo | **`tests_services.py` (untracked) com 10 falhas**. 1048 linhas, 73 testes, 63 ✅ / 10 ❌. Falhas todas por `NoReverseMatch` — chama `reverse('occurrence-list')` em vez de `reverse('core:occurrence-list')` (porque `core/urls.py:38` declara `app_name='core'`). Bug do ficheiro, não do código aplicacional. | `core/tests_services.py:841,849,858,907,914,954,961,988,994,999`. |
-| **N14** | 🟢 Baixo | **`buffer.close()` não garantido em `pdf_export.py` se `doc.build()` falhar**. Risco de leak de file descriptors em cenário de erro repetido. | `core/pdf_export.py:538-540,713-715`. |
+| **N14** | ✅ Fechado Sem.11 | `try/finally` em `generate_*_pdf` aplicado em 2026-05-27. | Ver §8.1. |
 | **N15** | 🟢 Informativo | **`frame-src 'none'` muito restritivo**. Bloqueia iframes legítimos. Aceitável dado o escopo actual (sem embeds), mas registar para futura integração de mapas embebidos ou docs visuais. | `core/middleware.py:127`. |
 
 ---
@@ -157,12 +157,12 @@ Ordem por **risco real para o caso de uso forense académico**.
 | # | Item | Severidade | Justificação |
 |---|------|-----------|--------------|
 | 1 | **N1** — Logging IMEI completo (PII) | 🟠 Alto | Privacidade + ISO 27037; fácil de fixar (truncar/hash). |
-| 2 | **S9** — EXIF strip em uploads | 🟠 Alto | Privacidade da cena; agente pode revelar GPS sem querer. |
+| 2 | **S9** — EXIF strip em uploads | ✅ Fechado Sem.11 | Privacidade da cena; agente pode revelar GPS sem querer. |
 | 3 | **N2** — PDF sem assinatura/PDF-A | 🟠 Alto | Falha de "prova inalterável" para auditor externo. |
 | 4 | **N3** — XSS ReportLab Paragraph | 🟠 Alto | Defesa em profundidade barata (`_sanitize` está pronto). |
 | 5 | **N4** — PDF síncrono sem limite | 🟠 Alto | DoS trivial; mover para Celery/RQ ou impor `max_evidences`. |
 | 6 | **P5** — CSS bloat 5679 linhas | 🟠 Alto | Visibilidade UX + transferência; PurgeCSS é low-effort. |
-| 7 | **N8** — IMEI lookup sem throttle dedicado | 🟡 Médio | Adicionar `'imei_lookup': '5/minute'` em settings. |
+| 7 | **N8** — IMEI lookup sem throttle dedicado | ✅ Fechado Sem.11 | Adicionar `'imei_lookup': '5/minute'` em settings. |
 | 8 | **N5** — `session_replication_role` sem documentar | 🟡 Médio | ADR ou comentário em migration; defesa operacional. |
 | 9 | **B9** — AuditLog sem retenção | 🟡 Médio | Management command + cron Fly. |
 | 10 | **N7** — AuditLog sem trigger PG | 🟡 Médio | Replicar pattern de Evidence/CoC. |
@@ -199,15 +199,19 @@ Ordem por **risco real para o caso de uso forense académico**.
 
 O ForensiQ é o entregável académico da UC 21184 (Universidade Aberta). A janela útil entre esta auditoria (18 Mai 2026) e a defesa final é inferior a 4 semanas; **não está prevista uma versão v1.1** nem manutenção pós-defesa. Esta secção regista, de forma encerrada, o que foi corrigido nesta passagem final e o que permanece em aberto por opção consciente.
 
-### 8.1 Fechados em 2026-05-18 (passagem final pós-auditoria)
+### 8.1 Fechados em 2026-05-18 (passagem final pós-auditoria) + 2026-05-27 (Sem.11)
 
-Três achados 🟠 Alto receberam fix surgical (~30 min de código, sem alteração de API pública):
+Três achados 🟠 Alto receberam fix surgical em 2026-05-18 (~30 min de código, sem alteração de API pública). Em 2026-05-27 (Sem.11) acrescentaram-se mais quatro fixes — um 🟠 Alto (S9), um 🟡 Médio (N8) e dois 🟢 Baixo (N11, N14) — encerrando o último 🟠 Alto operacional aberto.
 
 | ID | Fix | Evidência |
 |----|-----|-----------|
 | **N1** | Helper `mask_imei(imei) → '<TAC>***'` em `core/services/imei_lookup.py:84-95`. Aplicado nos 5 `log.warning()` do service + `core/views.py:854` (schema drift). IMEI completo deixa de aparecer em logs Fly.io. | `core/services/imei_lookup.py:84-95,123,128,138,143,152`; `core/views.py:71,854`. |
 | **N3** | `_sanitize()` aplicado a todos os 12 `get_*_display()` que alimentam `Paragraph()` em `pdf_export.py`. Sanitização movida para o ponto de origem em `_current_custody_state()` (linha 553) para cobrir chamadores transitivos (linhas 645, 659). | `core/pdf_export.py:289-290,365,425,446,454,553,710`. |
 | **N5** | Docstring de `core/migrations/0008_extend_immutability.py` expandida com warning explícito sobre bypass via `SET session_replication_role='replica'` e nota sobre `TRUNCATE` (cross-ref N6 + `seed_demo.py:272-285`). Postura: bypass requer `superuser` PG, fora do alcance do runtime aplicacional. | `core/migrations/0008_extend_immutability.py:1-50`. |
+| **S9** *(Sem.11)* | Helper `_strip_exif(photo_file)` em `core/models.py` reabre via Pillow e reconstrói os bytes sem EXIF/IPTC/XMP, preservando formato (JPEG `quality='keep' + exif=b''`, PNG `pnginfo=PngInfo()`, WEBP `exif=b''`). Chamado em `Evidence.save()` entre `full_clean()` e `compute_integrity_hash()` para que o hash seja **invariante a EXIF** — defesa em profundidade da cadeia de custódia. Backwards-compat: fotos já gravadas mantêm EXIF (Evidence é imutável). 5 novos testes em `core/tests_image_processing.py` (strip + invariante hash + formato preservado). | `core/models.py:109-159,604-608`; `core/tests_image_processing.py`. |
+| **N8** *(Sem.11)* | Novo scope DRF `imei_lookup: 5/minute` em `forensiq_project/settings.py` (mirror `10000/minute` em bloco `TESTING` + `test_settings.py`). `EvidenceIMEILookupView` ganha `throttle_classes = [ScopedRateThrottle]` + `throttle_scope = 'imei_lookup'`, espelhando o padrão de `ReverseGeocodeView`. Mitiga exaustão do saldo pago em `imeidb.xyz` por agente isolado. Novo teste `ImeiLookupThrottleTest` em `tests_coverage.py` força 2/min via `patch.object(SimpleRateThrottle, 'THROTTLE_RATES', ...)` (nota: `override_settings(REST_FRAMEWORK={...})` não actualiza o atributo de classe). | `forensiq_project/settings.py:148-152,170`; `forensiq_project/test_settings.py:83-88`; `core/views.py:809-810`; `core/tests_coverage.py` (cls `ImeiLookupThrottleTest`). |
+| **N11** *(Sem.11)* | Lista canónica `_FRONTEND_ORIGINS_PROD` em `forensiq_project/settings.py` reutilizada por `CORS_ALLOWED_ORIGINS` e `CSRF_TRUSTED_ORIGINS`. Origens de desenvolvimento (`localhost:8000`, `127.0.0.1:8000`) só entram se `DEBUG=True`, mantendo produção restrita aos 3 hostnames públicos (`forensiq.pt`, `www.forensiq.pt`, `forensiq.fly.dev`). Novo teste `CsrfCorsOriginAlignmentTest` em `tests_coverage.py` (asserção de igualdade dos sets + presença obrigatória das 3 prod). | `forensiq_project/settings.py:213-232`; `core/tests_coverage.py` (cls `CsrfCorsOriginAlignmentTest`). |
+| **N14** *(Sem.11)* | `doc.build(...) + buffer.getvalue()` envolvidos em `try`; `buffer.close()` movido para `finally` em `generate_evidence_pdf` e `generate_occurrence_pdf` (`core/pdf_export.py`). `BytesIO.close()` é idempotente — zero alteração no caminho feliz. Novo teste `PdfBufferLifecycleTest` em `tests_pdf.py` mocka `core.pdf_export.BytesIO` + `SimpleDocTemplate.build` com `side_effect=RuntimeError` e verifica `assert_called_once()` no `close`. | `core/pdf_export.py` (`generate_evidence_pdf` e `generate_occurrence_pdf` finais); `core/tests_pdf.py` (cls `PdfBufferLifecycleTest`). |
 
 ### 8.2 Mantidos em aberto — justificação por achado
 
@@ -217,17 +221,18 @@ Não há "roadmap v1.1" para onde adiar; a justificação de cada achado é o re
 |----|-----------|-----------------|------------------------------------|
 | **N2** | 🟠 Alto | 3-5 dias | Assinatura PDF/A-3u + X.509 exige integração com PyHanko + gestão de certificados forenses (CA, OCSP, timestamping). Esforço próprio de uma sub-épica; sem operador externo a usar o PDF, ROI académico é baixo. O `integrity_hash` embebido continua a permitir verificação por SHA-256. |
 | **N4** | 🟠 Alto | 5-7 dias | DoS de PDF síncrono requer Celery/RQ + worker separado em Fly. Mudar arquitectura runtime a <4 semanas da defesa não compensa. Mitigação imediata documentada (perfil de uso académico não excede 50 evidências/ocorrência). |
-| **S9** | 🟠 Alto | ~30 min | EXIF strip é técnicamente quick win (`PIL.Image.getdata()` + reconstrução). Não foi fechado porque toda a captura no fluxo de demo é simulada via fixtures; EXIF real só existe se um agente carregar foto de telemóvel próprio em demo ao vivo — risco aceite. |
 | **P5** | 🟠 Alto | 1-2 dias | CSS bloat (5679 linhas) é estética/performance. PurgeCSS + minify é viável mas exigiria introduzir build step (vs. ADR-0004 "no build"). Decisão alinhada com a opção arquitectural assumida. |
 | **B9** | 🟡 Médio | 1 dia | AuditLog retention requer management command + cron Fly. Para um projecto fechado sem operação contínua, a tabela não cresce além do dataset de demo. |
 | **N6/N7** | 🟡 Médio | 2-3 dias | TRUNCATE e AuditLog sem trigger PG são vectores de insider DBA / SQL directo. Mesma justificação operacional de N5. |
-| **N8/N9** | 🟡 Médio | 2-4h cada | Throttle dedicado IMEI e monitorização de saldo `imeidb.xyz` mitigam custos externos. O token de produção tem saldo limitado a Eur ~10/mês — risco financeiro acotado por contracto, não por código. |
-| **T2/T3** | 🟡 Médio | 3-5 dias | Property-based (hypothesis) e load tests (k6/locust) ampliariam a confiança, mas a suite actual de 382 testes (cobertura ≥75 %) cobre invariantes funcionais. Ausência é académicamente reconhecida, não negada. |
-| **N10–N15** | 🟢 Baixo | varia | Achados de defesa-em-profundidade ou drift de configuração. Documentados para futuro leitor; não justificam intervenção neste ciclo. |
+| **N9** | 🟡 Médio | 2-4h | Monitorização de saldo `imeidb.xyz` (alerta interno + contador). N8 (throttle dedicado) fechado em Sem.11 mitiga o impacto financeiro; resta o trabalho de observabilidade pura. O token de produção tem saldo limitado a Eur ~10/mês — risco financeiro acotado por contracto. |
+| **T2/T3** | 🟡 Médio | 3-5 dias | Property-based (hypothesis) e load tests (k6/locust) ampliariam a confiança, mas a suite actual (393 testes, cobertura ≥75 %) cobre invariantes funcionais. Ausência é académicamente reconhecida, não negada. |
+| **N10, N12, N13, N15** | 🟢 Baixo | varia | Achados de defesa-em-profundidade ou drift de configuração (`AuditLog.timestamp` sem sequence, N+1 latente em `pdf_export.py`, `tests_services.py` namespace, `frame-src 'none'` muito restritivo). Documentados para futuro leitor; não justificam intervenção neste ciclo. |
 
 ### 8.3 Postura final
 
-O ForensiQ entrega com **8 dos 10 itens do Top-10 de Abril fechados** + **3 dos 5 N* 🟠 Alto fechados** + **trilha auditável dos restantes**. A auditoria é o documento de registo; este §8 é o seu *closing chapter*. Qualquer pessoa que continue o projecto (orientador, novo aluno, recrutador) tem aqui o mapa completo do que está fixado, do que está aberto, e porquê — sem precisar de inferir do git log ou do código.
+O ForensiQ entrega com **8 dos 10 itens do Top-10 de Abril fechados**, **4 dos 5 N* 🟠 Alto fechados** (apenas N2 — PDF/A-3u + X.509 — permanece aberto por custo arquitectural de 3-5 dias), **S9 fechado em Sem.11** (último 🟠 Alto operacional, eliminando exfiltração de EXIF), **N8/N11/N14 fechados em Sem.11**, e **trilha auditável dos restantes**. A suite de testes cresceu para **393 testes** (de 382 na auditoria de 18 mai → +11 testes em Sem.11: 2 N11 + 2 N14 + 2 N8 + 5 S9), todos a passar.
+
+A auditoria é o documento de registo; este §8 é o seu *closing chapter*. Qualquer pessoa que continue o projecto (orientador, novo aluno, recrutador) tem aqui o mapa completo do que está fixado, do que está aberto, e porquê — sem precisar de inferir do git log ou do código.
 
 ---
 
