@@ -149,6 +149,9 @@ REST_FRAMEWORK = {
         # pago em `imeidb.xyz` (cache 30d amortiza, mas não impede
         # abuso isolado). Audit 2026-05-18 §3 N8.
         'imei_lookup': '5/minute',
+        # Endpoint público de verificação (`/v/<short-hash>/`) sem auth
+        # — ADR-0012. Rate algo apertado por ser superfície pública.
+        'verify_public': '30/minute',
     },
 }
 
@@ -171,6 +174,7 @@ if TESTING:
         'schema': '10000/minute',
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',
+        'verify_public': '10000/minute',
     }
 
 # --- SimpleJWT ---
@@ -193,6 +197,22 @@ SIMPLE_JWT = {
 # 2026-05-18 §2 B9. Default 365 dias (ano legal de prescrição administrativa);
 # ajustável via env var em produção para alinhamento com política da força.
 AUDIT_LOG_RETENTION_DAYS = int(os.environ.get('AUDIT_LOG_RETENTION_DAYS', 365))
+
+# --- Verificação pública via QR (ADR-0012 Vaga 1) ---
+# Chave HMAC para derivar hashes curtos não-enumeráveis a partir do
+# `Occurrence.id`. Isolada de `SECRET_KEY` para permitir rotação
+# independente (revoga todos os QR codes impressos sem invalidar
+# sessões/JWT). Em produção: `fly secrets set QR_VERIFY_SECRET=...`.
+# Default (fallback) usa SECRET_KEY — aceitável em dev, deve ser
+# substituído em produção.
+QR_VERIFY_SECRET = os.environ.get('QR_VERIFY_SECRET', SECRET_KEY)
+# Comprimento do hash curto em hex chars. 12 chars = 48 bits de
+# entropia, suficiente para resistir a enumeração casual (4 mil
+# milhões de combinações) e curto o bastante para QR denso.
+QR_VERIFY_HASH_LEN = 12
+# URL pública base usada na composição de QR codes no PDF. Em produção:
+# `https://forensiq.pt`. Em dev: `http://localhost:8000` por default.
+SITE_URL = os.environ.get('SITE_URL', 'https://forensiq.pt' if not DEBUG else 'http://localhost:8000')
 
 # --- IMEIDB (consulta externa de IMEI / TAC, ver Wave 2c) ---
 # Token de API obtido em https://imeidb.xyz (free tier). Em produção,
