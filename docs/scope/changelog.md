@@ -4,6 +4,25 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 12 · 27 mai – 2 jun 2026 (sprint de código pré-relatório)
+
+**Feito:**
+- docs(adr): **ADR-0012** — PDF re-classificado como "guia de transporte físico" (paralelo DHL), **não** prova juridicamente auto-contida. Re-classifica **N2** da auditoria 2026-05-18 (PyHanko / X.509 / PDF/A-3u) como não-aplicável; §4.1 do audit anotado em conformidade. Decisão sai de discussão com utilizador: a prova autoritativa vive no sistema (`integrity_hash`, ChainOfCustody append-only, triggers PG); o PDF é instrumento operacional, e o trabalho útil é orientá-lo a rastreio físico via QR + check-list de intake
+- feat(rgpd): **B9** AuditLog retention — management command `purge_audit_logs --older-than=N --batch-size=N --dry-run --no-input` + `settings.AUDIT_LOG_RETENTION_DAYS` (default 365). Apaga em batches dentro de `transaction.atomic()`. Cria entrada meta-auditoria `AuditLog.Action.AUDIT_PURGE / SYSTEM` com `details={deleted_count, cutoff_date, retention_days, batch_size, execution_time_seconds}`. Cumpre RGPD Art. 5(1)(e). Migration 0015. 11 testes em `core/tests_audit_retention.py`
+- feat(observability): **N9** monitorização de quota IMEIDB — contadores `imeidb:calls_24h` + `imeidb:last_<status>_at` em DatabaseCache (TTL 24h). Entrada `AuditLog.Action.SYSTEM_ALERT / SYSTEM` em HTTP 401 (`token_invalid`), 402 (`quota_exhausted`), 429 (`rate_limited`); também detecta `success:false` no body com `code` correspondente. IMEI mascarado (cumpre N1). Migration 0016. 8 testes em `core/tests_imei_quota.py`
+- feat(audit): **N10** sequence global monótona no AuditLog — novo campo `BigIntegerField` unique. `save()` atómico com retry em IntegrityError (`MAX_SEQUENCE_ATTEMPTS=10`). `Meta.ordering = ['-sequence']`. Migration 0017 em 3 passos (AddField → RunPython backfill por (timestamp, pk) → AlterField unique). 8 testes em `core/tests_audit_sequence.py`
+- perf(pdf): **N12** eliminar N+1 na geração de PDF — `OccurrenceViewSet.export_pdf` e `EvidenceViewSet.export_pdf` ganham `Prefetch(...)` com queryset ordenado por `-sequence`; `pdf_export.py` substitui `select_related().order_by()` (que invalidava o prefetch) por `sorted(qs.all(), key=...)`. Query count caiu de 50+ para ≤30 (occurrence) / ≤25 (evidence). Testes com `CaptureQueriesContext` + `assertLessEqual`
+- feat(verify): **ADR-0012 Vaga 1** — QR codes embebidos no PDF + endpoint público adaptativo `/v/<short_hash>/`. `core/qr_verify.py` com HMAC-SHA256(`QR_VERIFY_SECRET`, occurrence_id) truncado a 12 chars (48 bits, não-enumerável). Vista pública mostra dados não-sensíveis (código + contagem + hashes); EXPERT/AGENT-dono recebe 302 para vista completa. Throttle `verify_public: 30/minute`. Templates standalone (sem nav do app autenticado) com `<meta robots="noindex">`. Nova dependência `qrcode[pil]>=7.4`. 14 testes
+- feat(intake): **ADR-0012 Vaga 2** — página `/occurrences/<id>/intake/` EXPERT-only com checklist de evidências esperadas. JS leve faz POST ao cascade endpoint existente (`/api/custody/cascade/`) transitando atomicamente para `RECEBIDA_LABORATORIO`. Itens já recebidos aparecem desactivados. AGENT recebe 403. Reaproveita 100% da lógica do endpoint cascade existente (zero duplicação). 11 testes em `core/tests_intake.py`
+- docs(ops): novo `docs/operations/disaster-recovery.md` (pendente do README:284 desde Sem.7) — matriz activos críticos com RPO/RTO; estratégia backup Neon PITR 7d + media volume Fly; runbooks por cenário (BD/media/secret/QR_secret/region failure); plano de exercício de DR para Sem.15; limitações conhecidas (sem hot standby, free tier sem snapshot garantido). `README.md:284` actualizado de "pendente" para "documentado (Sem.12)"
+- docs(audit): `AUDIT_2026-05-18-delta.md` reconciliado — §2/§3/§5 marcam B9/N9/N10/N12 como ✅ Fechado Sem.12; §8.1 com 7 novas entradas (4 findings + 3 não-findings: ADR-0012 P1, P2, DR doc); §8.2 reduzido a N4/P5/N6/N7/T2/T3/N13/N15; §8.3 actualizada para "9/10 Top-10 + 5/5 N* Alto fechados ou re-classificados, 447 testes"; linha 4 e 6 reconciliadas
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Sem.13 — começar a redacção do relatório final (estrutura + capítulos Implementação/Avaliação/Conclusões); slides v1 da defesa; cron Fly para `purge_audit_logs`; eventual endpoint admin para stats IMEIDB.
+
+---
+
 ## Sem. 11 · 25–31 mai 2026 (encerramento dos quick wins remanescentes)
 
 **Feito:**
