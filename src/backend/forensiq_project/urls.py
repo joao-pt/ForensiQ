@@ -47,6 +47,7 @@ from core.frontend_views import (
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
     occurrence_singular_redirect,
+    occurrence_intake_view,
     occurrences_new_view,
     occurrences_view,
     public_verify_view,
@@ -83,6 +84,11 @@ urlpatterns = [
     path('occurrences/', occurrences_view, name='occurrences'),
     path('occurrences/new/', occurrences_new_view, name='occurrences_new'),
     path('occurrences/<int:occurrence_id>/', occurrence_detail_view, name='occurrence_detail'),
+    path(
+        'occurrences/<int:occurrence_id>/intake/',
+        occurrence_intake_view,
+        name='occurrence_intake',
+    ),
 
     # Evidências
     path('evidences/', evidences_view, name='evidences'),
