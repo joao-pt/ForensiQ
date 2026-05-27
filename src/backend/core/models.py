@@ -1217,6 +1217,7 @@ class AuditLog(models.Model):
         EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
         EXPORT_CSV = 'EXPORT_CSV', 'Exportação CSV'
         AUDIT_PURGE = 'AUDIT_PURGE', 'Expurgo de Logs (retenção RGPD)'
+        SYSTEM_ALERT = 'SYSTEM_ALERT', 'Alerta Operacional (quota/auth)'
 
     class ResourceType(models.TextChoices):
         """Tipos de recursos auditados."""
