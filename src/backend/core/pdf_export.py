@@ -22,6 +22,7 @@ import html as _html
 from datetime import UTC, datetime
 from io import BytesIO
 
+from django.conf import settings
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -29,6 +30,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
     HRFlowable,
+    Image,
     KeepTogether,
     Paragraph,
     SimpleDocTemplate,
@@ -49,6 +51,48 @@ def _sanitize(text):
     text = _html.escape(str(text))
     text = ''.join(c for c in text if ord(c) >= 32 or c in '\n\t')
     return text
+
+
+# ---------------------------------------------------------------------------
+# QR codes (ADR-0012 Vaga 1)
+# ---------------------------------------------------------------------------
+
+
+def _build_verify_url(occurrence):
+    """URL pública adaptativa de verificação para uma ocorrência.
+
+    Composição: `settings.SITE_URL` + `/v/<short_hash>/`. O short_hash
+    é derivado por HMAC do `occurrence.id` (não-enumerável).
+    """
+    from core.qr_verify import short_hash_for
+
+    base = getattr(settings, 'SITE_URL', 'https://forensiq.pt').rstrip('/')
+    return f'{base}/v/{short_hash_for(occurrence.id)}/'
+
+
+def _qr_flowable(url, size_cm=3.0):
+    """Devolve um `Image` Flowable do ReportLab com o QR da URL.
+
+    Bordas mínimas (`border=1`), error correction médio (`M` — 15 %)
+    para resistir a desgaste de impressão. PNG embebido em memória.
+    """
+    import qrcode
+    from qrcode.constants import ERROR_CORRECT_M
+
+    qr = qrcode.QRCode(
+        version=None,  # auto-fit
+        error_correction=ERROR_CORRECT_M,
+        box_size=10,
+        border=1,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color='black', back_color='white')
+
+    buf = BytesIO()
+    img.save(buf, format='PNG')
+    buf.seek(0)
+    return Image(buf, width=size_cm * cm, height=size_cm * cm)
 
 
 # ---------------------------------------------------------------------------
@@ -419,6 +463,40 @@ def _doc_header(story, styles, doc_title_html, subtitle_html):
     story.append(HRFlowable(width='100%', thickness=0.5, color=GREY_MED, spaceAfter=8))
 
 
+def _qr_verify_band(occurrence, styles):
+    """Banda compacta com QR + instrução de scan (ADR-0012 Vaga 1).
+
+    Layout: Table 2 cols [texto explicativo à esquerda | QR 2.8cm à
+    direita]. O QR aponta para `/v/<short_hash>/` (vista pública
+    adaptativa). Inserir após `_doc_header` em ambos os geradores.
+    """
+    url = _build_verify_url(occurrence)
+    qr_img = _qr_flowable(url, size_cm=2.8)
+    info_text = (
+        '<b>Verificar talão de transporte</b><br/>'
+        'Lê o QR com a câmara do telemóvel para confirmar a '
+        'autenticidade. Com login, abre a vista completa da ocorrência; '
+        'sem login, mostra o inventário público de integridade.'
+    )
+    info_para = Paragraph(info_text, styles['disclaimer'])
+    tbl = Table([[info_para, qr_img]], colWidths=(12 * cm, 3 * cm))
+    tbl.setStyle(
+        TableStyle(
+            [
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('BACKGROUND', (0, 0), (-1, -1), GREY_LIGHT),
+                ('BOX', (0, 0), (-1, -1), 0.5, GREY_MED),
+            ]
+        )
+    )
+    return [KeepTogether([tbl, Spacer(1, 0.3 * cm)])]
+
+
 # ---------------------------------------------------------------------------
 # PDF por item de prova
 # ---------------------------------------------------------------------------
@@ -598,6 +676,10 @@ def generate_evidence_pdf(evidence):
         f'Caso {_sanitize(occ_label)} · {_sanitize(evidence.get_type_display())}',
     )
 
+    # Banda de verificação (QR) — ADR-0012. Aponta para a ocorrência pai
+    # (a vista pública agrega o caso inteiro, não só o item isolado).
+    story += _qr_verify_band(occ, styles)
+
     # 1. Ocorrência
     story.append(Paragraph('1. Ocorrência', styles['section']))
     story.append(Spacer(1, 0.2 * cm))
@@ -711,6 +793,9 @@ def generate_occurrence_pdf(occurrence):
         f'Resumo do Processo — Caso {_sanitize(occ_label)}',
         f'Código interno: {_sanitize(occurrence.code or "—")}',
     )
+
+    # Banda de verificação (QR) — ADR-0012.
+    story += _qr_verify_band(occurrence, styles)
 
     # 1. Descrição do caso
     story.append(Paragraph('1. Descrição do Caso', styles['section']))

@@ -32,7 +32,6 @@ from core.auth_views import (
     CookieLogoutView,
     CookieRefreshView,
 )
-from core.views import MediaServeView
 from core.frontend_views import (
     custody_evidence_redirect,
     custody_list_view,
@@ -45,17 +44,17 @@ from core.frontend_views import (
     evidences_view,
     investigation_report_view,
     login_view,
-    not_found_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
     occurrence_singular_redirect,
     occurrences_new_view,
     occurrences_view,
+    public_verify_view,
     reports_view,
-    server_error_view,
     settings_view,
     stats_view,
 )
+from core.views import MediaServeView
 
 urlpatterns = [
     # Django Admin (hidden behind environment variable prefix)
@@ -101,6 +100,10 @@ urlpatterns = [
 
     # Auditoria — relatório estático de investigação de erros
     path('audit/investigation/', investigation_report_view, name='investigation_report'),
+
+    # Verificação pública via QR (ADR-0012 Vaga 1) — sem auth.
+    # URL curta `/v/<hash>/` para QR codes denso (texto curto).
+    path('v/<str:short_hash>/', public_verify_view, name='public_verify'),
 
     # Media (fotos de evidência) — view autenticada com ownership + audit log.
     # Substitui o `static(MEDIA_URL, ...)` para que funcione em produção

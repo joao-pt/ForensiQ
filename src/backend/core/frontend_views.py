@@ -23,6 +23,7 @@ def jwt_cookie_required(view_func):
     Decorator que verifica a presença de um token JWT válido no cookie
     'fq_access'. Redireciona para /login/ se ausente ou inválido.
     """
+
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         token = request.COOKIES.get('fq_access')
@@ -33,12 +34,79 @@ def jwt_cookie_required(view_func):
         except TokenError:
             return HttpResponseRedirect('/login/')
         return view_func(request, *args, **kwargs)
+
     return wrapper
 
 
 def login_view(request):
     """Página de login (pública)."""
     return render(request, 'login.html')
+
+
+def public_verify_view(request, short_hash):
+    """Vista adaptativa de verificação pública de ocorrência (ADR-0012).
+
+    URL: ``/v/<short_hash>/`` — destino dos QR codes do PDF de
+    transporte. Comportamento por nível de auth:
+
+    - Com cookie JWT válido (EXPERT ou AGENT-dono): redirect para
+      ``/occurrences/<id>/`` (vista autenticada completa).
+    - Sem auth ou auth insuficiente: renderiza ``public_verify.html``
+      com dados mínimos não-sensíveis (código da ocorrência, número
+      de evidências, hashes de integridade — sem descrições, GPS,
+      ou metadados forenses).
+
+    O `short_hash` é resolvido por `qr_verify.resolve_occurrence`,
+    que usa HMAC para validar sem expor a relação directa com
+    `occurrence.id`.
+    """
+    from core.qr_verify import resolve_occurrence
+
+    occurrence = resolve_occurrence(short_hash)
+    if occurrence is None:
+        # Hash desconhecido — não distinguimos "não existe" de
+        # "secret rotacionado" para não vazar informação.
+        return render(request, 'public_verify_notfound.html', status=404)
+
+    # Tenta autenticar via cookie JWT.
+    token = request.COOKIES.get('fq_access')
+    user_can_see_full = False
+    if token:
+        try:
+            access = AccessToken(token)
+            from django.contrib.auth import get_user_model
+
+            user_id = access['user_id']
+            user = get_user_model().objects.filter(pk=user_id).first()
+            if user and user.is_authenticated:
+                # EXPERT vê tudo; AGENT só vê se for o dono da ocorrência.
+                profile = getattr(user, 'profile', None)
+                if (
+                    getattr(user, 'is_staff', False)
+                    or profile == 'EXPERT'
+                    or profile == 'AGENT'
+                    and occurrence.agent_id == user.id
+                ):
+                    user_can_see_full = True
+        except TokenError:
+            pass
+
+    if user_can_see_full:
+        return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
+
+    # Vista pública: dados mínimos, lista de hashes de integridade
+    # (verificáveis externamente por SHA-256). Sem descrições.
+    evidences = list(occurrence.evidences.only('code', 'integrity_hash', 'type').order_by('code'))
+    return render(
+        request,
+        'public_verify.html',
+        {
+            'occurrence_code': occurrence.code or f'#{occurrence.id}',
+            'occurrence_number': occurrence.number,
+            'evidence_count': len(evidences),
+            'evidences': evidences,
+        },
+    )
 
 
 @jwt_cookie_required
@@ -137,6 +205,7 @@ def settings_view(request):
 # Handlers de erro — 404 / 500
 # ---------------------------------------------------------------------------
 
+
 def not_found_view(request, exception=None):
     """Handler 404 — página amigável em vez do default do Django."""
     return render(request, '404.html', status=404)
@@ -151,10 +220,13 @@ def server_error_view(request):
 # Redirects 301 — retrocompatibilidade com nomes antigos (singular)
 # ---------------------------------------------------------------------------
 
+
 def _redirect_permanent(path):
     """Factory para redirects 301 simples (sem kwargs)."""
+
     def view(_request):
         return HttpResponsePermanentRedirect(path)
+
     return view
 
 

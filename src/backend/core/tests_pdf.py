@@ -307,9 +307,12 @@ class PdfBufferLifecycleTest(TestCase):
         doc_mock = MagicMock()
         doc_mock.build.side_effect = RuntimeError('falha simulada de build')
 
+        # Stub do `_qr_verify_band` — partilharia o BytesIO mockado
+        # com a geração do PNG do QR, mascarando o teste real.
         with (
             patch('core.pdf_export.BytesIO', return_value=buffer_mock),
             patch('core.pdf_export.SimpleDocTemplate', return_value=doc_mock),
+            patch('core.pdf_export._qr_verify_band', return_value=[]),
             self.assertRaises(RuntimeError),
         ):
             target_func(*args)
@@ -428,3 +431,45 @@ class PdfNoNPlusOneTest(TestCase):
             25,
             f'N+1 regressão em evidence PDF: {n_queries} queries ' '(esperado ≤25 com prefetch).',
         )
+
+
+# ---------------------------------------------------------------------------
+# QR de verificação (ADR-0012 Vaga 1)
+# ---------------------------------------------------------------------------
+
+
+class PdfQrVerifyTest(TestCase):
+    """O PDF deve incluir QR code apontando para `/v/<short_hash>/`
+    da ocorrência. Não conseguimos ler o conteúdo do QR do PDF
+    binário sem OCR, mas conseguimos verificar:
+    - geração não rebenta com o QR embebido
+    - o PDF resultante é maior que o threshold mínimo
+    - a função `_build_verify_url` produz uma URL válida
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.agent = _make_agent(username='agente_qr', badge='AGT-QR-01')
+        cls.occurrence = _make_occurrence(cls.agent, number='OCC-QR-001')
+        cls.evidence = _make_evidence(cls.occurrence, cls.agent)
+
+    def test_build_verify_url_estrutura(self):
+        from core.pdf_export import _build_verify_url
+
+        url = _build_verify_url(self.occurrence)
+        self.assertTrue(url.startswith(('http://', 'https://')))
+        self.assertIn('/v/', url)
+        # Hash com 12 chars (default).
+        path = url.rsplit('/v/', 1)[-1].rstrip('/')
+        self.assertEqual(len(path), 12)
+
+    def test_evidence_pdf_gera_com_qr(self):
+        """O PDF de evidência inclui a banda QR — geração não rebenta."""
+        pdf = generate_evidence_pdf(self.evidence)
+        self.assertTrue(pdf.startswith(b'%PDF'))
+        self.assertGreater(len(pdf), 4_000)
+
+    def test_occurrence_pdf_gera_com_qr(self):
+        pdf = generate_occurrence_pdf(self.occurrence)
+        self.assertTrue(pdf.startswith(b'%PDF'))
+        self.assertGreater(len(pdf), 4_000)

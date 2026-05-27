@@ -1,0 +1,80 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>ForensiQ — Verificação de talão</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}" nonce="{{ request.csp_nonce }}">
+    <style nonce="{{ request.csp_nonce }}">
+        body { background: #f5f5f5; }
+        .verify-wrap { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+        .verify-card { background: #fff; padding: 1.5rem; border-radius: 8px;
+                       box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+        .verify-header { border-bottom: 2px solid #0F1115; padding-bottom: 1rem;
+                         margin-bottom: 1rem; }
+        .verify-occ-code { font-family: 'Courier New', monospace; font-size: 1.6rem;
+                           font-weight: bold; color: #0F1115; }
+        .verify-occ-number { color: #6B7280; font-size: .9rem; margin-top: .25rem; }
+        .verify-meta { display: flex; gap: 2rem; margin: 1rem 0; }
+        .verify-meta-item .label { font-size: .75rem; color: #6B7280;
+                                   text-transform: uppercase; letter-spacing: .05em; }
+        .verify-meta-item .value { font-size: 1.1rem; font-weight: 600; color: #0F1115; }
+        .verify-list { list-style: none; padding: 0; margin: 0; }
+        .verify-list li { padding: .75rem 0; border-bottom: 1px solid #E0E0E0; }
+        .verify-list li:last-child { border-bottom: none; }
+        .verify-list .code { font-family: 'Courier New', monospace; font-weight: 600; }
+        .verify-list .type { color: #6B7280; font-size: .85rem; margin-left: .5rem; }
+        .verify-list .hash { font-family: 'Courier New', monospace; font-size: .7rem;
+                             color: #0F766E; word-break: break-all; display: block;
+                             margin-top: .25rem; }
+        .verify-footer { margin-top: 1.5rem; padding-top: 1rem;
+                         border-top: 1px solid #E0E0E0; font-size: .85rem;
+                         color: #6B7280; }
+        .verify-cta { background: #2DD4BF; color: #0F1115; padding: .75rem 1.25rem;
+                      border-radius: 4px; text-decoration: none; font-weight: 600;
+                      display: inline-block; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <main class="verify-wrap">
+        <article class="verify-card">
+            <header class="verify-header">
+                <div class="verify-occ-code">{{ occurrence_code }}</div>
+                {% if occurrence_number %}
+                <div class="verify-occ-number">NUIPC / Número: {{ occurrence_number }}</div>
+                {% endif %}
+            </header>
+
+            <section class="verify-meta">
+                <div class="verify-meta-item">
+                    <div class="label">Itens esperados</div>
+                    <div class="value">{{ evidence_count }}</div>
+                </div>
+            </section>
+
+            <h2 style="font-size: 1rem; color: #0F1115;">Inventário de integridade</h2>
+            <ul class="verify-list">
+                {% for ev in evidences %}
+                <li>
+                    <span class="code">{{ ev.code }}</span>
+                    <span class="type">· {{ ev.get_type_display }}</span>
+                    <span class="hash">SHA-256: {{ ev.integrity_hash }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+
+            <footer class="verify-footer">
+                <p>
+                    Esta página de verificação pública contém apenas dados
+                    não-sensíveis para confirmar a autenticidade do talão
+                    de transporte. Para aceder ao detalhe completo da
+                    ocorrência (descrições, GPS, agente, cadeia de custódia),
+                    é necessário autenticação como perito autorizado.
+                </p>
+                <a href="/login/" class="verify-cta">Aceder com login</a>
+            </footer>
+        </article>
+    </main>
+</body>
+</html>

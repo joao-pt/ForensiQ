@@ -81,6 +81,7 @@ REST_FRAMEWORK = {
         'schema': '10000/minute',
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',
+        'verify_public': '10000/minute',
     },
     'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
