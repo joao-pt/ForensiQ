@@ -14,14 +14,26 @@
   representação visual útil, ex.: contas cloud, chaves de licença)
 - **Tamanho máximo 10 MB** (validado no backend; 25 MB hard limit no
   Django para impedir DoS)
-- **Preserva EXIF** intencional (a metadata da câmara é evidência forense)
+- **Remove EXIF/IPTC/XMP** no `Evidence.save()` via helper `_strip_exif()`
+  em `core/models.py` (auditoria 2026-05-18 §2 S9). Postura revista em
+  2026-05-27: o trade-off "metadata = prova" foi substituído por
+  "metadata = PII a proteger" — EXIF de telemóveis inclui GPS exacto
+  da captura, modelo de câmara e timestamps originais, que podem
+  identificar o portador do equipamento ou revelar dados sensíveis da
+  cena a quem receba o PDF/ficheiro. A informação forense relevante
+  (GPS, timestamp da apreensão, agente) é registada **independentemente**
+  no modelo `Evidence` e no `ChainOfCustody`. Formato e dados de pixel
+  preservados (JPEG/PNG/WEBP).
 
 `backend/core/views.py` — endpoint `/api/evidences/`
 - Recebe multipart/form-data com `photo`
 - Guarda em `MEDIA_ROOT/<volume>/evidences/YYYY/MM/`
 - O hash SHA-256 da evidência **inclui os bytes da fotografia** (S6 da
   auditoria 2026-04-16) — qualquer alteração ao ficheiro detecta-se na
-  verificação.
+  verificação. Os bytes hasheados são os bytes **pós-strip** (`Evidence.save`
+  faz `_strip_exif()` antes do `compute_integrity_hash()`), tornando o
+  `integrity_hash` **invariante a EXIF** — defesa em profundidade contra
+  manipulações externas que removam metadados.
 
 ## Por implementar (Fase 3 ou pós-projecto)
 
