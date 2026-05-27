@@ -4,6 +4,21 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 11 · 25–31 mai 2026 (encerramento dos quick wins remanescentes)
+
+**Feito:**
+- fix(config): alinhar `CSRF_TRUSTED_ORIGINS` com `CORS_ALLOWED_ORIGINS` via lista canónica `_FRONTEND_ORIGINS_PROD` em `forensiq_project/settings.py`. Origens de desenvolvimento (`localhost`/`127.0.0.1`) só entram quando `DEBUG=True`, mantendo produção restrita aos 3 hostnames públicos (`forensiq.pt`, `www.forensiq.pt`, `forensiq.fly.dev`). Elimina drift de configuração identificado em audit 2026-05-18 §3 N11. Nova classe `CsrfCorsOriginAlignmentTest` em `tests_coverage.py` com 2 testes
+- refactor(pdf): `try/finally` em `generate_evidence_pdf` e `generate_occurrence_pdf` (`core/pdf_export.py`) garante `BytesIO.close()` em qualquer caminho — defesa contra leak de file descriptors em cenário de erro repetido. Caminho feliz sem alteração de comportamento. Audit 2026-05-18 §3 N14 encerrado. Nova classe `PdfBufferLifecycleTest` em `tests_pdf.py` mocka `SimpleDocTemplate.build` com `side_effect=RuntimeError` e verifica `close.assert_called_once()` para ambas as funções
+- feat(security): throttle dedicado `imei_lookup: 5/minute` (scope DRF) em `EvidenceIMEILookupView`, mirror `10000/minute` no bloco `if TESTING:` de `settings.py` e em `forensiq_project/test_settings.py`. Mitiga exaustão do saldo pago em `imeidb.xyz` por agente isolado. Audit 2026-05-18 §3 N8 encerrado. Nova classe `ImeiLookupThrottleTest` em `tests_coverage.py` força 2/min via `patch.object(SimpleRateThrottle, 'THROTTLE_RATES', ...)` (nota técnica: `override_settings(REST_FRAMEWORK={...})` reseta `api_settings` mas NÃO o atributo de classe `SimpleRateThrottle.THROTTLE_RATES`)
+- feat(security): remoção de metadados EXIF de fotografias de evidência. Novo helper `_strip_exif()` em `core/models.py` reabre via Pillow e reconstrói os bytes sem EXIF/IPTC/XMP, preservando formato (JPEG `quality='keep' + exif=b''`, PNG `pnginfo=PngInfo()`, WEBP `exif=b''`). Chamado em `Evidence.save()` entre `full_clean()` e `compute_integrity_hash()` para que o hash seja **invariante a EXIF** — defesa em profundidade da cadeia de custódia. Backwards-compat: fotos já gravadas mantêm EXIF (Evidence é imutável). Audit 2026-05-18 §2 S9 encerrado — era o último 🟠 Alto operacional aberto. Novo ficheiro `core/tests_image_processing.py` com 5 testes em 3 classes (strip + invariante hash + formato preservado)
+- docs(audit): §2/§3 do `AUDIT_2026-05-18-delta.md` actualizadas (S9/N8/N11/N14 anotados como fechados em Sem.11); §5 Top-10 com check ✅ em S9 e N8; §8.1 acrescenta 4 linhas novas com fix + evidência (`file:linha`); §8.2 remove S9/N8 (movidos), reduz N10/N12/N13/N15 à lista efectivamente remanescente; §8.3 actualiza contagem para "4/5 N\* 🟠 Alto fechados" + "393 testes a passar"; linha 4 (stack snapshot) e linha 6 (veredito) reconciliadas
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Consolidação final do relatório + revisão linguística para a defesa.
+
+---
+
 ## Sem. 10 · 18–24 mai 2026 (encerramento auditoria + Dependabot wave)
 
 **Feito:**
