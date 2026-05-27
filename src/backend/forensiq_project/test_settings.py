@@ -58,12 +58,8 @@ STATIC_ROOT = str(_Path(_tempfile.gettempdir()) / 'forensiq_static_test')
 # IDOR / CSRF) reflectem o comportamento real.
 REST_FRAMEWORK_THROTTLE_OVERRIDE = True
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'core.auth.JWTCookieAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': ('core.auth.JWTCookieAuthentication',),
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
     'DEFAULT_PAGINATION_CLASS': 'core.pagination.BoundedPageNumberPagination',
     'PAGE_SIZE': 50,
     'DEFAULT_FILTER_BACKENDS': [
@@ -83,6 +79,8 @@ REST_FRAMEWORK = {
         'pdf_export': '10000/minute',
         'csv_export': '10000/minute',
         'schema': '10000/minute',
+        'reverse_geocode': '10000/minute',
+        'imei_lookup': '10000/minute',
     },
     'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',

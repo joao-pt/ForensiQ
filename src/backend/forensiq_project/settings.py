@@ -145,6 +145,10 @@ REST_FRAMEWORK = {
         'csv_export': '10/minute',
         'schema': '30/minute',
         'reverse_geocode': '10/minute',
+        # 5/min é deliberadamente apertado: cada chamada consome saldo
+        # pago em `imeidb.xyz` (cache 30d amortiza, mas não impede
+        # abuso isolado). Audit 2026-05-18 §3 N8.
+        'imei_lookup': '5/minute',
     },
 }
 
@@ -166,6 +170,7 @@ if TESTING:
         'csv_export': '10000/minute',
         'schema': '10000/minute',
         'reverse_geocode': '10000/minute',
+        'imei_lookup': '10000/minute',
     }
 
 # --- SimpleJWT ---
