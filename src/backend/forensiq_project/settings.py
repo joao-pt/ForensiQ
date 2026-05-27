@@ -187,6 +187,13 @@ SIMPLE_JWT = {
     'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', SECRET_KEY),
 }
 
+# --- Retenção de AuditLog (RGPD Art. 5(1)(e) — princípio da limitação da
+# conservação). O management command `purge_audit_logs` usa este valor para
+# determinar quais registos eliminar (`timestamp < now() - DAYS`). Audit
+# 2026-05-18 §2 B9. Default 365 dias (ano legal de prescrição administrativa);
+# ajustável via env var em produção para alinhamento com política da força.
+AUDIT_LOG_RETENTION_DAYS = int(os.environ.get('AUDIT_LOG_RETENTION_DAYS', 365))
+
 # --- IMEIDB (consulta externa de IMEI / TAC, ver Wave 2c) ---
 # Token de API obtido em https://imeidb.xyz (free tier). Em produção,
 # injectar via `fly secrets set IMEIDB_API_TOKEN=...`. Quando vazio,
