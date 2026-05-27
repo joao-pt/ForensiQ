@@ -24,17 +24,8 @@ from rest_framework.test import APIClient, APITestCase
 
 from core.exceptions import forensiq_exception_handler
 from core.middleware import ContentSecurityPolicyMiddleware, CorrelationIDMiddleware
-from core.models import ChainOfCustody, Evidence, Occurrence, User
+from core.models import ChainOfCustody, DigitalDevice, Evidence, Occurrence, User
 from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOnly
-from core.throttles import AuthRateThrottle
-from core.models import DigitalDevice
-from core.validators import (
-    validate_imei,
-    validate_imsi,
-    validate_imsi_advisory,
-    validate_vin,
-    validate_vin_advisory,
-)
 from core.tests_factories import (
     ChainOfCustodyFactory,
     DigitalDeviceFactory,
@@ -43,11 +34,19 @@ from core.tests_factories import (
     OccurrenceFactory,
     UserFactory,
 )
-
+from core.throttles import AuthRateThrottle
+from core.validators import (
+    validate_imei,
+    validate_imsi,
+    validate_imsi_advisory,
+    validate_vin,
+    validate_vin_advisory,
+)
 
 # =========================================================================
 # 1. VALIDADORES - testes unitarios puros (sem BD)
 # =========================================================================
+
 
 class ValidateIMEITest(TestCase):
     """Cobertura de ``core.validators.validate_imei``."""
@@ -245,6 +244,7 @@ class DigitalDeviceImeiValidationTest(TestCase):
 # 2. PERMISSOES - testes unitarios com RequestFactory (sem views)
 # =========================================================================
 
+
 class IsAgentPermissionTest(TestCase):
     """Cobertura de ``core.permissions.IsAgent``."""
 
@@ -278,6 +278,7 @@ class IsAgentPermissionTest(TestCase):
 
     def test_anonymous_denied(self):
         from django.contrib.auth.models import AnonymousUser
+
         request = self.rf.get('/fake/')
         request.user = AnonymousUser()
         self.assertFalse(self.perm.has_permission(request, None))
@@ -325,7 +326,8 @@ class IsAgentOrExpertPermissionTest(TestCase):
     def test_user_without_profile_denied(self):
         """Superuser sem perfil AGENT/EXPERT nao pode escrever."""
         user = User.objects.create_superuser(
-            username='admin_no_profile', password='TestPass123!',
+            username='admin_no_profile',
+            password='TestPass123!',
             email='admin@test.com',
         )
         user.profile = ''
@@ -369,6 +371,7 @@ class IsOwnerOrReadOnlyPermissionTest(TestCase):
 # =========================================================================
 # 3. EXCEPTION HANDLER
 # =========================================================================
+
 
 class ExceptionHandlerTest(TestCase):
     """Cobertura de ``core.exceptions.forensiq_exception_handler``."""
@@ -414,6 +417,7 @@ class ExceptionHandlerTest(TestCase):
 # 4. MIDDLEWARE
 # =========================================================================
 
+
 class CorrelationIDMiddlewareTest(TestCase):
     """Cobertura de ``core.middleware.CorrelationIDMiddleware``."""
 
@@ -423,6 +427,7 @@ class CorrelationIDMiddlewareTest(TestCase):
 
         def get_response(request):
             from django.http import HttpResponse
+
             return HttpResponse('OK')
 
         middleware = CorrelationIDMiddleware(get_response)
@@ -440,6 +445,7 @@ class ContentSecurityPolicyMiddlewareTest(TestCase):
 
         def get_response(request):
             from django.http import HttpResponse
+
             return HttpResponse('OK')
 
         middleware = ContentSecurityPolicyMiddleware(get_response)
@@ -454,6 +460,7 @@ class ContentSecurityPolicyMiddlewareTest(TestCase):
 # 5. PDF CONTENT VALIDATION
 # =========================================================================
 
+
 class PDFContentValidationTest(TestCase):
     """Verifica que o PDF contem elementos forenses obrigatorios.
 
@@ -467,7 +474,8 @@ class PDFContentValidationTest(TestCase):
         self.agent = UserFactory.create()
         self.occ = OccurrenceFactory.create(agent=self.agent)
         self.evidence = EvidenceMobileFactory.create(
-            occurrence=self.occ, agent=self.agent,
+            occurrence=self.occ,
+            agent=self.agent,
             description='Samsung Galaxy S24 apreendido em Lisboa',
         )
         self.device = DigitalDeviceFactory.create(
@@ -489,30 +497,36 @@ class PDFContentValidationTest(TestCase):
         pagina e concatenar.
         """
         from io import BytesIO
+
         from pypdf import PdfReader
+
         reader = PdfReader(BytesIO(pdf_bytes))
         return '\n'.join(page.extract_text() or '' for page in reader.pages)
 
     def test_evidence_pdf_contains_sha256_hash(self):
         from core.pdf_export import generate_evidence_pdf
+
         pdf_bytes = generate_evidence_pdf(self.evidence)
         text = self._extract_pdf_text(pdf_bytes)
         self.assertIn(self.evidence.integrity_hash[:16], text)
 
     def test_evidence_pdf_contains_evidence_type(self):
         from core.pdf_export import generate_evidence_pdf
+
         pdf_bytes = generate_evidence_pdf(self.evidence)
         text = self._extract_pdf_text(pdf_bytes)
         self.assertIn('Samsung', text)
 
     def test_evidence_pdf_contains_custody_info(self):
         from core.pdf_export import generate_evidence_pdf
+
         pdf_bytes = generate_evidence_pdf(self.evidence)
         text = self._extract_pdf_text(pdf_bytes)
         self.assertIn('APREENDIDA', text.upper())
 
     def test_occurrence_pdf_contains_evidence_list(self):
         from core.pdf_export import generate_occurrence_pdf
+
         pdf_bytes = generate_occurrence_pdf(self.occ)
         text = self._extract_pdf_text(pdf_bytes)
         self.assertIn('Samsung', text)
@@ -521,6 +535,7 @@ class PDFContentValidationTest(TestCase):
 # =========================================================================
 # 6. DASHBOARD STATS - ownership isolation
 # =========================================================================
+
 
 class DashboardStatsOwnershipTest(APITestCase):
     """Verifica que os endpoints de stats respeitam ownership."""
@@ -533,18 +548,23 @@ class DashboardStatsOwnershipTest(APITestCase):
         self.occ_a = OccurrenceFactory.create(agent=self.agent_a)
         self.occ_b = OccurrenceFactory.create(agent=self.agent_b)
         self.ev_a = EvidenceMobileFactory.create(
-            occurrence=self.occ_a, agent=self.agent_a,
+            occurrence=self.occ_a,
+            agent=self.agent_a,
         )
         self.ev_b = EvidenceMobileFactory.create(
-            occurrence=self.occ_b, agent=self.agent_b,
+            occurrence=self.occ_b,
+            agent=self.agent_b,
         )
 
     def _login(self, user):
         client = APIClient()
-        resp = client.post('/api/auth/login/', {
-            'username': user.username,
-            'password': 'TestPass123!',
-        })
+        resp = client.post(
+            '/api/auth/login/',
+            {
+                'username': user.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(resp.status_code, 200)
         return client
 
@@ -593,11 +613,13 @@ class DashboardStatsOwnershipTest(APITestCase):
 # 7. HEALTHCHECK
 # =========================================================================
 
+
 class HealthcheckTest(TestCase):
     """Cobertura de ``core.views.healthcheck``."""
 
     def test_healthcheck_returns_200(self):
         from django.test import Client
+
         client = Client()
         resp = client.get('/api/health/')
         self.assertEqual(resp.status_code, 200)
@@ -605,6 +627,7 @@ class HealthcheckTest(TestCase):
 
     def test_healthcheck_no_auth_required(self):
         from django.test import Client
+
         client = Client()
         resp = client.get('/api/health/')
         self.assertEqual(resp.status_code, 200)
@@ -613,6 +636,7 @@ class HealthcheckTest(TestCase):
 # =========================================================================
 # 8. THROTTLE CONFIGURATION
 # =========================================================================
+
 
 class ThrottleConfigTest(TestCase):
     """Verifica que os throttles estao configurados correctamente."""
@@ -623,12 +647,14 @@ class ThrottleConfigTest(TestCase):
 
     def test_auth_throttle_inherits_anon(self):
         from rest_framework.throttling import AnonRateThrottle
+
         self.assertTrue(issubclass(AuthRateThrottle, AnonRateThrottle))
 
 
 # =========================================================================
 # 9. SERIALIZER EDGE CASES
 # =========================================================================
+
 
 class SerializerEdgeCasesTest(APITestCase):
     """Testes de edge cases em serializers."""
@@ -637,22 +663,28 @@ class SerializerEdgeCasesTest(APITestCase):
         self.agent = UserFactory.create(password='TestPass123!')
         self.occ = OccurrenceFactory.create(agent=self.agent)
         self.client = APIClient()
-        resp = self.client.post('/api/auth/login/', {
-            'username': self.agent.username,
-            'password': 'TestPass123!',
-        })
+        resp = self.client.post(
+            '/api/auth/login/',
+            {
+                'username': self.agent.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(resp.status_code, 200)
 
     def test_evidence_timestamp_seizure_is_readonly(self):
         """Confirma que timestamp_seizure nao pode ser manipulado pelo cliente."""
         fake_time = '2020-01-01T00:00:00Z'
-        resp = self.client.post('/api/evidences/', {
-            'occurrence': self.occ.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Teste de timestamp',
-            'serial_number': 'SN-TS-001',
-            'timestamp_seizure': fake_time,
-        })
+        resp = self.client.post(
+            '/api/evidences/',
+            {
+                'occurrence': self.occ.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Teste de timestamp',
+                'serial_number': 'SN-TS-001',
+                'timestamp_seizure': fake_time,
+            },
+        )
         self.assertEqual(resp.status_code, 201)
         self.assertNotEqual(resp.data.get('timestamp_seizure'), fake_time)
 
@@ -677,12 +709,15 @@ class SerializerEdgeCasesTest(APITestCase):
 
     def test_evidence_code_auto_generated(self):
         """Codigo de evidencia e gerado automaticamente pelo servidor."""
-        resp = self.client.post('/api/evidences/', {
-            'occurrence': self.occ.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Teste de codigo',
-            'serial_number': 'SN-CODE-001',
-        })
+        resp = self.client.post(
+            '/api/evidences/',
+            {
+                'occurrence': self.occ.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Teste de codigo',
+                'serial_number': 'SN-CODE-001',
+            },
+        )
         self.assertEqual(resp.status_code, 201)
         self.assertIsNotNone(resp.data.get('code'))
         # Formato gerado por core/models.py:Evidence.save() — ITM-YYYY-NNNNN
@@ -693,6 +728,7 @@ class SerializerEdgeCasesTest(APITestCase):
 # =========================================================================
 # 10. MODEL INTEGRITY - compute_record_hash includes ID
 # =========================================================================
+
 
 class RecordHashIntegrityTest(TestCase):
     """Verifica que o hash da cadeia de custodia e robusto.
@@ -705,7 +741,8 @@ class RecordHashIntegrityTest(TestCase):
         self.agent = UserFactory.create()
         self.occ = OccurrenceFactory.create(agent=self.agent)
         self.ev = EvidenceMobileFactory.create(
-            occurrence=self.occ, agent=self.agent,
+            occurrence=self.occ,
+            agent=self.agent,
         )
 
     def test_custody_records_have_unique_hashes(self):
@@ -761,16 +798,20 @@ class RecordHashIntegrityTest(TestCase):
 # 11. LOOKUP VIEWS - IMEI / VIN
 # =========================================================================
 
+
 class IMEILookupViewTest(APITestCase):
     """Cobertura de ``EvidenceIMEILookupView``."""
 
     def setUp(self):
         self.agent = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        resp = self.client.post('/api/auth/login/', {
-            'username': self.agent.username,
-            'password': 'TestPass123!',
-        })
+        resp = self.client.post(
+            '/api/auth/login/',
+            {
+                'username': self.agent.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(resp.status_code, 200)
 
     def test_invalid_imei_returns_400(self):
@@ -788,10 +829,13 @@ class VINLookupViewTest(APITestCase):
     def setUp(self):
         self.agent = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        resp = self.client.post('/api/auth/login/', {
-            'username': self.agent.username,
-            'password': 'TestPass123!',
-        })
+        resp = self.client.post(
+            '/api/auth/login/',
+            {
+                'username': self.agent.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(resp.status_code, 200)
 
     def test_valid_vin_returns_url(self):
@@ -813,41 +857,51 @@ class VINLookupViewTest(APITestCase):
 # 12. OCCURRENCE CODE AUTO-GENERATION
 # =========================================================================
 
+
 class OccurrenceCodeTest(APITestCase):
     """Verifica que codigos de ocorrencia sao gerados automaticamente."""
 
     def setUp(self):
         self.agent = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        resp = self.client.post('/api/auth/login/', {
-            'username': self.agent.username,
-            'password': 'TestPass123!',
-        })
+        resp = self.client.post(
+            '/api/auth/login/',
+            {
+                'username': self.agent.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(resp.status_code, 200)
 
     def test_occurrence_code_auto_generated(self):
-        resp = self.client.post('/api/occurrences/', {
-            'number': 'NUIPC-TEST-001',
-            'description': 'Teste de codigo',
-            'date_time': '2026-05-08T10:00:00Z',
-            'gps_lat': '38.7223',
-            'gps_lon': '-9.1393',
-            'address': 'Lisboa',
-        })
+        resp = self.client.post(
+            '/api/occurrences/',
+            {
+                'number': 'NUIPC-TEST-001',
+                'description': 'Teste de codigo',
+                'date_time': '2026-05-08T10:00:00Z',
+                'gps_lat': '38.7223',
+                'gps_lon': '-9.1393',
+                'address': 'Lisboa',
+            },
+        )
         self.assertEqual(resp.status_code, 201)
         self.assertIsNotNone(resp.data.get('code'))
         self.assertTrue(resp.data['code'].startswith('OCC-'))
 
     def test_occurrence_codes_are_unique(self):
         for i in range(3):
-            resp = self.client.post('/api/occurrences/', {
-                'number': f'NUIPC-UNIQ-{i:03d}',
-                'description': f'Teste {i}',
-                'date_time': '2026-05-08T10:00:00Z',
-                'gps_lat': '38.7223',
-                'gps_lon': '-9.1393',
-                'address': 'Lisboa',
-            })
+            resp = self.client.post(
+                '/api/occurrences/',
+                {
+                    'number': f'NUIPC-UNIQ-{i:03d}',
+                    'description': f'Teste {i}',
+                    'date_time': '2026-05-08T10:00:00Z',
+                    'gps_lat': '38.7223',
+                    'gps_lon': '-9.1393',
+                    'address': 'Lisboa',
+                },
+            )
             self.assertEqual(resp.status_code, 201)
         codes = Occurrence.objects.values_list('code', flat=True)
         self.assertEqual(len(set(codes)), len(codes))
@@ -856,6 +910,7 @@ class OccurrenceCodeTest(APITestCase):
 # =========================================================================
 # 13. SEED COMMAND - smoke test do seed_demo --users-only --no-input
 # =========================================================================
+
 
 class SeedDemoUsersOnlyTest(TestCase):
     """Smoke test do management command ``seed_demo`` em modo --users-only.
@@ -866,8 +921,9 @@ class SeedDemoUsersOnlyTest(TestCase):
     """
 
     def test_users_only_creates_two_users(self):
-        from django.core.management import call_command
         from io import StringIO
+
+        from django.core.management import call_command
 
         out = StringIO()
         call_command(
@@ -891,8 +947,9 @@ class SeedDemoUsersOnlyTest(TestCase):
         self.assertTrue(expert.check_password('SmokeExpert1!'))
 
     def test_users_only_is_idempotent(self):
-        from django.core.management import call_command
         from io import StringIO
+
+        from django.core.management import call_command
 
         for _ in range(2):
             call_command(
@@ -912,19 +969,24 @@ class SeedDemoUsersOnlyTest(TestCase):
         )
 
     def test_no_input_without_flags_raises(self):
+        from io import StringIO
+
         from django.core.management import call_command
         from django.core.management.base import CommandError
-        from io import StringIO
 
         with self.assertRaises(CommandError):
             call_command(
-                'seed_demo', '--users-only', '--no-input', stdout=StringIO(),
+                'seed_demo',
+                '--users-only',
+                '--no-input',
+                stdout=StringIO(),
             )
 
     def test_same_username_for_both_profiles_raises(self):
+        from io import StringIO
+
         from django.core.management import call_command
         from django.core.management.base import CommandError
-        from io import StringIO
 
         with self.assertRaises(CommandError):
             call_command(
@@ -937,3 +999,34 @@ class SeedDemoUsersOnlyTest(TestCase):
                 '--expert-password=Same1234!',
                 stdout=StringIO(),
             )
+
+
+# =========================================================================
+# 14. CSRF / CORS ORIGIN ALIGNMENT (audit 2026-05-18 §3 N11)
+# =========================================================================
+
+
+class CsrfCorsOriginAlignmentTest(TestCase):
+    """Garante que CORS_ALLOWED_ORIGINS e CSRF_TRUSTED_ORIGINS partilham
+    a mesma lista canónica (`_FRONTEND_ORIGINS` em settings.py) — evita
+    drift silencioso entre as duas configurações.
+    """
+
+    def test_origins_alinhadas(self):
+        from django.conf import settings
+
+        self.assertEqual(
+            set(settings.CORS_ALLOWED_ORIGINS),
+            set(settings.CSRF_TRUSTED_ORIGINS),
+        )
+
+    def test_origins_prod_sempre_incluidas(self):
+        from django.conf import settings
+
+        prod = {
+            'https://forensiq.pt',
+            'https://www.forensiq.pt',
+            'https://forensiq.fly.dev',
+        }
+        self.assertTrue(prod.issubset(set(settings.CORS_ALLOWED_ORIGINS)))
+        self.assertTrue(prod.issubset(set(settings.CSRF_TRUSTED_ORIGINS)))

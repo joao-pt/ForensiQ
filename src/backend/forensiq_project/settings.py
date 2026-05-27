@@ -121,12 +121,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # --- Django REST Framework ---
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'core.auth.JWTCookieAuthentication',
-    ),
-    'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticated',
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': ('core.auth.JWTCookieAuthentication',),
+    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
     'DEFAULT_PAGINATION_CLASS': 'core.pagination.BoundedPageNumberPagination',
@@ -214,22 +210,28 @@ SPECTACULAR_SETTINGS = {
     'REDOC_DIST': 'SIDECAR',
 }
 
-# --- CORS ---
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
+# --- Origens confiadas do frontend (CORS + CSRF) ---
+# Lista canónica reutilizada por CORS_ALLOWED_ORIGINS e CSRF_TRUSTED_ORIGINS
+# para evitar drift entre as duas (audit 2026-05-18 §3 N11). Origens de
+# desenvolvimento só entram quando DEBUG=True, mantendo produção restrita
+# aos 3 hostnames públicos.
+_FRONTEND_ORIGINS_PROD = [
     'https://forensiq.pt',
     'https://www.forensiq.pt',
     'https://forensiq.fly.dev',
 ]
+_FRONTEND_ORIGINS_DEV = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+_FRONTEND_ORIGINS = _FRONTEND_ORIGINS_PROD + (_FRONTEND_ORIGINS_DEV if DEBUG else [])
+
+# --- CORS ---
+CORS_ALLOWED_ORIGINS = list(_FRONTEND_ORIGINS)
 CORS_ALLOW_ALL_ORIGINS = os.environ.get('CORS_ALLOW_ALL_ORIGINS', 'False').lower() == 'true'
 
 # --- CSRF ---
-CSRF_TRUSTED_ORIGINS = [
-    'https://forensiq.pt',
-    'https://www.forensiq.pt',
-    'https://forensiq.fly.dev',
-]
+CSRF_TRUSTED_ORIGINS = list(_FRONTEND_ORIGINS)
 # Cookie CSRF lido pelo JS para enviar em X-CSRFToken. SameSite=Strict
 # já bloqueia requests cross-site, e o cookie JWT é HttpOnly.
 CSRF_COOKIE_HTTPONLY = False
@@ -301,8 +303,10 @@ if not DEBUG and not TESTING:
     # X-Forwarded-Proto sem exigir TRUSTED_PROXIES. Sem esta flag, Django
     # nunca sabe que o pedido chegou por HTTPS ao edge e entra em loop de
     # redireção com SECURE_SSL_REDIRECT.
-    if os.environ.get('USE_X_FORWARDED_PROTO', '').lower() == 'true' \
-            or os.environ.get('TRUSTED_PROXIES', '').strip():
+    if (
+        os.environ.get('USE_X_FORWARDED_PROTO', '').lower() == 'true'
+        or os.environ.get('TRUSTED_PROXIES', '').strip()
+    ):
         SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
