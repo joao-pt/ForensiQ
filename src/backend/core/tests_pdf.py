@@ -38,6 +38,7 @@ from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 # Fixtures reutilizáveis
 # ---------------------------------------------------------------------------
 
+
 def _make_agent(username='agente_pdf', badge='AGT-PDF-01'):
     return User.objects.create_user(
         username=username,
@@ -76,6 +77,7 @@ def _make_evidence(occurrence, agent):
 # ---------------------------------------------------------------------------
 # Testes unitários — função generate_evidence_pdf()
 # ---------------------------------------------------------------------------
+
 
 class PDFGenerationUnitTest(TestCase):
     """Testes directos à função de geração PDF (sem HTTP)."""
@@ -146,6 +148,7 @@ class PDFGenerationUnitTest(TestCase):
 # ---------------------------------------------------------------------------
 # Testes de integração — endpoint API GET /api/evidences/<id>/pdf/
 # ---------------------------------------------------------------------------
+
 
 class PDFAPIEndpointTest(TestCase):
     """Testes do endpoint REST para exportação PDF."""
@@ -227,6 +230,7 @@ class PDFAPIEndpointTest(TestCase):
 # PDF por ocorrência (resumo do processo) + sub-componentes integrados
 # ---------------------------------------------------------------------------
 
+
 class OccurrencePDFUnitTest(TestCase):
     """generate_occurrence_pdf gera bytes de PDF válido com itens e sub-itens."""
 
@@ -276,3 +280,50 @@ class OccurrencePDFUnitTest(TestCase):
         self.assertEqual(len(subs), 1)
         self.assertEqual(subs[0]['id'], self.sim.pk)
         self.assertEqual(subs[0]['type'], Evidence.EvidenceType.SIM_CARD)
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle do BytesIO (auditoria 2026-05-18 §3 N14)
+# ---------------------------------------------------------------------------
+
+
+class PdfBufferLifecycleTest(TestCase):
+    """Garante que o ``BytesIO`` é fechado mesmo quando ``doc.build``
+    levanta excepção — defesa contra leak de file descriptors em cenário
+    de erro repetido.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.agent = _make_agent(username='agente_lifecycle', badge='AGT-LC-01')
+        cls.occurrence = _make_occurrence(cls.agent, number='OCC-LC-001')
+        cls.evidence = _make_evidence(cls.occurrence, cls.agent)
+
+    def _assert_buffer_fechado_quando_build_falha(self, target_func, *args):
+        from unittest.mock import MagicMock, patch
+
+        buffer_mock = MagicMock()
+        buffer_mock.getvalue.return_value = b'%PDF-fake'
+        doc_mock = MagicMock()
+        doc_mock.build.side_effect = RuntimeError('falha simulada de build')
+
+        with (
+            patch('core.pdf_export.BytesIO', return_value=buffer_mock),
+            patch('core.pdf_export.SimpleDocTemplate', return_value=doc_mock),
+            self.assertRaises(RuntimeError),
+        ):
+            target_func(*args)
+
+        buffer_mock.close.assert_called_once()
+
+    def test_buffer_fechado_quando_build_falha_em_evidence_pdf(self):
+        self._assert_buffer_fechado_quando_build_falha(
+            generate_evidence_pdf,
+            self.evidence,
+        )
+
+    def test_buffer_fechado_quando_build_falha_em_occurrence_pdf(self):
+        self._assert_buffer_fechado_quando_build_falha(
+            generate_occurrence_pdf,
+            self.occurrence,
+        )
