@@ -29,6 +29,7 @@ from core.validators import validate_imei, validate_imsi, validate_vin
 # ---------------------------------------------------------------------------
 
 CODE_MAX_ATTEMPTS = 5
+MAX_SEQUENCE_ATTEMPTS = 10  # Audit 2026-05-18 §3 N10 — retry de AuditLog.sequence
 
 
 def _next_yearly_code(prefix, model, year, field='code'):
@@ -1288,6 +1289,21 @@ class AuditLog(models.Model):
         help_text='Momento exato do acesso (UTC, auto-preenchido).',
     )
 
+    # Sequência global monótona — ordem total entre registos mesmo
+    # quando dois inserts caem no mesmo microssegundo. Auditoria
+    # 2026-05-18 §3 N10 — fechado em Sem.12. Atribuído em save().
+    # Campo populated por migration 0017 para registos existentes.
+    sequence = models.BigIntegerField(
+        unique=True,
+        db_index=True,
+        default=0,
+        verbose_name='Sequência Global',
+        help_text=(
+            'Ordem total dos registos de auditoria. Garante ordem '
+            'inequívoca entre eventos no mesmo microssegundo.'
+        ),
+    )
+
     # Contexto adicional em JSON
     details = models.JSONField(
         default=dict,
@@ -1299,7 +1315,7 @@ class AuditLog(models.Model):
     class Meta:
         verbose_name = 'Registo de Auditoria'
         verbose_name_plural = 'Registos de Auditoria'
-        ordering = ['-timestamp']
+        ordering = ['-sequence']
         indexes = [
             models.Index(fields=['user', '-timestamp']),
             models.Index(fields=['action', '-timestamp']),
@@ -1315,16 +1331,43 @@ class AuditLog(models.Model):
 
     def save(self, *args, **kwargs):
         """
-        Override: AuditLog é append-only.
+        Override: AuditLog é append-only com sequence global monótona.
 
         Permite apenas inserts (pk é None). Bloqueia atualizações.
+
+        A sequence é atribuída atomicamente como `max(sequence) + 1`.
+        Em caso de race condition (dois inserts concorrentes a calcular
+        a mesma sequence), a constraint unique levanta IntegrityError e
+        re-tentamos até MAX_SEQUENCE_ATTEMPTS. Para o nível de carga do
+        AuditLog (não é hot path) o retry é suficientemente raro para
+        dispensar advisory lock. Auditoria 2026-05-18 §3 N10.
         """
         if self.pk is not None:
             raise ValidationError(
                 'Registos de auditoria são imutáveis. '
                 'Não é permitido atualizar registos existentes.'
             )
-        super().save(*args, **kwargs)
+
+        from django.db.models import Max
+
+        for _ in range(MAX_SEQUENCE_ATTEMPTS):
+            try:
+                with transaction.atomic():
+                    last_seq = AuditLog.objects.aggregate(m=Max('sequence'))['m'] or 0
+                    self.sequence = last_seq + 1
+                    super().save(*args, **kwargs)
+                return
+            except IntegrityError as exc:
+                # Só ré-tentamos em colisão de sequence; outras integrity
+                # errors (FK, etc.) sobem.
+                if 'sequence' not in str(exc).lower():
+                    raise
+                self.pk = None
+                self.sequence = 0
+        raise RuntimeError(
+            f'Não foi possível atribuir sequence ao AuditLog após '
+            f'{MAX_SEQUENCE_ATTEMPTS} tentativas (contenção excessiva).'
+        )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de auditoria."""
