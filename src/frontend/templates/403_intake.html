@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}ForensiQ — Sem permissão{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard/">Início</a>
+<span class="breadcrumb-sep" aria-hidden="true">/</span>
+<span class="breadcrumb-current">Sem permissão</span>
+{% endblock %}
+
+{% block content %}
+<div class="page" style="max-width:560px;margin:3rem auto;text-align:center;">
+    <h1>Recepção no laboratório — Sem permissão</h1>
+    <p>
+        Esta página é restrita a peritos forenses (EXPERT). Os
+        agentes em campo entregam os itens em mão; a recepção
+        formal é registada por um perito autorizado.
+    </p>
+    <p>
+        <a href="/dashboard/" class="btn btn-primary">Voltar ao painel</a>
+    </p>
+</div>
+{% endblock %}

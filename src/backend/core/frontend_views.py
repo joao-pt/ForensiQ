@@ -189,6 +189,87 @@ def reports_view(request):
     return render(request, 'reports.html')
 
 
+def occurrence_intake_view(request, occurrence_id):
+    """Página de check-list de intake no laboratório (ADR-0012 Vaga 2).
+
+    Acessível só a EXPERT (ou staff). AGENT em campo entrega; não faz
+    intake. O template renderiza checklist das evidências esperadas;
+    o submit é feito via JS para o endpoint `/api/custody/cascade/`
+    existente, transitando todos os itens marcados para
+    ``RECEBIDA_LABORATORIO`` numa só operação atómica.
+
+    Requisitos de auth (impostos no servidor antes do render):
+    1. JWT válido em cookie `fq_access`.
+    2. Perfil EXPERT, staff, ou superuser.
+
+    Qualquer outro perfil recebe HTTP 403.
+    """
+    from django.contrib.auth import get_user_model
+
+    from core.models import Occurrence
+
+    token = request.COOKIES.get('fq_access')
+    if not token:
+        return HttpResponseRedirect('/login/?next=' + request.path)
+    try:
+        access = AccessToken(token)
+    except TokenError:
+        return HttpResponseRedirect('/login/?next=' + request.path)
+
+    user = get_user_model().objects.filter(pk=access['user_id']).first()
+    if user is None:
+        return HttpResponseRedirect('/login/?next=' + request.path)
+
+    is_expert = getattr(user, 'profile', None) == 'EXPERT'
+    if not (user.is_staff or user.is_superuser or is_expert):
+        return render(request, '403_intake.html', status=403)
+
+    occurrence = Occurrence.objects.filter(pk=occurrence_id).first()
+    if occurrence is None:
+        return render(request, '404.html', status=404)
+
+    # Para cada evidência: estado actual de custódia (último ChainOfCustody).
+    from core.models import ChainOfCustody, Evidence
+
+    evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
+    state_by_evidence = {}
+    for ev in evidences:
+        last = (
+            ChainOfCustody.objects.filter(evidence=ev)
+            .order_by('-sequence')
+            .only('new_state')
+            .first()
+        )
+        state_by_evidence[ev.id] = last.new_state if last else ''
+
+    rows = [
+        {
+            'evidence': ev,
+            'current_state': state_by_evidence[ev.id],
+            'already_received': state_by_evidence[ev.id]
+            in (
+                ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                ChainOfCustody.CustodyState.EM_PERICIA,
+                ChainOfCustody.CustodyState.CONCLUIDA,
+                ChainOfCustody.CustodyState.DEVOLVIDA,
+                ChainOfCustody.CustodyState.DESTRUIDA,
+            ),
+        }
+        for ev in evidences
+    ]
+
+    return render(
+        request,
+        'occurrence_intake.html',
+        {
+            'occurrence': occurrence,
+            'rows': rows,
+            'evidence_count': len(rows),
+            'target_state': ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+        },
+    )
+
+
 @jwt_cookie_required
 def stats_view(request):
     """Dashboard de estatísticas agregadas (ocorrências, evidências, custódia). Requer JWT."""
