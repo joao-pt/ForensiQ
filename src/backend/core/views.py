@@ -332,13 +332,23 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         agente responsável para um overview único do processo.
         """
         # ownership: get_queryset já filtra AGENT para ocorrências próprias
+        # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
+        # `pdf_export.generate_occurrence_pdf` itera: para cada
+        # evidência: digital_devices + custody_chain (ordenada por
+        # -sequence para `_current_custody_state` apanhar o último);
+        # para cada sub-componente: também o seu custody_chain.
+        from django.db.models import Prefetch
+
+        custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
         base_qs = self.get_queryset().filter(pk=pk)
         optimized_qs = base_qs.select_related('agent').prefetch_related(
             'evidences__agent',
             'evidences__parent_evidence',
             'evidences__sub_components',
-            'evidences__custody_chain',
+            'evidences__sub_components__digital_devices',
             'evidences__digital_devices',
+            Prefetch('evidences__custody_chain', queryset=custody_qs),
+            Prefetch('evidences__sub_components__custody_chain', queryset=custody_qs),
         )
         self.queryset = optimized_qs
         occurrence = self.get_object()
@@ -482,11 +492,24 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         # aplicamos ``.filter(pk=pk)`` sobre o queryset filtrado e depois
         # optimizamos com select_related/prefetch_related. Se o utilizador
         # não for dono da ocorrência, get_object() devolve 404 (não 200).
+        # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
+        # `pdf_export.generate_evidence_pdf` itera: digital_devices,
+        # sub_components (+ os seus digital_devices e custody_chain),
+        # e o próprio custody_chain ordenado.
+        from django.db.models import Prefetch
+
+        custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
         base_qs = self.get_queryset().filter(pk=pk)
         optimized_qs = base_qs.select_related(
             'occurrence__agent',
             'agent',
-        ).prefetch_related('custody_chain__agent')
+        ).prefetch_related(
+            'digital_devices',
+            'sub_components',
+            'sub_components__digital_devices',
+            Prefetch('custody_chain', queryset=custody_qs),
+            Prefetch('sub_components__custody_chain', queryset=custody_qs),
+        )
         self.queryset = optimized_qs
         evidence = self.get_object()
 

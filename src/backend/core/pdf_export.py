@@ -475,7 +475,9 @@ def _render_sub_components(evidence, styles):
     ISO/IEC 27037: o SIM/SD inserido num telemóvel acompanha o dispositivo
     e deve constar do mesmo relatório; a secção documenta essa inseparabilidade.
     """
-    sub_components = list(evidence.sub_components.select_related('agent').order_by('id'))
+    # `all()` reaproveita o prefetch_related aplicado pelas views (N12).
+    # Ordenação por id em memória — lista curta.
+    sub_components = sorted(evidence.sub_components.all(), key=lambda e: e.id)
     legacy_devices = list(evidence.digital_devices.all())
 
     if not sub_components and not legacy_devices:
@@ -629,7 +631,10 @@ def generate_evidence_pdf(evidence):
         )
     )
     story.append(Spacer(1, 0.2 * cm))
-    custody_records = list(evidence.custody_chain.select_related('agent').order_by('sequence'))
+    # `all()` reaproveita o prefetch_related aplicado pela view (N12).
+    # Ordenação ascendente em memória (o prefetch é -sequence; aqui
+    # precisamos da ordem cronológica natural).
+    custody_records = sorted(evidence.custody_chain.all(), key=lambda r: r.sequence)
     story += _custody_table(custody_records, styles)
 
     # Declaração
@@ -655,10 +660,20 @@ def _current_custody_state(evidence):
 
     O label é sanitizado à partida porque vai sempre alimentar
     ``Paragraph()`` no PDF (auditoria 2026-05-18 §3 N3).
+
+    Lê via ``all()`` para reaproveitar o prefetch ordenado por
+    ``-sequence`` aplicado pelas views (audit 2026-05-18 §3 N12).
+    Cair em ``order_by('-sequence').first()`` invalidaria o cache
+    e dispararia uma query extra por evidência.
     """
-    last = evidence.custody_chain.order_by('-sequence').first()
-    if last is None:
+    records = list(evidence.custody_chain.all())
+    if not records:
         return ('—', None)
+    # O prefetch ordena por -sequence; sem prefetch, ainda assim
+    # `Meta.ordering` do ChainOfCustody pode aplicar-se. Para
+    # robustez contra ausência de prefetch, ordenamos em memória
+    # (lista curta — operação trivial).
+    last = max(records, key=lambda r: r.sequence)
     return (_sanitize(last.get_new_state_display()), last)
 
 
@@ -713,12 +728,9 @@ def generate_occurrence_pdf(occurrence):
         styles,
     )
 
-    # 2. Inventário de itens
-    evidences = list(
-        occurrence.evidences.select_related('agent', 'parent_evidence')
-        .prefetch_related('sub_components', 'custody_chain')
-        .order_by('id')
-    )
+    # 2. Inventário de itens — `all()` reaproveita o prefetch_related
+    # aplicado pela view (N12). Sort em memória (lista curta).
+    evidences = sorted(occurrence.evidences.all(), key=lambda e: e.id)
     root_items = [e for e in evidences if e.parent_evidence_id is None]
     children_by_parent = {}
     for e in evidences:

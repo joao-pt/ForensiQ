@@ -327,3 +327,104 @@ class PdfBufferLifecycleTest(TestCase):
             generate_occurrence_pdf,
             self.occurrence,
         )
+
+
+# ---------------------------------------------------------------------------
+# N+1 mitigation (auditoria 2026-05-18 §3 N12)
+# ---------------------------------------------------------------------------
+
+
+class PdfNoNPlusOneTest(TestCase):
+    """O endpoint `/api/occurrences/<id>/pdf/` deve aplicar prefetch_related
+    para evitar N+1 quando a ocorrência tem várias evidências, cada uma
+    com sub-componentes, dispositivos e cadeia de custódia. O número
+    total de queries deve crescer ~O(1) com o número de evidências
+    (e não ~O(N) como aconteceria sem prefetch).
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.agent = _make_agent(username='agente_nplus1', badge='AGT-NPL-01')
+        cls.occurrence = _make_occurrence(cls.agent, number='OCC-NPL-001')
+        # 3 evidências raiz, cada uma com 2 dispositivos digitais e
+        # 4 registos de custódia (mais que suficiente para detectar N+1).
+        for i in range(3):
+            ev = Evidence.objects.create(
+                occurrence=cls.occurrence,
+                type=Evidence.EvidenceType.MOBILE_DEVICE,
+                description=f'Item {i}',
+                serial_number=f'SN-NPL-{i:03d}',
+                agent=cls.agent,
+                gps_lat=Decimal('38.7'),
+                gps_lon=Decimal('-9.1'),
+            )
+            for j in range(2):
+                DigitalDevice.objects.create(
+                    evidence=ev,
+                    type=DigitalDevice.DeviceType.SMARTPHONE,
+                    brand='Brand',
+                    model=f'M{j}',
+                    condition=DigitalDevice.DeviceCondition.FUNCTIONAL,
+                    imei='123456789012347',  # Luhn-válido (mesmo IMEI ok para teste)
+                    serial_number=f'D-{i}-{j}',
+                )
+            # 1ª transição APREENDIDA (auto), depois 3 transições
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                new_state=ChainOfCustody.CustodyState.APREENDIDA,
+                agent=cls.agent,
+            )
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                agent=cls.agent,
+            )
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                new_state=ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                agent=cls.agent,
+            )
+
+    def _query_count(self, response_factory):
+        """Captura número exacto de queries executadas pelo factory."""
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            response = response_factory()
+        return len(ctx), response
+
+    def test_occurrence_pdf_endpoint_sem_n_plus_one(self):
+        """Endpoint /api/occurrences/<id>/pdf/ — query count deve ser
+        baixo e ~O(1) com N evidências. Sem prefetch, este caso
+        (3 evidências × 2 dispositivos × 3 custody) faria 50+ queries.
+        """
+        client = APIClient()
+        client.force_authenticate(user=self.agent)
+        url = f'/api/occurrences/{self.occurrence.pk}/pdf/'
+        n_queries, response = self._query_count(lambda: client.get(url))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        # Threshold: 30 cobre auth + throttle cache + select + 6
+        # prefetches + audit log com folga. Acima disto indica
+        # regressão do prefetch.
+        self.assertLessEqual(
+            n_queries,
+            30,
+            f'N+1 regressão: {n_queries} queries para 3 evidências ' '(esperado ≤30 com prefetch).',
+        )
+
+    def test_evidence_pdf_endpoint_sem_n_plus_one(self):
+        """Endpoint /api/evidences/<id>/pdf/ para item com 2 dispositivos
+        e 3 entradas de custódia — sem N+1 nos sub_components."""
+        client = APIClient()
+        client.force_authenticate(user=self.agent)
+        evidence = self.occurrence.evidences.first()
+        url = f'/api/evidences/{evidence.pk}/pdf/'
+        n_queries, response = self._query_count(lambda: client.get(url))
+        self.assertEqual(response.status_code, 200)
+        self.assertLessEqual(
+            n_queries,
+            25,
+            f'N+1 regressão em evidence PDF: {n_queries} queries ' '(esperado ≤25 com prefetch).',
+        )
