@@ -1216,6 +1216,7 @@ class AuditLog(models.Model):
         CREATE = 'CREATE', 'Criação'
         EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
         EXPORT_CSV = 'EXPORT_CSV', 'Exportação CSV'
+        AUDIT_PURGE = 'AUDIT_PURGE', 'Expurgo de Logs (retenção RGPD)'
 
     class ResourceType(models.TextChoices):
         """Tipos de recursos auditados."""
@@ -1224,6 +1225,7 @@ class AuditLog(models.Model):
         EVIDENCE = 'EVIDENCE', 'Evidência'
         DEVICE = 'DEVICE', 'Dispositivo Digital'
         CUSTODY = 'CUSTODY', 'Cadeia de Custódia'
+        SYSTEM = 'SYSTEM', 'Sistema (meta-auditoria)'
 
     # Relação com o utilizador (nullable para acessos anónimos)
     user = models.ForeignKey(
