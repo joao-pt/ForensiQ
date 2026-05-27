@@ -24,7 +24,6 @@ from django.utils import timezone
 
 from core.validators import validate_imei, validate_imsi, validate_vin
 
-
 # ---------------------------------------------------------------------------
 # Gerador de códigos humanos ANO-TIPO-SEQ (ex.: OCC-2026-00001)
 # ---------------------------------------------------------------------------
@@ -43,8 +42,7 @@ def _next_yearly_code(prefix, model, year, field='code'):
     """
     prefix_filter = f'{prefix}-{year}-'
     last = (
-        model.objects
-        .filter(**{f'{field}__startswith': prefix_filter})
+        model.objects.filter(**{f'{field}__startswith': prefix_filter})
         .order_by(f'-{field}')
         .values_list(field, flat=True)
         .first()
@@ -57,6 +55,7 @@ def _next_yearly_code(prefix, model, year, field='code'):
     else:
         seq = 1
     return f'{prefix}-{year}-{seq:05d}'
+
 
 # ---------------------------------------------------------------------------
 # Validadores customizados
@@ -93,9 +92,7 @@ def validate_image_max_size(value):
             img.verify()
             fmt = (img.format or '').upper()
     except Exception as exc:
-        raise ValidationError(
-            'O ficheiro não é uma imagem válida ou está corrompido.'
-        ) from exc
+        raise ValidationError('O ficheiro não é uma imagem válida ou está corrompido.') from exc
     finally:
         try:
             value.seek(0)
@@ -109,9 +106,63 @@ def validate_image_max_size(value):
         )
 
 
+def _strip_exif(photo_file):
+    """Remove metadados EXIF/IPTC/XMP de uma fotografia carregada.
+
+    Devolve um ``ContentFile`` com os bytes reconstruídos sem metadados,
+    preservando formato e dados de pixel. O hash de integridade calculado
+    a seguir (``Evidence._compute_photo_hash``) torna-se invariante ao
+    EXIF — fotos idênticas em pixels mas distintas em EXIF produzem o
+    mesmo ``integrity_hash``.
+
+    Motivação forense: EXIF de telemóveis inclui GPS da captura, modelo
+    de câmara e timestamps que podem revelar dados sensíveis da cena a
+    quem receba o PDF ou o ficheiro original (auditoria 2026-05-18 §2 S9).
+
+    Fail-open: se Pillow não estiver disponível, devolve o ficheiro
+    original sem strip — alinhado com ``validate_image_max_size``, que
+    também faz fallback permissivo nesse cenário.
+    """
+    try:
+        from io import BytesIO
+
+        from django.core.files.base import ContentFile
+        from PIL import Image
+    except ImportError:  # pragma: no cover
+        return photo_file
+
+    try:
+        photo_file.seek(0)
+    except (ValueError, AttributeError):
+        pass
+
+    with Image.open(photo_file) as img:
+        img.load()
+        fmt = (img.format or '').upper()
+        buf = BytesIO()
+        save_kwargs = {}
+        if fmt == 'JPEG':
+            # ``quality='keep'`` preserva qualidade original sem
+            # re-encoding agressivo; ``exif=b''`` apaga o bloco EXIF.
+            save_kwargs = {'quality': 'keep', 'exif': b''}
+        elif fmt == 'PNG':
+            from PIL.PngImagePlugin import PngInfo
+
+            # PngInfo vazio descarta tEXt/iTXt/zTXt e tempo (tIME).
+            save_kwargs = {'pnginfo': PngInfo()}
+        elif fmt == 'WEBP':
+            save_kwargs = {'exif': b''}
+        img.save(buf, format=fmt, **save_kwargs)
+
+    buf.seek(0)
+    name = getattr(photo_file, 'name', 'photo')
+    return ContentFile(buf.getvalue(), name=name)
+
+
 # ---------------------------------------------------------------------------
 # Utilizador personalizado
 # ---------------------------------------------------------------------------
+
 
 class User(AbstractUser):
     """Utilizador do sistema com perfil baseado em roles."""
@@ -160,6 +211,7 @@ class User(AbstractUser):
 # ---------------------------------------------------------------------------
 # Ocorrência
 # ---------------------------------------------------------------------------
+
 
 class Occurrence(models.Model):
     """Ocorrência policial / cena de crime."""
@@ -235,13 +287,9 @@ class Occurrence(models.Model):
         if self.number:
             self.number = ' '.join(self.number.split())
         if (self.gps_lat is not None) != (self.gps_lon is not None):
-            raise ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+            raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
         if self.date_time and self.date_time > timezone.now():
-            raise ValidationError({
-                'date_time': 'A data da ocorrência não pode estar no futuro.'
-            })
+            raise ValidationError({'date_time': 'A data da ocorrência não pode estar no futuro.'})
 
     def save(self, *args, **kwargs):
         """Chama full_clean e atribui ``code`` (OCC-YYYY-NNNNN) na criação."""
@@ -261,8 +309,7 @@ class Occurrence(models.Model):
                     self.code = ''
                     self.pk = None
             raise RuntimeError(
-                'Não foi possível gerar um código OCC-YYYY-NNNNN único '
-                'após várias tentativas.'
+                'Não foi possível gerar um código OCC-YYYY-NNNNN único ' 'após várias tentativas.'
             )
         super().save(*args, **kwargs)
 
@@ -270,6 +317,7 @@ class Occurrence(models.Model):
 # ---------------------------------------------------------------------------
 # Evidência
 # ---------------------------------------------------------------------------
+
 
 class EvidenceQuerySet(models.QuerySet):
     """QuerySet de Evidence com helpers comuns."""
@@ -283,8 +331,7 @@ class EvidenceQuerySet(models.QuerySet):
         ordenação sem table scan.
         """
         latest_state = (
-            ChainOfCustody.objects
-            .filter(evidence=OuterRef('pk'))
+            ChainOfCustody.objects.filter(evidence=OuterRef('pk'))
             .order_by('-sequence')
             .values('new_state')[:1]
         )
@@ -322,12 +369,14 @@ class Evidence(models.Model):
     # é, por natureza, indivisível: não há prova forense útil em registar
     # algo "dentro de" um SIM. A validação é aplicada em clean(); o frontend
     # replica a constante (config.js EVIDENCE_LEAF_TYPES) só para UX.
-    EVIDENCE_LEAF_TYPES = frozenset({
-        'SIM_CARD',
-        'MEMORY_CARD',
-        'RFID_NFC_CARD',
-        'DIGITAL_FILE',
-    })
+    EVIDENCE_LEAF_TYPES = frozenset(
+        {
+            'SIM_CARD',
+            'MEMORY_CARD',
+            'RFID_NFC_CARD',
+            'DIGITAL_FILE',
+        }
+    )
 
     class EvidenceType(models.TextChoices):
         # --- Dispositivos autónomos (tipicamente raiz) ---
@@ -438,8 +487,7 @@ class Evidence(models.Model):
         blank=True,
         verbose_name='Dados específicos do tipo',
         help_text=(
-            'Campos específicos do tipo de evidência (IMEI, VIN, '
-            'IMSI, ICCID, MAC, etc.).'
+            'Campos específicos do tipo de evidência (IMEI, VIN, ' 'IMSI, ICCID, MAC, etc.).'
         ),
     )
     external_lookup_snapshot = models.JSONField(
@@ -597,6 +645,11 @@ class Evidence(models.Model):
             )
         # full_clean garante que validadores de campo (GPS, etc.) correm
         self.full_clean()
+        # Strip EXIF antes do hash para que o ``integrity_hash`` seja
+        # invariante a metadados sensíveis (GPS da captura, modelo de
+        # câmara, timestamps originais). Auditoria 2026-05-18 §2 S9.
+        if self.photo:
+            self.photo = _strip_exif(self.photo)
         self.integrity_hash = self.compute_integrity_hash()
         year = (self.timestamp_seizure or timezone.now()).year
         for _ in range(CODE_MAX_ATTEMPTS):
@@ -612,15 +665,13 @@ class Evidence(models.Model):
                 self.code = ''
                 self.pk = None
         raise RuntimeError(
-            'Não foi possível gerar um código ITM-YYYY-NNNNN único '
-            'após várias tentativas.'
+            'Não foi possível gerar um código ITM-YYYY-NNNNN único ' 'após várias tentativas.'
         )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de evidência."""
         raise ValidationError(
-            'Registos de evidência são imutáveis. '
-            'Não é permitido eliminar registos de prova.'
+            'Registos de evidência são imutáveis. ' 'Não é permitido eliminar registos de prova.'
         )
 
     # ------------------------------------------------------------------
@@ -630,51 +681,53 @@ class Evidence(models.Model):
     def clean(self):
         super().clean()
         if (self.gps_lat is not None) != (self.gps_lon is not None):
-            raise ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+            raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
         if self.timestamp_seizure and self.timestamp_seizure > timezone.now():
-            raise ValidationError({
-                'timestamp_seizure': 'A data da apreensão não pode estar no futuro.'
-            })
+            raise ValidationError(
+                {'timestamp_seizure': 'A data da apreensão não pode estar no futuro.'}
+            )
 
         # --- Hierarquia pai-filho ---
         if self.parent_evidence_id is not None:
             parent = self.parent_evidence
             # Não pode migrar entre ocorrências
             if parent.occurrence_id != self.occurrence_id:
-                raise ValidationError({
-                    'parent_evidence': (
-                        'A evidência-pai pertence a uma ocorrência diferente. '
-                        'Sub-componentes têm de partilhar a ocorrência com o pai.'
-                    )
-                })
+                raise ValidationError(
+                    {
+                        'parent_evidence': (
+                            'A evidência-pai pertence a uma ocorrência diferente. '
+                            'Sub-componentes têm de partilhar a ocorrência com o pai.'
+                        )
+                    }
+                )
             # Não pode haver ciclo (self entre os ancestrais)
             if self._parent_contains_self():
-                raise ValidationError({
-                    'parent_evidence': (
-                        'Ciclo detectado: esta evidência não pode ser '
-                        'descendente de si própria.'
-                    )
-                })
+                raise ValidationError(
+                    {
+                        'parent_evidence': (
+                            'Ciclo detectado: esta evidência não pode ser '
+                            'descendente de si própria.'
+                        )
+                    }
+                )
             # Profundidade <= 3
             depth = self.get_depth()
             if depth > self.MAX_TREE_DEPTH:
-                raise ValidationError({
-                    'parent_evidence': (
-                        f'Profundidade da árvore excede o máximo permitido '
-                        f'({self.MAX_TREE_DEPTH} níveis). Esta evidência '
-                        f'ficaria a {depth} níveis da raiz.'
-                    )
-                })
+                raise ValidationError(
+                    {
+                        'parent_evidence': (
+                            f'Profundidade da árvore excede o máximo permitido '
+                            f'({self.MAX_TREE_DEPTH} níveis). Esta evidência '
+                            f'ficaria a {depth} níveis da raiz.'
+                        )
+                    }
+                )
             # Tipos terminais (cartão SIM, etc.) não aceitam sub-componentes.
             if parent.type in self.EVIDENCE_LEAF_TYPES:
                 parent_label = parent.get_type_display()
-                raise ValidationError({
-                    'parent_evidence': (
-                        f'O tipo "{parent_label}" não admite sub-componentes.'
-                    )
-                })
+                raise ValidationError(
+                    {'parent_evidence': (f'O tipo "{parent_label}" não admite sub-componentes.')}
+                )
 
         # --- Validadores específicos por tipo ---
         self._validate_type_specific_data()
@@ -683,9 +736,7 @@ class Evidence(models.Model):
         """Valida campos em `type_specific_data` conforme o tipo de evidência."""
         data = self.type_specific_data or {}
         if not isinstance(data, dict):
-            raise ValidationError({
-                'type_specific_data': 'Deve ser um objecto JSON (dicionário).'
-            })
+            raise ValidationError({'type_specific_data': 'Deve ser um objecto JSON (dicionário).'})
 
         errors = {}
 
@@ -695,9 +746,7 @@ class Evidence(models.Model):
                 try:
                     validate_imei(imei)
                 except ValidationError as exc:
-                    errors['type_specific_data'] = (
-                        f'imei: {"; ".join(exc.messages)}'
-                    )
+                    errors['type_specific_data'] = f'imei: {"; ".join(exc.messages)}'
 
         if self.type == self.EvidenceType.VEHICLE:
             vin = data.get('vin')
@@ -705,9 +754,7 @@ class Evidence(models.Model):
                 try:
                     validate_vin(vin)
                 except ValidationError as exc:
-                    errors['type_specific_data'] = (
-                        f'vin: {"; ".join(exc.messages)}'
-                    )
+                    errors['type_specific_data'] = f'vin: {"; ".join(exc.messages)}'
 
         if self.type == self.EvidenceType.SIM_CARD:
             imsi = data.get('imsi')
@@ -715,9 +762,7 @@ class Evidence(models.Model):
                 try:
                     validate_imsi(imsi)
                 except ValidationError as exc:
-                    errors['type_specific_data'] = (
-                        f'imsi: {"; ".join(exc.messages)}'
-                    )
+                    errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
 
         if errors:
             raise ValidationError(errors)
@@ -726,6 +771,7 @@ class Evidence(models.Model):
 # ---------------------------------------------------------------------------
 # Dispositivo Digital
 # ---------------------------------------------------------------------------
+
 
 def _digital_device_imei_validator(value):
     r"""Aceita string vazia (campo opcional) ou IMEI Luhn-válido.
@@ -868,6 +914,7 @@ class DigitalDevice(models.Model):
 # Cadeia de Custódia (append-only — NUNCA permite UPDATE/DELETE)
 # ---------------------------------------------------------------------------
 
+
 class ChainOfCustody(models.Model):
     """
     Registo imutável de transição na cadeia de custódia.
@@ -990,14 +1037,16 @@ class ChainOfCustody(models.Model):
         # Verificar se a transição é válida
         allowed = self.VALID_TRANSITIONS.get(self.previous_state, [])
         if self.new_state not in allowed:
-            raise ValidationError({
-                'new_state': (
-                    f'Transição inválida: '
-                    f'{self.get_previous_state_display() or "(início)"} '
-                    f'→ {self.get_new_state_display()}. '
-                    f'Estados permitidos: {", ".join(str(s) for s in allowed) or "nenhum (estado terminal)"}.'
-                )
-            })
+            raise ValidationError(
+                {
+                    'new_state': (
+                        f'Transição inválida: '
+                        f'{self.get_previous_state_display() or "(início)"} '
+                        f'→ {self.get_new_state_display()}. '
+                        f'Estados permitidos: {", ".join(str(s) for s in allowed) or "nenhum (estado terminal)"}.'
+                    )
+                }
+            )
 
     def compute_record_hash(self, previous_hash=None):
         """
@@ -1047,10 +1096,7 @@ class ChainOfCustody(models.Model):
         """Lê o hash do registo anterior na DB. Não puro — apenas usado
         como fallback de legacy callers sem `previous_hash` explícito."""
         previous_record = (
-            ChainOfCustody.objects
-            .filter(evidence=self.evidence)
-            .order_by('-sequence')
-            .first()
+            ChainOfCustody.objects.filter(evidence=self.evidence).order_by('-sequence').first()
         )
         return previous_record.record_hash if previous_record else '0' * 64
 
@@ -1087,17 +1133,14 @@ class ChainOfCustody(models.Model):
                     # pré-intercalar). Bloqueando a Evidence parent, qualquer
                     # criação de cadeia para a mesma evidência fica
                     # serializada do início ao fim.
-                    Evidence.objects.select_for_update().filter(
-                        pk=self.evidence_id
-                    ).first()
+                    Evidence.objects.select_for_update().filter(pk=self.evidence_id).first()
 
                     # Auto-determinar previous_state e sequence a partir do
                     # último registo. select_for_update() garante serialização
                     # entre escritores concorrentes na mesma evidência quando
                     # já existem registos.
                     last_record = (
-                        ChainOfCustody.objects
-                        .select_for_update()
+                        ChainOfCustody.objects.select_for_update()
                         .filter(evidence=self.evidence)
                         .order_by('-sequence')
                         .first()
@@ -1110,15 +1153,15 @@ class ChainOfCustody(models.Model):
 
                     if not self.code:
                         self.code = _next_yearly_code(
-                            'CC', ChainOfCustody, year=self.timestamp.year,
+                            'CC',
+                            ChainOfCustody,
+                            year=self.timestamp.year,
                         )
 
                     self.full_clean()
                     # Passar o hash explicitamente para a função ficar pura e
                     # reaproveitar a leitura já feita dentro do select_for_update.
-                    previous_hash = (
-                        last_record.record_hash if last_record else '0' * 64
-                    )
+                    previous_hash = last_record.record_hash if last_record else '0' * 64
                     self.record_hash = self.compute_record_hash(
                         previous_hash=previous_hash,
                     )
@@ -1130,21 +1173,20 @@ class ChainOfCustody(models.Model):
                 self.code = ''
                 self.pk = None
         raise RuntimeError(
-            'Não foi possível gerar um código CC-YYYY-NNNNN único '
-            'após várias tentativas.'
+            'Não foi possível gerar um código CC-YYYY-NNNNN único ' 'após várias tentativas.'
         )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de custódia."""
         raise ValidationError(
-            'Registos de cadeia de custódia são imutáveis. '
-            'Não é permitido eliminar registos.'
+            'Registos de cadeia de custódia são imutáveis. ' 'Não é permitido eliminar registos.'
         )
 
 
 # ---------------------------------------------------------------------------
 # AuditLog — Registo imutável de acessos (append-only)
 # ---------------------------------------------------------------------------
+
 
 class AuditLog(models.Model):
     """
@@ -1169,6 +1211,7 @@ class AuditLog(models.Model):
 
     class Action(models.TextChoices):
         """Ações que são auditadas."""
+
         VIEW = 'VIEW', 'Visualização'
         CREATE = 'CREATE', 'Criação'
         EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
@@ -1176,6 +1219,7 @@ class AuditLog(models.Model):
 
     class ResourceType(models.TextChoices):
         """Tipos de recursos auditados."""
+
         OCCURRENCE = 'OCCURRENCE', 'Ocorrência'
         EVIDENCE = 'EVIDENCE', 'Evidência'
         DEVICE = 'DEVICE', 'Dispositivo Digital'
@@ -1282,6 +1326,5 @@ class AuditLog(models.Model):
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de auditoria."""
         raise ValidationError(
-            'Registos de auditoria são imutáveis. '
-            'Não é permitido eliminar registos.'
+            'Registos de auditoria são imutáveis. ' 'Não é permitido eliminar registos.'
         )
