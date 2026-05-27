@@ -24,7 +24,6 @@ import mimetypes
 from pathlib import Path
 
 import httpx
-
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -166,6 +165,7 @@ def _user_can_lookup(user) -> bool:
 # User
 # ---------------------------------------------------------------------------
 
+
 class UserViewSet(viewsets.ModelViewSet):
     """
     API de utilizadores.
@@ -198,6 +198,7 @@ class UserViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 # Occurrence
 # ---------------------------------------------------------------------------
+
 
 class OccurrenceViewSet(viewsets.ModelViewSet):
     """
@@ -233,9 +234,11 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         if state:
             valid_states = {s for s, _ in ChainOfCustody.CustodyState.choices}
             if state not in valid_states:
-                raise drf_serializers.ValidationError({
-                    'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
-                })
+                raise drf_serializers.ValidationError(
+                    {
+                        'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
+                    }
+                )
             occ_ids = (
                 Evidence.objects.with_current_state()
                 .filter(current_state=state)
@@ -287,10 +290,12 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         count = _check_csv_size(qs)
         if count is None:
             return Response(
-                {'detail': (
-                    f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
-                    'Aplica filtros antes de exportar.'
-                )},
+                {
+                    'detail': (
+                        f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
+                        'Aplica filtros antes de exportar.'
+                    )
+                },
                 status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             )
 
@@ -303,8 +308,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         )
 
         def rows():
-            yield ['Codigo', 'NUIPC', 'Descricao', 'Data', 'Agente',
-                   'Morada', 'GPS Lat', 'GPS Lon']
+            yield ['Codigo', 'NUIPC', 'Descricao', 'Data', 'Agente', 'Morada', 'GPS Lat', 'GPS Lon']
             for occ in qs.iterator(chunk_size=500):
                 yield [
                     occ.code,
@@ -365,6 +369,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
 # Evidence
 # ---------------------------------------------------------------------------
 
+
 class EvidenceViewSet(viewsets.ModelViewSet):
     """
     API de evidências.
@@ -377,8 +382,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     """
 
     queryset = (
-        Evidence.objects
-        .select_related('occurrence', 'agent')
+        Evidence.objects.select_related('occurrence', 'agent')
         .prefetch_related('sub_components')
         .all()
     )
@@ -389,8 +393,12 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     filterset_class = EvidenceFilter
     # Pesquisa atravessa para a ocorrência (?search= no NUIPC funciona).
     search_fields = [
-        'code', 'description', 'serial_number',
-        'occurrence__number', 'occurrence__code', 'occurrence__description',
+        'code',
+        'description',
+        'serial_number',
+        'occurrence__number',
+        'occurrence__code',
+        'occurrence__description',
     ]
     ordering_fields = ['timestamp_seizure', 'created_at', 'code', 'type']
     ordering = ['-timestamp_seizure']
@@ -429,9 +437,11 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         if state:
             valid_states = {s for s, _ in ChainOfCustody.CustodyState.choices}
             if state not in valid_states:
-                raise drf_serializers.ValidationError({
-                    'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
-                })
+                raise drf_serializers.ValidationError(
+                    {
+                        'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
+                    }
+                )
             qs = qs.filter(current_state=state)
         return qs
 
@@ -474,7 +484,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         # não for dono da ocorrência, get_object() devolve 404 (não 200).
         base_qs = self.get_queryset().filter(pk=pk)
         optimized_qs = base_qs.select_related(
-            'occurrence__agent', 'agent',
+            'occurrence__agent',
+            'agent',
         ).prefetch_related('custody_chain__agent')
         self.queryset = optimized_qs
         evidence = self.get_object()
@@ -513,10 +524,12 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         count = _check_csv_size(qs)
         if count is None:
             return Response(
-                {'detail': (
-                    f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
-                    'Aplica filtros antes de exportar.'
-                )},
+                {
+                    'detail': (
+                        f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
+                        'Aplica filtros antes de exportar.'
+                    )
+                },
                 status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             )
 
@@ -529,9 +542,19 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         )
 
         def rows():
-            yield ['Codigo', 'Tipo', 'Descricao', 'NUIPC', 'Apreendido',
-                   'Numero de serie', 'Hash SHA-256', 'GPS Lat', 'GPS Lon',
-                   'Foto', 'Agente']
+            yield [
+                'Codigo',
+                'Tipo',
+                'Descricao',
+                'NUIPC',
+                'Apreendido',
+                'Numero de serie',
+                'Hash SHA-256',
+                'GPS Lat',
+                'GPS Lon',
+                'Foto',
+                'Agente',
+            ]
             for ev in qs.iterator(chunk_size=500):
                 yield [
                     ev.code,
@@ -554,6 +577,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
 # DigitalDevice
 # ---------------------------------------------------------------------------
 
+
 class DigitalDeviceViewSet(viewsets.ModelViewSet):
     """
     API de dispositivos digitais.
@@ -569,8 +593,12 @@ class DigitalDeviceViewSet(viewsets.ModelViewSet):
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
     filter_backends = [filters.SearchFilter]
     search_fields = [
-        'brand', 'model', 'commercial_name',
-        'serial_number', 'imei', 'notes',
+        'brand',
+        'model',
+        'commercial_name',
+        'serial_number',
+        'imei',
+        'notes',
     ]
 
     def get_queryset(self):
@@ -587,6 +615,7 @@ class DigitalDeviceViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 # ChainOfCustody
 # ---------------------------------------------------------------------------
+
 
 class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     """
@@ -606,8 +635,10 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = CustodyFilter
     search_fields = [
-        'code', 'observations',
-        'evidence__code', 'evidence__description',
+        'code',
+        'observations',
+        'evidence__code',
+        'evidence__description',
         'evidence__occurrence__number',
     ]
     ordering_fields = ['timestamp', 'sequence']
@@ -640,7 +671,10 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 action=AuditLog.Action.CREATE,
                 resource_type=AuditLog.ResourceType.CUSTODY,
                 resource_id=custody_record.pk,
-                details={'evidence_id': custody_record.evidence_id, 'new_state': custody_record.new_state},
+                details={
+                    'evidence_id': custody_record.evidence_id,
+                    'new_state': custody_record.new_state,
+                },
             )
         except DjangoValidationError as exc:
             # Converter ValidationError do Django para DRF (retorna 400)
@@ -658,10 +692,12 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         count = _check_csv_size(qs)
         if count is None:
             return Response(
-                {'detail': (
-                    f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
-                    'Aplica filtros antes de exportar.'
-                )},
+                {
+                    'detail': (
+                        f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
+                        'Aplica filtros antes de exportar.'
+                    )
+                },
                 status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             )
 
@@ -674,14 +710,27 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         )
 
         def rows():
-            yield ['Codigo', 'Item', 'NUIPC', 'Sequencia', 'Estado anterior',
-                   'Novo estado', 'Agente', 'Data', 'Observacoes', 'Hash']
+            yield [
+                'Codigo',
+                'Item',
+                'NUIPC',
+                'Sequencia',
+                'Estado anterior',
+                'Novo estado',
+                'Agente',
+                'Data',
+                'Observacoes',
+                'Hash',
+            ]
             for rec in qs.iterator(chunk_size=500):
                 yield [
                     rec.code,
                     rec.evidence.code if rec.evidence_id else '',
-                    rec.evidence.occurrence.number
-                        if rec.evidence_id and rec.evidence.occurrence_id else '',
+                    (
+                        rec.evidence.occurrence.number
+                        if rec.evidence_id and rec.evidence.occurrence_id
+                        else ''
+                    ),
                     rec.sequence,
                     rec.get_previous_state_display() if rec.previous_state else '',
                     rec.get_new_state_display(),
@@ -697,8 +746,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     def timeline(self, request, evidence_id=None):
         """Retorna a timeline completa de custódia para uma evidência."""
         records = (
-            ChainOfCustody.objects
-            .select_related('agent', 'evidence__occurrence')
+            ChainOfCustody.objects.select_related('agent', 'evidence__occurrence')
             .filter(evidence_id=evidence_id)
             .order_by('sequence')
         )
@@ -735,8 +783,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         observations = payload.validated_data.get('observations', '')
 
         evidences = list(
-            Evidence.objects.select_related('occurrence', 'occurrence__agent')
-            .filter(id__in=evidence_ids)
+            Evidence.objects.select_related('occurrence', 'occurrence__agent').filter(
+                id__in=evidence_ids
+            )
         )
         if len(evidences) != len(set(evidence_ids)):
             return Response(
@@ -777,7 +826,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
             # Identifica a evidência que falhou — útil para o frontend
             # mostrar mensagem específica (ex: "filho já está em estado
             # terminal e não pode regredir").
-            failed_ev = evidences[len(created_records)] if len(created_records) < len(evidences) else None
+            failed_ev = (
+                evidences[len(created_records)] if len(created_records) < len(evidences) else None
+            )
             return Response(
                 {
                     'evidence_id': failed_ev.pk if failed_ev else None,
@@ -795,6 +846,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 # Enriquecimento externo (IMEI / VIN)
 # ---------------------------------------------------------------------------
 
+
 class EvidenceIMEILookupView(APIView):
     """GET /api/evidences/lookup/imei/<imei>/ — consulta imeidb.xyz com cache.
 
@@ -804,9 +856,15 @@ class EvidenceIMEILookupView(APIView):
     3. Cache miss → consulta serviço, guarda na cache, devolve.
     4. Falha da API externa → 503 com mensagem PT-PT (não degrada o fluxo:
        o agente continua a registar manualmente).
+
+    Throttle: 5 req/min por utilizador (scope ``imei_lookup``) — mitiga
+    exaustão do saldo pago em `imeidb.xyz` por agente isolado. Audit
+    2026-05-18 §3 N8.
     """
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'imei_lookup'
 
     def get(self, request, imei: str):
         if not _user_can_lookup(request.user):
@@ -828,12 +886,14 @@ class EvidenceIMEILookupView(APIView):
         if cached is not None:
             # Hit: devolve o mesmo payload + metadados de cache.
             payload = dict(cached)
-            return Response({
-                **payload,
-                'cached': True,
-                'cached_at': payload.get('_cached_at'),
-                'source': 'imeidb.xyz',
-            })
+            return Response(
+                {
+                    **payload,
+                    'cached': True,
+                    'cached_at': payload.get('_cached_at'),
+                    'source': 'imeidb.xyz',
+                }
+            )
 
         try:
             data = lookup_imei(imei)
@@ -851,9 +911,7 @@ class EvidenceIMEILookupView(APIView):
         # para ops investigarem.
         if not data.get('normalised_complete'):
             raw_keys = list(data.get('raw', {}).keys())
-            log.warning(
-                'imeidb schema drift imei=%s raw_keys=%s', mask_imei(imei), raw_keys
-            )
+            log.warning('imeidb schema drift imei=%s raw_keys=%s', mask_imei(imei), raw_keys)
             return Response(
                 {
                     'detail': (
@@ -869,11 +927,13 @@ class EvidenceIMEILookupView(APIView):
         data['_cached_at'] = timezone.now().isoformat()
         cache.set(cache_key, data, _LOOKUP_CACHE_TTL_SECONDS)
 
-        return Response({
-            **data,
-            'cached': False,
-            'source': 'imeidb.xyz',
-        })
+        return Response(
+            {
+                **data,
+                'cached': False,
+                'source': 'imeidb.xyz',
+            }
+        )
 
 
 class EvidenceVINLookupView(APIView):
@@ -902,19 +962,20 @@ class EvidenceVINLookupView(APIView):
 
         normalised_vin = vin.strip().upper()
         url = build_vindecoder_url(normalised_vin)
-        return Response({
-            'vin': normalised_vin,
-            'url': url,
-            'source': 'vindecoder.eu',
-            'note': (
-                'Abre o URL numa nova aba e confirma os dados manualmente.'
-            ),
-        })
+        return Response(
+            {
+                'vin': normalised_vin,
+                'url': url,
+                'source': 'vindecoder.eu',
+                'note': ('Abre o URL numa nova aba e confirma os dados manualmente.'),
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
 # Reverse Geocode — proxy server-side para Nominatim (GDPR)
 # ---------------------------------------------------------------------------
+
 
 class ReverseGeocodeView(APIView):
     """GET /api/reverse-geocode/?lat=XX&lon=YY — geocodificação inversa.
@@ -989,25 +1050,25 @@ class ReverseGeocodeView(APIView):
 
         # Devolver apenas os campos que o frontend precisa para compor
         # a morada (road, house_number, city/town/village, country).
-        return Response({
-            'display_name': data.get('display_name', ''),
-            'address': {
-                'road': address.get('road', ''),
-                'house_number': address.get('house_number', ''),
-                'city': (
-                    address.get('city')
-                    or address.get('town')
-                    or address.get('village')
-                    or ''
-                ),
-                'country': address.get('country', ''),
-            },
-        })
+        return Response(
+            {
+                'display_name': data.get('display_name', ''),
+                'address': {
+                    'road': address.get('road', ''),
+                    'house_number': address.get('house_number', ''),
+                    'city': (
+                        address.get('city') or address.get('town') or address.get('village') or ''
+                    ),
+                    'country': address.get('country', ''),
+                },
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
 # Stats (dashboard) — endpoint agregado para evitar round-trips do frontend
 # ---------------------------------------------------------------------------
+
 
 class StatsView(APIView):
     """
@@ -1040,14 +1101,16 @@ class StatsView(APIView):
             coc_qs.values_list('new_state').annotate(n=Count('id')).values_list('new_state', 'n')
         )
 
-        return Response({
-            'occurrences': occ_qs.count(),
-            'evidences': ev_qs.count(),
-            'devices': dev_qs.count(),
-            'custody_records': coc_qs.count(),
-            'evidence_by_type': evidence_by_type,
-            'custody_by_state': custody_by_state,
-        })
+        return Response(
+            {
+                'occurrences': occ_qs.count(),
+                'evidences': ev_qs.count(),
+                'devices': dev_qs.count(),
+                'custody_records': coc_qs.count(),
+                'evidence_by_type': evidence_by_type,
+                'custody_by_state': custody_by_state,
+            }
+        )
 
 
 class DashboardStatsView(APIView):
@@ -1101,9 +1164,7 @@ class DashboardStatsView(APIView):
         open_occurrences = occ_qs.exclude(id__in=list(closed_occurrence_ids)).count()
 
         evidences_by_type = dict(
-            ev_qs.values_list('type')
-            .annotate(n=Count('id'))
-            .values_list('type', 'n')
+            ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
         )
 
         # Para cada evidência, identificar o ÚLTIMO estado de custódia.
@@ -1124,11 +1185,13 @@ class DashboardStatsView(APIView):
                 latest_by_ev[r['evidence_id']] = r
 
         custodies_in_transit = sum(
-            1 for r in latest_by_ev.values()
+            1
+            for r in latest_by_ev.values()
             if r['new_state'] == ChainOfCustody.CustodyState.EM_TRANSPORTE
         )
         evidences_in_analysis = sum(
-            1 for r in latest_by_ev.values()
+            1
+            for r in latest_by_ev.values()
             if r['new_state'] == ChainOfCustody.CustodyState.EM_PERICIA
         )
 
@@ -1136,9 +1199,7 @@ class DashboardStatsView(APIView):
         # dashboard para a visualização "Cadeia de custódia" (river bar +
         # cards). Itens sem qualquer registo ainda ficam fora — não foram
         # apreendidos formalmente, é o caso de seed parcial / wizard a meio.
-        evidences_by_current_state = {
-            state: 0 for state, _ in ChainOfCustody.CustodyState.choices
-        }
+        evidences_by_current_state = {state: 0 for state, _ in ChainOfCustody.CustodyState.choices}
         for r in latest_by_ev.values():
             evidences_by_current_state[r['new_state']] = (
                 evidences_by_current_state.get(r['new_state'], 0) + 1
@@ -1146,21 +1207,24 @@ class DashboardStatsView(APIView):
         # Itens sem nenhum registo de custódia (raros — wizard incompleto).
         evidences_without_custody = total_evidences - len(latest_by_ev)
 
-        return Response({
-            'total_occurrences': total_occurrences,
-            'open_occurrences': open_occurrences,
-            'total_evidences': total_evidences,
-            'evidences_by_type': evidences_by_type,
-            'evidences_by_current_state': evidences_by_current_state,
-            'evidences_without_custody': evidences_without_custody,
-            'custodies_in_transit': custodies_in_transit,
-            'evidences_in_analysis': evidences_in_analysis,
-        })
+        return Response(
+            {
+                'total_occurrences': total_occurrences,
+                'open_occurrences': open_occurrences,
+                'total_evidences': total_evidences,
+                'evidences_by_type': evidences_by_type,
+                'evidences_by_current_state': evidences_by_current_state,
+                'evidences_without_custody': evidences_without_custody,
+                'custodies_in_transit': custodies_in_transit,
+                'evidences_in_analysis': evidences_in_analysis,
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
 # Media servida com auditoria — fotos de evidência (substitui static() em prod)
 # ---------------------------------------------------------------------------
+
 
 class MediaServeView(APIView):
     """GET /media/<path> — serve fotos de evidência com auth + auditoria.
@@ -1220,7 +1284,8 @@ class MediaServeView(APIView):
                 )
             related_evidence_id = (
                 Evidence.objects.filter(occurrence=occurrence, photo=path)
-                .values_list('id', flat=True).first()
+                .values_list('id', flat=True)
+                .first()
             )
             log_access(
                 request=request,
@@ -1251,6 +1316,7 @@ class MediaServeView(APIView):
 # ---------------------------------------------------------------------------
 # Healthcheck — liveness simples + prova que a DB responde
 # ---------------------------------------------------------------------------
+
 
 @require_safe
 def healthcheck(request):

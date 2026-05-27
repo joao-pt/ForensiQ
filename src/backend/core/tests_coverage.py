@@ -1030,3 +1030,70 @@ class CsrfCorsOriginAlignmentTest(TestCase):
         }
         self.assertTrue(prod.issubset(set(settings.CORS_ALLOWED_ORIGINS)))
         self.assertTrue(prod.issubset(set(settings.CSRF_TRUSTED_ORIGINS)))
+
+
+# =========================================================================
+# 15. IMEI LOOKUP THROTTLE (audit 2026-05-18 §3 N8)
+# =========================================================================
+
+
+class ImeiLookupThrottleTest(APITestCase):
+    """Verifica que `EvidenceIMEILookupView` aplica o scope `imei_lookup`
+    e devolve 429 quando o limite é atingido — protege o saldo pago em
+    `imeidb.xyz` contra abuso por agente isolado.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        self.agent = UserFactory.create(password='TestPass123!')
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.agent)
+        # SimpleRateThrottle conta na Django default cache; sem clear()
+        # o contador herda contagens de outros testes.
+        cache.clear()
+
+    def test_imei_lookup_throttle_scope(self):
+        from core.views import EvidenceIMEILookupView
+
+        self.assertEqual(EvidenceIMEILookupView.throttle_scope, 'imei_lookup')
+
+    def test_429_apos_limite(self):
+        from unittest.mock import patch
+
+        from rest_framework.throttling import SimpleRateThrottle
+
+        # Nota: `override_settings(REST_FRAMEWORK={...})` reseta
+        # `api_settings` mas NÃO o atributo de classe
+        # `SimpleRateThrottle.THROTTLE_RATES`, que é capturado uma vez
+        # ao importar o módulo. Para forçar 2/min só neste teste,
+        # patcheamos directamente o atributo de classe.
+        rates = {'imei_lookup': '2/minute'}
+        imei = '490154203237518'  # Luhn-válido (sample TAC Apple)
+        fake_payload = {
+            'brand': 'Apple',
+            'model': 'A2161',
+            'commercial_name': 'iPhone 11 Pro Max',
+            'manufacturer': 'Apple',
+            'os': 'iOS',
+            'storage': '',
+            'release_date': '',
+            'color': '',
+            'tac': '49015420',
+            'type': 'mobile',
+            'normalised_complete': True,
+            'raw': {},
+        }
+        url = f'/api/evidences/lookup/imei/{imei}/'
+
+        with (
+            patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates),
+            patch('core.views.lookup_imei', return_value=fake_payload),
+        ):
+            r1 = self.client.get(url)
+            r2 = self.client.get(url)
+            r3 = self.client.get(url)
+
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r3.status_code, 429)
