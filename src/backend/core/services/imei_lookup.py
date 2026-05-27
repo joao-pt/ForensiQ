@@ -41,12 +41,25 @@ evidências e estratégia de enriquecimento — IMEI, VIN).
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 import httpx
 from django.conf import settings
+from django.core.cache import cache
+from django.utils import timezone
 
 log = logging.getLogger(__name__)
+
+
+# Chaves de cache para contadores de quota. TTL deliberadamente longo
+# (24h) para sobreviver a restart de gunicorn worker e dar visibilidade
+# operacional contínua. Auditoria 2026-05-18 §3 N9 — fechado em Sem.12.
+_CACHE_KEY_CALLS_24H = 'imeidb:calls_24h'
+_CACHE_KEY_LAST_402 = 'imeidb:last_402_at'
+_CACHE_KEY_LAST_401 = 'imeidb:last_401_at'
+_CACHE_KEY_LAST_429 = 'imeidb:last_429_at'
+_CACHE_TTL_24H = 60 * 60 * 24
 
 
 class LookupError(Exception):
@@ -61,6 +74,7 @@ class LookupError(Exception):
 # ---------------------------------------------------------------------------
 # Helpers internos
 # ---------------------------------------------------------------------------
+
 
 def _base_url() -> str:
     """URL base configurada, com default seguro."""
@@ -81,6 +95,73 @@ def _timeout() -> float:
 _RAW_DROP_KEYS = ('device_image',)
 
 
+def _increment_call_counter() -> int:
+    """Incrementa contador de chamadas nas últimas 24h. Devolve o valor pós-incremento.
+
+    Usado para visibilidade operacional do consumo de saldo `imeidb.xyz`
+    (auditoria 2026-05-18 §3 N9). DatabaseCache em produção, LocMem em
+    testes. Em caso de qualquer falha de cache (backend down, race),
+    devolve 0 silenciosamente — o counter é métrica, não comportamento.
+    """
+    try:
+        cache.add(_CACHE_KEY_CALLS_24H, 0, _CACHE_TTL_24H)
+        return cache.incr(_CACHE_KEY_CALLS_24H)
+    except Exception:  # noqa: BLE001 — métrica não deve quebrar lookup
+        return 0
+
+
+def _record_critical_event(
+    event: str, imei: str, *, http_status: int | None = None, api_code=None
+) -> None:
+    """Regista evento operacional crítico (quota esgotada, token inválido,
+    rate-limited) no AuditLog como entrada `SYSTEM_ALERT`/`SYSTEM`.
+
+    Eventos cobertos:
+    - ``quota_exhausted`` (HTTP 402 ou api_code 402): saldo `imeidb.xyz` no fim.
+    - ``token_invalid`` (HTTP 401 ou api_code 401): token foi revogado/inválido.
+    - ``rate_limited`` (HTTP 429 ou api_code 429): API limita por quota burst.
+
+    Cada entrada inclui timestamp do evento numa chave de cache dedicada
+    (`imeidb:last_<status>_at`) para o stats endpoint admin futuro (e
+    para inspecção rápida via Django shell). Falhas de gravação são
+    silenciadas — alerta é defesa-em-profundidade, não pode quebrar
+    o lookup que já está a falhar por outra razão.
+    """
+    now_iso = timezone.now().isoformat()
+    cache_key_by_event = {
+        'quota_exhausted': _CACHE_KEY_LAST_402,
+        'token_invalid': _CACHE_KEY_LAST_401,
+        'rate_limited': _CACHE_KEY_LAST_429,
+    }.get(event)
+    if cache_key_by_event:
+        # Métrica não pode quebrar lookup; se cache backend falhar, segue.
+        with contextlib.suppress(Exception):
+            cache.set(cache_key_by_event, now_iso, _CACHE_TTL_24H)
+
+    try:
+        # Import tardio para evitar ciclos (models → services → models).
+        from core.models import AuditLog
+
+        AuditLog.objects.create(
+            user=None,
+            action=AuditLog.Action.SYSTEM_ALERT,
+            resource_type=AuditLog.ResourceType.SYSTEM,
+            resource_id=0,
+            ip_address='0.0.0.0',  # noqa: S104 — sentinel não-HTTP (convenção `audit.py:80`)
+            correlation_id='',
+            details={
+                'source': 'imeidb_lookup',
+                'event': event,
+                'imei_masked': mask_imei(imei),
+                'http_status': http_status,
+                'api_code': api_code,
+                'timestamp': now_iso,
+            },
+        )
+    except Exception as exc:  # noqa: BLE001
+        log.warning('imeidb critical event %s: failed to write AuditLog: %s', event, exc)
+
+
 def mask_imei(imei) -> str:
     """Trunca o IMEI ao TAC (8 dígitos) para uso em logs operacionais.
 
@@ -98,6 +179,7 @@ def mask_imei(imei) -> str:
 # ---------------------------------------------------------------------------
 # API pública
 # ---------------------------------------------------------------------------
+
 
 def lookup_imei(imei: str) -> dict:
     """Consulta imeidb.xyz e devolve dados normalizados do dispositivo.
@@ -120,9 +202,7 @@ def lookup_imei(imei: str) -> dict:
     """
     token = _api_token()
     if not token:
-        raise LookupError(
-            'Serviço de consulta IMEI não está configurado. Preenche manualmente.'
-        )
+        raise LookupError('Serviço de consulta IMEI não está configurado. Preenche manualmente.')
 
     url = f"{_base_url().rstrip('/')}/imei/{imei}"
     headers = {
@@ -130,21 +210,21 @@ def lookup_imei(imei: str) -> dict:
         'Accept': 'application/json',
         'User-Agent': 'ForensiQ/1.0 (+https://forensiq.pt)',
     }
+    # Conta a chamada antes de tentar — alinha contador com tentativas,
+    # não com sucesso (N9: queremos visibilidade de "tentou X vezes",
+    # não só "teve sucesso X vezes").
+    _increment_call_counter()
     try:
         with httpx.Client(timeout=_timeout()) as client:
             response = client.get(url, headers=headers)
     except httpx.TimeoutException:
         log.warning('imeidb timeout imei=%s', mask_imei(imei))
-        raise LookupError(
-            'Tempo esgotado ao consultar imeidb.xyz. Preenche manualmente.'
-        )
+        raise LookupError('Tempo esgotado ao consultar imeidb.xyz. Preenche manualmente.')
     except httpx.RequestError as exc:
         log.warning('imeidb network error imei=%s err=%s', mask_imei(imei), exc)
-        raise LookupError(
-            'Erro de rede ao consultar imeidb.xyz. Preenche manualmente.'
-        )
+        raise LookupError('Erro de rede ao consultar imeidb.xyz. Preenche manualmente.')
 
-    _raise_for_status(response.status_code)
+    _raise_for_status(response.status_code, imei=imei)
 
     try:
         payload = response.json()
@@ -155,7 +235,8 @@ def lookup_imei(imei: str) -> dict:
     if not isinstance(payload, dict):
         log.warning(
             'imeidb payload not a dict imei=%s type=%s',
-            mask_imei(imei), type(payload).__name__,
+            mask_imei(imei),
+            type(payload).__name__,
         )
         raise LookupError('Resposta de imeidb.xyz em formato inesperado.')
 
@@ -165,8 +246,20 @@ def lookup_imei(imei: str) -> dict:
         api_msg = payload.get('message') or ''
         log.warning(
             'imeidb success=false imei=%s code=%s msg=%s',
-            mask_imei(imei), api_code, api_msg,
+            mask_imei(imei),
+            api_code,
+            api_msg,
         )
+        # Em códigos críticos vindo no body (não no HTTP status), também
+        # regista alerta — o upstream usa 200 + body.code para alguns
+        # cenários (auditoria 2026-05-18 §3 N9).
+        if api_code in (401, 402, 429):
+            event = {
+                401: 'token_invalid',
+                402: 'quota_exhausted',
+                429: 'rate_limited',
+            }[api_code]
+            _record_critical_event(event, imei, http_status=200, api_code=api_code)
         raise LookupError(_message_for_api_code(api_code, api_msg))
 
     return _normalize(payload)
@@ -176,34 +269,31 @@ def lookup_imei(imei: str) -> dict:
 # Helpers privados de erro / normalização
 # ---------------------------------------------------------------------------
 
-def _raise_for_status(status_code: int) -> None:
-    """Mapeia códigos HTTP da imeidb.xyz para mensagens PT-PT."""
+
+def _raise_for_status(status_code: int, imei: str = '') -> None:
+    """Mapeia códigos HTTP da imeidb.xyz para mensagens PT-PT.
+
+    Em códigos críticos operacionais (401/402/429), regista entrada
+    SYSTEM_ALERT no AuditLog via `_record_critical_event` antes de
+    levantar a `LookupError` (auditoria 2026-05-18 §3 N9 — fechado em Sem.12).
+    """
     if 200 <= status_code < 300:
         return
     if status_code == 401:
-        raise LookupError(
-            'Token de imeidb.xyz inválido. Contacta o administrador.'
-        )
+        _record_critical_event('token_invalid', imei, http_status=401)
+        raise LookupError('Token de imeidb.xyz inválido. Contacta o administrador.')
     if status_code == 402:
-        raise LookupError(
-            'Saldo da API imeidb.xyz esgotado. Preenche manualmente.'
-        )
+        _record_critical_event('quota_exhausted', imei, http_status=402)
+        raise LookupError('Saldo da API imeidb.xyz esgotado. Preenche manualmente.')
     if status_code in (404, 460):
         # 460 é o código próprio da imeidb.xyz para IMEI inválido/desconhecido.
-        raise LookupError(
-            'IMEI não encontrado em imeidb.xyz. Preenche manualmente.'
-        )
+        raise LookupError('IMEI não encontrado em imeidb.xyz. Preenche manualmente.')
     if status_code == 429:
-        raise LookupError(
-            'Limite de consultas atingido em imeidb.xyz. Tenta mais tarde.'
-        )
+        _record_critical_event('rate_limited', imei, http_status=429)
+        raise LookupError('Limite de consultas atingido em imeidb.xyz. Tenta mais tarde.')
     if status_code >= 500:
-        raise LookupError(
-            f'imeidb.xyz indisponível (HTTP {status_code}). Tenta mais tarde.'
-        )
-    raise LookupError(
-        f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).'
-    )
+        raise LookupError(f'imeidb.xyz indisponível (HTTP {status_code}). Tenta mais tarde.')
+    raise LookupError(f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).')
 
 
 def _message_for_api_code(code, fallback_msg: str) -> str:
@@ -248,10 +338,8 @@ def _normalize(payload: dict) -> dict:
     # Nome comercial. Preferimos `name`; se vier como "Apple iPhone 11 Pro Max"
     # tiramos o prefixo da marca para evitar duplicação na UI.
     commercial_name = data.get('name') or ''
-    if commercial_name and brand and commercial_name.lower().startswith(
-        brand.lower() + ' '
-    ):
-        commercial_name = commercial_name[len(brand) + 1:].strip()
+    if commercial_name and brand and commercial_name.lower().startswith(brand.lower() + ' '):
+        commercial_name = commercial_name[len(brand) + 1 :].strip()
 
     os_name = (
         spec.get('os')
