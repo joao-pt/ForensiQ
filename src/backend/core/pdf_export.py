@@ -41,6 +41,7 @@ from reportlab.platypus import (
 # Sanitização — proteção contra injecção em Paragraph
 # ---------------------------------------------------------------------------
 
+
 def _sanitize(text):
     """Escapa HTML e limpa controlos. ReportLab Paragraph interpreta mini-HTML."""
     if not text:
@@ -53,11 +54,11 @@ def _sanitize(text):
 # ---------------------------------------------------------------------------
 # Paleta (alinhada ao design system do frontend — logo usa teal/navy)
 # ---------------------------------------------------------------------------
-NAVY = colors.HexColor('#0F1115')          # preto-azulado da marca
-BRAND_TEAL = colors.HexColor('#2DD4BF')    # teal do anel
-BRAND_LIGHT = colors.HexColor('#E6E8EC')   # cinzento-claro do anel oposto
-ACCENT_BLUE = colors.HexColor('#1565c0')   # cabeçalhos de tabela
-GREEN_OK = colors.HexColor('#0F766E')      # verde-forense para OK
+NAVY = colors.HexColor('#0F1115')  # preto-azulado da marca
+BRAND_TEAL = colors.HexColor('#2DD4BF')  # teal do anel
+BRAND_LIGHT = colors.HexColor('#E6E8EC')  # cinzento-claro do anel oposto
+ACCENT_BLUE = colors.HexColor('#1565c0')  # cabeçalhos de tabela
+GREEN_OK = colors.HexColor('#0F766E')  # verde-forense para OK
 GREY_LIGHT = colors.HexColor('#F5F5F5')
 GREY_MED = colors.HexColor('#E0E0E0')
 GREY_DARK = colors.HexColor('#6B7280')
@@ -65,75 +66,122 @@ WHITE = colors.white
 BLACK = colors.black
 
 # Margens e geometria do cabeçalho/rodapé (em pontos — 1 cm ≈ 28.35 pt)
-HEADER_HEIGHT = 2.2 * cm    # área reservada para logo + rule
-FOOTER_HEIGHT = 1.2 * cm    # rodapé com página X / total
-LOGO_BOX_SIZE = 0.9 * cm    # diâmetro do círculo exterior do logo
+HEADER_HEIGHT = 2.2 * cm  # área reservada para logo + rule
+FOOTER_HEIGHT = 1.2 * cm  # rodapé com página X / total
+LOGO_BOX_SIZE = 0.9 * cm  # diâmetro do círculo exterior do logo
 
 
 # ---------------------------------------------------------------------------
 # Estilos tipográficos (partilhados pelos dois geradores)
 # ---------------------------------------------------------------------------
 
+
 def _build_styles():
     base = getSampleStyleSheet()
     return {
         'title': ParagraphStyle(
-            'FQTitle', parent=base['Title'],
-            fontSize=16, textColor=NAVY, spaceAfter=2, alignment=TA_LEFT,
+            'FQTitle',
+            parent=base['Title'],
+            fontSize=16,
+            textColor=NAVY,
+            spaceAfter=2,
+            alignment=TA_LEFT,
             fontName='Helvetica-Bold',
         ),
         'subtitle': ParagraphStyle(
-            'FQSubtitle', parent=base['Normal'],
-            fontSize=9, textColor=GREY_DARK, alignment=TA_LEFT, spaceAfter=10,
+            'FQSubtitle',
+            parent=base['Normal'],
+            fontSize=9,
+            textColor=GREY_DARK,
+            alignment=TA_LEFT,
+            spaceAfter=10,
         ),
         'doc_title': ParagraphStyle(
-            'FQDocTitle', parent=base['Normal'],
-            fontSize=13, textColor=NAVY, alignment=TA_LEFT, spaceAfter=2,
+            'FQDocTitle',
+            parent=base['Normal'],
+            fontSize=13,
+            textColor=NAVY,
+            alignment=TA_LEFT,
+            spaceAfter=2,
             fontName='Helvetica-Bold',
         ),
         'doc_meta': ParagraphStyle(
-            'FQDocMeta', parent=base['Normal'],
-            fontSize=9, textColor=GREY_DARK, alignment=TA_LEFT, spaceAfter=12,
+            'FQDocMeta',
+            parent=base['Normal'],
+            fontSize=9,
+            textColor=GREY_DARK,
+            alignment=TA_LEFT,
+            spaceAfter=12,
         ),
         'section': ParagraphStyle(
-            'FQSection', parent=base['Heading2'],
-            fontSize=11, textColor=WHITE, backColor=NAVY,
-            spaceBefore=10, spaceAfter=4,
-            leftIndent=-6, rightIndent=-6, borderPad=5,
+            'FQSection',
+            parent=base['Heading2'],
+            fontSize=11,
+            textColor=WHITE,
+            backColor=NAVY,
+            spaceBefore=10,
+            spaceAfter=4,
+            leftIndent=-6,
+            rightIndent=-6,
+            borderPad=5,
             fontName='Helvetica-Bold',
         ),
         'subsection': ParagraphStyle(
-            'FQSubSection', parent=base['Heading3'],
-            fontSize=10.5, textColor=NAVY,
-            spaceBefore=8, spaceAfter=3,
+            'FQSubSection',
+            parent=base['Heading3'],
+            fontSize=10.5,
+            textColor=NAVY,
+            spaceBefore=8,
+            spaceAfter=3,
             fontName='Helvetica-Bold',
         ),
         'label': ParagraphStyle(
-            'FQLabel', parent=base['Normal'],
-            fontSize=8, textColor=GREY_DARK, spaceAfter=1,
+            'FQLabel',
+            parent=base['Normal'],
+            fontSize=8,
+            textColor=GREY_DARK,
+            spaceAfter=1,
             fontName='Helvetica-Bold',
         ),
         'value': ParagraphStyle(
-            'FQValue', parent=base['Normal'],
-            fontSize=10, textColor=BLACK, spaceAfter=4,
+            'FQValue',
+            parent=base['Normal'],
+            fontSize=10,
+            textColor=BLACK,
+            spaceAfter=4,
         ),
         'hash': ParagraphStyle(
-            'FQHash', parent=base['Code'],
-            fontSize=7, textColor=GREEN_OK, fontName='Courier',
-            spaceAfter=4, leftIndent=4,
+            'FQHash',
+            parent=base['Code'],
+            fontSize=7,
+            textColor=GREEN_OK,
+            fontName='Courier',
+            spaceAfter=4,
+            leftIndent=4,
         ),
         'footer': ParagraphStyle(
-            'FQFooter', parent=base['Normal'],
-            fontSize=7, textColor=GREY_DARK, alignment=TA_CENTER,
+            'FQFooter',
+            parent=base['Normal'],
+            fontSize=7,
+            textColor=GREY_DARK,
+            alignment=TA_CENTER,
         ),
         'integrity_ok': ParagraphStyle(
-            'FQIntegrity', parent=base['Normal'],
-            fontSize=10, textColor=GREEN_OK,
-            alignment=TA_CENTER, spaceAfter=4, fontName='Helvetica-Bold',
+            'FQIntegrity',
+            parent=base['Normal'],
+            fontSize=10,
+            textColor=GREEN_OK,
+            alignment=TA_CENTER,
+            spaceAfter=4,
+            fontName='Helvetica-Bold',
         ),
         'disclaimer': ParagraphStyle(
-            'FQDisclaimer', parent=base['Normal'],
-            fontSize=8, alignment=TA_LEFT, spaceAfter=4, textColor=GREY_DARK,
+            'FQDisclaimer',
+            parent=base['Normal'],
+            fontSize=8,
+            alignment=TA_LEFT,
+            spaceAfter=4,
+            textColor=GREY_DARK,
         ),
     }
 
@@ -141,6 +189,7 @@ def _build_styles():
 # ---------------------------------------------------------------------------
 # Logo + cabeçalho e rodapé — aplicado a todas as páginas
 # ---------------------------------------------------------------------------
+
 
 def _draw_logo(canvas, x, y, size=LOGO_BOX_SIZE):
     """Desenha a marca (círculos entrelaçados) sobre o canvas.
@@ -217,11 +266,13 @@ def _draw_page_chrome(canvas, doc):
     canvas.setFillColor(GREY_DARK)
     canvas.setFont('Helvetica', 7)
     canvas.drawString(
-        left, FOOTER_HEIGHT - 0.05 * cm,
+        left,
+        FOOTER_HEIGHT - 0.05 * cm,
         'ForensiQ · UC 21184 Universidade Aberta · Gerado automaticamente',
     )
     canvas.drawRightString(
-        right_edge, FOOTER_HEIGHT - 0.05 * cm,
+        right_edge,
+        FOOTER_HEIGHT - 0.05 * cm,
         f'Página {doc.page}',
     )
     canvas.restoreState()
@@ -230,6 +281,7 @@ def _draw_page_chrome(canvas, doc):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _fmt_datetime(dt):
     if dt is None:
@@ -253,63 +305,80 @@ def _label_value_rows(pairs, styles, col_widths=(5 * cm, 12 * cm)):
     """Tabela duas colunas (rótulo | valor)."""
     data = []
     for label, value in pairs:
-        data.append([
-            Paragraph(label, styles['label']),
-            Paragraph(str(value) if value else '—', styles['value']),
-        ])
+        data.append(
+            [
+                Paragraph(label, styles['label']),
+                Paragraph(str(value) if value else '—', styles['value']),
+            ]
+        )
     t = Table(data, colWidths=col_widths)
-    t.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BACKGROUND', (0, 0), (0, -1), GREY_LIGHT),
-        ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ]))
+    t.setStyle(
+        TableStyle(
+            [
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('BACKGROUND', (0, 0), (0, -1), GREY_LIGHT),
+                ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]
+        )
+    )
     return [t, Spacer(1, 0.3 * cm)]
 
 
 def _custody_table(custody_records, styles):
     """Tabela de transições. Devolve lista de flowables."""
     if not custody_records:
-        return [Paragraph(
-            'Nenhum registo de cadeia de custódia.',
-            styles['value'],
-        ), Spacer(1, 0.3 * cm)]
+        return [
+            Paragraph(
+                'Nenhum registo de cadeia de custódia.',
+                styles['value'],
+            ),
+            Spacer(1, 0.3 * cm),
+        ]
 
-    table_data = [[
-        Paragraph('#', styles['label']),
-        Paragraph('Transição', styles['label']),
-        Paragraph('Data/Hora', styles['label']),
-        Paragraph('Agente', styles['label']),
-        Paragraph('Observações', styles['label']),
-    ]]
+    table_data = [
+        [
+            Paragraph('#', styles['label']),
+            Paragraph('Transição', styles['label']),
+            Paragraph('Data/Hora', styles['label']),
+            Paragraph('Agente', styles['label']),
+            Paragraph('Observações', styles['label']),
+        ]
+    ]
     for idx, rec in enumerate(custody_records, start=1):
         prev = _sanitize(rec.get_previous_state_display()) if rec.previous_state else '(início)'
         new = _sanitize(rec.get_new_state_display())
-        table_data.append([
-            Paragraph(str(idx), styles['value']),
-            Paragraph(f'{prev} → {new}', styles['value']),
-            Paragraph(_fmt_datetime(rec.timestamp), styles['label']),
-            Paragraph(_fmt_agent(rec.agent), styles['value']),
-            Paragraph(_sanitize(rec.observations) or '—', styles['label']),
-        ])
+        table_data.append(
+            [
+                Paragraph(str(idx), styles['value']),
+                Paragraph(f'{prev} → {new}', styles['value']),
+                Paragraph(_fmt_datetime(rec.timestamp), styles['label']),
+                Paragraph(_fmt_agent(rec.agent), styles['value']),
+                Paragraph(_sanitize(rec.observations) or '—', styles['label']),
+            ]
+        )
 
     col_w = [0.8 * cm, 5.5 * cm, 3.8 * cm, 3.2 * cm, 3.5 * cm]
     t = Table(table_data, colWidths=col_w, repeatRows=1)
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
-        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
-        ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-        ('FONTSIZE', (0, 0), (-1, 0), 8),
-    ]))
+    t.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
+                ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
+                ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
+                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ]
+        )
+    )
     flow = [t, Spacer(1, 0.4 * cm)]
 
     last = custody_records[-1]
@@ -354,6 +423,7 @@ def _doc_header(story, styles, doc_title_html, subtitle_html):
 # PDF por item de prova
 # ---------------------------------------------------------------------------
 
+
 def _render_item_identification(evidence, styles):
     """Bloco de identificação do item principal. Devolve flowables."""
     flow = []
@@ -372,21 +442,29 @@ def _render_item_identification(evidence, styles):
     if evidence.parent_evidence_id:
         parent = evidence.parent_evidence
         parent_label = (
-            f'{parent.code or f"#{parent.pk}"} — '
-            f'{_sanitize(parent.get_type_display())}'
+            f'{parent.code or f"#{parent.pk}"} — ' f'{_sanitize(parent.get_type_display())}'
         )
-        rows.insert(0, (
-            'Parte integrante de:',
-            parent_label,
-        ))
+        rows.insert(
+            0,
+            (
+                'Parte integrante de:',
+                parent_label,
+            ),
+        )
     flow.extend(_label_value_rows(rows, styles))
 
-    flow.append(Paragraph(
-        'Hash de integridade SHA-256 (ISO/IEC 27037):', styles['label'],
-    ))
-    flow.append(Paragraph(
-        evidence.integrity_hash or '(não calculado)', styles['hash'],
-    ))
+    flow.append(
+        Paragraph(
+            'Hash de integridade SHA-256 (ISO/IEC 27037):',
+            styles['label'],
+        )
+    )
+    flow.append(
+        Paragraph(
+            evidence.integrity_hash or '(não calculado)',
+            styles['hash'],
+        )
+    )
     flow.append(Spacer(1, 0.3 * cm))
     return flow
 
@@ -404,17 +482,21 @@ def _render_sub_components(evidence, styles):
         return []
 
     flow = []
-    flow.append(Paragraph(
-        '3. Componentes Integrantes',
-        styles['section'],
-    ))
+    flow.append(
+        Paragraph(
+            '3. Componentes Integrantes',
+            styles['section'],
+        )
+    )
     flow.append(Spacer(1, 0.1 * cm))
-    flow.append(Paragraph(
-        'Itens que acompanham fisicamente o dispositivo principal '
-        '(ISO/IEC 27037 — inseparabilidade). Cada componente mantém '
-        'um hash próprio para verificação independente.',
-        styles['disclaimer'],
-    ))
+    flow.append(
+        Paragraph(
+            'Itens que acompanham fisicamente o dispositivo principal '
+            '(ISO/IEC 27037 — inseparabilidade). Cada componente mantém '
+            'um hash próprio para verificação independente.',
+            styles['disclaimer'],
+        )
+    )
     flow.append(Spacer(1, 0.2 * cm))
 
     # Sub-componentes Evidence
@@ -426,12 +508,18 @@ def _render_sub_components(evidence, styles):
                 styles['subsection'],
             ),
         ]
-        block.extend(_label_value_rows([
-            ('Nº de série:', _sanitize(sub.serial_number) or '—'),
-            ('Data / Hora de apreensão:', _fmt_datetime(sub.timestamp_seizure)),
-            ('Descrição:', _sanitize(sub.description)),
-            ('Agente:', _fmt_agent(sub.agent)),
-        ], styles, col_widths=(4 * cm, 13 * cm)))
+        block.extend(
+            _label_value_rows(
+                [
+                    ('Nº de série:', _sanitize(sub.serial_number) or '—'),
+                    ('Data / Hora de apreensão:', _fmt_datetime(sub.timestamp_seizure)),
+                    ('Descrição:', _sanitize(sub.description)),
+                    ('Agente:', _fmt_agent(sub.agent)),
+                ],
+                styles,
+                col_widths=(4 * cm, 13 * cm),
+            )
+        )
         block.append(Paragraph('Hash SHA-256:', styles['label']))
         block.append(Paragraph(sub.integrity_hash or '—', styles['hash']))
         flow.append(KeepTogether(block))
@@ -447,15 +535,21 @@ def _render_sub_components(evidence, styles):
                     styles['subsection'],
                 ),
             ]
-            block.extend(_label_value_rows([
-                ('Marca:', _sanitize(dev.brand) or '—'),
-                ('Nome comercial:', _sanitize(dev.commercial_name) or '—'),
-                ('Modelo (SKU):', _sanitize(dev.model) or '—'),
-                ('Estado:', _sanitize(dev.get_condition_display())),
-                ('IMEI:', _sanitize(dev.imei) or '—'),
-                ('Nº de série:', _sanitize(dev.serial_number) or '—'),
-                ('Observações:', _sanitize(dev.notes) or '—'),
-            ], styles, col_widths=(4 * cm, 13 * cm)))
+            block.extend(
+                _label_value_rows(
+                    [
+                        ('Marca:', _sanitize(dev.brand) or '—'),
+                        ('Nome comercial:', _sanitize(dev.commercial_name) or '—'),
+                        ('Modelo (SKU):', _sanitize(dev.model) or '—'),
+                        ('Estado:', _sanitize(dev.get_condition_display())),
+                        ('IMEI:', _sanitize(dev.imei) or '—'),
+                        ('Nº de série:', _sanitize(dev.serial_number) or '—'),
+                        ('Observações:', _sanitize(dev.notes) or '—'),
+                    ],
+                    styles,
+                    col_widths=(4 * cm, 13 * cm),
+                )
+            )
             flow.append(KeepTogether(block))
 
     return flow
@@ -476,7 +570,8 @@ def generate_evidence_pdf(evidence):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=2 * cm, rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
         topMargin=HEADER_HEIGHT + 0.6 * cm,
         bottomMargin=FOOTER_HEIGHT + 0.4 * cm,
         title=f'ForensiQ — Item {item_label}',
@@ -495,7 +590,8 @@ def generate_evidence_pdf(evidence):
     occ = evidence.occurrence
     occ_label = occ.number or occ.code or f'#{occ.pk}'
     _doc_header(
-        story, styles,
+        story,
+        styles,
         f'Cadeia de Custódia — Item {item_label}',
         f'Caso {_sanitize(occ_label)} · {_sanitize(evidence.get_type_display())}',
     )
@@ -503,15 +599,18 @@ def generate_evidence_pdf(evidence):
     # 1. Ocorrência
     story.append(Paragraph('1. Ocorrência', styles['section']))
     story.append(Spacer(1, 0.2 * cm))
-    story += _label_value_rows([
-        ('NUIPC / Número:', occ.number or '—'),
-        ('Código interno:', occ.code or '—'),
-        ('Data / Hora:', _fmt_datetime(occ.date_time)),
-        ('Localização GPS:', _fmt_gps(occ.gps_lat, occ.gps_lon)),
-        ('Morada aproximada:', _sanitize(occ.address) or '—'),
-        ('Agente responsável:', _fmt_agent(occ.agent)),
-        ('Descrição:', _sanitize(occ.description)),
-    ], styles)
+    story += _label_value_rows(
+        [
+            ('NUIPC / Número:', occ.number or '—'),
+            ('Código interno:', occ.code or '—'),
+            ('Data / Hora:', _fmt_datetime(occ.date_time)),
+            ('Localização GPS:', _fmt_gps(occ.gps_lat, occ.gps_lon)),
+            ('Morada aproximada:', _sanitize(occ.address) or '—'),
+            ('Agente responsável:', _fmt_agent(occ.agent)),
+            ('Descrição:', _sanitize(occ.description)),
+        ],
+        styles,
+    )
 
     # 2. Identificação do item
     story += _render_item_identification(evidence, styles)
@@ -523,27 +622,33 @@ def generate_evidence_pdf(evidence):
 
     # 4. Cadeia de custódia
     section_num = 4 if has_sub_section else 3
-    story.append(Paragraph(
-        f'{section_num}. Cadeia de Custódia', styles['section'],
-    ))
-    story.append(Spacer(1, 0.2 * cm))
-    custody_records = list(
-        evidence.custody_chain.select_related('agent').order_by('sequence')
+    story.append(
+        Paragraph(
+            f'{section_num}. Cadeia de Custódia',
+            styles['section'],
+        )
     )
+    story.append(Spacer(1, 0.2 * cm))
+    custody_records = list(evidence.custody_chain.select_related('agent').order_by('sequence'))
     story += _custody_table(custody_records, styles)
 
     # Declaração
     story += _integrity_declaration(styles, gen_ts)
 
-    doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
+    try:
+        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
+        pdf_bytes = buffer.getvalue()
+    finally:
+        # Garantir close() do BytesIO mesmo se `doc.build` levantar
+        # (audit 2026-05-18 §3 N14). `BytesIO.close()` é idempotente.
+        buffer.close()
     return pdf_bytes
 
 
 # ---------------------------------------------------------------------------
 # PDF consolidado por ocorrência
 # ---------------------------------------------------------------------------
+
 
 def _current_custody_state(evidence):
     """Devolve (label sanitizado, record) do estado actual de custódia.
@@ -569,7 +674,8 @@ def generate_occurrence_pdf(occurrence):
     doc = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        leftMargin=2 * cm, rightMargin=2 * cm,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
         topMargin=HEADER_HEIGHT + 0.6 * cm,
         bottomMargin=FOOTER_HEIGHT + 0.4 * cm,
         title=f'ForensiQ — Caso {occ_label}',
@@ -585,7 +691,8 @@ def generate_occurrence_pdf(occurrence):
     doc.fq_header_generated = f'Gerado em {gen_ts}'
 
     _doc_header(
-        story, styles,
+        story,
+        styles,
         f'Resumo do Processo — Caso {_sanitize(occ_label)}',
         f'Código interno: {_sanitize(occurrence.code or "—")}',
     )
@@ -593,20 +700,22 @@ def generate_occurrence_pdf(occurrence):
     # 1. Descrição do caso
     story.append(Paragraph('1. Descrição do Caso', styles['section']))
     story.append(Spacer(1, 0.2 * cm))
-    story += _label_value_rows([
-        ('NUIPC / Número:', occurrence.number or '—'),
-        ('Código interno:', occurrence.code or '—'),
-        ('Data / Hora:', _fmt_datetime(occurrence.date_time)),
-        ('Localização GPS:', _fmt_gps(occurrence.gps_lat, occurrence.gps_lon)),
-        ('Morada aproximada:', _sanitize(occurrence.address) or '—'),
-        ('Agente responsável:', _fmt_agent(occurrence.agent)),
-        ('Descrição:', _sanitize(occurrence.description)),
-    ], styles)
+    story += _label_value_rows(
+        [
+            ('NUIPC / Número:', occurrence.number or '—'),
+            ('Código interno:', occurrence.code or '—'),
+            ('Data / Hora:', _fmt_datetime(occurrence.date_time)),
+            ('Localização GPS:', _fmt_gps(occurrence.gps_lat, occurrence.gps_lon)),
+            ('Morada aproximada:', _sanitize(occurrence.address) or '—'),
+            ('Agente responsável:', _fmt_agent(occurrence.agent)),
+            ('Descrição:', _sanitize(occurrence.description)),
+        ],
+        styles,
+    )
 
     # 2. Inventário de itens
     evidences = list(
-        occurrence.evidences
-        .select_related('agent', 'parent_evidence')
+        occurrence.evidences.select_related('agent', 'parent_evidence')
         .prefetch_related('sub_components', 'custody_chain')
         .order_by('id')
     )
@@ -616,68 +725,84 @@ def generate_occurrence_pdf(occurrence):
         if e.parent_evidence_id:
             children_by_parent.setdefault(e.parent_evidence_id, []).append(e)
 
-    story.append(Paragraph(
-        f'2. Inventário de Itens de Prova ({len(evidences)})', styles['section'],
-    ))
+    story.append(
+        Paragraph(
+            f'2. Inventário de Itens de Prova ({len(evidences)})',
+            styles['section'],
+        )
+    )
     story.append(Spacer(1, 0.2 * cm))
 
     if not evidences:
-        story.append(Paragraph(
-            'Nenhum item de prova registado neste caso.', styles['value'],
-        ))
+        story.append(
+            Paragraph(
+                'Nenhum item de prova registado neste caso.',
+                styles['value'],
+            )
+        )
         story.append(Spacer(1, 0.3 * cm))
     else:
-        header = [[
-            Paragraph('#', styles['label']),
-            Paragraph('Item', styles['label']),
-            Paragraph('Apreensão', styles['label']),
-            Paragraph('Estado actual', styles['label']),
-            Paragraph('Hash', styles['label']),
-        ]]
+        header = [
+            [
+                Paragraph('#', styles['label']),
+                Paragraph('Item', styles['label']),
+                Paragraph('Apreensão', styles['label']),
+                Paragraph('Estado actual', styles['label']),
+                Paragraph('Hash', styles['label']),
+            ]
+        ]
         rows = list(header)
         for idx, item in enumerate(root_items, start=1):
             state_label, _ = _current_custody_state(item)
             item_label = item.code or f'#{item.pk}'
-            rows.append([
-                Paragraph(str(idx), styles['value']),
-                Paragraph(
-                    f'<b>{item_label} · {_sanitize(item.get_type_display())}</b><br/>'
-                    f'{_sanitize(item.description)[:90]}',
-                    styles['value'],
-                ),
-                Paragraph(_fmt_datetime(item.timestamp_seizure), styles['label']),
-                Paragraph(state_label, styles['value']),
-                Paragraph((item.integrity_hash or '')[:16] + '…', styles['hash']),
-            ])
+            rows.append(
+                [
+                    Paragraph(str(idx), styles['value']),
+                    Paragraph(
+                        f'<b>{item_label} · {_sanitize(item.get_type_display())}</b><br/>'
+                        f'{_sanitize(item.description)[:90]}',
+                        styles['value'],
+                    ),
+                    Paragraph(_fmt_datetime(item.timestamp_seizure), styles['label']),
+                    Paragraph(state_label, styles['value']),
+                    Paragraph((item.integrity_hash or '')[:16] + '…', styles['hash']),
+                ]
+            )
             for sub in children_by_parent.get(item.pk, []):
                 sub_state, _ = _current_custody_state(sub)
                 sub_label = sub.code or f'#{sub.pk}'
-                rows.append([
-                    Paragraph('', styles['label']),
-                    Paragraph(
-                        f'<i>↳ {sub_label} · {_sanitize(sub.get_type_display())}</i><br/>'
-                        f'{_sanitize(sub.description)[:90]}',
-                        styles['value'],
-                    ),
-                    Paragraph(_fmt_datetime(sub.timestamp_seizure), styles['label']),
-                    Paragraph(sub_state, styles['value']),
-                    Paragraph((sub.integrity_hash or '')[:16] + '…', styles['hash']),
-                ])
+                rows.append(
+                    [
+                        Paragraph('', styles['label']),
+                        Paragraph(
+                            f'<i>↳ {sub_label} · {_sanitize(sub.get_type_display())}</i><br/>'
+                            f'{_sanitize(sub.description)[:90]}',
+                            styles['value'],
+                        ),
+                        Paragraph(_fmt_datetime(sub.timestamp_seizure), styles['label']),
+                        Paragraph(sub_state, styles['value']),
+                        Paragraph((sub.integrity_hash or '')[:16] + '…', styles['hash']),
+                    ]
+                )
 
         col_w = [0.8 * cm, 7.2 * cm, 3.5 * cm, 2.8 * cm, 2.5 * cm]
         t = Table(rows, colWidths=col_w, repeatRows=1)
-        t.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
-            ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
-            ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
-            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 4),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-            ('TOPPADDING', (0, 0), (-1, -1), 4),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-            ('FONTSIZE', (0, 0), (-1, 0), 8),
-        ]))
+        t.setStyle(
+            TableStyle(
+                [
+                    ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
+                    ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ]
+            )
+        )
         story.append(t)
         story.append(Spacer(1, 0.4 * cm))
 
@@ -687,9 +812,12 @@ def generate_occurrence_pdf(occurrence):
         for d in e.digital_devices.all():
             legacy.append((e, d))
     if legacy:
-        story.append(Paragraph(
-            f'3. Dispositivos Digitais Associados ({len(legacy)})', styles['section'],
-        ))
+        story.append(
+            Paragraph(
+                f'3. Dispositivos Digitais Associados ({len(legacy)})',
+                styles['section'],
+            )
+        )
         story.append(Spacer(1, 0.2 * cm))
         for ev_owner, dev in legacy:
             owner_label = ev_owner.code or f'#{ev_owner.pk}'
@@ -706,15 +834,21 @@ def generate_occurrence_pdf(occurrence):
                 identity = f'{brand} {sku}'
             else:
                 identity = brand
-            story.append(Paragraph(
-                f'Item {owner_label} · {_sanitize(dev.get_type_display())} · {identity}',
-                styles['value'],
-            ))
+            story.append(
+                Paragraph(
+                    f'Item {owner_label} · {_sanitize(dev.get_type_display())} · {identity}',
+                    styles['value'],
+                )
+            )
 
     # 4. Declaração
     story += _integrity_declaration(styles, gen_ts)
 
-    doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
+    try:
+        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
+        pdf_bytes = buffer.getvalue()
+    finally:
+        # Garantir close() do BytesIO mesmo se `doc.build` levantar
+        # (audit 2026-05-18 §3 N14). `BytesIO.close()` é idempotente.
+        buffer.close()
     return pdf_bytes
