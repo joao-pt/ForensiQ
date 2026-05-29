@@ -1,0 +1,480 @@
+/**
+ * ForensiQ — App Shell (refactor v2 — art direction)
+ *
+ * Layout three-pane inspirado em IDE / Linear / Cellebrite. Substitui
+ * a navbar simples + container central da v1.
+ *
+ * Estrutura:
+ *   .app-top      — header sticky (brand · chips contexto · clock · user)
+ *   .app-grid     — grelha 3 colunas (sidebar | main | drawer)
+ *   .app-sidebar  — 240px, navegação principal por grupos
+ *   .app-main     — conteúdo da página (wrapper .container interno)
+ *   .app-drawer   — coluna push lateral, 3 estados (closed/minimized/open)
+ *   .app-bottom   — footer técnico (versão · commit · região · CSP)
+ *
+ * O estado do drawer vive em `.app-grid[data-drawer="..."]` e é gerido
+ * por `app-shell.js` (persiste em localStorage entre páginas).
+ *
+ * Em <1024px: sidebar oculta (hamburger virá no Sem.9 mobile-first),
+ * drawer torna-se overlay fullscreen quando aberto.
+ *
+ * Ver a especificação de art direction §Layout.
+ */
+
+/* =====================================================================
+   Estrutura raiz
+   ===================================================================== */
+
+:root {
+    --app-top-h:      52px;
+    --app-bottom-h:   28px;
+    --app-sidebar-w:  240px;
+    --app-drawer-w-open:      360px;
+    --app-drawer-w-minimized: 44px;
+}
+
+body.app-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+.app-shell-root {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* Skip-link (a11y) */
+.skip-link {
+    position: absolute;
+    left: -10000px;
+    top: 0;
+    z-index: 200;
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: var(--fw-semi);
+    border-radius: 0 0 var(--r-2) 0;
+}
+.skip-link:focus {
+    left: 0;
+}
+
+/* =====================================================================
+   app-top — header de contexto operacional
+   ===================================================================== */
+
+.app-top {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    height: var(--app-top-h);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-3);
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border);
+}
+
+.app-top__brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text-emphasis);
+    text-decoration: none;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-tight);
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--r-2);
+    transition: background var(--t-fast) var(--ease);
+}
+.app-top__brand:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-top__brand-mark {
+    width: 28px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.app-top__brand-name {
+    font-size: var(--fs-sm);
+}
+
+.app-top__sep {
+    color: var(--text-subtle);
+    user-select: none;
+}
+
+/* Chips de contexto operacional (papel · nome · turno · zona · device) */
+.app-top__chips {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: var(--sp-1);
+    overflow: hidden;
+    flex-shrink: 1;
+    min-width: 0;
+}
+
+.app-top__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    line-height: 1.6;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-1);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+}
+
+.app-top__chip[data-variant="role"] {
+    color: var(--accent);
+    border-color: var(--accent-tint);
+    background: var(--accent-tint);
+}
+
+.app-top__spacer { flex: 1 1 auto; min-width: var(--sp-2); }
+
+.app-top__clock {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    padding: 2px var(--sp-2);
+    white-space: nowrap;
+}
+.app-top__clock-sep {
+    transition: opacity var(--t-base);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .app-top__clock[data-blink="on"] .app-top__clock-sep {
+        opacity: 0.35;
+    }
+}
+
+/* Em < 768px, esconde chips secundárias (mantém role + name) */
+@media (max-width: 767px) {
+    .app-top__chip[data-priority="low"] {
+        display: none;
+    }
+    .app-top__brand-name {
+        display: none;
+    }
+}
+
+/* =====================================================================
+   app-grid — grelha three-pane
+   ===================================================================== */
+
+.app-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    min-height: 0;
+}
+
+@media (min-width: 1024px) {
+    .app-grid {
+        grid-template-columns: var(--app-sidebar-w) 1fr;
+    }
+    .app-grid[data-drawer="open"] {
+        grid-template-columns:
+            var(--app-sidebar-w) 1fr var(--app-drawer-w-open);
+    }
+    .app-grid[data-drawer="minimized"] {
+        grid-template-columns:
+            var(--app-sidebar-w) 1fr var(--app-drawer-w-minimized);
+    }
+}
+
+/* =====================================================================
+   app-sidebar
+   ===================================================================== */
+
+.app-sidebar {
+    display: none;
+    background: var(--bg-subtle);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--sp-3) 0 var(--sp-6);
+}
+
+@media (min-width: 1024px) {
+    .app-sidebar {
+        display: block;
+    }
+}
+
+.app-sidebar__group {
+    padding: var(--sp-3) var(--sp-3) var(--sp-2);
+}
+
+.app-sidebar__group-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    margin: 0 var(--sp-2) var(--sp-2);
+}
+
+.app-sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    color: var(--text);
+    border-radius: var(--r-2);
+    border-left: 2px solid transparent;
+    font-size: var(--fs-sm);
+    text-decoration: none;
+    line-height: 1.3;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+    min-height: 32px;
+}
+.app-sidebar__link:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-sidebar__link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+.app-sidebar__link[aria-current="page"] {
+    background: var(--accent-tint);
+    color: var(--accent);
+    border-left-color: var(--accent);
+    font-weight: var(--fw-medium);
+}
+
+.app-sidebar__icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: currentColor;
+}
+
+.app-sidebar__label {
+    flex: 1;
+    min-width: 0;
+}
+
+.app-sidebar__kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-subtle);
+    padding: 1px 4px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-1);
+    background: var(--bg-inset);
+    white-space: nowrap;
+}
+
+/* =====================================================================
+   app-main
+   ===================================================================== */
+
+.app-main {
+    min-width: 0;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+.app-main:focus { outline: none; }
+
+/* Strip de breadcrumb dentro do main (reaproveita .breadcrumb da v1) */
+.app-breadcrumb {
+    padding: var(--sp-2) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+}
+
+/* =====================================================================
+   app-drawer — push column 3-state
+   ===================================================================== */
+
+.app-drawer {
+    background: var(--bg-subtle);
+    border-left: 1px solid var(--border);
+    isolation: isolate;  /* contém stacking de mapas Leaflet internos */
+    overflow: hidden;
+    display: flex;
+    min-height: 0;
+}
+
+.app-grid[data-drawer="closed"] .app-drawer { display: none; }
+.app-grid[data-drawer="minimized"] .app-drawer__rail { display: flex; }
+.app-grid[data-drawer="minimized"] .app-drawer__panel { display: none; }
+.app-grid[data-drawer="open"] .app-drawer__rail { display: none; }
+.app-grid[data-drawer="open"] .app-drawer__panel { display: flex; }
+
+.app-drawer__rail {
+    width: var(--app-drawer-w-minimized);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--sp-2) 0;
+    gap: var(--sp-2);
+}
+
+.app-drawer__panel {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.app-drawer__header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.app-drawer__title {
+    flex: 1;
+    margin: 0;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-drawer__actions {
+    display: flex;
+    gap: 2px;
+}
+
+.app-drawer__btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--r-1);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+}
+.app-drawer__btn:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-drawer__btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+.app-drawer__btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.app-drawer__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--sp-3);
+}
+
+.app-drawer__placeholder {
+    color: var(--text-subtle);
+    font-size: var(--fs-sm);
+    text-align: center;
+    padding: var(--sp-6) var(--sp-3);
+    margin: 0;
+}
+
+/* Em < 1024px: drawer aberto torna-se overlay fullscreen */
+@media (max-width: 1023px) {
+    .app-grid[data-drawer="open"] .app-drawer,
+    .app-grid[data-drawer="minimized"] .app-drawer {
+        position: fixed;
+        inset: var(--app-top-h) 0 var(--app-bottom-h) 0;
+        z-index: 60;
+        display: flex;
+    }
+    .app-grid[data-drawer="open"] .app-drawer {
+        width: 100vw;
+    }
+    .app-grid[data-drawer="minimized"] .app-drawer {
+        /* No mobile não faz sentido minimizado lateral: força closed */
+        display: none;
+    }
+}
+
+/* =====================================================================
+   app-bottom — footer técnico
+   ===================================================================== */
+
+.app-bottom {
+    height: var(--app-bottom-h);
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: 0 var(--sp-3);
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-subtle);
+    overflow-x: auto;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.app-bottom__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.app-bottom__item[data-status="ok"] { color: var(--text-muted); }
+
+.app-bottom__sep {
+    color: var(--text-placeholder);
+    user-select: none;
+}
+
+.app-bottom__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .app-bottom__dot {
+        animation: fq-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes fq-pulse {
+        0%, 100% { opacity: 0.6; transform: scale(0.9); }
+        50%      { opacity: 1;   transform: scale(1.05); }
+    }
+}

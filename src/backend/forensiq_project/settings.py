@@ -92,6 +92,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.app_metadata',
             ],
         },
     },
@@ -212,7 +213,9 @@ QR_VERIFY_SECRET = os.environ.get('QR_VERIFY_SECRET', SECRET_KEY)
 QR_VERIFY_HASH_LEN = 12
 # URL pública base usada na composição de QR codes no PDF. Em produção:
 # `https://forensiq.pt`. Em dev: `http://localhost:8000` por default.
-SITE_URL = os.environ.get('SITE_URL', 'https://forensiq.pt' if not DEBUG else 'http://localhost:8000')
+SITE_URL = os.environ.get(
+    'SITE_URL', 'https://forensiq.pt' if not DEBUG else 'http://localhost:8000'
+)
 
 # --- IMEIDB (consulta externa de IMEI / TAC, ver Wave 2c) ---
 # Token de API obtido em https://imeidb.xyz (free tier). Em produção,
