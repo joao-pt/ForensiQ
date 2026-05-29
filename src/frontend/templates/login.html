@@ -3,13 +3,15 @@
 
 {% block title %}ForensiQ — Iniciar sessão{% endblock %}
 
-{% block navbar %}{% endblock %}
+{# Login é full-bleed: salta a casca three-pane do base.html
+   (header / sidebar / drawer / footer) e renderiza só o seu conteúdo. #}
+{% block body_class %}lp-body{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/pages/login.css' %}">
 {% endblock %}
 
-{% block content %}
+{% block body_root %}
 <div class="lp-page" data-page="login">
 
     <aside class="lp-chain-panel" aria-hidden="true">
