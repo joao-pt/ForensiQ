@@ -6,7 +6,7 @@
     </mask>
   </defs>
   <circle cx="32" cy="32" r="30" fill="#0F1115"/>
-  <circle cx="25" cy="32" r="11" fill="none" stroke="#2DD4BF" stroke-width="3"/>
+  <circle cx="25" cy="32" r="11" fill="none" stroke="#F6AD55" stroke-width="3"/>
   <circle cx="39" cy="32" r="11" fill="none" stroke="#E6E8EC" stroke-width="3"
           mask="url(#fq-interlock)"/>
 </svg>

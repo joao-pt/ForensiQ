@@ -1,14 +1,23 @@
 /**
- * ForensiQ — Design System
+ * ForensiQ — Design System (v2 — art direction refactor)
  *
- * Linguagem visual: Notion / Linear / Vercel (dark-first, hairlines finas,
- * tipografia densa, ausência de decoração supérflua).
+ * Linguagem visual: ferramenta forense profissional — referências em
+ * Bloomberg Terminal, IDE em modo debug, Cellebrite / Magnet AXIOM,
+ * sala de comando policial. Densidade alta, restrição cromática,
+ * monospace abundante, hierarquia por tipografia. NÃO é SaaS Notion/
+ * Linear/Vercel (essa era a linguagem da v1 e comunicava errado o domínio).
  *
  * Dois modos: dia (light) e noite (dark, default).
  * Troca via <html data-theme="light">. Sem 'midnight'/'indigo' legacy.
  *
- * Tipografia: Inter (UI) + JetBrains Mono (hashes, IDs, timestamps forenses).
- * Ambas SIL OFL 1.1. Ver docs/design/login-design-credits.md.
+ * Tipografia: IBM Plex Sans (UI) + IBM Plex Mono (hashes, IDs, timestamps
+ * forenses). Ambas SIL OFL 1.1. `font-feature-settings` global: "zero" 1
+ * (slashed zero — assinatura terminal/forense), "tnum" 1 (tabular numbers
+ * para alinhar colunas), "ss05" 1 (alternate Q). Ver 
+ * art direction e docs/design/login-design-credits.md.
+ *
+ * Accent: amber (#F6AD55 dark / #B45309 light) — quente, denso, forense.
+ * O teal de v1 era da paleta Vercel e descontextualizava o produto.
  *
  * Mobile-first com edge-to-edge (<768px): sem padding lateral no container,
  * cards full-bleed sem border radius nos extremos.
@@ -48,9 +57,9 @@
     --navbar-h-desktop:  60px;  /* >=768px */
 
     /* ---- Tipografia ---- */
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
                  Roboto, 'Helvetica Neue', Arial, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono',
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Mono',
                  Consolas, 'Courier New', monospace;
 
     /* Escala base 16px — apropriada para uso em campo (First Responders,
@@ -116,12 +125,14 @@
     --border-input:    rgba(255, 255, 255, 0.10);
     --divider:         rgba(255, 255, 255, 0.06);
 
-    --accent:          #2DD4BF;
-    --accent-hover:    #5EEAD4;
-    --accent-strong:   #0D9488;
-    --accent-tint:     rgba(45, 212, 191, 0.12);
-    --accent-tint-hover: rgba(45, 212, 191, 0.18);
-    --on-accent:       #042A26;
+    /* Accent — amber forense (#F6AD55). Quente, Bloomberg-adjacent.
+       Substitui o teal Vercel de v1. Ver a especificação de art direction §Paleta. */
+    --accent:          #F6AD55;
+    --accent-hover:    #FBD38D;
+    --accent-strong:   #D69E2E;
+    --accent-tint:     rgba(246, 173, 85, 0.14);
+    --accent-tint-hover: rgba(246, 173, 85, 0.20);
+    --on-accent:       #1A1004;
 
     --warning:         #F59E0B;
     --warning-strong:  #D97706;
@@ -156,8 +167,8 @@
     --state-devolvida-tint:            rgba(154, 160, 166, 0.14);
     --state-destruida-tint:            rgba(248, 113, 113, 0.14);
 
-    --focus-ring:      rgba(45, 212, 191, 0.40);
-    --selection-bg:    rgba(45, 212, 191, 0.28);
+    --focus-ring:      rgba(246, 173, 85, 0.40);
+    --selection-bg:    rgba(246, 173, 85, 0.28);
     --selection-text:  #E6E8EC;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
@@ -171,9 +182,10 @@
 /* -------------------------
    Tema DIA
    -------------------------
-   Off-white à Notion (#FAFAF9). Texto `#37352F` — marca registada da
-   tipografia Notion. Accent teal é escurecido (`#0F766E`) para manter
-   contraste WCAG AA sobre fundo claro.
+   Off-white quente (#FAFAF9) — apoia o accent amber em vez do off-white
+   neutro Notion. Texto `#37352F` (alto contraste). Accent amber é
+   escurecido (`#B45309`, amber-700) para manter contraste WCAG AA
+   sobre fundo claro (5.8:1).
 */
 [data-theme="light"] {
     color-scheme: light;
@@ -198,11 +210,12 @@
     --border-input:    rgba(55, 53, 47, 0.14);
     --divider:         rgba(55, 53, 47, 0.08);
 
-    --accent:          #0F766E;
-    --accent-hover:    #0D9488;
-    --accent-strong:   #134E4A;
-    --accent-tint:     rgba(15, 118, 110, 0.10);
-    --accent-tint-hover: rgba(15, 118, 110, 0.14);
+    /* Accent — amber-700 (#B45309). 5.8:1 sobre #FAFAF9 → WCAG AA. */
+    --accent:          #B45309;
+    --accent-hover:    #92400E;
+    --accent-strong:   #78350F;
+    --accent-tint:     rgba(180, 83, 9, 0.10);
+    --accent-tint-hover: rgba(180, 83, 9, 0.14);
     --on-accent:       #FFFFFF;
 
     --warning:         #B45309;
@@ -236,9 +249,9 @@
     --state-devolvida-tint:            rgba(110, 109, 106, 0.12);
     --state-destruida-tint:            rgba(185, 28, 28, 0.08);
 
-    --focus-ring:      rgba(15, 118, 110, 0.28);
-    --selection-bg:    rgba(15, 118, 110, 0.18);
-    --selection-text:  #134E4A;
+    --focus-ring:      rgba(180, 83, 9, 0.28);
+    --selection-bg:    rgba(180, 83, 9, 0.18);
+    --selection-text:  #4A2700;
 
     --shadow-sm: 0 1px 2px rgba(15, 15, 15, 0.06);
     --shadow-md: 0 2px 8px rgba(15, 15, 15, 0.08), 0 1px 2px rgba(15, 15, 15, 0.04);
@@ -283,7 +296,11 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-feature-settings: 'cv11';  /* single-storey a — única feature activa do Inter */
+    /* IBM Plex font-features:
+       - "zero" 1 → slashed zero (assinatura terminal/forense, evita ambiguidade 0/O)
+       - "tnum" 1 → tabular numbers (alinha colunas, hashes, timestamps)
+       - "ss05" 1 → stylistic set 5 (alternate Q, mais densa) */
+    font-feature-settings: "zero" 1, "tnum" 1, "ss05" 1;
 }
 
 img, svg, video {
