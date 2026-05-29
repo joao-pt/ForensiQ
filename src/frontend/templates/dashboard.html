@@ -8,6 +8,8 @@
 {% endblock %}
 
 {% block extra_css %}
+{% include '_leaflet_head.html' %}
+<link rel="stylesheet" href="{% static 'css/components/geo-hero.css' %}">
 <link rel="stylesheet" href="{% static 'css/pages/dashboard.css' %}">
 {% endblock %}
 
@@ -25,47 +27,76 @@
         </div>
     </header>
 
-    <!-- Cadeia de custódia — single hero card com flow visualization.
-         River bar (proporcional ao count por estado) + cards clicáveis
-         por baixo para deep-linking ao filtro da listagem. -->
-    <section class="card custody-flow-card" id="custody-flow"
-             aria-busy="true" aria-live="polite"
-             aria-label="Distribuição actual da cadeia de custódia">
-        <div class="custody-flow-header">
-            <div>
-                <div class="card-title">Cadeia de custódia</div>
-                <div class="card-subtitle">Distribuição actual dos itens por estado</div>
-            </div>
-            <div class="custody-flow-total">
-                <span class="custody-flow-total-num mono-tab" id="custody-flow-total-num">—</span>
-                <span class="custody-flow-total-label">itens</span>
-            </div>
-        </div>
+    <!-- Geo Hero — 3 colunas:
+         (1) Cadeia vertical (7 tiles, sem cor por estado — V19)
+         (2) Mapa continental Leaflet + colorbar (priority)
+         (3) Insets Madeira/Açores + CTA "Nova ocorrência"
+         Ver a especificação de art direction §Hero (sweet spot V20). -->
+    <section class="geo-hero" id="geo-hero"
+             aria-label="Cadeia de custódia e distribuição territorial">
 
-        <!-- River bar — segmentos coloridos proporcionais por estado -->
-        <div class="custody-river" id="custody-river" role="img"
-             aria-label="Barra proporcional dos estados da cadeia"></div>
+        <!-- Coluna 1 — Estado da cadeia · 24h -->
+        <article class="geo-hero__col geo-hero__custody"
+                 aria-label="Distribuição actual da cadeia de custódia">
+            <header class="geo-hero__header">
+                <h2 class="geo-hero__title">Estado da cadeia · 24h</h2>
+                <span class="geo-hero__meta" id="cs-meta">— activos</span>
+            </header>
+            <div class="geo-hero__custody-list" id="cs-tiles" role="list">
+                <!-- preenchido por dashboard_geo_hero.js -->
+            </div>
+        </article>
 
-        <!-- Cards clicáveis por estado — preenchidos via JS -->
-        <div class="custody-flow-states" id="custody-flow-states" role="list"></div>
+        <!-- Coluna 2 — Mapa continental + colorbar -->
+        <article class="geo-hero__col geo-hero__continental"
+                 aria-label="Mapa de ocorrências em Portugal continental">
+            <header class="geo-hero__header">
+                <h2 class="geo-hero__title">Portugal continental</h2>
+                <span class="geo-hero__meta">ocorrências · 100</span>
+            </header>
+            <div class="geo-hero__map" id="geo-hero-map-continental"
+                 role="application" aria-label="Mapa Leaflet de Portugal continental"></div>
+            <div class="geo-hero__colorbar" role="img"
+                 aria-label="Gradiente de prioridade — menor à esquerda, maior à direita">
+                <span class="geo-hero__colorbar-label-left">menor prioridade</span>
+                <span class="geo-hero__colorbar-track" aria-hidden="true"></span>
+                <span class="geo-hero__colorbar-label-right">maior prioridade</span>
+            </div>
+        </article>
+
+        <!-- Coluna 3 — Insets + CTA -->
+        <article class="geo-hero__col geo-hero__insets"
+                 aria-label="Regiões autónomas e acção rápida">
+            <div class="geo-hero__inset-row">
+                <div class="geo-hero__inset" id="geo-hero-map-madeira"
+                     role="application" aria-label="Mapa Leaflet da Madeira">
+                    <span class="geo-hero__inset-label">Madeira</span>
+                </div>
+                <div class="geo-hero__inset" id="geo-hero-map-acores"
+                     role="application" aria-label="Mapa Leaflet dos Açores">
+                    <span class="geo-hero__inset-label">Açores</span>
+                </div>
+            </div>
+            <div class="geo-hero__cta">
+                <a class="btn-new-occ" href="/occurrences/new/" data-nav="/occurrences/new/">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                         width="16" height="16" aria-hidden="true">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    <span>Nova ocorrência</span>
+                    <kbd class="btn-new-occ__kbd" data-kbd="Ctrl+N">Ctrl+N</kbd>
+                </a>
+            </div>
+        </article>
+
     </section>
 
-    <!-- Quick actions — AGENT (full width) -->
+    <!-- Quick actions — AGENT (full width).
+         A acção "Nova ocorrência" mudou para o CTA do hero (Ctrl+N). -->
     <section id="agent-actions" class="hidden">
         <div class="section-label">Acções rápidas</div>
         <div class="quick-actions">
-            <button class="action-btn" data-nav="/occurrences/new/" type="button">
-                <span class="action-icon accent" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Nova Ocorrência</strong>
-                    <small>Registar cena de crime</small>
-                </span>
-            </button>
             <button class="action-btn" data-nav="/evidences/new/" type="button">
                 <span class="action-icon success" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -211,7 +242,9 @@
 {% endblock %}
 
 {% block extra_js %}
+{% include '_leaflet_js.html' %}
 <script src="{% static 'js/toast.js' %}"></script>
 <script src="{% static 'js/custody_states.js' %}"></script>
 <script src="{% static 'js/pages/dashboard.js' %}"></script>
+<script src="{% static 'js/pages/dashboard_geo_hero.js' %}"></script>
 {% endblock %}
