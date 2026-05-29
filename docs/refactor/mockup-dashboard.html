@@ -1,0 +1,3162 @@
+<!--
+  ForensiQ — Mockup "pro tool" do dashboard (proposta de art direction)
+  ---------------------------------------------------------------------
+  v20 — Alinhamento homogéneo do hero:
+    · Altura comum --hero-h (400px) para todas as 3 colunas em desktop.
+      Tudo termina na mesma linha (top + bottom alinhados).
+    · Coluna 1 (custódia): header altura natural + lista flex:1.
+      Cada cs-tile flex:1 → distribui-se proporcionalmente pela coluna,
+      ganha ar para respirar (~50px cada em vez de ~30px).
+      Sparkline aumenta um pouco (height 18px).
+    · Coluna 2 (mapa+colorbar): mapa flex:1 (preenche resto),
+      colorbar altura natural.
+    · Coluna 3 (insets+CTA): 2 insets flex:1 (~174 cada), CTA natural.
+    · Labels da colorbar: "menor"/"maior" → "MENOR PRIORIDADE"/
+      "MAIOR PRIORIDADE" (mais explícito, ocupa o espaço melhor).
+  Mantém: neutralização de cores V19, tudo o resto.
+  v19 — Neutralizar cores na cadeia (separação semântica clara):
+    · Estado da cadeia DEIXA de usar cores semânticas próprias.
+      Razão: confundiam-se com P1-P4 (prioridade) e badges do feed
+      (hash/create/state/alert/pdf). A custódia é informacional,
+      não classificatória — não precisa de cor por estado.
+    · Border-left 3px colorido REMOVIDO de cada tile.
+    · Layout interno reformatado:
+        - Linha 1: [número grande] [LABEL mono uppercase]    [delta ±N]
+        - Linha 2: sparkline esticado (largura 100%), tom neutro --text-subtle
+    · Deltas (+1 ▲ / −1 ▼) MANTÊM cor (verde/vermelho) — comunicam
+      tendência (sobe/desce), não classificam categoria.
+    · Tiles separados por hairline horizontal subtil (--divider).
+  Mantém: tudo o resto do V18.
+  v18 — Limpeza estrutural:
+    · Régua lateral amber (.page::before) REMOVIDA. Era decorativa,
+      não tinha utilidade funcional. Padding esquerdo do .page volta
+      a ser simétrico ao direito.
+    · CTA "Nova ocorrência" sai do cabeçalho da secção e move para a
+      COLUNA DOS INSETS (debaixo do Açores). Aproveita o espaço vazio
+      que sobrava ali. O cabeçalho "Ocorrências abertas" fica limpo,
+      só com o título.
+  Mantém: tudo o resto do V17.
+  v17 — Correcções de alinhamento e densidade:
+    · COLORBAR sai do mapa: passa a ser banner próprio ABAIXO do continental,
+      alinhado com o rodapé dos insets (em vez de flutuar sobre os tiles).
+    · ALTURAS alinhadas: continental = 2×inset + gap (= 360px exactos).
+      Insets de 176px cada com gap 8px → 176+8+176 = 360. Match perfeito.
+    · SPARKLINES da cadeia ESTICAM (flex:1 + preserveAspectRatio="none")
+      em vez de fixos a 36px. Aproveitam toda a largura da coluna,
+      tornando a leitura da tendência muito mais clara.
+    · NOME do estado fica à esquerda, sparkline ao centro/direita,
+      ratio entre eles é dinâmico (responde à largura da coluna).
+  Mantém: tudo o resto do V16.
+  v16 — Reorganização do hero (3 colunas + colorbar):
+    · Cadeia de custódia (era barra horizontal abaixo do mapa) move para
+      a COLUNA ESQUERDA do hero, em vertical (7 tiles empilhados).
+    · Legenda P1/P2/P3 sai. Em substituição: COLORBAR de prioridade no
+      rodapé do mapa continental (gradiente subtil → vibrante).
+    · Continental fica mais pequeno (340px largura mínima), insets passam
+      a RETÂNGULOS horizontais (290×150 cada), label no RODAPÉ (não topo,
+      para evitar conflito com popups Leaflet que abrem para cima).
+    · Grid 3 colunas em desktop ≥1280: cadeia 220px | mapa 1fr | insets 300px.
+    · Em ≥1024 <1280: cadeia 220px | mapa 1fr | (insets descem como 2 col).
+    · Em mobile: tudo empilha numa coluna.
+  Mantém: tudo o resto. Mapa global panorâmico, painel push, mini-map.
+  v15 — Mapa institucional português (continental vertical + 2 insets):
+    · Padrão IPMA / RTP / IGP: continental num mapa vertical principal,
+      Madeira e Açores em quadradinhos separados (insets) ao lado.
+    · 3 instâncias Leaflet independentes:
+        #map-hero      bounds [[36.95,-9.55],[42.15,-6.18]] — continental
+        #map-madeira   bounds [[32.40,-17.40],[33.10,-16.50]]
+        #map-acores    bounds [[36.85,-31.40],[39.85,-24.70]]
+    · Pins distribuídos pela região correcta (campo region: cont|mad|aco).
+    · Insets não-arrastáveis (apenas o continental); cada um tem label
+      "MAD" / "AÇO" como badge no canto superior esquerdo.
+    · Tema dark/light refresca tiles dos 3 mapas em sincronia.
+    · invalidateSize() ao abrir/minimizar/fechar painel chama todos.
+    · Mobile (<768px): insets empilham abaixo do continental (1 coluna).
+  Mantém: painel push V14, tudo o resto.
+  v14 — Painel direito vira COLUNA do layout (não overlay):
+    · 3 estados (padrão Linear / VS Code right panel):
+        - fechado:    não ocupa espaço (display: none)
+        - minimizado: barra vertical 44px com 2 botões (expandir + fechar)
+        - aberto:     360px com conteúdo completo
+    · Quando aberto/minimizado: EMPURRA o conteúdo principal (não sobrepõe).
+      O mapa hero, tabela, feed redimensionam-se naturalmente.
+    · Cabeçalho do painel: botão MINIMIZAR (─) + botão FECHAR (X).
+    · Barra minimizada: botão EXPANDIR (>) + botão FECHAR (X), verticais.
+    · Mobile (<1024px): mantém comportamento overlay fullscreen
+      (não há espaço lateral para empurrar).
+    · Leaflet invalidateSize() automático em cada mudança de estado
+      (mapa hero re-renderiza ao novo tamanho).
+  Mantém: tudo o resto do V13.
+  v13 — Correcção arquitectural (mapas com funções distintas):
+    · Mapa GLOBAL (hero): SEMPRE mostra todas as ocorrências.
+      Panorâmico, informacional. NÃO entra em modo trajecto.
+    · Mini-mapa LATERAL (dentro do drawer): é o que muda conforme
+      o que se está a visualizar. Dois modos com toggle:
+        [LOCAL]  — pin único da ocorrência (default ao abrir drawer)
+        [CADEIA] — polyline + pins por estado do item activo
+                   (auto-switch quando se clica num item EV)
+    · Toggle por baixo do mini-mapa com 2 botões.
+    · BUG fix: z-index do drawer subido para 1000 (era 40, ficava
+      atrás de elementos Leaflet do hero que usam pane z-index 200-700).
+      isolation:isolate no hero map para conter os z-index internos.
+  Mantém: tudo o resto do V12.
+  v12 — Cadeia de custódia geo-rastreável (feature distintiva forense):
+    · Cada transição da cadeia tem GPS + responsável + accuracy:
+        { t, s, lat, lng, who, acc }
+      Em produção: navigator.geolocation.getCurrentPosition() ao
+      submeter transição. Modelo: ChainOfCustody ganha gps_lat/gps_lng
+      /gps_accuracy_m. Coords arredondadas a ~100m por privacidade.
+    · MODO TRAJECTO no mapa hero: click num item da custódia (painel
+      direito) → mapa esmaece os pins de ocorrências e desenha:
+        - Polyline tracejada amber a unir os GPS por ordem cronológica
+        - Pins coloridos por estado (sky/amber/teal/emerald/...)
+        - Tooltip em cada pin com "1. Apreendida · 09:14 · jrodrigues"
+        - fitBounds automático ao trajecto
+    · Botão "← geral" no canto superior esquerdo do mapa para voltar
+      à vista geral. Fecha o drawer também limpa o trajecto.
+    · Timeline visual mais rica: timestamp + estado + responsável + ±Xm.
+  Mantém: drawer, Leaflet, tudo do V11.
+  v11 — Mapa real (Leaflet+CartoDB) + painel como drawer:
+    · MAPA SVG simplificado → Leaflet com tiles reais. CartoDB Voyager
+      (light) / Dark Matter (dark) — gratuitos, sem API key, attribution
+      OpenStreetMap + CARTO. Switch automático com o tema.
+    · PINS: L.circleMarker com fillColor por prioridade. Click no pin
+      sincroniza com a linha da tabela + abre o drawer.
+    · PAINEL DIREITO agora é DRAWER: oculto por defeito, slide-in da
+      direita ao clicar numa ocorrência (linha ou pin). Botão X fecha.
+      Esc também fecha. Padrão Linear / Slack.
+    · TOC "Nesta página" REMOVIDO — não fazia sentido com 4 secções.
+    · MINI-MAPA do painel também vira Leaflet (zoom na ocorrência).
+  Mantém: tudo o resto do V10.
+  v10 — Mapa hero + custódia por item + sem hashes:
+    · MAPA HERO no topo do main, antes da cadeia de custódia.
+      SVG Portugal continental + Madeira + Açores simplificado.
+      Pins por ocorrência: cor por prioridade (P1 danger, P2 warning,
+      P3 muted). Cluster em Lisboa metro + pins fictícios espalhados
+      (Porto, Coimbra, Faro, Évora, Braga) para "ideia geral do país".
+      Hover do pin destaca + mostra label compacto.
+    · MINI-MAPA no painel direito (zona detalhe) — coordenadas e zona
+      da ocorrência seleccionada.
+    · HASHES REMOVIDOS dos itens (o humano não os lê, são ruído).
+      Cada item agora é CLICÁVEL e tem data-history próprio.
+    · TIMELINE POR ITEM: clica num item no painel direito → timeline
+      em baixo actualiza-se para mostrar o histórico específico
+      daquele item (não da ocorrência inteira).
+  Mantém: tudo o resto do V9.
+  v9 — Painel de detalhe à direita (layout three-pane à digital.forensiq.pt):
+    · Sidebar esquerda (navegação) + main (conteúdo) + painel direito (detalhe).
+    · Painel direito 320px, sticky, visível só em desktop wide ≥1280px.
+    · Conteúdo: detalhes da linha seleccionada na tabela de ocorrências —
+      cabeçalho (código + prioridade), localização compacta, lista de itens
+      vinculados (com hashes mono truncados), timeline mini da cadeia de
+      custódia, botões de acção rápida (Ver detalhe, PDF, Cadeia, Itens).
+    · DINÂMICO: clica numa linha → painel actualiza-se. Cada <tr> tem
+      data-detail-* (code, ts, loc, pri, items, nuipc) que o JS lê.
+    · "Ao clicar ia para aquele assunto" — exactamente isto.
+    · Em desktop médio (1024..1279px) só esquerda+main; em mobile, só main.
+  Mantém: sidebar esquerda V8, polish V7, acessibilidade V5, tudo o resto.
+  v8 — Sidebar de navegação (encher o espaço lateral vazio em desktop):
+    · Sidebar 240px fixa à esquerda, sticky abaixo do app-top.
+    · 4 grupos: PRINCIPAL (Painel/Ocorrências/Itens/Custódia),
+      LAB (Intake/Em perícia/Concluídos), ANÁLISE (Estatísticas/Relatórios),
+      SISTEMA (Definições/Sair).
+    · Cada item tem ícone SVG, label, e atalho mono (⌘1..⌘9).
+      Atalhos detectam Mac/Windows (Ctrl em Win).
+    · Item activo: bg accent-tint + border-left 3px accent (mesma linguagem
+      visual da linha seleccionada na tabela e da régua lateral da .page).
+    · .page perde max-width: 1280px — passa a preencher o resto do ecrã.
+      O footer técnico fica sempre full-width, abaixo da sidebar.
+    · Mobile (<1024px): sidebar oculta. Em produção, drawer com hamburger.
+  Mantém tudo o resto. Refresca em desktop largo: o "vazio" desaparece.
+  v7 — Polish final (3 refinamentos editoriais):
+    · PRIORIDADES P1/P2/P3 em badges mono — substituem estrelas
+      (★★★/★★/★/·). Lê como incident response (PagerDuty/ServiceNow)
+      em vez de Trello. Cores semânticas: P1 danger, P2 warning,
+      P3 text-muted, `·` para sem-prioridade.
+    · TOOLTIPS via Popover API nativa do HTML (substituem title="" nativo).
+      Estilizados (Plex Sans 12px, --surface-elevated, sombra subtil).
+      Aparecem em hover + focus (acessível ao teclado). Esc fecha.
+      Suporta data-tt="..." nos elementos que querem tooltip rico.
+    · SPARKLINES com hover interactivo (estilo Linear analytics):
+      passa o rato e vês "h-3 · 7 itens" no tooltip flutuante,
+      com linha vertical indicator + ponto a marcar o valor exacto.
+      data-values="..." em cada sparkline, JS calcula bucket + posição.
+      Acessível: aria-label resume tendência ("4 → 12, Δ+8").
+  Mantém tudo o resto. ESTE É O SWEET SPOT — refresca devagar e clica em
+  cada coisa: prioridades na tabela, chips do header (hover), sparklines
+  da custódia (mousemove).
+  ----- DEPOIS (para outra sessão) --------------------------------------
+    · Accent por tema: amber à noite, azul de dia.
+    · Replicar este "art direction" nas outras páginas da app real.
+  -----------------------------------------------------------------------
+  v6 — Assinatura visual única (matar o "isto podia ser de qualquer SaaS"):
+    · DOT GRID subtil no fundo do body — papel quadriculado de laboratório,
+      24px de spacing, ~0.5px dots, alpha ~0.05. Calibrado por tema:
+        dark:  rgba(255,255,255,0.04)
+        light: rgba(55,53,47,0.06)
+      background-attachment: fixed — não scrolla com o conteúdo.
+    · RÉGUA LATERAL 3px no lado esquerdo do .page (só desktop ≥768px).
+      Gradient vertical: amber sólido no topo → amber-tint a meio →
+      transparente no fundo. Lê como "assinatura" forense, não como
+      barra-lateral funcional.
+    · Linha decorativa subtil entre o app-top sticky e o conteúdo
+      (border-bottom já existente — reforçado o tom).
+  Mantém: tudo o resto (acessibilidade V5, amber, dia/noite, tipografia Plex).
+  ----- DEPOIS ----------------------------------------------------------
+    · Accent por tema: amber à noite, azul/teal de dia.
+    · V7: P1/P2/P3, tooltips custom, hover sparklines, polish final.
+  -----------------------------------------------------------------------
+  v5 — Acessibilidade (focus rings, selected states, reduced-motion, ARIA):
+    · :focus-visible em TODOS os elementos interactivos (accent ring)
+    · Tabela: hover (subtil) ≠ selected (border-left accent + bg tint) — para
+      distinguires claramente o que está activo do que estás só a sobrevoar.
+      A primeira linha vem com aria-selected="true" para veres o tratamento.
+    · prefers-reduced-motion respeitado: pulse, count-up, blink, fresh-in
+      ficam todos suprimidos quando o utilizador prefere menos movimento.
+    · role="row" + role="gridcell" + tabindex na tabela (consistente com role="grid").
+    · --text-subtle subido para passar WCAG AA em texto pequeno (light theme).
+  Mantém: amber accent (#F6AD55 dark / #B45309 light), tema dia/noite, tudo o resto.
+  ----- DEPOIS (lista de ideias guardadas) ----------------------------------
+    · Accent por tema: amber à noite, azul/teal de dia (sugestão do utilizador).
+    · V6: assinatura visual única (régua lateral, textura de fundo).
+    · V7: refinamentos (P1/P2/P3, tooltips custom, hover sparklines).
+  ---------------------------------------------------------------------------
+  v4 — Amber fixo + tema dia/noite:
+    · Accent amber escolhido (warm forensic, Bloomberg-adjacent).
+      - Noite:  #F6AD55 (luminoso sobre fundo escuro)
+      - Dia:    #B45309 (amber-700 escurecido para passar contraste WCAG sobre branco)
+    · Tema diurno completo (mesmos tokens do main.css real):
+      bg #FAFAF9, surface #FFFFFF, text #37352F (Notion palette)
+      Estados forenses re-tonalizados para fundo branco
+      (sky-600 azul, teal-700, emerald-600, ...)
+    · Toggle sol/lua no header (igual ao base.html real, persiste localStorage).
+    · Inline script no <head> aplica tema antes do paint — sem FOUC.
+  Standalone — abre directamente no browser (file://).
+-->
+<!DOCTYPE html>
+<html lang="pt-PT" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForensiQ · Painel (mockup v20 · alinhamento)</title>
+  <!-- Aplicar tema antes do paint para evitar FOUC -->
+  <script>document.documentElement.dataset.theme = localStorage.getItem('fq-mockup-theme') || 'dark';</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+  <!-- Leaflet 1.9.4 — mapas com tiles OSM/CartoDB (gratuito, sem API key) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="">
+<style>
+:root {
+  --bg:              #0F1115;
+  --bg-subtle:       #14171C;
+  --bg-inset:        #0A0C10;
+  --surface:         #181B21;
+  --surface-hover:   #1F2229;
+  --surface-active:  #23272F;
+
+  --text:            #E6E8EC;
+  --text-emphasis:   #F4F5F7;
+  --text-muted:      #9AA0A6;
+  --text-subtle:     #6E737C;
+
+  --border:          rgba(255, 255, 255, 0.07);
+  --border-strong:   rgba(255, 255, 255, 0.13);
+  --divider:         rgba(255, 255, 255, 0.06);
+
+  /* Accent amber (warm forensic) — Bloomberg Terminal / sala de comando */
+  --accent:          #F6AD55;
+  --accent-hover:    #FBD38D;
+  --accent-tint:     rgba(246, 173, 85, 0.14);
+
+  --warning:         #F59E0B;
+  --danger:          #F87171;
+  --success:         #34D399;
+  --info:            #60A5FA;
+
+  --state-apreendida:           #60A5FA;
+  --state-em-transporte:        #F59E0B;
+  --state-recebida-laboratorio: #2DD4BF;
+  --state-em-pericia:           #14B8A6;
+  --state-concluida:            #34D399;
+  --state-devolvida:            #9AA0A6;
+  --state-destruida:            #F87171;
+
+  --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+
+  --fs-micro: 11px;
+  --fs-xs:    12px;
+  --fs-sm:    13px;
+  --fs-base:  14px;
+  --fs-md:    15px;
+  --fs-lg:    17px;
+  --fs-xl:    22px;
+  --fs-2xl:   28px;
+
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px;
+
+  --r-1: 3px;  --r-2: 5px;  --r-3: 7px;
+  --t-fast: 100ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* ===== TEMA DIURNO (light) — overrides sobre o :root dark ==================
+   Tokens base de off-white Notion (FAFAF9 + #37352F). Estados forenses
+   re-tonalizados em tons mais escuros para passar contraste WCAG sobre branco.
+   Amber accent escurecido de #F6AD55 → #B45309 (amber-700) para 5.8:1 sobre bg. */
+[data-theme="light"] {
+  --bg:              #FAFAF9;
+  --bg-subtle:       #F4F3EF;
+  --bg-inset:        #EFEEE9;
+  --surface:         #FFFFFF;
+  --surface-hover:   #F7F6F3;
+  --surface-active:  #F0EFEC;
+
+  --text:            #37352F;
+  --text-emphasis:   #1F1E1A;
+  --text-muted:      #6E6D6A;
+  --text-subtle:     #828790;  /* subido de #9B9A97 para passar WCAG AA */
+
+  --border:          rgba(55, 53, 47, 0.09);
+  --border-strong:   rgba(55, 53, 47, 0.18);
+  --divider:         rgba(55, 53, 47, 0.08);
+
+  /* Amber escurecido para contraste sobre branco */
+  --accent:          #B45309;
+  --accent-hover:    #92400E;
+  --accent-tint:     rgba(180, 83, 9, 0.10);
+
+  --warning:         #B45309;
+  --danger:          #B91C1C;
+  --success:         #059669;
+  --info:            #2563EB;
+
+  /* Estados forenses re-tonalizados (mais escuros, fundo claro) */
+  --state-apreendida:           #2563EB;  /* blue-600 */
+  --state-em-transporte:        #B45309;  /* amber-700 */
+  --state-recebida-laboratorio: #0F766E;  /* teal-700 */
+  --state-em-pericia:           #115E59;  /* teal-800 */
+  --state-concluida:            #047857;  /* emerald-700 */
+  --state-devolvida:            #6E6D6A;  /* notion grey */
+  --state-destruida:            #B91C1C;  /* red-700 */
+}
+/* ============================================================================ */
+
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* IBM Plex font-features:
+     · "zero" 1  — zero barrado (sinal terminal/forense)
+     · "tnum" 1  — tabular numbers (alinhamento em colunas)
+     · "ss05" 1  — stylistic set 5 (alternates característicos da Plex) */
+  font-feature-settings: "zero" 1, "tnum" 1, "ss05" 1;
+}
+
+/* V6 — DOT GRID subtil. Calibrado por tema (alpha diferente).
+   background-attachment: fixed garante que o pattern não scrolla.
+   Padrão de 24px = caderno quadriculado de laboratório. */
+[data-theme="dark"] body {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 0.5px, transparent 0.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  background-attachment: fixed;
+}
+[data-theme="light"] body {
+  background-image: radial-gradient(circle, rgba(55,53,47,0.06) 0.5px, transparent 0.5px);
+  background-size: 24px 24px;
+  background-position: 0 0;
+  background-attachment: fixed;
+}
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
+  /* Plex Mono: activar alternates característicos (ss01, ss02, ss03) +
+     zero barrado obrigatório em mono (distingue ID hex de IDs comuns). */
+  font-feature-settings: "zero" 1, "tnum" 1, "ss01" 1, "ss02" 1, "ss03" 1;
+}
+::selection { background: var(--accent-tint); color: var(--text-emphasis); }
+
+/* ============================================================================
+   ACESSIBILIDADE GLOBAL — V5
+   ----------------------------------------------------------------------------
+   1. Focus rings consistentes em TODOS os elementos interactivos (apenas via
+      :focus-visible — não polui o mouse). Cor herda do --accent (amber).
+   2. prefers-reduced-motion: suprime animações para utilizadores com
+      vertigo / preferência explícita do SO.
+   ============================================================================ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-1);
+}
+/* Linhas da tabela: outline cortaria na grid. Em vez disso, inset shadow + bg tint. */
+.tbl tbody tr:focus-visible {
+  outline: none;
+  background: var(--accent-tint);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* ============================================================================ */
+
+/* ============================================================================
+   V7 — TOOLTIPS (Popover API nativa) + SPARKLINE HOVER (custom JS)
+   ============================================================================ */
+
+/* Tooltip estilizado — usa a Popover API nativa do HTML.
+   O elemento [popover] é movido para o top-layer pelo browser quando .showPopover().
+   Estilo: card pequeno com hairline, sombra subtil, mono-friendly. */
+.tt {
+  margin: 0;
+  padding: 6px 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-2);
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: 1.4;
+  max-width: 280px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32),
+              0 1px 2px rgba(0, 0, 0, 0.20);
+  inset: auto;  /* reset do default do [popover] */
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity var(--t-fast) var(--ease),
+              transform var(--t-fast) var(--ease);
+  pointer-events: none;
+}
+.tt:popover-open {
+  opacity: 1;
+  transform: translateY(0);
+}
+[data-theme="light"] .tt {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10),
+              0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* Sparkline tooltip flutuante (não usa Popover API porque vive dentro do
+   .cs-tile e precisa de seguir o cursor com precisão sub-pixel). */
+.spark-tooltip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  padding: 3px 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-feature-settings: "zero" 1, "tnum" 1;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.24);
+  opacity: 0;
+  transform: translateY(2px);
+  pointer-events: none;
+  transition: opacity 80ms var(--ease), transform 80ms var(--ease);
+  z-index: 10;
+}
+.cs-tile:hover .spark-tooltip,
+.cs-tile:focus-visible .spark-tooltip { opacity: 1; transform: translateY(0); }
+
+/* Linha vertical indicator + dot dentro do SVG da sparkline.
+   Inseridos via JS — começam invisíveis, aparecem só no hover do .cs-tile. */
+.spark-indicator {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 80ms var(--ease);
+}
+.cs-tile:hover .spark-indicator,
+.cs-tile:focus-visible .spark-indicator { opacity: 0.7; }
+/* ============================================================================ */
+
+/* =============================================================
+   TOPO: HEADER DE CONTEXTO OPERACIONAL
+   ============================================================= */
+.app-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: 10px var(--sp-5);
+  background: var(--bg-inset);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: var(--fs-xs);
+  position: sticky; top: 0; z-index: 50;
+  flex-wrap: wrap;
+}
+.app-top__brand {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-emphasis);
+}
+.app-top__brand svg { color: var(--accent); }
+.app-top__sep { color: var(--text-subtle); }
+.app-top__chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  letter-spacing: 0.03em;
+}
+.app-top__chip strong { color: var(--text); font-weight: 600; }
+.app-top__chip--role { color: var(--accent); border-color: var(--accent-tint); }
+.app-top__chip--time { background: transparent; border-color: transparent; color: var(--text-muted); }
+.app-top__chip--time .mono { color: var(--text); }
+/* relógio: pisca subtil cada segundo no separador `:` */
+.clock-sep { animation: clock-blink 1s steps(2, end) infinite; }
+@keyframes clock-blink { 50% { opacity: 0.3; } }
+.app-top__spacer { flex: 1; }
+.app-top__cmd {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-subtle);
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  background: var(--surface);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.app-top__cmd:hover { color: var(--accent); border-color: var(--accent-tint); }
+.app-top__cmd kbd {
+  font-family: inherit;
+  color: var(--text);
+}
+
+/* Toggle de tema (sol/lua) — alternar dark/light */
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 26px;
+  transition: color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.theme-toggle:hover { color: var(--accent); border-color: var(--accent-tint); }
+.theme-toggle svg { width: 14px; height: 14px; }
+[data-theme="dark"] .theme-toggle__moon { display: none; }
+[data-theme="light"] .theme-toggle__sun  { display: none; }
+
+/* =============================================================
+   PAGE WRAP
+   ============================================================= */
+/* V8 — SHELL com sidebar à esquerda + main à direita.
+   .app-shell é flex container que ocupa entre app-top e app-bottom.
+   Em mobile (<1024px) a sidebar some e .page preenche tudo. */
+.app-shell {
+  display: flex;
+  align-items: flex-start;
+  min-height: calc(100vh - 88px);  /* viewport menos app-top (~44px) e app-bottom (~44px) */
+}
+.page {
+  flex: 1;
+  min-width: 0;  /* evita overflow horizontal por tabela larga */
+  padding: var(--sp-5);
+  position: relative;
+}
+@media (min-width: 768px) {
+  .page {
+    padding: var(--sp-6) var(--sp-8);  /* V18 — simétrico, régua removida */
+  }
+}
+
+/* =============================================================
+   V8 — SIDEBAR DE NAVEGAÇÃO (apenas desktop ≥1024px)
+   ============================================================= */
+.app-side {
+  display: none;  /* mobile: oculta — substituir por drawer em produção */
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 44px;  /* abaixo do app-top sticky */
+  height: calc(100vh - 88px);
+  overflow-y: auto;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border-strong);
+  padding: var(--sp-5) 0 var(--sp-4);
+  font-size: var(--fs-sm);
+}
+@media (min-width: 1024px) {
+  .app-side { display: block; }
+}
+.app-side__group {
+  margin-bottom: var(--sp-5);
+}
+.app-side__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  padding: 0 var(--sp-5) var(--sp-2);
+  font-weight: 600;
+}
+.app-side__item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 7px var(--sp-5) 7px calc(var(--sp-5) - 3px);
+  border-left: 3px solid transparent;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: background var(--t-fast) var(--ease),
+              color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+  cursor: pointer;
+}
+.app-side__item:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+.app-side__item.is-active {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+.app-side__item.is-active .app-side__icon { color: var(--accent); }
+.app-side__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-subtle);
+  flex-shrink: 0;
+}
+.app-side__icon svg { width: 16px; height: 16px; }
+.app-side__label-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-side__kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-subtle);
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.app-side__item.is-active .app-side__kbd {
+  color: var(--accent);
+  border-color: var(--accent-tint);
+  background: transparent;
+}
+/* Badge de contagem opcional ao lado do label (ex: ocorrências abertas) */
+.app-side__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--r-1);
+  background: var(--surface-hover);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+
+/* =============================================================
+   V14 — PAINEL DIREITO como COLUNA do layout (push, não overlay).
+   3 estados: fechado (display:none) / minimizado (44px) / aberto (360px).
+   Padrão Linear / VS Code right panel. Em mobile, mantém overlay.
+   ============================================================= */
+.app-detail {
+  display: none;  /* fechado por defeito */
+  width: 360px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 44px;
+  height: calc(100vh - 88px);
+  overflow-y: auto;
+  background: var(--bg-subtle);
+  border-left: 1px solid var(--border-strong);
+  padding: var(--sp-5);
+  transition: width 200ms var(--ease);
+}
+.app-detail.is-open,
+.app-detail.is-minimized { display: block; }
+.app-detail.is-minimized {
+  width: 44px;
+  padding: 0;
+  overflow: hidden;
+}
+/* Quando minimizado: esconder conteúdo principal, mostrar barra vertical */
+.app-detail.is-minimized #detail-card,
+.app-detail.is-minimized .detail-actions-header { display: none; }
+.app-detail .detail-collapsed-bar { display: none; }
+.app-detail.is-minimized .detail-collapsed-bar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) 0;
+  height: 100%;
+}
+
+/* Mobile: drawer overlay full-screen (não há espaço para push) */
+@media (max-width: 1023px) {
+  .app-detail {
+    position: fixed;
+    top: 44px;
+    right: 0;
+    bottom: 44px;
+    width: 360px;
+    max-width: 100vw;
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 240ms var(--ease);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
+  }
+  .app-detail.is-open { display: block; transform: translateX(0); }
+  /* Em mobile, "minimizado" comporta-se como aberto pequeno (não há tanto valor) */
+  .app-detail.is-minimized { display: none; }
+}
+@media (max-width: 767px) {
+  .app-detail { width: 100%; top: 0; bottom: 0; border-left: none; }
+}
+
+/* Cabeçalho com botões — minimizar (─) + fechar (X) */
+.detail-actions-header {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: var(--sp-3);
+}
+.detail-icon-btn {
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.detail-icon-btn:hover { color: var(--accent); border-color: var(--accent-tint); }
+.detail-icon-btn svg { width: 13px; height: 13px; }
+
+/* Barra colapsada (verticalmente, quando .is-minimized) */
+.detail-collapsed-bar .detail-icon-btn {
+  width: 32px; height: 32px;
+}
+.detail-collapsed-bar__divider {
+  width: 24px;
+  height: 1px;
+  background: var(--border);
+}
+.detail-head {
+  padding-bottom: var(--sp-4);
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: var(--sp-4);
+}
+.detail-head__meta {
+  display: flex; align-items: center; gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.detail-head__code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  color: var(--accent);
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.detail-head__title {
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  color: var(--text-emphasis);
+  margin: 0 0 4px;
+  letter-spacing: -0.011em;
+  line-height: 1.3;
+}
+.detail-head__sub {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+
+.detail-section { margin-bottom: var(--sp-5); }
+.detail-section__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+.detail-section__title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-subtle);
+  font-weight: 600;
+}
+.detail-section__more {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease);
+}
+.detail-section__more:hover { color: var(--accent); }
+
+/* Lista de itens vinculados — códigos mono + hash truncado + badge estado */
+.detail-items {
+  list-style: none; padding: 0; margin: 0;
+}
+.detail-items li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px var(--sp-3);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider);
+  font-size: var(--fs-xs);
+  align-items: center;
+}
+.detail-items li:last-child { border-bottom: none; }
+.detail-items .code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-weight: 500;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.detail-items .hash {
+  font-family: var(--font-mono);
+  color: var(--text-subtle);
+  font-size: 10px;
+  grid-column: 1;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.detail-items .badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: lowercase;
+  padding: 1px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+.detail-items .badge--em-pericia { color: var(--state-em-pericia); background: rgba(20,184,166,0.10); }
+.detail-items .badge--em-transporte { color: var(--state-em-transporte); background: rgba(245,158,11,0.10); }
+.detail-items .badge--recebida { color: var(--state-recebida-laboratorio); background: rgba(45,212,191,0.10); }
+.detail-items .badge--concluida { color: var(--state-concluida); background: rgba(52,211,153,0.10); }
+.detail-items .badge--apreendida { color: var(--state-apreendida); background: rgba(96,165,250,0.10); }
+
+/* Timeline mini da cadeia de custódia */
+.detail-timeline {
+  list-style: none; padding: 0; margin: 0;
+  position: relative;
+}
+.detail-timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px; top: 6px; bottom: 6px;
+  width: 1px;
+  background: var(--border-strong);
+}
+.detail-timeline li {
+  position: relative;
+  padding: 4px 0 4px 22px;
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+.detail-timeline li::before {
+  content: '';
+  position: absolute;
+  left: 3px; top: 50%;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transform: translateY(-50%);
+}
+.detail-timeline li.done::before { background: var(--success); }
+.detail-timeline li.active::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+.detail-timeline li.active { color: var(--text-emphasis); font-weight: 500; }
+.detail-timeline .ts {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-subtle);
+  font-feature-settings: "zero" 1, "tnum" 1;
+  min-width: 36px;
+}
+/* V12 — Linha de meta GPS abaixo de cada step (responsável + accuracy) */
+.detail-timeline .meta {
+  display: block;
+  margin-top: 2px;
+  padding-left: 22px;  /* alinhar com texto principal */
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-subtle);
+  letter-spacing: 0.02em;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.detail-timeline .meta .who { color: var(--text-muted); }
+.detail-timeline .meta .acc {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  margin-left: 6px;
+}
+.detail-timeline li.active .meta .who { color: var(--text); }
+.detail-timeline > li > div.main {
+  display: flex; align-items: center; gap: var(--sp-2);
+}
+
+/* Acções rápidas no fundo do painel */
+.detail-actions {
+  display: flex;
+  gap: var(--sp-2);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--divider);
+  margin-top: var(--sp-2);
+}
+.detail-actions .btn-cta { flex: 1; justify-content: center; }
+.btn-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 28px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.btn-icon:hover { color: var(--accent); border-color: var(--accent-tint); }
+.btn-icon svg { width: 14px; height: 14px; }
+
+/* Placeholder quando nada está seleccionado */
+.detail-empty {
+  text-align: center;
+  padding: var(--sp-8) var(--sp-4);
+  color: var(--text-subtle);
+  font-size: var(--fs-sm);
+}
+.detail-empty__icon {
+  display: block;
+  margin: 0 auto var(--sp-3);
+  width: 32px; height: 32px;
+  color: var(--text-subtle);
+  opacity: 0.4;
+}
+
+/* TOC "Nesta página" — estilo Starlight (academia forensiq) */
+.detail-toc {
+  list-style: none;
+  padding: 0; margin: 0;
+  border-left: 1px solid var(--border);
+}
+.detail-toc li { margin: 0; }
+.detail-toc a {
+  display: block;
+  padding: 5px var(--sp-3);
+  margin-left: -1px;
+  border-left: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  text-decoration: none;
+  transition: color var(--t-fast) var(--ease),
+              border-color var(--t-fast) var(--ease);
+}
+.detail-toc a:hover {
+  color: var(--text);
+}
+.detail-toc a.is-current {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 500;
+}
+.detail-toc .is-sub a {
+  padding-left: calc(var(--sp-3) + var(--sp-3));
+  font-size: var(--fs-micro);
+}
+
+/* =============================================================
+   V10 — MAPA HERO (Portugal continental + ilhas, SVG inline)
+   ============================================================= */
+/* V16 — Hero grid 3 colunas: cadeia (220px) | mapa (1fr) | insets (300px).
+   Em 1024..1279px insets descem para baixo (2 cols). Mobile empilha tudo. */
+.geo-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-5);
+  display: grid;
+  grid-template-columns: 1fr;  /* mobile: 1 coluna */
+  gap: var(--sp-4);
+}
+@media (min-width: 768px) {
+  .geo-hero {
+    grid-template-columns: 220px 1fr;  /* cadeia + mapa; insets descem */
+    grid-template-areas:
+      "custody map"
+      "insets  insets";
+  }
+  .geo-hero__custody  { grid-area: custody; }
+  .geo-hero__map-wrap { grid-area: map; }
+  .geo-hero__insets   { grid-area: insets; flex-direction: row; }
+}
+@media (min-width: 1280px) {
+  .geo-hero {
+    grid-template-columns: 220px 1fr 300px;
+    grid-template-areas: "custody map insets";
+    /* V20 — altura comum a todas as colunas: tudo termina alinhado */
+    grid-template-rows: 400px;
+  }
+  .geo-hero__insets { flex-direction: column; }
+}
+.geo-hero__meta {
+  display: flex; flex-direction: column;
+  gap: var(--sp-3);
+}
+.geo-hero__title {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.geo-hero__count {
+  display: flex; align-items: baseline; gap: 6px;
+}
+.geo-hero__count-num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  color: var(--text-emphasis);
+  letter-spacing: -0.011em;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.geo-hero__count-label {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+.geo-hero__legend {
+  display: flex; flex-direction: column; gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: var(--sp-2);
+}
+.geo-hero__legend-item {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.geo-hero__legend-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+/* V17 — Alturas alinhadas: continental = 2×inset + gap.
+   V20 — coluna 2 flex column: mapa flex:1 (absorve), colorbar natural. */
+.geo-hero__map-wrap {
+  position: relative;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.geo-hero__map {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 320px;
+  border-radius: var(--r-1);
+  background: var(--bg-inset);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+}
+/* V18 — Insets + CTA na coluna 3.
+   V20 — insets flex:1 (cada um ~174px), CTA altura natural.
+   Total preenche --hero-h alinhando com as outras colunas. */
+.geo-hero__insets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.geo-hero__inset {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 140px;
+  border-radius: var(--r-1);
+  background: var(--bg-inset);
+  overflow: hidden;
+  isolation: isolate;
+}
+.geo-hero__insets > .btn-cta {
+  flex: 0 0 auto;
+  align-self: stretch;
+  justify-content: center;
+  padding: 8px 12px;
+}
+.geo-hero__inset > div[id^="map-"] {
+  width: 100%;
+  height: 100%;
+}
+/* Em ≥768 e <1280, insets ficam em row, partilham a largura.
+   Altura passa a ser fixa por inset (não somam). */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .geo-hero__insets {
+    height: auto;
+    flex-direction: row;
+  }
+  .geo-hero__inset { min-height: 180px; height: 180px; flex: 1; }
+}
+@media (max-width: 767px) {
+  .geo-hero__insets {
+    height: auto;
+    flex-direction: row;
+  }
+  .geo-hero__inset { min-height: 140px; height: 140px; flex: 1; }
+}
+/* V16 — Label dos insets agora no RODAPÉ (não topo, evita popup conflict) */
+.geo-hero__inset-label {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  z-index: 410;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* V17 — COLORBAR como banner ABAIXO do mapa (fora dele, não sobrepõe).
+   Vive dentro do .geo-hero__map-wrap (flex column), aparece após o mapa. */
+.geo-hero__colorbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+}
+.geo-hero__colorbar__label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.geo-hero__colorbar__bar {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg,
+    var(--text-subtle) 0%,
+    var(--text-muted) 28%,
+    var(--warning) 65%,
+    var(--danger) 100%);
+}
+/* Leaflet attribution discreta, alinhada com design system */
+.leaflet-container {
+  background: var(--bg-inset) !important;
+  font-family: var(--font-sans) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution {
+  background: rgba(0, 0, 0, 0.4) !important;
+  color: var(--text-subtle) !important;
+  font-size: 9px !important;
+  padding: 1px 5px !important;
+  border-radius: var(--r-1) !important;
+}
+[data-theme="light"] .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.7) !important;
+}
+.leaflet-control-attribution a { color: var(--text-muted) !important; }
+.leaflet-control-zoom a {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-color: var(--border-strong) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--surface-hover) !important;
+  color: var(--accent) !important;
+}
+/* Popup compacto, mono */
+.leaflet-popup-content-wrapper {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--r-2) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.leaflet-popup-content {
+  margin: 8px 12px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 11px !important;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.leaflet-popup-tip {
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
+}
+/* Pin amber pulsante quando seleccionado (via divIcon) */
+.geo-pin-active {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  box-shadow: 0 0 0 4px var(--accent-tint),
+              0 0 12px var(--accent);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+
+/* V12 — Badge "modo trajecto" no canto do mapa hero */
+.geo-hero__mode {
+  position: absolute;
+  top: var(--sp-3);
+  left: var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-1);
+  padding: 4px 6px 4px 10px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  z-index: 400;  /* acima dos tiles Leaflet (z 200..400) */
+  display: none;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-md);
+}
+.geo-hero__mode.is-visible { display: inline-flex; }
+.geo-hero__mode__label {
+  color: var(--accent);
+  text-transform: uppercase;
+  font-weight: 600;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.geo-hero__mode__back {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: var(--r-1);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+.geo-hero__mode__back:hover {
+  color: var(--accent);
+  border-color: var(--accent-tint);
+  background: var(--accent-tint);
+}
+
+/* =============================================================
+   V11 — MINI-MAPA (Leaflet pequeno, zoom da ocorrência)
+   ============================================================= */
+.mini-map {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  padding: var(--sp-2);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.mini-map__leaflet {
+  width: 100%;
+  height: 140px;
+  border-radius: var(--r-1);
+  background: var(--bg-inset);
+  overflow: hidden;
+}
+.mini-map__coords {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-subtle);
+  text-align: center;
+  letter-spacing: 0.02em;
+  font-feature-settings: "zero" 1, "tnum" 1;
+  padding: 4px 0 2px;
+}
+/* V13 — Toggle de modo do mini-mapa (Local | Cadeia) */
+.mini-map__toggle {
+  display: flex;
+  gap: 0;
+  margin-top: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-1);
+  overflow: hidden;
+  background: var(--surface);
+}
+.mini-map__toggle button {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease),
+              background var(--t-fast) var(--ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+.mini-map__toggle button + button { border-left: 1px solid var(--border); }
+.mini-map__toggle button:hover {
+  color: var(--text);
+  background: var(--surface-hover);
+}
+.mini-map__toggle button.is-active {
+  color: var(--accent);
+  background: var(--accent-tint);
+}
+.mini-map__toggle button svg { width: 11px; height: 11px; }
+
+/* =============================================================
+   V10 — Items clicáveis no painel direito (sem hashes)
+   ============================================================= */
+.detail-items.is-interactive li {
+  cursor: pointer;
+  padding: 8px var(--sp-2);
+  border-radius: var(--r-1);
+  transition: background var(--t-fast) var(--ease);
+}
+.detail-items.is-interactive li:hover {
+  background: var(--surface-hover);
+}
+.detail-items.is-interactive li.is-active {
+  background: var(--accent-tint);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.detail-items.is-interactive li.is-active .code { color: var(--accent-hover); }
+
+/* =============================================================
+   BARRA DE CUSTÓDIA (v2: viva, com sparklines + deltas + timer)
+   V16: agora vive como coluna esquerda do .geo-hero (vertical).
+   ============================================================= */
+.custody-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  padding: var(--sp-4) var(--sp-5);
+  margin-bottom: var(--sp-5);
+}
+/* V16 — Quando dentro do .geo-hero, perde card próprio (já está dentro).
+   V20 — flex column ocupando 100% altura; lista de tiles flex:1. */
+.geo-hero__custody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding-right: var(--sp-3);
+  border-right: 1px solid var(--divider);
+  min-height: 0;  /* permite ao filho flex:1 encolher correctamente */
+}
+.geo-hero__custody .custody-bar__head {
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sp-1);
+  margin-bottom: var(--sp-1);
+}
+.geo-hero__custody .custody-bar__meta {
+  font-size: 10px;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+/* V20 — Lista de tiles preenche o resto vertical, tiles dividem por igual */
+.geo-hero__custody .custody-bar__states {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: 0;
+  min-height: 0;
+}
+/* V19 — Tiles neutros (sem border colorida, sem cor por estado).
+   V20 — flex:1 cada tile para distribuir pela altura disponível;
+   grid interno 2 linhas: [num] [label] [delta]  /  [sparkline 100%] */
+.geo-hero__custody .cs-tile {
+  flex: 1 1 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto 1fr;  /* sparkline absorve resto da altura */
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 6px 10px;
+  border-left: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--divider);
+  align-items: baseline;
+}
+.geo-hero__custody .cs-tile:last-child { border-bottom: none; }
+/* display: contents faz os filhos de .__top/.__mid fluírem para o grid pai */
+.geo-hero__custody .cs-tile__top,
+.geo-hero__custody .cs-tile__mid { display: contents; }
+
+.geo-hero__custody .cs-tile__num {
+  grid-row: 1; grid-column: 1;
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--text-emphasis);
+}
+.geo-hero__custody .cs-tile__name {
+  grid-row: 1; grid-column: 2;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.geo-hero__custody .cs-tile__delta {
+  grid-row: 1; grid-column: 3;
+  justify-self: end;
+}
+/* V20 — Sparkline absorve altura disponível da row 2 (até ~22px),
+   estica horizontal (preserveAspectRatio="none" do V17). Tom inócuo. */
+.geo-hero__custody .cs-tile__spark {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 100%;
+  min-height: 14px;
+  max-height: 24px;
+  align-self: end;
+  color: var(--text-subtle);
+  opacity: 0.55;
+}
+.geo-hero__custody .cs-tile:hover .cs-tile__spark { opacity: 0.85; }
+.custody-bar__head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--sp-4);
+  gap: var(--sp-4); flex-wrap: wrap;
+}
+.custody-bar__title {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.live-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 8px rgba(52,211,153,0.7);
+  animation: pulse 1.8s ease-in-out infinite;
+}
+.live-tag {
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--success);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.custody-bar__meta {
+  display: inline-flex; align-items: center; gap: var(--sp-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-subtle);
+  letter-spacing: 0.02em;
+}
+.custody-bar__meta strong { color: var(--text-emphasis); font-weight: 600; }
+.custody-bar__meta .delta-pos { color: var(--success); }
+.custody-bar__meta .delta-neg { color: var(--danger); }
+
+.custody-bar__states {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-3) var(--sp-4);
+}
+@media (min-width: 600px) { .custody-bar__states { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 1024px) { .custody-bar__states { grid-template-columns: repeat(7, 1fr); } }
+
+.cs-tile {
+  display: block;
+  padding: 8px 10px 8px 12px;
+  border-left: 3px solid var(--state-color, var(--border-strong));
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+  min-width: 0;
+}
+.cs-tile:hover { background: var(--surface-hover); }
+.cs-tile__top {
+  display: flex; align-items: baseline; gap: 6px;
+  margin-bottom: 2px;
+}
+.cs-tile__num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: var(--text-emphasis);
+  line-height: 1;
+}
+.cs-tile__delta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.cs-tile__delta.up   { color: var(--success); background: rgba(52,211,153,0.10); }
+.cs-tile__delta.down { color: var(--danger);  background: rgba(248,113,113,0.10); }
+.cs-tile__delta.flat { color: var(--text-subtle); }
+
+.cs-tile__mid {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 6px;
+  position: relative;  /* âncora para .spark-tooltip absolute */
+}
+.cs-tile__name {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cs-tile__spark {
+  width: 48px; height: 14px;
+  color: var(--state-color, var(--text-subtle));
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+.cs-tile.is-empty { opacity: 0.4; }
+.cs-tile.is-empty:hover { opacity: 0.7; }
+
+.cs-tile[data-state="APREENDIDA"]            { --state-color: var(--state-apreendida); }
+.cs-tile[data-state="EM_TRANSPORTE"]         { --state-color: var(--state-em-transporte); }
+.cs-tile[data-state="RECEBIDA_LABORATORIO"]  { --state-color: var(--state-recebida-laboratorio); }
+.cs-tile[data-state="EM_PERICIA"]            { --state-color: var(--state-em-pericia); }
+.cs-tile[data-state="CONCLUIDA"]             { --state-color: var(--state-concluida); }
+.cs-tile[data-state="DEVOLVIDA"]             { --state-color: var(--state-devolvida); }
+.cs-tile[data-state="DESTRUIDA"]             { --state-color: var(--state-destruida); }
+
+/* =============================================================
+   SECÇÕES (ocorrências / actividade)
+   ============================================================= */
+.section { margin-bottom: var(--sp-6); }
+.section__head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 0 var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  gap: var(--sp-4); flex-wrap: wrap;
+}
+.section__title {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin: 0;
+}
+.section__actions {
+  display: inline-flex; gap: var(--sp-3); align-items: center;
+  font-size: var(--fs-xs);
+}
+.section__action {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  transition: color var(--t-fast) var(--ease);
+}
+.section__action:hover { color: var(--accent); }
+.kbd {
+  display: inline-block;
+  font-family: var(--font-mono);
+  padding: 1px 5px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--text);
+  background: var(--surface);
+  margin-right: 4px;
+  font-size: var(--fs-micro);
+  min-width: 14px;
+  text-align: center;
+}
+
+/* =============================================================
+   TABELA DENSA — OCORRÊNCIAS
+   ============================================================= */
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.tbl thead th {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--fs-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-subtle);
+  padding: var(--sp-3) var(--sp-3) 6px;
+  border-bottom: 1px solid var(--divider);
+  white-space: nowrap;
+}
+.tbl tbody tr {
+  border-bottom: 1px solid var(--divider);
+  transition: background var(--t-fast) var(--ease),
+              box-shadow var(--t-fast) var(--ease);
+  cursor: pointer;
+}
+/* Hover: bg subtil — "estou a sobrevoar" */
+.tbl tbody tr:hover { background: var(--surface-hover); }
+/* Selected: bg accent-tint + border-left 3px accent — "isto está activo" */
+.tbl tbody tr[aria-selected="true"] {
+  background: var(--accent-tint);
+  box-shadow: inset 3px 0 0 var(--accent);
+  position: relative;
+}
+.tbl tbody tr[aria-selected="true"] .code { color: var(--accent-hover); }
+.tbl tbody tr[aria-selected="true"]:hover {
+  background: var(--accent-tint);  /* mantém selected mesmo em hover */
+}
+.tbl tbody tr:last-child { border-bottom: none; }
+.tbl td {
+  padding: 10px var(--sp-3);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.tbl td.col-loc { white-space: normal; color: var(--text); }
+.tbl .code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-weight: 500;
+}
+.tbl .ts {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+}
+.tbl .num {
+  font-family: var(--font-mono);
+  text-align: right;
+  color: var(--text);
+}
+/* Prioridades P1/P2/P3 (incident response, estilo PagerDuty/ServiceNow).
+   Badge mono com border e tint da própria cor — alinhamento perfeito na coluna
+   porque todos têm a mesma largura visual (min-width 28px center-aligned). */
+.tbl .pri {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: var(--r-1);
+  min-width: 28px;
+  text-align: center;
+  border: 1px solid transparent;
+  font-feature-settings: "zero" 1, "tnum" 1;
+}
+.tbl .pri--p1 {
+  color: var(--danger);
+  background: rgba(248, 113, 113, 0.10);
+  border-color: rgba(248, 113, 113, 0.28);
+}
+.tbl .pri--p2 {
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+.tbl .pri--p3 {
+  color: var(--text-muted);
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+.tbl .pri--none {
+  color: var(--text-subtle);
+  background: none;
+  border: none;
+  font-size: var(--fs-sm);
+  font-weight: 400;
+  padding: 2px 0;
+}
+[data-theme="light"] .tbl .pri--p1 {
+  background: rgba(185, 28, 28, 0.07);
+  border-color: rgba(185, 28, 28, 0.22);
+}
+[data-theme="light"] .tbl .pri--p2 {
+  background: rgba(180, 83, 9, 0.07);
+  border-color: rgba(180, 83, 9, 0.22);
+}
+.tbl .agent {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+}
+@media (max-width: 767px) {
+  .tbl .col-agent, .tbl .col-pri { display: none; }
+  .tbl td, .tbl thead th { padding-left: var(--sp-2); padding-right: var(--sp-2); }
+}
+
+/* =============================================================
+   FEED DE ACTIVIDADE — slide-in subtil quando entra item novo
+   ============================================================= */
+.feed {
+  list-style: none;
+  padding: 0; margin: var(--sp-3) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+}
+.feed li {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: var(--sp-3);
+  padding: 6px var(--sp-3);
+  border-bottom: 1px solid var(--divider);
+  transition: background var(--t-fast) var(--ease);
+}
+.feed li:hover { background: var(--surface-hover); }
+.feed li:last-child { border-bottom: none; }
+.feed li.fresh {
+  animation: fresh-in 600ms var(--ease) both;
+}
+@keyframes fresh-in {
+  from { background: var(--accent-tint); transform: translateX(-4px); opacity: 0; }
+  to   { background: transparent; transform: translateX(0); opacity: 1; }
+}
+.feed .ts { color: var(--text-subtle); }
+.feed .body { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.feed .body .code { color: var(--accent); }
+.feed .body .hash { color: var(--text-muted); }
+.feed .body .who  { color: var(--text-emphasis); }
+.feed .badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  align-self: center;
+  font-weight: 600;
+}
+.feed .badge--hash    { color: var(--info);   background: rgba(96,165,250,0.10); }
+.feed .badge--create  { color: var(--accent); background: var(--accent-tint); }
+.feed .badge--state   { color: var(--success);background: rgba(52,211,153,0.10); }
+.feed .badge--alert   { color: var(--danger); background: rgba(248,113,113,0.10); }
+.feed .badge--pdf     { color: var(--warning);background: rgba(245,158,11,0.10); }
+
+/* =============================================================
+   FOOTER TÉCNICO
+   ============================================================= */
+.app-bottom {
+  display: flex; flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  padding: 10px var(--sp-5);
+  background: var(--bg-inset);
+  border-top: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: var(--fs-micro);
+  color: var(--text-subtle);
+  letter-spacing: 0.02em;
+}
+.app-bottom__sep { color: var(--border-strong); }
+.app-bottom__metric { cursor: help; transition: color var(--t-fast) var(--ease); }
+.app-bottom__metric:hover { color: var(--text); }
+.app-bottom__metric strong { color: var(--text); font-weight: 600; }
+.app-bottom__metric.is-good strong { color: var(--success); }
+.app-bottom__metric.is-warn strong { color: var(--warning); }
+.app-bottom__dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(52,211,153,0.5);
+  animation: pulse 2.4s ease-in-out infinite;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+@keyframes pulse {
+  0%,100% { opacity: 0.6; transform: scale(1); }
+  50%     { opacity: 1;   transform: scale(1.2); }
+}
+.app-bottom__ok { color: var(--success); }
+
+/* =============================================================
+   CTA primário (subtil — não chama tanta atenção)
+   ============================================================= */
+.btn-cta {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  padding: 6px 12px;
+  background: var(--accent-tint);
+  border: 1px solid rgba(45,212,191,0.30);
+  border-radius: var(--r-1);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  cursor: pointer;
+}
+.btn-cta:hover { background: rgba(45,212,191,0.18); border-color: var(--accent); }
+.btn-cta .kbd { background: rgba(0,0,0,0.20); border-color: rgba(45,212,191,0.30); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ====================================================================
+     TOPO — CONTEXTO OPERACIONAL (com relógio em tempo real)
+     ==================================================================== -->
+<header class="app-top">
+  <span class="app-top__brand">
+    <svg width="20" height="18" viewBox="0 0 56 48" aria-hidden="true">
+      <defs>
+        <mask id="mk1" maskUnits="userSpaceOnUse">
+          <rect x="0" y="0" width="56" height="48" fill="white"/>
+          <rect x="24" y="28.5" width="8" height="7" fill="black"/>
+        </mask>
+      </defs>
+      <circle cx="22" cy="24" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <circle cx="34" cy="24" r="10" fill="none" stroke="var(--text)" stroke-width="2.5" mask="url(#mk1)"/>
+    </svg>
+    FORENSIQ
+  </span>
+  <span class="app-top__sep">·</span>
+  <span class="app-top__chip app-top__chip--role" title="Papel actual nesta sessão">AGENTE</span>
+  <span class="app-top__chip" title="Utilizador autenticado">J. <strong>Rodrigues</strong></span>
+  <span class="app-top__chip" title="Turno operacional configurado">Turno <strong>08:00 → 20:00</strong></span>
+  <span class="app-top__chip" title="Zona territorial de patrulha">Zona <strong>LIS-N</strong></span>
+  <span class="app-top__chip" title="Dispositivo da sessão">Disp. <strong>iPhone · iOS 18.2</strong></span>
+
+  <span class="app-top__spacer"></span>
+
+  <span class="app-top__chip app-top__chip--time" title="Hora local sincronizada com servidor (Europa/Lisboa)">
+    <span id="clock-date">29 May 2026</span>
+    ·
+    <span class="mono">
+      <span id="clock-hh">23</span><span class="clock-sep">:</span><span id="clock-mm">47</span><span class="clock-sep">:</span><span id="clock-ss">12</span>
+    </span>
+  </span>
+  <button class="app-top__cmd" type="button" title="Abrir paleta de comandos (todas as acções por teclado)">
+    <kbd class="kbd kbd-mod">Ctrl</kbd><span>K</span> <span style="opacity:0.6;margin-left:4px">comandos</span>
+  </button>
+
+  <!-- Toggle de tema (sol/lua) — alterna dark/light, persiste em localStorage -->
+  <button class="theme-toggle" type="button" title="Alternar tema (dia / noite)" aria-label="Alternar tema">
+    <svg class="theme-toggle__sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+    </svg>
+    <svg class="theme-toggle__moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+    </svg>
+  </button>
+</header>
+
+<div class="app-shell">
+
+  <!-- ====================================================================
+       V8 — SIDEBAR DE NAVEGAÇÃO (desktop ≥1024px; mobile esconde)
+       ==================================================================== -->
+  <aside class="app-side" aria-label="Navegação principal">
+
+    <nav class="app-side__group" aria-labelledby="side-grp-main">
+      <div class="app-side__label" id="side-grp-main">Principal</div>
+      <a class="app-side__item is-active" href="#" aria-current="page">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/>
+            <rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Painel</span>
+        <kbd class="app-side__kbd"><span class="kbd-mod">Ctrl</span>1</kbd>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Ocorrências</span>
+        <span class="app-side__badge">42</span>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Itens</span>
+        <span class="app-side__badge">378</span>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Cadeia de custódia</span>
+        <kbd class="app-side__kbd"><span class="kbd-mod">Ctrl</span>4</kbd>
+      </a>
+    </nav>
+
+    <nav class="app-side__group" aria-labelledby="side-grp-lab">
+      <div class="app-side__label" id="side-grp-lab">Laboratório</div>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Intake</span>
+        <span class="app-side__badge">2</span>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Em perícia</span>
+        <span class="app-side__badge">8</span>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Concluídos</span>
+      </a>
+    </nav>
+
+    <nav class="app-side__group" aria-labelledby="side-grp-an">
+      <div class="app-side__label" id="side-grp-an">Análise</div>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 20h18M6 16V9M11 16V5M16 16v-8M21 16V11"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Estatísticas</span>
+        <kbd class="app-side__kbd"><span class="kbd-mod">Ctrl</span>8</kbd>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+            <path d="M14 3v6h6M9 13h6M9 17h4"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Relatórios PDF</span>
+      </a>
+    </nav>
+
+    <nav class="app-side__group" aria-labelledby="side-grp-sys">
+      <div class="app-side__label" id="side-grp-sys">Sistema</div>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Definições</span>
+      </a>
+      <a class="app-side__item" href="#">
+        <span class="app-side__icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>
+          </svg>
+        </span>
+        <span class="app-side__label-text">Terminar sessão</span>
+      </a>
+    </nav>
+  </aside>
+
+<main class="page">
+
+  <!-- ====================================================================
+       V10 — MAPA HERO (Portugal continental + ilhas, SVG inline)
+       Pins por ocorrência (cor por prioridade). Hover destaca.
+       ==================================================================== -->
+  <section class="geo-hero" id="geo" aria-label="Distribuição geográfica e estado da cadeia">
+
+    <!-- V16 — Coluna 1: Estado da cadeia de custódia (vertical). -->
+    <aside class="geo-hero__custody" aria-label="Estado da cadeia de custódia">
+      <div class="custody-bar__head">
+        <span class="custody-bar__title">
+          <span class="live-dot"></span>
+          <span>Estado da cadeia · 24h</span>
+        </span>
+        <span class="custody-bar__meta">
+          <strong>50</strong> activos · <span class="delta-pos">+3 ▲</span> <span class="delta-neg">−1 ▼</span>
+          · <span title="Tempo desde a última actualização">há <span id="refresh-age">2</span>s</span>
+        </span>
+      </div>
+      <div class="custody-bar__states">
+        <a class="cs-tile" data-state="APREENDIDA" href="#" title="Filtrar lista por estado APREENDIDA">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="4">0</span>
+            <span class="cs-tile__delta up">+1</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">apreendida</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="3,2,3,2,4,3,4,4,4"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,10 6,11 12,9 18,10 24,8 30,9 36,7 42,5 48,4"/></svg>
+          </div>
+        </a>
+        <a class="cs-tile" data-state="EM_TRANSPORTE" href="#" title="Filtrar lista por estado EM_TRANSPORTE">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="2">0</span>
+            <span class="cs-tile__delta down">−1</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">em transporte</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="5,4,3,4,3,3,2,3,2"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,4 6,5 12,7 18,6 24,8 30,7 36,9 42,8 48,10"/></svg>
+          </div>
+        </a>
+        <a class="cs-tile" data-state="RECEBIDA_LABORATORIO" href="#" title="Filtrar lista por estado RECEBIDA_LABORATORIO">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="12">0</span>
+            <span class="cs-tile__delta up">+2</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">recebida lab.</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="8,9,10,10,11,11,11,12,12"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,11 6,10 12,8 18,9 24,7 30,5 36,6 42,3 48,2"/></svg>
+          </div>
+        </a>
+        <a class="cs-tile" data-state="EM_PERICIA" href="#" title="Filtrar lista por estado EM_PERICIA">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="8">0</span>
+            <span class="cs-tile__delta flat">·</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">em perícia</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="8,7,8,8,8,7,8,8,8"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,7 6,8 12,7 18,6 24,8 30,7 36,8 42,7 48,7"/></svg>
+          </div>
+        </a>
+        <a class="cs-tile" data-state="CONCLUIDA" href="#" title="Filtrar lista por estado CONCLUIDA">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="21">0</span>
+            <span class="cs-tile__delta up">+1</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">concluída</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="16,17,18,19,20,20,20,21,21"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,12 6,11 12,10 18,9 24,7 30,6 36,5 42,4 48,3"/></svg>
+          </div>
+        </a>
+        <a class="cs-tile" data-state="DEVOLVIDA" href="#" title="Filtrar lista por estado DEVOLVIDA">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="3">0</span>
+            <span class="cs-tile__delta flat">·</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">devolvida</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="3,3,3,3,3,3,3,3,3"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,8 6,9 12,8 18,9 24,8 30,9 36,8 42,9 48,8"/></svg>
+          </div>
+        </a>
+        <a class="cs-tile is-empty" data-state="DESTRUIDA" href="#" title="Filtrar lista por estado DESTRUIDA">
+          <div class="cs-tile__top">
+            <span class="cs-tile__num" data-target="0">0</span>
+            <span class="cs-tile__delta flat">·</span>
+          </div>
+          <div class="cs-tile__mid">
+            <span class="cs-tile__name">destruída</span>
+            <svg class="cs-tile__spark" viewBox="0 0 48 14" role="img" data-values="0,0,0,0,0"><polyline fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" points="0,12 12,12 24,12 36,12 48,12"/></svg>
+          </div>
+        </a>
+      </div>
+    </aside>
+
+    <!-- V16 — Coluna 2: Continental + colorbar (substitui legenda). -->
+    <div class="geo-hero__map-wrap">
+      <div id="map-hero" class="geo-hero__map"
+           role="region" aria-label="Mapa de Portugal continental"></div>
+      <!-- V16 — Colorbar de prioridade (substitui legenda lateral) -->
+      <div class="geo-hero__colorbar" aria-label="Escala de prioridade">
+        <span class="geo-hero__colorbar__label">menor prioridade</span>
+        <div class="geo-hero__colorbar__bar" role="img" aria-label="Gradiente da menor para a maior prioridade"></div>
+        <span class="geo-hero__colorbar__label">maior prioridade</span>
+      </div>
+    </div>
+
+    <!-- V16 — Coluna 3: Insets Madeira + Açores (retângulos, label rodapé). -->
+    <div class="geo-hero__insets">
+      <div class="geo-hero__inset">
+        <div id="map-madeira" role="region" aria-label="Mapa de Madeira"></div>
+        <span class="geo-hero__inset-label" aria-hidden="true">Madeira</span>
+      </div>
+      <div class="geo-hero__inset">
+        <div id="map-acores" role="region" aria-label="Mapa dos Açores"></div>
+        <span class="geo-hero__inset-label" aria-hidden="true">Açores</span>
+      </div>
+      <!-- V18 — CTA "Nova ocorrência" mora aqui (espaço sobra debaixo do Açores) -->
+      <a class="btn-cta" href="#"><kbd class="kbd kbd-mod">Ctrl</kbd><span>N</span> &nbsp;Nova ocorrência</a>
+    </div>
+  </section>
+
+  <!-- V16 — A barra .custody-bar standalone foi removida.
+       A cadeia de custódia agora vive como coluna esquerda do .geo-hero. -->
+
+
+  <!-- ====================================================================
+       OCORRÊNCIAS ABERTAS
+       ==================================================================== -->
+  <section class="section" id="open">
+    <div class="section__head">
+      <h2 class="section__title">Ocorrências abertas</h2>
+      <!-- V18 — CTA "Nova ocorrência" mudou-se para a coluna dos insets do hero. -->
+    </div>
+    <table class="tbl" role="grid" aria-rowcount="6">
+      <thead>
+        <tr role="row">
+          <th role="columnheader">Código</th>
+          <th role="columnheader">Quando</th>
+          <th role="columnheader">Local</th>
+          <th class="col-pri" role="columnheader">Pri.</th>
+          <th class="col-agent" role="columnheader">Agente</th>
+          <th style="text-align:right" role="columnheader">Itens</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Primeira linha vem aria-selected="true" para demonstrar o estado activo -->
+        <tr role="row" tabindex="0"
+            data-code="OCC-2026-00042" data-ts="17 May 09:14"
+            data-loc="Lisboa, Av. da República 12, 3.º Dto."
+            data-pri="P1" data-agent="jrodrigues" data-items="7"
+            data-nuipc="2026/00128.4/PA"
+            data-lat="38.7367" data-lng="-9.1395">
+          <td role="gridcell"><span class="code">OCC-2026-00042</span></td>
+          <td role="gridcell"><span class="ts">17 May 09:14</span></td>
+          <td role="gridcell" class="col-loc">Lisboa, Av. da República 12, 3.º Dto.</td>
+          <td role="gridcell" class="col-pri"><span class="pri pri--p1">P1</span></td>
+          <td role="gridcell" class="col-agent"><span class="agent">jrodrigues</span></td>
+          <td role="gridcell" class="num">7</td>
+        </tr>
+        <tr role="row" tabindex="0"
+            data-code="OCC-2026-00041" data-ts="16 May 22:08"
+            data-loc="Sintra, R. Pina Nogueira 3, R/C"
+            data-pri="P2" data-agent="jrodrigues" data-items="3"
+            data-nuipc="2026/00127.1/PA"
+            data-lat="38.8000" data-lng="-9.3781">
+          <td role="gridcell"><span class="code">OCC-2026-00041</span></td>
+          <td role="gridcell"><span class="ts">16 May 22:08</span></td>
+          <td role="gridcell" class="col-loc">Sintra, R. Pina Nogueira 3, R/C</td>
+          <td role="gridcell" class="col-pri"><span class="pri pri--p2">P2</span></td>
+          <td role="gridcell" class="col-agent"><span class="agent">jrodrigues</span></td>
+          <td role="gridcell" class="num">3</td>
+        </tr>
+        <tr role="row" tabindex="0"
+            data-code="OCC-2026-00039" data-ts="14 May 11:41"
+            data-loc="Cascais, Av. Marginal 88, garagem subt."
+            data-pri="P3" data-agent="m.silva" data-items="12"
+            data-nuipc="2026/00125.7/PA"
+            data-lat="38.6970" data-lng="-9.4216">
+          <td role="gridcell"><span class="code">OCC-2026-00039</span></td>
+          <td role="gridcell"><span class="ts">14 May 11:41</span></td>
+          <td role="gridcell" class="col-loc">Cascais, Av. Marginal 88, garagem subt.</td>
+          <td role="gridcell" class="col-pri"><span class="pri pri--p3">P3</span></td>
+          <td role="gridcell" class="col-agent"><span class="agent">m.silva</span></td>
+          <td role="gridcell" class="num">12</td>
+        </tr>
+        <tr role="row" tabindex="0"
+            data-code="OCC-2026-00038" data-ts="13 May 19:55"
+            data-loc="Lisboa, R. Augusta 4, 2.º Esq."
+            data-pri="P1" data-agent="jrodrigues" data-items="1"
+            data-nuipc="2026/00124.9/PA"
+            data-lat="38.7104" data-lng="-9.1369">
+          <td role="gridcell"><span class="code">OCC-2026-00038</span></td>
+          <td role="gridcell"><span class="ts">13 May 19:55</span></td>
+          <td role="gridcell" class="col-loc">Lisboa, R. Augusta 4, 2.º Esq.</td>
+          <td role="gridcell" class="col-pri"><span class="pri pri--p1">P1</span></td>
+          <td role="gridcell" class="col-agent"><span class="agent">jrodrigues</span></td>
+          <td role="gridcell" class="num">1</td>
+        </tr>
+        <tr role="row" tabindex="0"
+            data-code="OCC-2026-00037" data-ts="12 May 08:30"
+            data-loc="Oeiras, Tagus Park edif. 7"
+            data-pri="P4" data-agent="a.costa" data-items="5"
+            data-nuipc="2026/00123.2/PA"
+            data-lat="38.6837" data-lng="-9.3149">
+          <td role="gridcell"><span class="code">OCC-2026-00037</span></td>
+          <td role="gridcell"><span class="ts">12 May 08:30</span></td>
+          <td role="gridcell" class="col-loc">Oeiras, Tagus Park edif. 7</td>
+          <td role="gridcell" class="col-pri"><span class="pri pri--none">·</span></td>
+          <td role="gridcell" class="col-agent"><span class="agent">a.costa</span></td>
+          <td role="gridcell" class="num">5</td>
+        </tr>
+        <tr role="row" tabindex="0"
+            data-code="OCC-2026-00034" data-ts="09 May 14:02"
+            data-loc="Almada, R. Cândido dos Reis 56"
+            data-pri="P2" data-agent="m.silva" data-items="9"
+            data-nuipc="2026/00120.5/PA"
+            data-lat="38.6789" data-lng="-9.1569">
+          <td role="gridcell"><span class="code">OCC-2026-00034</span></td>
+          <td role="gridcell"><span class="ts">09 May 14:02</span></td>
+          <td role="gridcell" class="col-loc">Almada, R. Cândido dos Reis 56</td>
+          <td role="gridcell" class="col-pri"><span class="pri pri--p2">P2</span></td>
+          <td role="gridcell" class="col-agent"><span class="agent">m.silva</span></td>
+          <td role="gridcell" class="num">9</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- ====================================================================
+       ACTIVIDADE RECENTE — feed estilo log forense (com dot live)
+       ==================================================================== -->
+  <section class="section" id="feed">
+    <div class="section__head">
+      <h2 class="section__title">
+        <span class="live-dot"></span>
+        <span>Actividade recente · últimas 2h</span>
+      </h2>
+      <div class="section__actions">
+        <a class="section__action" href="#"><kbd class="kbd kbd-mod">Ctrl</kbd><span>L</span> log completo</a>
+      </div>
+    </div>
+    <ul class="feed" id="feed">
+      <li>
+        <span class="ts" id="feed-now">agora</span>
+        <span class="body"><span class="code">EV-2026-00378</span> integrity_hash recalculado · <span class="hash">sha256:4f3a9c…91c2</span></span>
+        <span class="badge badge--hash">hash</span>
+      </li>
+      <li>
+        <span class="ts">23:42:18</span>
+        <span class="body"><span class="code">OCC-2026-00042</span> criada por <span class="who">jrodrigues</span> · 7 itens vinculados</span>
+        <span class="badge badge--create">create</span>
+      </li>
+      <li>
+        <span class="ts">22:55:41</span>
+        <span class="body"><span class="code">EV-2026-00377</span> APREENDIDA → EM_TRANSPORTE · custódia <span class="who">jrodrigues</span></span>
+        <span class="badge badge--state">state</span>
+      </li>
+      <li>
+        <span class="ts">22:31:09</span>
+        <span class="body"><span class="code">EV-2026-00370</span> EM_TRANSPORTE → RECEBIDA_LABORATORIO · <span class="who">p.esteves</span></span>
+        <span class="badge badge--state">state</span>
+      </li>
+      <li>
+        <span class="ts">22:18:55</span>
+        <span class="body">QR público <span class="hash">/v/9a4b…/</span> scan · <span class="who">anon · 188.81.x.x</span></span>
+        <span class="badge badge--hash">verify</span>
+      </li>
+      <li>
+        <span class="ts">21:44:02</span>
+        <span class="body">3 tentativas auth falhadas · <span class="hash">user=admin</span> · throttled 15min</span>
+        <span class="badge badge--alert">alert</span>
+      </li>
+      <li>
+        <span class="ts">21:30:11</span>
+        <span class="body"><span class="code">EV-2026-00368</span> PDF transporte gerado · <span class="who">jrodrigues</span> · 4 itens</span>
+        <span class="badge badge--pdf">pdf</span>
+      </li>
+    </ul>
+  </section>
+
+</main>
+
+  <!-- ====================================================================
+       V11 — DRAWER de detalhe (oculto, abre ao clicar numa ocorrência).
+       Padrão Linear / Slack. TOC saiu (não fazia sentido com 4 secções).
+       ==================================================================== -->
+  <aside class="app-detail" id="detail-drawer" aria-label="Detalhe da ocorrência" aria-hidden="true">
+
+    <!-- V14 — Barra colapsada (visível só quando .is-minimized) -->
+    <div class="detail-collapsed-bar">
+      <button class="detail-icon-btn" type="button" id="detail-expand"
+              aria-label="Expandir painel" title="Expandir">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
+      <div class="detail-collapsed-bar__divider"></div>
+      <button class="detail-icon-btn" type="button" id="detail-close-collapsed"
+              aria-label="Fechar painel" title="Fechar (Esc)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- V14 — Cabeçalho de acções (visível quando .is-open) -->
+    <div class="detail-actions-header">
+      <button class="detail-icon-btn" type="button" id="detail-minimize"
+              aria-label="Minimizar painel" title="Minimizar (mantém aberto, só barra)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"/>
+        </svg>
+      </button>
+      <button class="detail-icon-btn" type="button" id="detail-close"
+              aria-label="Fechar painel" title="Fechar (Esc)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="detail-card">
+      <div class="detail-head">
+        <div class="detail-head__meta">
+          <span class="detail-head__code" id="d-code">OCC-2026-00042</span>
+          <span class="pri pri--p1" id="d-pri">P1</span>
+        </div>
+        <h2 class="detail-head__title" id="d-loc">Lisboa, Av. da República 12, 3.º Dto.</h2>
+        <div class="detail-head__sub">
+          NUIPC <span id="d-nuipc">2026/00128.4/PA</span> · <span id="d-ts">17 May 09:14</span> · <span id="d-agent">jrodrigues</span>
+        </div>
+      </div>
+
+      <!-- V11 — Mini-mapa Leaflet (zoom na ocorrência seleccionada) -->
+      <div class="detail-section">
+        <div class="detail-section__head">
+          <span class="detail-section__title">Localização</span>
+        </div>
+        <div class="mini-map">
+          <div id="map-mini" class="mini-map__leaflet"
+               role="region" aria-label="Localização da ocorrência ou cadeia de custódia"></div>
+          <div class="mini-map__coords" id="d-coords">38.7367° N · 9.1395° W · Lisboa</div>
+          <!-- V13 — Toggle entre 2 modos do mini-mapa -->
+          <div class="mini-map__toggle" role="group" aria-label="Alternar modo do mapa">
+            <button type="button" data-mode="occ" class="is-active" id="mini-mode-occ"
+                    title="Localização da ocorrência seleccionada">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              Local
+            </button>
+            <button type="button" data-mode="trail" id="mini-mode-trail"
+                    title="Cadeia de custódia do item activo (trajecto)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+                <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+              </svg>
+              Cadeia
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section__head">
+          <span class="detail-section__title">Itens · <span id="d-items">7</span></span>
+          <a class="detail-section__more" href="#">ver todos</a>
+        </div>
+        <!-- Itens clicáveis: ao seleccionar um, a timeline em baixo
+             actualiza-se para o histórico daquele item. Sem hashes. -->
+        <ul class="detail-items is-interactive" id="detail-items-list">
+          <li class="is-active" tabindex="0"
+              data-history='[
+                {"t":"09:14","s":"Apreendida","done":true,"lat":38.7367,"lng":-9.1395,"who":"jrodrigues","acc":8},
+                {"t":"09:42","s":"Em transporte","done":true,"lat":38.7280,"lng":-9.1480,"who":"jrodrigues","acc":12},
+                {"t":"11:05","s":"Recebida lab.","active":true,"lat":38.7166,"lng":-9.1390,"who":"p.esteves","acc":15},
+                {"t":"—","s":"Em perícia"},
+                {"t":"—","s":"Concluída"}
+              ]'>
+            <span class="code">EV-2026-00378</span>
+            <span class="badge badge--em-pericia">em perícia</span>
+          </li>
+          <li tabindex="0"
+              data-history='[
+                {"t":"09:14","s":"Apreendida","done":true,"lat":38.7367,"lng":-9.1395,"who":"jrodrigues","acc":8},
+                {"t":"10:18","s":"Em transporte","active":true,"lat":38.7320,"lng":-9.1420,"who":"jrodrigues","acc":10},
+                {"t":"—","s":"Recebida lab."},
+                {"t":"—","s":"Em perícia"},
+                {"t":"—","s":"Concluída"}
+              ]'>
+            <span class="code">EV-2026-00377</span>
+            <span class="badge badge--em-transporte">em transporte</span>
+          </li>
+          <li tabindex="0"
+              data-history='[
+                {"t":"09:14","s":"Apreendida","done":true,"lat":38.7367,"lng":-9.1395,"who":"jrodrigues","acc":8},
+                {"t":"09:50","s":"Em transporte","done":true,"lat":38.7250,"lng":-9.1455,"who":"jrodrigues","acc":11},
+                {"t":"10:48","s":"Recebida lab.","active":true,"lat":38.7166,"lng":-9.1390,"who":"p.esteves","acc":14},
+                {"t":"—","s":"Em perícia"},
+                {"t":"—","s":"Concluída"}
+              ]'>
+            <span class="code">EV-2026-00376</span>
+            <span class="badge badge--recebida">recebida</span>
+          </li>
+          <li tabindex="0"
+              data-history='[
+                {"t":"09:14","s":"Apreendida","done":true,"lat":38.7367,"lng":-9.1395,"who":"jrodrigues","acc":8},
+                {"t":"09:42","s":"Em transporte","done":true,"lat":38.7240,"lng":-9.1500,"who":"jrodrigues","acc":13},
+                {"t":"11:05","s":"Recebida lab.","done":true,"lat":38.7166,"lng":-9.1390,"who":"p.esteves","acc":15},
+                {"t":"14:22","s":"Em perícia","active":true,"lat":38.7167,"lng":-9.1391,"who":"p.esteves","acc":18},
+                {"t":"—","s":"Concluída"}
+              ]'>
+            <span class="code">EV-2026-00375</span>
+            <span class="badge badge--em-pericia">em perícia</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="detail-section">
+        <div class="detail-section__head">
+          <span class="detail-section__title">Cadeia · timeline do item</span>
+          <span class="detail-section__more" id="d-timeline-target">EV-2026-00378</span>
+        </div>
+        <ol class="detail-timeline" id="detail-timeline">
+          <li class="done"><span class="ts">09:14</span> Apreendida</li>
+          <li class="done"><span class="ts">09:42</span> Em transporte</li>
+          <li class="active"><span class="ts">11:05</span> Recebida lab.</li>
+          <li><span class="ts">—</span> Em perícia</li>
+          <li><span class="ts">—</span> Concluída</li>
+        </ol>
+      </div>
+
+      <div class="detail-actions">
+        <a class="btn-cta" href="#" style="text-decoration:none">Ver detalhe</a>
+        <button class="btn-icon" type="button" title="Gerar PDF de transporte">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+            <path d="M14 3v6h6"/>
+          </svg>
+        </button>
+        <button class="btn-icon" type="button" title="Cadeia de custódia detalhada">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
+            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+</div><!-- /.app-shell -->
+
+<!-- ====================================================================
+     FOOTER TÉCNICO — agora com tooltips explicativos em cada métrica
+     ==================================================================== -->
+<footer class="app-bottom" aria-label="Estado do sistema">
+  <span title="Ligação aos serviços de backend activa"><span class="app-bottom__dot"></span><span class="app-bottom__ok">online</span></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric" title="Versão da aplicação (semver). 'rc' = release candidate (versão candidata, ainda em validação).">v<strong>0.2.0-rc.1</strong></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric is-good" title="Número de testes automatizados que passam neste commit."><strong>448</strong> testes verdes</span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric" title="Hash curto (7 chars) do commit Git em produção. Liga ao GitHub.">commit <strong>dc95608</strong></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric" title="Fly.io · região Frankfurt (fra) · ID da máquina virtual. Há outras regiões disponíveis se necessário failover.">fly <strong>fra/784415</strong></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric is-good" title="Latência da API: percentil 50 (mediana) das últimas 5 minutos de pedidos. <100ms = óptimo.">api p50 <strong>37ms</strong></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric" title="Base de dados PostgreSQL hospedada na Neon, região Europa.">db <strong>neon-eu</strong></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric" title="Tempo contínuo de funcionamento desde o último restart.">uptime <strong>14d 03h</strong></span>
+  <span class="app-bottom__sep">·</span>
+  <span class="app-bottom__metric is-good" title="Content-Security-Policy estrita activa. O browser bloqueia qualquer script ou estilo que não venha de origem autorizada — protege contra XSS. (ADR-0010)">CSP <strong>strict</strong></span>
+</footer>
+
+<!-- Leaflet 1.9.4 JS (mapas reais com tiles CartoDB / OSM) -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script>
+/* ============================================================
+   JavaScript mínimo — só para dar pulso visual + interacção.
+   Nada disto é necessário para a aplicação real funcionar:
+   é só o que torna o mockup "vivo".
+   ============================================================ */
+
+/* 1. Atalhos cross-platform: ⌘ em Mac, Ctrl em Windows/Linux. */
+(function () {
+  const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+             || /Mac/.test(navigator.userAgent);
+  const mod = isMac ? '⌘' : 'Ctrl';
+  document.querySelectorAll('.kbd-mod').forEach(el => { el.textContent = mod; });
+})();
+
+/* 2. Relógio em tempo real — separadores `:` piscam (CSS) cada segundo. */
+(function () {
+  const pad = n => String(n).padStart(2, '0');
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock-hh').textContent = pad(now.getHours());
+    document.getElementById('clock-mm').textContent = pad(now.getMinutes());
+    document.getElementById('clock-ss').textContent = pad(now.getSeconds());
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
+
+/* 3. Count-up dos números da custódia ao carregar (sensação Bloomberg).
+      Cada número vai de 0 até `data-target` num easing cúbico em ~700ms. */
+(function () {
+  function countUp(el, target, duration) {
+    const start = performance.now();
+    function step(t) {
+      const p = Math.min(1, (t - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased);
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  document.querySelectorAll('.cs-tile__num[data-target]').forEach((el, i) => {
+    const target = parseInt(el.dataset.target, 10);
+    setTimeout(() => countUp(el, target, 700), 120 + i * 80);
+  });
+})();
+
+/* 4. Timer "actualizado há Xs" — sobe até 30 e simula refresh. */
+(function () {
+  const el = document.getElementById('refresh-age');
+  if (!el) return;
+  let age = 2;
+  setInterval(() => {
+    age = (age + 1) % 31;
+    el.textContent = age;
+  }, 1000);
+})();
+
+/* 5. "agora" no primeiro item do feed converte para timestamp real. */
+(function () {
+  const el = document.getElementById('feed-now');
+  if (!el) return;
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  el.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  el.parentElement.classList.add('fresh');
+})();
+
+/* 6. Toggle de tema (sol/lua) — alterna dark/light, persiste em localStorage. */
+(function () {
+  const KEY = 'fq-mockup-theme';
+  const btn = document.querySelector('.theme-toggle');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    const current = document.documentElement.dataset.theme || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem(KEY, next);
+  });
+})();
+
+/* 7. Tabela: click ou Enter/Space muda aria-selected E actualiza o painel direito. */
+(function () {
+  const rows = document.querySelectorAll('.tbl tbody tr[role="row"]');
+  const F = {
+    code: document.getElementById('d-code'),
+    pri: document.getElementById('d-pri'),
+    loc: document.getElementById('d-loc'),
+    ts: document.getElementById('d-ts'),
+    agent: document.getElementById('d-agent'),
+    items: document.getElementById('d-items'),
+    nuipc: document.getElementById('d-nuipc'),
+  };
+  function update(row) {
+    if (!F.code) return;
+    F.code.textContent = row.dataset.code || '';
+    F.loc.textContent = row.dataset.loc || '';
+    F.ts.textContent = row.dataset.ts || '';
+    F.agent.textContent = row.dataset.agent || '';
+    F.items.textContent = row.dataset.items || '';
+    F.nuipc.textContent = row.dataset.nuipc || '';
+    const pri = row.dataset.pri || 'P3';
+    F.pri.textContent = pri === 'P4' ? '·' : pri;
+    F.pri.className = 'pri pri--' + (pri === 'P4' ? 'none' : pri.toLowerCase());
+  }
+  function select(row) {
+    rows.forEach(r => r.removeAttribute('aria-selected'));
+    row.setAttribute('aria-selected', 'true');
+    update(row);
+  }
+  rows.forEach(row => {
+    row.addEventListener('click', () => select(row));
+    row.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        select(row);
+      }
+      if (e.key === 'ArrowDown' && row.nextElementSibling) {
+        e.preventDefault();
+        row.nextElementSibling.focus();
+      }
+      if (e.key === 'ArrowUp' && row.previousElementSibling) {
+        e.preventDefault();
+        row.previousElementSibling.focus();
+      }
+    });
+  });
+})();
+
+/* 13. V17 — Sparklines da cadeia (coluna vertical) esticam livremente.
+   preserveAspectRatio="none" faz a polyline distribuir-se por toda a
+   largura disponível, em vez de manter aspect ratio 48:14 do viewBox. */
+(function () {
+  document.querySelectorAll('.geo-hero__custody .cs-tile__spark').forEach(svg => {
+    svg.setAttribute('preserveAspectRatio', 'none');
+  });
+})();
+
+/* 11. Items do painel direito: click muda timeline em baixo (custódia por item)
+   + activa "modo trajecto" no mapa hero (V12). */
+(function () {
+  const list = document.getElementById('detail-items-list');
+  if (!list) return;
+  const items = list.querySelectorAll('li[data-history]');
+  const timeline = document.getElementById('detail-timeline');
+  const target = document.getElementById('d-timeline-target');
+
+  function render(li) {
+    items.forEach(x => x.classList.remove('is-active'));
+    li.classList.add('is-active');
+    const code = li.querySelector('.code')?.textContent || '';
+    if (target) target.textContent = code;
+
+    let history;
+    try { history = JSON.parse(li.dataset.history || '[]'); }
+    catch { history = []; }
+    if (timeline) {
+      timeline.innerHTML = history.map(step => {
+        const cls = step.done ? 'done' : step.active ? 'active' : '';
+        const metaParts = [];
+        if (step.who) metaParts.push(`<span class="who">${step.who}</span>`);
+        if (step.acc) metaParts.push(`<span class="acc">±${step.acc}m</span>`);
+        const meta = metaParts.length ? `<span class="meta">${metaParts.join(' ')}</span>` : '';
+        return `<li class="${cls}"><span class="ts">${step.t}</span> ${step.s}${meta}</li>`;
+      }).join('');
+    }
+    // V13 — mini-mapa entra em modo "trail" (cadeia do item activo)
+    if (typeof window.fqSetActiveItemHistory === 'function') {
+      window.fqSetActiveItemHistory(history);
+    }
+  }
+  items.forEach(li => {
+    li.addEventListener('click', () => render(li));
+    li.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); render(li); }
+    });
+  });
+})();
+
+/* 12. V11 — Mapas Leaflet (hero + mini) + drawer (oculto até clicar linha/pin).
+   Tiles CartoDB Voyager (light) / Dark Matter (dark), auto-switch com tema.
+   Sem libs além de Leaflet — vanilla. */
+(function () {
+  if (typeof L === 'undefined') return;
+
+  // Tiles CartoDB (gratuitos, sem API key, attribution obrigatória)
+  const TILES = {
+    dark:  'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+  };
+  const ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+  function currentTheme() { return document.documentElement.dataset.theme || 'dark'; }
+  function makeTileLayer() {
+    return L.tileLayer(TILES[currentTheme()], {
+      attribution: ATTR,
+      subdomains: 'abcd',
+      maxZoom: 19
+    });
+  }
+
+  /* === V15 — Pins com região (cont|mad|aco). Distribuídos pelos 3 mapas. === */
+  const OCCS = [
+    // === CONTINENTAL ===
+    { code: 'OCC-2026-00042', region: 'cont', lat: 38.7367, lng: -9.1395, pri: 'p1', loc: 'Lisboa, Av. da República' },
+    { code: 'OCC-2026-00041', region: 'cont', lat: 38.8000, lng: -9.3781, pri: 'p2', loc: 'Sintra' },
+    { code: 'OCC-2026-00039', region: 'cont', lat: 38.6970, lng: -9.4216, pri: 'p3', loc: 'Cascais' },
+    { code: 'OCC-2026-00038', region: 'cont', lat: 38.7104, lng: -9.1369, pri: 'p1', loc: 'Lisboa, R. Augusta' },
+    { code: 'OCC-2026-00037', region: 'cont', lat: 38.6837, lng: -9.3149, pri: 'p4', loc: 'Oeiras' },
+    { code: 'OCC-2026-00034', region: 'cont', lat: 38.6789, lng: -9.1569, pri: 'p2', loc: 'Almada' },
+    { code: 'OCC-2026-00029', region: 'cont', lat: 41.1579, lng: -8.6291, pri: 'p2', loc: 'Porto' },
+    { code: 'OCC-2026-00028', region: 'cont', lat: 41.5454, lng: -8.4265, pri: 'p2', loc: 'Braga' },
+    { code: 'OCC-2026-00023', region: 'cont', lat: 40.2033, lng: -8.4103, pri: 'p3', loc: 'Coimbra' },
+    { code: 'OCC-2026-00020', region: 'cont', lat: 38.5713, lng: -7.9135, pri: 'p3', loc: 'Évora' },
+    { code: 'OCC-2026-00014', region: 'cont', lat: 37.0194, lng: -7.9322, pri: 'p1', loc: 'Faro' },
+    // === MADEIRA ===
+    { code: 'OCC-2026-00009', region: 'mad', lat: 32.6669, lng: -16.9241, pri: 'p3', loc: 'Funchal, Madeira' },
+    // === AÇORES ===
+    { code: 'OCC-2026-00003', region: 'aco', lat: 37.7412, lng: -25.6756, pri: 'p4', loc: 'Ponta Delgada, Açores' }
+  ];
+
+  const PRI_COLOR = {
+    p1: getComputedStyle(document.documentElement).getPropertyValue('--danger').trim()  || '#F87171',
+    p2: getComputedStyle(document.documentElement).getPropertyValue('--warning').trim() || '#F59E0B',
+    p3: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#9AA0A6',
+    p4: getComputedStyle(document.documentElement).getPropertyValue('--text-subtle').trim() || '#6E737C'
+  };
+
+  /* === V15 — 3 mapas independentes (continental + 2 insets) === */
+  const REGIONS = {
+    cont: { id: 'map-hero',    bounds: [[36.95, -9.55],  [42.15, -6.18]],  draggable: true,  zoom: true,  attrib: true  },
+    mad:  { id: 'map-madeira', bounds: [[32.40, -17.40], [33.10, -16.50]], draggable: false, zoom: false, attrib: false },
+    aco:  { id: 'map-acores',  bounds: [[36.85, -31.40], [39.85, -24.70]], draggable: false, zoom: false, attrib: false }
+  };
+  // Mantemos referências para invalidateSize + tile refresh
+  const maps = {};   // { cont: L.Map, mad: ..., aco: ... }
+  const tilesByRegion = {};
+  const markersByRegion = { cont: [], mad: [], aco: [] };
+
+  function initRegion(region) {
+    const cfg = REGIONS[region];
+    const el = document.getElementById(cfg.id);
+    if (!el) return;
+    const map = L.map(el, {
+      zoomControl: cfg.zoom,
+      attributionControl: cfg.attrib,
+      scrollWheelZoom: false,
+      dragging: cfg.draggable,
+      boxZoom: false,
+      doubleClickZoom: false,
+      keyboard: false
+    });
+    const tile = makeTileLayer().addTo(map);
+    // Pins da região
+    OCCS.filter(o => o.region === region).forEach(o => {
+      const m = L.circleMarker([o.lat, o.lng], {
+        radius: region === 'cont' ? 5 : 4,
+        fillColor: PRI_COLOR[o.pri],
+        color: PRI_COLOR[o.pri],
+        weight: 1,
+        opacity: 0.9,
+        fillOpacity: 0.7
+      }).addTo(map);
+      m.bindPopup(`<strong>${o.code}</strong><br>${o.loc} · ${o.pri.toUpperCase()}`, { closeButton: false });
+      m.on('click', () => openDrawer(o.code));
+      markersByRegion[region].push(m);
+    });
+    map.fitBounds(cfg.bounds, { padding: [6, 6] });
+    maps[region] = map;
+    tilesByRegion[region] = tile;
+  }
+
+  initRegion('cont');
+  initRegion('mad');
+  initRegion('aco');
+
+  // Compat com código antigo que referenciava heroMap/heroMarkers
+  const heroMap = maps.cont;
+  const heroMarkers = markersByRegion.cont;
+
+  /* === Mini-mapa LATERAL — 2 modos: 'occ' (pin único) ou 'trail' (cadeia)
+        V13: o mini-mapa é o ÚNICO que muda. O hero é sempre panorâmico. === */
+  const miniEl = document.getElementById('map-mini');
+  let miniMap, miniTile, miniMarker, miniTrailLayer;
+  let miniMode = 'occ';                 // 'occ' ou 'trail'
+  let activeOcc = null;                 // { lat, lng, loc, code }
+  let activeHistory = null;             // array de steps com lat/lng
+
+  // Mapping de estado da custódia para token CSS de cor
+  const STATE_COLOR_VAR = {
+    'Apreendida':       '--state-apreendida',
+    'Em transporte':    '--state-em-transporte',
+    'Recebida lab.':    '--state-recebida-laboratorio',
+    'Em perícia':       '--state-em-pericia',
+    'Concluída':        '--state-concluida',
+    'Devolvida':        '--state-devolvida',
+    'Destruída':        '--state-destruida'
+  };
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function initMini() {
+    if (!miniEl || miniMap) return;
+    miniMap = L.map(miniEl, {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: true,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+    miniTile = makeTileLayer().addTo(miniMap);
+    miniMap.setView([38.7367, -9.1395], 11);
+  }
+  function clearMiniLayers() {
+    if (miniMarker) { miniMarker.remove(); miniMarker = null; }
+    if (miniTrailLayer && miniMap) { miniMap.removeLayer(miniTrailLayer); miniTrailLayer = null; }
+  }
+  // Modo "occ" — pin único da ocorrência seleccionada
+  function showMiniOcc() {
+    initMini();
+    if (!miniMap || !activeOcc) return;
+    clearMiniLayers();
+    miniMap.setView([activeOcc.lat, activeOcc.lng], 12);
+    miniMarker = L.circleMarker([activeOcc.lat, activeOcc.lng], {
+      radius: 7,
+      fillColor: cssVar('--accent') || '#F6AD55',
+      color: '#fff', weight: 2, opacity: 1, fillOpacity: 1
+    }).addTo(miniMap);
+    miniMarker.bindTooltip(activeOcc.loc || activeOcc.code, { direction: 'top', offset: [0, -6] });
+    miniMode = 'occ';
+    updateToggleUI();
+  }
+  // Modo "trail" — polyline + pins por estado do item activo
+  function showMiniTrail() {
+    initMini();
+    if (!miniMap || !activeHistory) return;
+    clearMiniLayers();
+    const pts = activeHistory.filter(h => typeof h.lat === 'number' && typeof h.lng === 'number');
+    if (!pts.length) return;
+    const layers = [];
+    if (pts.length >= 2) {
+      layers.push(L.polyline(pts.map(p => [p.lat, p.lng]), {
+        color: cssVar('--accent') || '#F6AD55',
+        weight: 2.5, opacity: 0.75, dashArray: '5, 4'
+      }));
+    }
+    pts.forEach((p, i) => {
+      const color = cssVar(STATE_COLOR_VAR[p.s] || '--accent') || '#F6AD55';
+      const m = L.circleMarker([p.lat, p.lng], {
+        radius: 6, fillColor: color, color: '#fff',
+        weight: 1.5, opacity: 1, fillOpacity: 0.95
+      });
+      const safeWho = (p.who || '—').replace(/[<>]/g, '');
+      m.bindTooltip(
+        `<strong>${i + 1}. ${p.s}</strong><br>${p.t} · ${safeWho} · ±${p.acc || '?'}m`,
+        { direction: 'top', offset: [0, -4] }
+      );
+      layers.push(m);
+    });
+    miniTrailLayer = L.layerGroup(layers).addTo(miniMap);
+    miniMap.fitBounds(pts.map(p => [p.lat, p.lng]), { padding: [20, 20], maxZoom: 14 });
+    miniMode = 'trail';
+    updateToggleUI();
+  }
+  function updateToggleUI() {
+    document.querySelectorAll('.mini-map__toggle button[data-mode]').forEach(b => {
+      b.classList.toggle('is-active', b.dataset.mode === miniMode);
+    });
+    // Desactivar visualmente o botão "Cadeia" se não há item activo com history
+    const trailBtn = document.getElementById('mini-mode-trail');
+    if (trailBtn) trailBtn.disabled = !activeHistory;
+  }
+  // Expor para outros handlers
+  window.fqSetActiveOcc = function (occ) { activeOcc = occ; showMiniOcc(); };
+  window.fqSetActiveItemHistory = function (history) { activeHistory = history; showMiniTrail(); };
+
+  // Toggle handlers
+  document.querySelectorAll('.mini-map__toggle button[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.mode === 'occ') showMiniOcc();
+      else if (btn.dataset.mode === 'trail') showMiniTrail();
+    });
+  });
+
+  /* === V15 — Switch de tema: re-pinta tiles dos 3 mapas + mini === */
+  function refreshTiles() {
+    ['cont', 'mad', 'aco'].forEach(region => {
+      const m = maps[region];
+      const t = tilesByRegion[region];
+      if (m && t) {
+        m.removeLayer(t);
+        tilesByRegion[region] = makeTileLayer().addTo(m);
+      }
+    });
+    if (miniMap && miniTile) {
+      miniMap.removeLayer(miniTile);
+      miniTile = makeTileLayer().addTo(miniMap);
+    }
+  }
+  // Observa mudança de data-theme no <html>
+  const themeObserver = new MutationObserver(refreshTiles);
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  /* === PAINEL DIREITO — 3 estados (V14): fechado | minimizado | aberto.
+     Push real (não overlay) em desktop ≥1024px. Mapa hero precisa de
+     invalidateSize() em cada transição (a largura muda). === */
+  const drawer = document.getElementById('detail-drawer');
+  const closeBtn = document.getElementById('detail-close');
+  const closeBtnCollapsed = document.getElementById('detail-close-collapsed');
+  const minBtn = document.getElementById('detail-minimize');
+  const expandBtn = document.getElementById('detail-expand');
+
+  function setState(state) {
+    if (!drawer) return;
+    drawer.classList.remove('is-open', 'is-minimized');
+    if (state === 'open' || state === 'minimized') {
+      drawer.classList.add('is-' + state);
+      drawer.setAttribute('aria-hidden', 'false');
+    } else {
+      drawer.setAttribute('aria-hidden', 'true');
+    }
+    // V14+V15 — após a transição de largura, todos os Leaflets recalculam
+    setTimeout(() => {
+      ['cont', 'mad', 'aco'].forEach(r => { if (maps[r]) maps[r].invalidateSize(); });
+      if (miniMap) miniMap.invalidateSize();
+    }, 220);
+  }
+  function openDrawer(code) {
+    const row = document.querySelector(`.tbl tbody tr[data-code="${code}"]`);
+    if (row) row.click();
+    setState('open');
+  }
+  function minimizeDrawer() { setState('minimized'); }
+  function closeDrawer() { setState('closed'); }
+  // Linhas da tabela abrem o painel (modo "occ" — pin da ocorrência)
+  document.querySelectorAll('.tbl tbody tr[role="row"]').forEach(row => {
+    row.addEventListener('click', () => {
+      // V14 — se já está minimizado, expande; se está fechado, abre
+      setState('open');
+      const lat = parseFloat(row.dataset.lat);
+      const lng = parseFloat(row.dataset.lng);
+      const loc = row.dataset.loc || '';
+      const code = row.dataset.code || '';
+      const cEl = document.getElementById('d-coords');
+      if (cEl && !isNaN(lat)) {
+        cEl.textContent = `${lat.toFixed(4)}° N · ${Math.abs(lng).toFixed(4)}° W · ${loc.split(',')[0]}`;
+      }
+      activeOcc = { lat, lng, loc, code };
+      activeHistory = null;
+      setTimeout(() => { if (miniMap) miniMap.invalidateSize(); showMiniOcc(); }, 260);
+    });
+  });
+  // Handlers V14
+  if (closeBtn) closeBtn.addEventListener('click', closeDrawer);
+  if (closeBtnCollapsed) closeBtnCollapsed.addEventListener('click', closeDrawer);
+  if (minBtn) minBtn.addEventListener('click', minimizeDrawer);
+  if (expandBtn) expandBtn.addEventListener('click', () => setState('open'));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && drawer &&
+        (drawer.classList.contains('is-open') || drawer.classList.contains('is-minimized'))) {
+      closeDrawer();
+    }
+  });
+})();
+
+/* 10. TOC scroll spy + smooth scroll — estilo Starlight ("Nesta página").
+   Observa qual secção (#custody, #open, #feed) está visível no viewport
+   e marca o link correspondente como .is-current. Click no link faz
+   smooth scroll com offset do app-top sticky. */
+(function () {
+  const links = document.querySelectorAll('.detail-toc a[href^="#"]');
+  if (!links.length) return;
+  const targets = Array.from(links).map(a => {
+    const id = a.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    return el ? { link: a, el } : null;
+  }).filter(Boolean);
+  if (!targets.length) return;
+
+  // Smooth scroll com offset (app-top tem ~44px)
+  links.forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const id = a.getAttribute('href').slice(1);
+      const el = document.getElementById(id);
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY - 60;
+      window.scrollTo({ top, behavior: 'smooth' });
+    });
+  });
+
+  // Scroll spy via IntersectionObserver
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      const t = targets.find(t => t.el === e.target);
+      if (!t) return;
+      if (e.isIntersecting) {
+        targets.forEach(x => x.link.classList.remove('is-current'));
+        t.link.classList.add('is-current');
+      }
+    });
+  }, {
+    rootMargin: '-80px 0px -60% 0px',  // âncora a primeira visível depois do header
+    threshold: 0
+  });
+  targets.forEach(t => io.observe(t.el));
+})();
+
+/* 8. Tooltips ricos com Popover API nativa — substituem title="" do browser.
+   Procura elementos com [title] dentro de selectors específicos, remove o
+   title nativo (evita duplicação) e cria um <div popover="manual"> ancorado
+   abaixo (ou acima, se não couber). Aparece em hover (180ms delay) + focus. */
+(function () {
+  if (!HTMLElement.prototype.showPopover) return; // sem suporte → fica com title nativo
+  const SELECTORS = [
+    '.app-top__chip[title]',
+    '.app-bottom__metric[title]',
+    '.app-top__cmd[title]',
+    '.theme-toggle[title]',
+    '.cs-tile[title]'
+  ].join(', ');
+  let n = 0;
+  document.querySelectorAll(SELECTORS).forEach(el => {
+    const text = el.getAttribute('title');
+    if (!text) return;
+    el.removeAttribute('title');
+    const id = 'tt-' + (++n);
+    const tt = document.createElement('div');
+    tt.id = id;
+    tt.setAttribute('popover', 'manual');
+    tt.className = 'tt';
+    tt.textContent = text;
+    document.body.appendChild(tt);
+    el.setAttribute('aria-describedby', id);
+
+    function position() {
+      tt.style.left = '0px';
+      tt.style.top = '0px';
+      const r = el.getBoundingClientRect();
+      const ttR = tt.getBoundingClientRect();
+      let left = r.left + r.width / 2 - ttR.width / 2;
+      let top = r.bottom + 6;
+      left = Math.max(8, Math.min(left, window.innerWidth - ttR.width - 8));
+      if (top + ttR.height > window.innerHeight - 8) top = r.top - ttR.height - 6;
+      tt.style.left = left + 'px';
+      tt.style.top = top + 'px';
+    }
+    let timer;
+    function open() {
+      clearTimeout(timer);
+      timer = setTimeout(() => { tt.showPopover(); position(); }, 180);
+    }
+    function close() { clearTimeout(timer); if (tt.matches(':popover-open')) tt.hidePopover(); }
+    el.addEventListener('mouseenter', open);
+    el.addEventListener('mouseleave', close);
+    el.addEventListener('focus', open);
+    el.addEventListener('blur', close);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.tt:popover-open').forEach(t => t.hidePopover());
+    }
+  });
+})();
+
+/* 9. Sparkline hover — indicator line + tooltip com valor exacto.
+   Lê data-values da SVG, mapeia para os pontos do polyline, e ao mousemove
+   destaca o bucket mais próximo (linha vertical + ponto + tooltip).
+   Buckets de 3h se 9 valores, 6h se 5 valores ("h-0/h-3/h-6/..."). */
+(function () {
+  document.querySelectorAll('.cs-tile__spark[data-values]').forEach(svg => {
+    const values = (svg.dataset.values || '').split(',').map(Number).filter(n => !isNaN(n));
+    if (!values.length) return;
+    const polyline = svg.querySelector('polyline');
+    if (!polyline) return;
+    const pts = polyline.getAttribute('points').trim().split(/\s+/).map(p => {
+      const [x, y] = p.split(',').map(Number);
+      return { x, y };
+    });
+    if (pts.length !== values.length) return;
+
+    // aria-label dinâmico (resumo da tendência)
+    const first = values[0], last = values[values.length - 1], delta = last - first;
+    const dStr = delta >= 0 ? '+' + delta : String(delta);
+    svg.setAttribute('aria-label',
+      `Sparkline 24h: ${first} → ${last} itens (Δ ${dStr})`);
+
+    // Linha indicator + dot (criados dentro do SVG, escondidos por CSS até hover)
+    const NS = 'http://www.w3.org/2000/svg';
+    const line = document.createElementNS(NS, 'line');
+    line.setAttribute('class', 'spark-indicator');
+    line.setAttribute('y1', '0'); line.setAttribute('y2', '14');
+    line.setAttribute('stroke', 'currentColor'); line.setAttribute('stroke-width', '1');
+    svg.appendChild(line);
+    const dot = document.createElementNS(NS, 'circle');
+    dot.setAttribute('class', 'spark-indicator');
+    dot.setAttribute('r', '2'); dot.setAttribute('fill', 'currentColor');
+    svg.appendChild(dot);
+
+    // Tooltip externo dentro do .cs-tile__mid (position: relative)
+    const wrap = svg.closest('.cs-tile__mid') || svg.parentElement;
+    const tip = document.createElement('div');
+    tip.className = 'spark-tooltip';
+    tip.textContent = `agora · ${last}`;
+    wrap.appendChild(tip);
+
+    const bucketH = values.length >= 9 ? 3 : 6;
+    function moveTo(clientX) {
+      const r = svg.getBoundingClientRect();
+      const rel = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      const idx = Math.round(rel * (values.length - 1));
+      const pt = pts[idx];
+      line.setAttribute('x1', pt.x); line.setAttribute('x2', pt.x);
+      dot.setAttribute('cx', pt.x); dot.setAttribute('cy', pt.y);
+      const hoursAgo = (values.length - 1 - idx) * bucketH;
+      const label = hoursAgo === 0 ? 'agora' : `h-${hoursAgo}`;
+      const v = values[idx];
+      tip.textContent = `${label} · ${v} ${v === 1 ? 'item' : 'itens'}`;
+
+      // Posicionar tooltip horizontalmente alinhado ao ponto, dentro do .cs-tile__mid
+      const wrapR = wrap.getBoundingClientRect();
+      const svgR = svg.getBoundingClientRect();
+      const x = svgR.left - wrapR.left + svgR.width * (pt.x / 48);
+      const tipW = tip.offsetWidth;
+      let leftPx = x - tipW / 2;
+      leftPx = Math.max(-8, Math.min(leftPx, wrapR.width - tipW + 8));
+      tip.style.left = leftPx + 'px';
+    }
+    svg.addEventListener('mousemove', e => moveTo(e.clientX));
+    svg.addEventListener('touchstart', e => {
+      if (e.touches[0]) moveTo(e.touches[0].clientX);
+    }, { passive: true });
+  });
+})();
+</script>
+
+</body>
+</html>
