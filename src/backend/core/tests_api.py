@@ -1621,8 +1621,16 @@ class JWTSecurityTest(BaseAPITestCase):
         })
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
         valid_token = login_response.cookies[ACCESS_COOKIE_NAME].value
-        # Alterar o último carácter do token
-        tampered = valid_token[:-1] + ('X' if valid_token[-1] != 'X' else 'Y')
+        # Corromper um carácter NÃO-terminal do payload (header.payload.signature).
+        # Alterar só o último carácter da assinatura é não-fiável: os bits de
+        # padding base64url do carácter terminal podem alias para os mesmos bytes
+        # de assinatura, deixando o token válido (falso 200). Mutar um carácter
+        # interior do payload altera sempre os bytes descodificados → a assinatura
+        # deixa de bater certo → 401 determinístico.
+        head, payload, sig = valid_token.split('.')
+        i = 5  # posição interior, fora dos bits de padding
+        payload = payload[:i] + ('A' if payload[i] != 'A' else 'B') + payload[i + 1:]
+        tampered = '.'.join([head, payload, sig])
         # Substituir o cookie mantido pelo APIClient
         self.client.cookies[ACCESS_COOKIE_NAME] = tampered
 
