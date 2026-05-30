@@ -1027,7 +1027,14 @@ def _haversine_m(lat1, lon1, lat2, lon2):
 
 class StatsView(APIView):
     """
-    GET /api/stats/ — devolve contagens agregadas para o dashboard.
+    GET /api/stats/ — contagens agregadas (LEGACY v1, fronteira congelada).
+
+    **v2 (T11):** o dashboard novo é alimentado por ``DashboardStatsView``
+    (`/api/stats/dashboard/`, com deltas/séries/estado derivado). Este endpoint
+    e a `/stats/` page (`stats.js`, com breakdown por taxonomia antiga) ficam
+    **congelados** — não construir features novas em cima; serão removidos ou
+    reescritos na reinvenção do frontend (Fase 3). Mantido por ora porque a
+    página `/stats/` v1 ainda o consome.
 
     Ao expor um único endpoint evitamos N round-trips (ocorrências, evidências,
     cadeia de custódia) e beneficiamos de uma única transacção coerente.

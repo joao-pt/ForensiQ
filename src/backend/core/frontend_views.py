@@ -208,12 +208,12 @@ def custody_list_view(request):
 @jwt_cookie_required
 def investigation_report_view(request):
     """
-    Relatório de investigação estática da aplicação (auditoria).
+    Relatório de investigação estática da aplicação (LEGACY v1, congelado).
 
-    Página editorial que lista achados de revisão de código organizados por
-    severidade (Crítico / Alto / Médio / Baixo / Notas). O conteúdo é estático
-    — serve como referência de arquitectura e registo do estado conhecido da
-    base de código à data do relatório. Requer token JWT válido.
+    **v2 (T11):** página editorial estática (achados de revisão por
+    severidade), fora da arquitectura de informação da v2. Fronteira
+    congelada — a reinvenção do frontend (Fase 3) remove-a ou reescreve-a;
+    não construir em cima. Mantida por ora; requer token JWT válido.
     """
     return render(request, 'investigation_report.html')
 
