@@ -57,13 +57,17 @@ ENV PYTHONUNBUFFERED=1 \
     DJANGO_SETTINGS_MODULE=forensiq_project.settings
 
 # Recolher ficheiros estáticos (executado no build, não no runtime).
-# Durante o `collectstatic` o Django importa o settings.py, que exige
-# SECRET_KEY e DATABASE_URL. Os valores abaixo são efémeros, usados
-# apenas pelo build — nunca aterram no filesystem da imagem final nem
-# são válidos para autenticação/acesso a recursos.
+# Durante o `collectstatic` o Django importa o settings.py, que com
+# DEBUG=False exige SECRET_KEY, DATABASE_URL e JWT_SIGNING_KEY (este
+# último por causa do guard fail-closed da assinatura de tokens). Os
+# valores abaixo são efémeros, usados apenas pelo build — nunca aterram
+# no filesystem da imagem final nem são válidos para
+# autenticação/assinatura; os reais são injectados em runtime via
+# `fly secrets set`.
 WORKDIR /home/forensiq/app/backend
 RUN DATABASE_URL="sqlite:///tmp/build-dummy.db" \
     SECRET_KEY="build-time-only-not-a-real-secret-$(date +%s)" \
+    JWT_SIGNING_KEY="build-time-only-not-a-real-jwt-$(date +%s)" \
     DEBUG="False" \
     ALLOWED_HOSTS="localhost" \
     python manage.py collectstatic --noinput
