@@ -106,7 +106,7 @@ class AuditLogSequenceWithSpecialActionsTest(TestCase):
 
 class AuditLogImmutabilityTest(TestCase):
     """Mesmo com o campo `sequence` novo, o AuditLog continua append-only:
-    re-save de uma instância já gravada levanta ValidationError.
+    re-save de uma instância já gravada e ``delete()`` levantam ValidationError.
     """
 
     def test_update_nao_permitido(self):
@@ -116,6 +116,13 @@ class AuditLogImmutabilityTest(TestCase):
         log.sequence = 999
         with self.assertRaises(ValidationError):
             log.save()
+
+    def test_delete_nao_permitido(self):
+        from django.core.exceptions import ValidationError
+
+        log = _create_log()
+        with self.assertRaises(ValidationError):
+            log.delete()
 
 
 class AuditLogFactoryTest(TestCase):
