@@ -548,7 +548,7 @@ def _render_item_identification(evidence, styles):
 
 
 def _render_sub_components(evidence, styles):
-    """Sub-componentes integrantes (Evidence.sub_components) + DigitalDevice legado.
+    """Sub-componentes integrantes (Evidence.sub_components).
 
     ISO/IEC 27037: o SIM/SD inserido num telemóvel acompanha o dispositivo
     e deve constar do mesmo relatório; a secção documenta essa inseparabilidade.
@@ -556,9 +556,8 @@ def _render_sub_components(evidence, styles):
     # `all()` reaproveita o prefetch_related aplicado pelas views (N12).
     # Ordenação por id em memória — lista curta.
     sub_components = sorted(evidence.sub_components.all(), key=lambda e: e.id)
-    legacy_devices = list(evidence.digital_devices.all())
 
-    if not sub_components and not legacy_devices:
+    if not sub_components:
         return []
 
     flow = []
@@ -603,34 +602,6 @@ def _render_sub_components(evidence, styles):
         block.append(Paragraph('Hash SHA-256:', styles['label']))
         block.append(Paragraph(sub.integrity_hash or '—', styles['hash']))
         flow.append(KeepTogether(block))
-
-    # DigitalDevice legado (mantemos por compatibilidade com registos anteriores
-    # à Wave 2a; podem ser consolidados numa migração futura).
-    if legacy_devices:
-        start = len(sub_components) + 1
-        for j, dev in enumerate(legacy_devices, start=start):
-            block = [
-                Paragraph(
-                    f'3.{j}. {_sanitize(dev.get_type_display())} (dispositivo legado)',
-                    styles['subsection'],
-                ),
-            ]
-            block.extend(
-                _label_value_rows(
-                    [
-                        ('Marca:', _sanitize(dev.brand) or '—'),
-                        ('Nome comercial:', _sanitize(dev.commercial_name) or '—'),
-                        ('Modelo (SKU):', _sanitize(dev.model) or '—'),
-                        ('Estado:', _sanitize(dev.get_condition_display())),
-                        ('IMEI:', _sanitize(dev.imei) or '—'),
-                        ('Nº de série:', _sanitize(dev.serial_number) or '—'),
-                        ('Observações:', _sanitize(dev.notes) or '—'),
-                    ],
-                    styles,
-                    col_widths=(4 * cm, 13 * cm),
-                )
-            )
-            flow.append(KeepTogether(block))
 
     return flow
 
@@ -699,7 +670,7 @@ def generate_evidence_pdf(evidence):
     # 2. Identificação do item
     story += _render_item_identification(evidence, styles)
 
-    # 3. Componentes integrantes (sub_components + DigitalDevice legado)
+    # 3. Componentes integrantes (sub_components)
     sub_flow = _render_sub_components(evidence, styles)
     story += sub_flow
     has_sub_section = bool(sub_flow)
@@ -903,42 +874,7 @@ def generate_occurrence_pdf(occurrence):
         story.append(t)
         story.append(Spacer(1, 0.4 * cm))
 
-    # 3. Dispositivos digitais legados agregados
-    legacy = []
-    for e in evidences:
-        for d in e.digital_devices.all():
-            legacy.append((e, d))
-    if legacy:
-        story.append(
-            Paragraph(
-                f'3. Dispositivos Digitais Associados ({len(legacy)})',
-                styles['section'],
-            )
-        )
-        story.append(Spacer(1, 0.2 * cm))
-        for ev_owner, dev in legacy:
-            owner_label = ev_owner.code or f'#{ev_owner.pk}'
-            # Identidade do dispositivo: prefere "Marca Nome (SKU)";
-            # cai para "Marca Modelo" quando não há nome comercial.
-            brand = _sanitize(dev.brand) or '—'
-            commercial = _sanitize(dev.commercial_name)
-            sku = _sanitize(dev.model)
-            if commercial and sku:
-                identity = f'{brand} {commercial} ({sku})'
-            elif commercial:
-                identity = f'{brand} {commercial}'
-            elif sku:
-                identity = f'{brand} {sku}'
-            else:
-                identity = brand
-            story.append(
-                Paragraph(
-                    f'Item {owner_label} · {_sanitize(dev.get_type_display())} · {identity}',
-                    styles['value'],
-                )
-            )
-
-    # 4. Declaração
+    # 3. Declaração
     story += _integrity_declaration(styles, gen_ts)
 
     try:

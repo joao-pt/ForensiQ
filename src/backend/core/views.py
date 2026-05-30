@@ -10,7 +10,6 @@ Endpoints:
 - /api/evidences/          — evidências (AGENT cria, todos consultam)
 - /api/evidences/lookup/imei/<imei>/ — enriquecimento IMEI via imeidb.xyz
 - /api/evidences/lookup/vin/<vin>/   — redirect para vindecoder.eu
-- /api/devices/            — dispositivos digitais (AGENT cria, todos consultam)
 - /api/custody/            — cadeia de custódia (AGENT/EXPERT criam, todos consultam)
 - /api/stats/              — dashboard agregado
 - /api/stats/dashboard/    — payload estável consumido pelo dashboard (Wave 2d)
@@ -50,7 +49,6 @@ from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
     AuditLog,
     ChainOfCustody,
-    DigitalDevice,
     Evidence,
     Occurrence,
 )
@@ -59,7 +57,6 @@ from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
     CascadeCustodyRequestSerializer,
     ChainOfCustodySerializer,
-    DigitalDeviceSerializer,
     EvidenceSerializer,
     OccurrenceSerializer,
     UserCreateSerializer,
@@ -234,9 +231,9 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         # ownership: get_queryset já filtra AGENT para ocorrências próprias
         # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
         # `pdf_export.generate_occurrence_pdf` itera: para cada
-        # evidência: digital_devices + custody_chain (ordenada por
-        # -sequence para `_current_custody_state` apanhar o último);
-        # para cada sub-componente: também o seu custody_chain.
+        # evidência: custody_chain (ordenada por -sequence para
+        # `_current_custody_state` apanhar o último); para cada
+        # sub-componente: também o seu custody_chain.
         from django.db.models import Prefetch
 
         custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
@@ -245,8 +242,6 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             'evidences__agent',
             'evidences__parent_evidence',
             'evidences__sub_components',
-            'evidences__sub_components__digital_devices',
-            'evidences__digital_devices',
             Prefetch('evidences__custody_chain', queryset=custody_qs),
             Prefetch('evidences__sub_components__custody_chain', queryset=custody_qs),
         )
@@ -390,9 +385,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         # optimizamos com select_related/prefetch_related. Se o utilizador
         # não for dono da ocorrência, get_object() devolve 404 (não 200).
         # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
-        # `pdf_export.generate_evidence_pdf` itera: digital_devices,
-        # sub_components (+ os seus digital_devices e custody_chain),
-        # e o próprio custody_chain ordenado.
+        # `pdf_export.generate_evidence_pdf` itera: sub_components
+        # (+ os seus custody_chain) e o próprio custody_chain ordenado.
         from django.db.models import Prefetch
 
         custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
@@ -401,9 +395,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             'occurrence__agent',
             'agent',
         ).prefetch_related(
-            'digital_devices',
             'sub_components',
-            'sub_components__digital_devices',
             Prefetch('custody_chain', queryset=custody_qs),
             Prefetch('sub_components__custody_chain', queryset=custody_qs),
         )
@@ -431,45 +423,6 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         response['Content-Length'] = len(pdf_bytes)
         return response
-
-
-# ---------------------------------------------------------------------------
-# DigitalDevice
-# ---------------------------------------------------------------------------
-
-
-class DigitalDeviceViewSet(viewsets.ModelViewSet):
-    """
-    API de dispositivos digitais.
-
-    - Criação/edição: AGENT.
-    - Consulta: qualquer utilizador autenticado.
-    - Filtragem por evidência: ?evidence=<id>
-    """
-
-    queryset = DigitalDevice.objects.select_related('evidence').all()
-    serializer_class = DigitalDeviceSerializer
-    permission_classes = [IsAuthenticated, IsAgent]
-    http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
-    filter_backends = [filters.SearchFilter]
-    search_fields = [
-        'brand',
-        'model',
-        'commercial_name',
-        'serial_number',
-        'imei',
-        'notes',
-    ]
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(evidence__occurrence__agent=user)
-        evidence_id = self.request.query_params.get('evidence')
-        if evidence_id:
-            qs = qs.filter(evidence_id=evidence_id)
-        return qs
 
 
 # ---------------------------------------------------------------------------
@@ -866,8 +819,8 @@ class StatsView(APIView):
     GET /api/stats/ — devolve contagens agregadas para o dashboard.
 
     Ao expor um único endpoint evitamos N round-trips (ocorrências, evidências,
-    dispositivos, cadeia de custódia) e beneficiamos de uma única transacção
-    coerente. AGENT vê apenas os seus; staff/EXPERT vêem totais globais.
+    cadeia de custódia) e beneficiamos de uma única transacção coerente.
+    AGENT vê apenas os seus; staff/EXPERT vêem totais globais.
     """
 
     permission_classes = [IsAuthenticated]
@@ -876,13 +829,11 @@ class StatsView(APIView):
         user = request.user
         occ_qs = Occurrence.objects.all()
         ev_qs = Evidence.objects.all()
-        dev_qs = DigitalDevice.objects.all()
         coc_qs = ChainOfCustody.objects.all()
 
         if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
             occ_qs = occ_qs.filter(agent=user)
             ev_qs = ev_qs.filter(occurrence__agent=user)
-            dev_qs = dev_qs.filter(evidence__occurrence__agent=user)
             coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
 
         evidence_by_type = dict(
@@ -896,7 +847,6 @@ class StatsView(APIView):
             {
                 'occurrences': occ_qs.count(),
                 'evidences': ev_qs.count(),
-                'devices': dev_qs.count(),
                 'custody_records': coc_qs.count(),
                 'evidence_by_type': evidence_by_type,
                 'custody_by_state': custody_by_state,

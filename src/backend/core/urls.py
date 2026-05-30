@@ -9,7 +9,6 @@ Router DRF com os seguintes endpoints:
 - /api/evidences/<id>/pdf/             — exportação PDF (ISO/IEC 27037)
 - /api/evidences/lookup/imei/<imei>/   — enriquecimento IMEI (imeidb.xyz)
 - /api/evidences/lookup/vin/<vin>/     — redirect para vindecoder.eu
-- /api/devices/                        — dispositivos digitais
 - /api/custody/                        — cadeia de custódia
 - /api/custody/evidence/<id>/timeline/ — timeline de custódia
 - /api/stats/                          — stats agregadas (legacy)
@@ -24,7 +23,6 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ChainOfCustodyViewSet,
     DashboardStatsView,
-    DigitalDeviceViewSet,
     EvidenceIMEILookupView,
     EvidenceViewSet,
     EvidenceVINLookupView,
@@ -41,7 +39,6 @@ router = DefaultRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'occurrences', OccurrenceViewSet, basename='occurrence')
 router.register(r'evidences', EvidenceViewSet, basename='evidence')
-router.register(r'devices', DigitalDeviceViewSet, basename='device')
 router.register(r'custody', ChainOfCustodyViewSet, basename='custody')
 
 # Endpoints customizados — registados antes do router para não colidirem

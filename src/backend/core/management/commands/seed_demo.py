@@ -60,7 +60,6 @@ from core.models import (
     AuditLog,
     ChainOfCustody,
     CrimeTipo,
-    DigitalDevice,
     Evidence,
     Occurrence,
 )
@@ -295,7 +294,6 @@ class Command(BaseCommand):
                 cursor.execute("""
                     TRUNCATE TABLE
                         core_chainofcustody,
-                        core_digitaldevice,
                         core_evidence,
                         core_occurrence,
                         core_auditlog,
@@ -305,7 +303,6 @@ class Command(BaseCommand):
         else:
             # SQLite (testes) — sem triggers, basta o queryset delete.
             ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
-            DigitalDevice.objects.all().delete()
             Evidence.objects.all()._raw_delete(Evidence.objects.db)
             Occurrence.objects.all().delete()
             AuditLog.objects.all()._raw_delete(AuditLog.objects.db)

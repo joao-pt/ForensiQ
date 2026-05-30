@@ -5,7 +5,6 @@ Entidades principais:
 - User: utilizador com perfil AGENT (first responder) ou EXPERT (perito forense)
 - Occurrence: ocorrência / cena de crime
 - Evidence: evidência apreendida (com hash SHA-256 para integridade)
-- DigitalDevice: dispositivo digital associado a uma evidência
 - ChainOfCustody: registo imutável (append-only) de transições de custódia
 
 Conformidade: ISO/IEC 27037 — hash SHA-256 em metadados de prova.
@@ -1001,145 +1000,24 @@ class Evidence(models.Model):
 
 
 # ---------------------------------------------------------------------------
-# Dispositivo Digital
+# Validador histórico de IMEI (DigitalDevice removido no T05)
 # ---------------------------------------------------------------------------
 
 
 def _digital_device_imei_validator(value):
     r"""Aceita string vazia (campo opcional) ou IMEI Luhn-válido.
 
-    Cobre o caminho directo DigitalDevice.save() — sem ele, o anterior
-    RegexValidator(r'^(\d{15})?$') aceitava qualquer 15 dígitos sem
-    verificar Luhn, divergindo do path Evidence._validate_type_specific_data
-    que já exigia checksum via validate_imei.
+    NOTA: o modelo DigitalDevice foi removido no T05 (subsumido por
+    Evidence + type_specific_data, ADR-0010). Esta função é RETIDA apenas
+    para integridade do histórico de migrações — a migração histórica
+    `0014_alter_digitaldevice_imei` referencia-a pelo caminho
+    `core.models._digital_device_imei_validator`, e removê-la parte a
+    reconstrução do estado das migrações. A validação Luhn de IMEI em uso
+    vive agora em Evidence._validate_type_specific_data via validate_imei.
     """
     if not value:
         return
     validate_imei(value)
-
-
-class DigitalDevice(models.Model):
-    """Dispositivo digital associado a uma evidência."""
-
-    class DeviceType(models.TextChoices):
-        SMARTPHONE = 'SMARTPHONE', 'Smartphone'
-        TABLET = 'TABLET', 'Tablet'
-        LAPTOP = 'LAPTOP', 'Computador Portátil'
-        DESKTOP = 'DESKTOP', 'Computador de Secretária'
-        USB_DRIVE = 'USB_DRIVE', 'Pen USB'
-        HARD_DRIVE = 'HARD_DRIVE', 'Disco Rígido'
-        SIM_CARD = 'SIM_CARD', 'Cartão SIM'
-        SD_CARD = 'SD_CARD', 'Cartão SD'
-        CAMERA = 'CAMERA', 'Câmara'
-        DRONE = 'DRONE', 'Drone'
-        OTHER = 'OTHER', 'Outro'
-
-    class DeviceCondition(models.TextChoices):
-        FUNCTIONAL = 'FUNCTIONAL', 'Funcional'
-        DAMAGED = 'DAMAGED', 'Danificado'
-        LOCKED = 'LOCKED', 'Bloqueado'
-        OFF = 'OFF', 'Desligado'
-        UNKNOWN = 'UNKNOWN', 'Desconhecido'
-
-    evidence = models.ForeignKey(
-        Evidence,
-        on_delete=models.PROTECT,
-        related_name='digital_devices',
-        verbose_name='Evidência associada',
-    )
-    type = models.CharField(
-        max_length=20,
-        choices=DeviceType.choices,
-        verbose_name='Tipo de dispositivo',
-    )
-    brand = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        verbose_name='Marca',
-    )
-    model = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        verbose_name='Modelo (SKU)',
-        help_text=(
-            'Código técnico do modelo (ex.: A2161). Permite ao perito '
-            'identificar a variante exacta — bandas, memória, region-lock.'
-        ),
-    )
-    commercial_name = models.CharField(
-        max_length=120,
-        blank=True,
-        default='',
-        verbose_name='Nome comercial',
-        help_text=(
-            'Nome reconhecido pelo first responder (ex.: iPhone 11 Pro Max). '
-            'Preenchido pelo enriquecimento IMEI quando disponível.'
-        ),
-    )
-    condition = models.CharField(
-        max_length=20,
-        choices=DeviceCondition.choices,
-        default=DeviceCondition.UNKNOWN,
-        verbose_name='Estado do dispositivo',
-    )
-    imei = models.CharField(
-        max_length=20,
-        blank=True,
-        default='',
-        validators=[_digital_device_imei_validator],
-        verbose_name='IMEI',
-        help_text='International Mobile Equipment Identity (15 dígitos com checksum Luhn).',
-    )
-    serial_number = models.CharField(
-        max_length=100,
-        blank=True,
-        default='',
-        verbose_name='Número de série',
-    )
-    notes = models.TextField(
-        blank=True,
-        default='',
-        verbose_name='Observações',
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = 'Dispositivo Digital'
-        verbose_name_plural = 'Dispositivos Digitais'
-        ordering = ['-created_at']
-
-    def __str__(self):
-        # Prefere nome comercial (reconhecível) e mostra SKU entre parênteses
-        # quando ambos existem — útil para listagens e admin.
-        if self.commercial_name and self.model:
-            label = f'{self.commercial_name} ({self.model})'
-        else:
-            label = (
-                self.commercial_name
-                or f'{self.brand} {self.model}'.strip()
-                or self.get_type_display()
-            )
-        return f'{label} ({self.get_condition_display()})'
-
-    def save(self, *args, **kwargs):
-        """
-        Override: chama full_clean() antes de gravar para garantir que
-        validadores de campo (Luhn do IMEI, etc.) correm em todos
-        os caminhos de escrita (não apenas via ModelForm/DRF).
-
-        Fix B-C1 da auditoria 2026-04-19.
-
-        Excepção: durante `loaddata` (fixtures) ou signals com `raw=True`
-        o kwarg `from_migration=True` pode ser passado para saltar a
-        validação — evita falhas em dados legados que não cumpram
-        validadores introduzidos posteriormente.
-        """
-        skip_validation = kwargs.pop('from_migration', False)
-        if not skip_validation:
-            self.full_clean()
-        super().save(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------

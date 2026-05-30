@@ -326,12 +326,6 @@ class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
         content = response.content.decode('utf-8')
         self.assertIn('id="case-map"', content)
 
-    def test_occurrence_detail_contains_devices_section(self):
-        """A página de detalhe deve conter a secção de dispositivos."""
-        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
-        content = response.content.decode('utf-8')
-        self.assertIn('id="devices-section"', content)
-
     def test_occurrence_detail_contains_custody_summary(self):
         """A página de detalhe deve conter o resumo de custódia."""
         response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))

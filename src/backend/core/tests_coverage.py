@@ -24,7 +24,7 @@ from rest_framework.test import APIClient, APITestCase
 
 from core.exceptions import forensiq_exception_handler
 from core.middleware import ContentSecurityPolicyMiddleware, CorrelationIDMiddleware
-from core.models import ChainOfCustody, DigitalDevice, Evidence, Occurrence, User
+from core.models import ChainOfCustody, Evidence, Occurrence, User
 from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOnly
 
 # =========================================================================
@@ -33,7 +33,6 @@ from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOn
 from core.tests_factories import (
     ChainOfCustodyFactory,
     CrimeTipoFactory,
-    DigitalDeviceFactory,
     EvidenceMobileFactory,
     ExpertFactory,
     OccurrenceFactory,
@@ -198,47 +197,6 @@ class ImsiAdvisoryTest(TestCase):
         self.assertIsNone(validate_imsi_advisory('123'))
         self.assertIsNone(validate_imsi_advisory('26801123456789A'))
         self.assertIsNone(validate_imsi_advisory(None))
-
-
-class DigitalDeviceImeiValidationTest(TestCase):
-    """Regressão: DigitalDevice.imei deve exigir checksum Luhn.
-
-    Antes do fix, ``RegexValidator(r'^(\\d{15})?$')`` aceitava qualquer
-    sequência de 15 dígitos sem verificar Luhn — divergindo do path
-    ``Evidence._validate_type_specific_data`` que já exigia o checksum.
-    """
-
-    def setUp(self):
-        agent = UserFactory.create()
-        occ = OccurrenceFactory.create(agent=agent)
-        self.evidence = EvidenceMobileFactory.create(occurrence=occ, agent=agent)
-
-    def test_invalid_luhn_imei_rejected_on_save(self):
-        dev = DigitalDevice(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            imei='111111111111111',  # 15 dígitos, Luhn falha
-        )
-        with self.assertRaises(DjangoValidationError):
-            dev.save()
-
-    def test_empty_imei_accepted(self):
-        dev = DigitalDevice(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            imei='',
-        )
-        dev.save()  # não levanta — campo opcional
-        self.assertEqual(dev.imei, '')
-
-    def test_valid_luhn_imei_accepted(self):
-        dev = DigitalDevice(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            imei='490154203237518',  # exemplo 3GPP, Luhn ✓
-        )
-        dev.save()  # não levanta
-        self.assertEqual(dev.imei, '490154203237518')
 
 
 # =========================================================================
@@ -468,7 +426,7 @@ class PDFContentValidationTest(TestCase):
     Correccao do item do code review:
     > ALTO - Falta validacao de conteudo do PDF
     > Testes verificam assinatura %PDF e tamanho, mas nao que hash
-    > SHA-256, dispositivos e cadeia de custodia aparecem no PDF.
+    > SHA-256 e cadeia de custodia aparecem no PDF.
     """
 
     def setUp(self):
@@ -478,11 +436,6 @@ class PDFContentValidationTest(TestCase):
             occurrence=self.occ,
             agent=self.agent,
             description='Samsung Galaxy S24 apreendido em Lisboa',
-        )
-        self.device = DigitalDeviceFactory.create(
-            evidence=self.evidence,
-            brand='Samsung',
-            model='Galaxy S24',
         )
         self.custody = ChainOfCustodyFactory.create(
             evidence=self.evidence,
