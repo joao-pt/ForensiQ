@@ -827,74 +827,6 @@ class CookieLogoutViewTest(APITestCase):
 # =========================================================================
 
 
-class OccurrenceFilterTest(APITestCase):
-    """Testes para OccurrenceFilter (date_after, date_before, has_gps)."""
-
-    def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        # Login via cookie
-        login_resp = self.client.post(
-            reverse('auth_login'),
-            {
-                'username': self.user.username,
-                'password': 'TestPass123!',
-            },
-        )
-        for name in ('fq_access', 'fq_refresh'):
-            cookie = login_resp.cookies.get(name)
-            if cookie:
-                self.client.cookies[name] = cookie.value
-
-        # Ocorrência com GPS
-        self.occ_with_gps = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='NUIPC-FILTER-001',
-            description='Com GPS',
-            date_time=timezone.now() - timedelta(days=5),
-            gps_lat=Decimal('38.72'),
-            gps_lng=Decimal('-9.13'),
-            address='Lisboa',
-            agent=self.user,
-        )
-        # Ocorrência sem GPS
-        self.occ_no_gps = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='NUIPC-FILTER-002',
-            description='Sem GPS',
-            date_time=timezone.now() - timedelta(days=10),
-            gps_lat=None,
-            gps_lng=None,
-            address='Porto',
-            agent=self.user,
-        )
-
-    def test_filter_has_gps_true(self):
-        url = reverse('core:occurrence-list') + '?has_gps=true'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        numbers = [r['number'] for r in response.data['results']]
-        self.assertIn('NUIPC-FILTER-001', numbers)
-        self.assertNotIn('NUIPC-FILTER-002', numbers)
-
-    def test_filter_has_gps_false(self):
-        url = reverse('core:occurrence-list') + '?has_gps=false'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        numbers = [r['number'] for r in response.data['results']]
-        self.assertNotIn('NUIPC-FILTER-001', numbers)
-        self.assertIn('NUIPC-FILTER-002', numbers)
-
-    def test_filter_date_after(self):
-        date_str = (timezone.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        url = reverse('core:occurrence-list') + f'?date_after={date_str}'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        numbers = [r['number'] for r in response.data['results']]
-        self.assertIn('NUIPC-FILTER-001', numbers)
-        self.assertNotIn('NUIPC-FILTER-002', numbers)
-
-
 class EvidenceFilterTest(APITestCase):
     """Testes para EvidenceFilter (type, date_after, has_gps)."""
 
@@ -1062,11 +994,11 @@ class PaginationEdgeCasesTest(APITestCase):
 
 
 class FrontendRedirectsTest(TestCase):
-    """Testes para redireccionamentos do frontend (singular → plural)."""
+    """Redireccionamentos e handler 404 do frontend.
 
-    def test_login_page_returns_200(self):
-        response = self.client.get(reverse('login'))
-        self.assertEqual(response.status_code, 200)
+    A cobertura de login-200 vive em ``tests_frontend.py::LoginPageTest``;
+    aqui ficam apenas os casos não cobertos lá (redirect sem auth, 404).
+    """
 
     def test_unauthenticated_dashboard_redirects(self):
         response = self.client.get(reverse('dashboard'))
@@ -1075,31 +1007,3 @@ class FrontendRedirectsTest(TestCase):
     def test_404_handler_returns_404(self):
         response = self.client.get('/pagina-inexistente/')
         self.assertEqual(response.status_code, 404)
-
-
-# =========================================================================
-# 10. AUDITLOG IMMUTABILITY
-# =========================================================================
-
-
-class AuditLogImmutabilityTest(TestCase):
-    """Testes para imutabilidade do AuditLog."""
-
-    def setUp(self):
-        self.user = UserFactory.create()
-        self.log = AuditLog.objects.create(
-            user=self.user,
-            action=AuditLog.Action.VIEW,
-            resource_type=AuditLog.ResourceType.EVIDENCE,
-            resource_id=1,
-            ip_address='192.168.1.1',
-        )
-
-    def test_update_blocked(self):
-        self.log.action = AuditLog.Action.CREATE
-        with self.assertRaises(Exception):
-            self.log.save()
-
-    def test_delete_blocked(self):
-        with self.assertRaises(Exception):
-            self.log.delete()

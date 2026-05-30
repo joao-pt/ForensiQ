@@ -22,7 +22,6 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import RequestFactory, TestCase
 from rest_framework.test import APIClient, APITestCase
 
-from core.exceptions import forensiq_exception_handler
 from core.middleware import ContentSecurityPolicyMiddleware, CorrelationIDMiddleware
 from core.models import ChainOfCustody, Evidence, Occurrence, User
 from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOnly
@@ -328,53 +327,11 @@ class IsOwnerOrReadOnlyPermissionTest(TestCase):
 
 
 # =========================================================================
-# 3. EXCEPTION HANDLER
+# 3. MIDDLEWARE
 # =========================================================================
-
-
-class ExceptionHandlerTest(TestCase):
-    """Cobertura de ``core.exceptions.forensiq_exception_handler``."""
-
-    def test_django_validation_error_with_message_dict(self):
-        exc = DjangoValidationError({'crime_type': CrimeTipoFactory().id, 'number': ['Ja existe.']})
-        resp = forensiq_exception_handler(exc, {})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('number', resp.data)
-
-    def test_django_validation_error_with_messages(self):
-        exc = DjangoValidationError(['Erro generico.'])
-        resp = forensiq_exception_handler(exc, {})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('detail', resp.data)
-
-    def test_django_validation_error_with_string(self):
-        exc = DjangoValidationError('Erro simples.')
-        resp = forensiq_exception_handler(exc, {})
-        self.assertEqual(resp.status_code, 400)
-
-    def test_non_django_error_returns_generic_500_in_production(self):
-        """Excepcoes nao-DRF em producao sao mascaradas com 500 generico.
-
-        Comportamento adicionado em chore(api) commit 2927437: o handler
-        intercepta ``response is None`` (DRF nao sabia processar) e devolve
-        Response 500 com mensagem generica em vez de propagar o stack
-        trace para o cliente (OWASP A05:2021 Security Misconfiguration).
-
-        O teste corre com DEBUG=False (test_settings.py), portanto a
-        ramificacao de mascaramento dispara.
-        """
-        exc = ValueError('Algo inesperado')
-        resp = forensiq_exception_handler(exc, {})
-        self.assertIsNotNone(resp)
-        self.assertEqual(resp.status_code, 500)
-        self.assertIn('detail', resp.data)
-        # Nao deve vazar 'Algo inesperado' nem nada do tipo na resposta.
-        self.assertNotIn('inesperado', resp.data['detail'])
-
-
-# =========================================================================
-# 4. MIDDLEWARE
-# =========================================================================
+# Nota: a cobertura de ``forensiq_exception_handler`` (antes aqui) foi
+# consolidada em ``tests_services.py::ExceptionHandlerTest`` (superconjunto,
+# inclui o ramo DEBUG=True). T16.
 
 
 class CorrelationIDMiddlewareTest(TestCase):
@@ -570,22 +527,16 @@ class DashboardStatsOwnershipTest(APITestCase):
 
 
 class HealthcheckTest(TestCase):
-    """Cobertura de ``core.views.healthcheck``."""
+    """Cobertura de ``core.views.healthcheck`` (endpoint público de liveness)."""
 
-    def test_healthcheck_returns_200(self):
+    def test_healthcheck_returns_200_sem_auth(self):
+        """Cliente sem credenciais obtém 200 + status 'ok' (não exige auth)."""
         from django.test import Client
 
         client = Client()
         resp = client.get('/api/health/')
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'ok')
-
-    def test_healthcheck_no_auth_required(self):
-        from django.test import Client
-
-        client = Client()
-        resp = client.get('/api/health/')
-        self.assertEqual(resp.status_code, 200)
 
 
 # =========================================================================
@@ -681,81 +632,12 @@ class SerializerEdgeCasesTest(APITestCase):
 
 
 # =========================================================================
-# 10. MODEL INTEGRITY - compute_record_hash includes ID
+# 10. LOOKUP VIEWS - IMEI / VIN
 # =========================================================================
-
-
-class RecordHashIntegrityTest(TestCase):
-    """Verifica que o hash da cadeia de custodia e robusto.
-
-    Correccao do item do code review:
-    > ALTO - compute_record_hash() sem ID do registo
-    """
-
-    def setUp(self):
-        self.agent = UserFactory.create()
-        self.occ = OccurrenceFactory.create(agent=self.agent)
-        self.ev = EvidenceMobileFactory.create(
-            occurrence=self.occ,
-            agent=self.agent,
-        )
-
-    def test_custody_records_have_unique_hashes(self):
-        """Dois registos de custodia com dados semelhantes tem hashes distintos."""
-        c1 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            event_type=ChainOfCustody.EventType.APREENSAO,
-            custodian_type=ChainOfCustody.CustodianType.OPC,
-            agent=self.agent,
-            observations='Apreensao teste',
-        )
-        c2 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            event_type=ChainOfCustody.EventType.VALIDACAO,
-            custodian_type=ChainOfCustody.CustodianType.OPC,
-            agent=self.agent,
-            observations='Validacao teste',
-        )
-        self.assertNotEqual(c1.record_hash, c2.record_hash)
-
-    def test_hash_chain_links_correctly(self):
-        """O record_hash do segundo registo encadeia com o do primeiro.
-
-        ChainOfCustody nao armazena `previous_hash` como campo; o
-        encadeamento e feito em ``compute_record_hash(previous_hash=...)``
-        que e funcao pura. Verificamos que recomputar o hash de ``c2``
-        passando ``c1.record_hash`` como entrada reproduz exactamente o
-        valor que foi gravado, e que e diferente do hash de ``c1``.
-        """
-        c1 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            event_type=ChainOfCustody.EventType.APREENSAO,
-            custodian_type=ChainOfCustody.CustodianType.OPC,
-            agent=self.agent,
-            observations='Primeiro registo',
-        )
-        c2 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            event_type=ChainOfCustody.EventType.VALIDACAO,
-            custodian_type=ChainOfCustody.CustodianType.OPC,
-            agent=self.agent,
-            observations='Segundo registo',
-        )
-        self.assertNotEqual(c1.record_hash, c2.record_hash)
-        self.assertEqual(
-            c2.compute_record_hash(previous_hash=c1.record_hash),
-            c2.record_hash,
-        )
-
-    def test_evidence_integrity_hash_not_empty(self):
-        """Cada evidencia criada tem um hash SHA-256 de integridade."""
-        self.assertIsNotNone(self.ev.integrity_hash)
-        self.assertEqual(len(self.ev.integrity_hash), 64)
-
-
-# =========================================================================
-# 11. LOOKUP VIEWS - IMEI / VIN
-# =========================================================================
+# Nota: a integridade do hash-chain (records únicos, recompute encadeado) e
+# o hash de integridade da evidência estão cobertos por
+# ``tests.py::ChainOfCustodyModelTest::test_hash_chain_integrity``,
+# ``CustodyHashFormulaTest`` e ``EvidenceModelTest::test_create_evidence_with_auto_hash``. T16.
 
 
 class IMEILookupViewTest(APITestCase):
