@@ -11,6 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Deteção de modo de teste — activa automaticamente quando
@@ -152,6 +153,9 @@ REST_FRAMEWORK = {
         # Endpoint público de verificação (`/v/<short-hash>/`) sem auth
         # — ADR-0012. Rate algo apertado por ser superfície pública.
         'verify_public': '30/minute',
+        # Healthcheck público (`/api/health/`): folgado para nunca travar
+        # probes legítimos, mas limita varredura/amplificação anónima da BD.
+        'healthcheck': '120/minute',
     },
 }
 
@@ -177,6 +181,19 @@ if TESTING:
     }
 
 # --- SimpleJWT ---
+# Chave de assinatura: em produção EXIGE uma chave dedicada (JWT_SIGNING_KEY),
+# para desacoplar a assinatura de tokens do SECRET_KEY — rodar ou expor um não
+# compromete o outro. Falha fechado se faltar em produção; só cai para o
+# SECRET_KEY em desenvolvimento/testes (DEBUG ou modo de teste).
+_jwt_signing_key = os.environ.get('JWT_SIGNING_KEY')
+if not _jwt_signing_key:
+    if not DEBUG and not TESTING:
+        raise ImproperlyConfigured(
+            'JWT_SIGNING_KEY é obrigatória em produção (DEBUG=False): não usar '
+            'o SECRET_KEY para assinar tokens JWT.'
+        )
+    _jwt_signing_key = SECRET_KEY
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
         minutes=int(os.environ.get('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', 60))
@@ -187,7 +204,7 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', SECRET_KEY),
+    'SIGNING_KEY': _jwt_signing_key,
 }
 
 # --- Retenção de AuditLog (RGPD Art. 5(1)(e) — princípio da limitação da

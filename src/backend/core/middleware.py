@@ -168,6 +168,13 @@ class ContentSecurityPolicyMiddleware:
             report_only = settings.DEBUG
             policy = self._build_policy(nonce, report_only=report_only)
             if report_only:
+                # Report-Only só em DEBUG e SEM `report-uri`/`report-to` por
+                # decisão (finding `csp-report-only-sem-report-uri`): em
+                # desenvolvimento as violações já aparecem na consola do
+                # browser (DevTools), pelo que um colector server-side traria
+                # apenas um endpoint POST não autenticado — superfície que não
+                # se justifica num modo que nunca corre em produção (onde a
+                # policy é sempre *enforced*, não Report-Only).
                 response['Content-Security-Policy-Report-Only'] = policy
             else:
                 response['Content-Security-Policy'] = policy

@@ -19,3 +19,16 @@ class AuthRateThrottle(AnonRateThrottle):
     """
 
     scope = 'auth'
+
+
+class HealthcheckRateThrottle(AnonRateThrottle):
+    """Rate limiting do endpoint público de healthcheck (`/api/health/`).
+
+    O healthcheck é anónimo e cada chamada faz um ``SELECT 1`` à BD; sem
+    freio, permite varredura de liveness e amplificação ligeira de carga/custo
+    de BD por pedidos não autenticados. Aplica-se por IP (limite
+    ``DEFAULT_THROTTLE_RATES['healthcheck']``); o valor é deliberadamente
+    folgado para nunca travar probes legítimos do Fly.io/Kubernetes.
+    """
+
+    scope = 'healthcheck'

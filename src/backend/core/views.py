@@ -31,9 +31,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
 from django.db.models import Count
 from django.db.models.functions import TruncDate
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
-from django.views.decorators.http import require_safe
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import (
     filters,
@@ -42,8 +41,14 @@ from rest_framework import (
     status,
     viewsets,
 )
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.decorators import (
+    action,
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -73,6 +78,7 @@ from .serializers import (
 )
 from .services.imei_lookup import LookupError as ImeiLookupError, lookup_imei, mask_imei
 from .services.vin_lookup import build_vindecoder_url
+from .throttles import HealthcheckRateThrottle
 from .validators import validate_imei, validate_vin
 
 User = get_user_model()
@@ -1406,17 +1412,22 @@ class MediaServeView(APIView):
 # ---------------------------------------------------------------------------
 
 
-@require_safe
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([HealthcheckRateThrottle])
 def healthcheck(request):
     """GET /api/health/ — 200 se a DB responde, 503 caso contrário.
 
     Alinha com a convenção do Fly.io / Kubernetes (``/healthz`` equivalente).
-    Não exige autenticação para permitir probes externos simples.
+    Não exige autenticação para permitir probes externos simples, mas aplica
+    ``HealthcheckRateThrottle`` (por IP) para travar varredura/amplificação
+    anónima da BD sem nunca travar probes legítimos.
     """
     try:
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return JsonResponse({'status': 'ok'})
+        return Response({'status': 'ok'})
     except Exception:  # noqa: BLE001 — devolvemos 503 em qualquer erro de DB
-        return JsonResponse({'status': 'degraded'}, status=503)
+        return Response({'status': 'degraded'}, status=503)
