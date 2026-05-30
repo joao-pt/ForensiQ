@@ -149,6 +149,7 @@ footer técnico com métricas hardcoded/ausentes. Bug já presente: o do hero ge
 | **T17** | Coerência de contrato API (shapes de erro, snapshot lookup, auditar Occurrence) | 2-backend | P3 | L | Baixo |
 | **T18** | *(novo — §7)* Coerência API/BD da `Occurrence` (imutável em PG vs ViewSet mutável) + Intake | ambas | **P1** | M | **Médio-Alto** |
 | **T19** | *(novo — 2026-05-30)* Taxonomia oficial de crimes + prioridade por Política Criminal + alertas | ambas | **P1** | L | Médio |
+| **T20** | *(novo — 2026-05-30)* FSM da custódia ramificada (CPP Art. 178.º) + localização/custódio por transição (OSM) | ambas | **P1** | XL | **ALTO** |
 
 ### Detalhe dos temas
 
@@ -224,6 +225,16 @@ Torna a `priority` **semântica** (ancorada na lei) e acelera/normaliza a entrad
 - **Mapeamento curado** lei↔tabela (frases da lei → códigos N3/N2; ex.: "homicídio"→1, "violência doméstica"→194/195/196, "burla informática"→53, "cibercriminalidade"→subcat. 43) — trabalho bounded, candidato a workflow de mapeamento + verificação adversarial.
 
 **Implicação Fase 3 (`art-direction.md`):** a colorbar/legenda do hero deixa de ser P1-P4 e passa a **2 estados (prioritária/normal)** — actualizar `art-direction.md` §Hero e o `geo-hero`. *Estende:* T03 (priority), T06 (feed/alertas). *Findings relacionados:* `gap-occurrence-priority`, `gap-occurrence-priority-serializer`, `gap-table-priority-feed-source`. *Depende de:* obter a Tabela 2024 (1.ª tarefa de dados da Fase 2).
+
+**T20 — *(novo, 2026-05-30)* FSM da cadeia de custódia ramificada (CPP) + localização/custódio por transição.** `[P1 · ambas · XL · risco ALTO]`
+Redesenha a máquina de estados **linear** actual numa **FSM ramificada fiel ao CPP** (DL 78/87, Art. 178.º), capturando **localização + estabelecimento + custódio em cada transição**. É a maior mudança da Fase 2 e toca o núcleo forense. Decisões do dono (2026-05-30):
+- **Dois eixos (decisão Q2):** separar **estado** (processo) de **localização/custódio**. Cada registo do ledger leva: `new_state` + `gps_lat/lng/accuracy` (de T01) + `location_name` (texto) + `custodian_type` (enum: `LOCAL_CRIME` / `ESQUADRA` / `LAB_PUBLICO` / `LAB_PRIVADO` / `TRIBUNAL` / `DEPOSITARIO` / `PROPRIETARIO`).
+- **Estados (aditivos — ver nota forense):** mantêm-se `APREENDIDA`, `EM_TRANSPORTE`, `RECEBIDA_LABORATORIO`, `EM_PERICIA`, `CONCLUIDA`, `DEVOLVIDA`⛔, `DESTRUIDA`⛔; **acrescentam-se** `A_AGUARDAR_VALIDACAO` (≤72h, Art. 178.º/6), `VALIDADA`, `ENCAMINHADA` (outro lab púb./priv.), `PERDIDA_FAVOR_ESTADO`. Ramos legais: não-validada→restituição; sem-despacho→guarda→restituição; perícia concluída→restituição | perda a favor do Estado→destruição.
+- **Validador ramificado:** substitui o validador linear estrito por um grafo de transições permitidas (continua **no modelo**, não nas views). Estados terminais (`DEVOLVIDA`/`DESTRUIDA`) colocam a prova em terminal automaticamente.
+- **Estabelecimentos = OSM/Nominatim (decisão Q3):** `location_name` vem de POIs próximos via **OSM** — reusa o reverse-geocode Nominatim existente (+ throttle `reverse_geocode`), estendido a pesquisa de POIs próximos (ex.: Overpass). Agente selecciona; mantém-se sempre GPS+morada. Cena do crime (bombas, marcos) e nós oficiais (esquadras/labs/tribunais) todos via OSM (sem tabela curada).
+
+**Nota forense (crítica):** o ledger é **append-only imutável** — **não se reescrevem registos antigos**. Os estados novos são **aditivos** (novos choices); registos existentes mantêm os seus estados; o validador aceita os legados. Os campos de localização entram pela **migração aditiva do T01** (cobertos pelos triggers de linha). Hash-chain **inalterado** (a localização entra no hash de forma versionada, decisão D1). **Precisa de ADR próprio (ADR-0015), migração aditiva, e verificação adversarial** (workflow) de que (a) a FSM é legalmente coerente e (b) imutabilidade/hash-chain não regridem. *Estende:* T01 (GPS), liga-se a T18 (intake = recepção/validação no lab). *Depende de:* T01 + ADR.
+**Implicação Fase 3:** o `transition_modal` ganha captura GPS + selecção de POI (OSM) + tipo de custódio; o mini-mapa "Cadeia" mostra a jornada com os nós nomeados.
 
 ---
 
