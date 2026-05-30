@@ -381,15 +381,20 @@ ou registadas abaixo):
 
 > **Princípio global da Fase 2 (decisão do projecto):** **sem legado, sem retrocompatibilidade.** A aplicação é construída de raiz; substitui-se código/campos/formatos sem preservar nada antigo. Aplica-se a todo o refactor.
 
-**Reserva de numeração de migrations** (evita colisão entre tracks paralelos):
-- Track GPS (T01/T02): **`0018`** (rename `gps_lng`) + **`0019`** (GPS na custódia).
-- Track taxonomia (T19): **`0020`** (taxonomia) + **`0021`** (`crime_type`/`priority` na Occurrence).
+**Migrations (numeração por ordem de execução, não por reserva):**
+- ✅ **`0018`** — rename `gps_lng` (T02).
+- ✅ **`0019`** — taxonomia + `crime_type`/`priority`/`priority_source` na `Occurrence` (T19; migração aditiva combinada).
+- **`0020`+** — reforma da custódia (T20: ledger de eventos + GPS + hash limpo), por aplicar.
 
 **PASSO 1 — Dados de referência da taxonomia (T19) — concluído:**
 - ✅ **Tabela de Crimes Registados 1.7 (2024)** em `src/backend/core/data/tabela_crimes_2024.json` — fonte autêntica recuperada do arquivo Wayback (o portal SIEJ 404a a pedidos directos). **7 categorias N1 / 50 subcategorias N2 / 219 tipos N3**; descritivos *verbatim*; cross-check determinístico dos 219 códigos N3 contra extracção `pypdf` independente (**0 divergências**). Revelou que a 7.ª categoria (`10` animais de companhia) invalida o "1-6" → **ADR-0014 reconciliado** (códigos `{1,2,3,4,5,6,10}`; exemplos 2024: `53`→`241-244`, `57`=abuso de cartão, extorsão=`246`).
 - ✅ **Mapa Lei 51/2023 ↔ Tabela 1.7** em `core/data/mapa_politica_criminal.json` — **46 tipos INVESTIGACAO** (Art.5, operativo) + **51 PREVENCAO** (Art.4, informativo). Produzido por workflow de **verificação adversarial** (2 lentes/alínea → reconciliador céptico → crítico de cobertura; validação determinística anti-invenção de códigos). Alíneas `4g`/`5f` (transversais/contextuais) não mapeadas por desenho. Inclui `core/data/README.md` de proveniência + procedimento de re-seed.
 
-**Próximo (código T19):** models das 4 tabelas de referência + `Occurrence.crime_type`/`priority`/`priority_source`; migrations **`0020`**/**`0021`**; comando `seed_crime_taxonomy` (consome os 2 JSON); `OccurrenceViewSet` POST-only + serializers + testes. Em paralelo, o track GPS: **T02** (rename `gps_lng`) → T04/T05 (remoções) → **T01** (GPS). **T20** (ledger de eventos) por último, com verificação adversarial antes de tocar o validador.
+**T02 — concluído (`dc8a666`):** rename `gps_lon`→`gps_lng` em todo o código (sem alias); migration `0018` (rename + refresh da função documental 0008). Suite 448 verde.
+
+**T19 — código concluído (`8d2c293`):** 5 modelos de referência + `Occurrence.crime_type`/`priority`/`priority_source` (derivada no `clean()`, eixo operativo Art. 5.º; override manual só eleva); migration `0019`; `seed_crime_taxonomy` idempotente; `OccurrenceViewSet` POST-only; admin dos modelos de referência; `seed_demo` re-semeia + classifica os 5 casos; 16 testes novos. Suite 464 verde.
+
+**Próximo:** **T04** (remover exportação CSV) → **T05** (remover DigitalDevice) → **T08** (CSP Overpass) → **T01+T20** (reforma da custódia: ledger de eventos + GPS + hash limpo, com verificação adversarial antes de tocar o validador) → **T03/T06/T07** (prioridade no UI, feed, deltas).
 
 ---
 
