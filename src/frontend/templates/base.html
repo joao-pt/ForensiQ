@@ -17,126 +17,327 @@
     <!-- Tema — aplica antes do primeiro paint para evitar flash (FOUC) -->
     <script src="{% static 'js/theme-init.js' %}"></script>
 
-    <!-- CSS principal -->
+    <!-- CSS principal + casca three-pane -->
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    <link rel="stylesheet" href="{% static 'css/components/app-shell.css' %}">
     {% block extra_css %}{% endblock %}
 
-    <!-- Tipografia forense: Inter (UI) + JetBrains Mono (hashes, IDs, timestamps) -->
+    <!-- Tipografia forense: IBM Plex Sans (UI) + IBM Plex Mono (hashes, IDs, timestamps) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
 
 </head>
-<body>
+<body class="{% block body_class %}app-body{% endblock %}">
     <!-- Região live para anúncios de tema a leitores de ecrã -->
     <div id="theme-announce" class="visually-hidden" aria-live="polite" aria-atomic="true"></div>
 
-    <!-- Barra de navegação (login.html anula este bloco para ficar oculta). -->
-    {% block navbar %}
-    <nav class="navbar" id="navbar" aria-label="Principal">
-        <div class="nav-left">
-            <a href="/dashboard/" class="nav-brand" title="ForensiQ — Início">
-                <svg class="nav-brand-mark" viewBox="0 0 56 48" aria-hidden="true">
-                    <defs>
-                        <mask id="nav-interlock" maskUnits="userSpaceOnUse">
-                            <rect x="0" y="0" width="56" height="48" fill="white"/>
-                            <rect x="24" y="28.5" width="8" height="7" fill="black"/>
-                        </mask>
-                    </defs>
-                    <circle cx="22" cy="24" r="10" fill="none"
-                            stroke="var(--accent)" stroke-width="2.5"/>
-                    <circle cx="34" cy="24" r="10" fill="none"
-                            stroke="currentColor" stroke-width="2.5"
-                            mask="url(#nav-interlock)"/>
-                </svg>
-                <span class="nav-brand-name">ForensiQ</span>
-            </a>
-            <nav class="breadcrumb" aria-label="Navegação">
-                {% block breadcrumb %}<span class="breadcrumb-current">Início</span>{% endblock %}
-            </nav>
+    {% block body_root %}
+    <a class="skip-link" href="#main-content">Saltar para o conteúdo</a>
+
+    <!-- =========================
+         Header — contexto operacional
+         ========================= -->
+    {% block app_top %}
+    <header class="app-top" role="banner">
+        <a href="/dashboard/" class="app-top__brand" aria-label="ForensiQ — Início">
+            <svg class="app-top__brand-mark" viewBox="0 0 56 48" aria-hidden="true">
+                <defs>
+                    <mask id="app-top-interlock" maskUnits="userSpaceOnUse">
+                        <rect x="0" y="0" width="56" height="48" fill="white"/>
+                        <rect x="24" y="28.5" width="8" height="7" fill="black"/>
+                    </mask>
+                </defs>
+                <circle cx="22" cy="24" r="10" fill="none"
+                        stroke="var(--accent)" stroke-width="2.5"/>
+                <circle cx="34" cy="24" r="10" fill="none"
+                        stroke="currentColor" stroke-width="2.5"
+                        mask="url(#app-top-interlock)"/>
+            </svg>
+            <span class="app-top__brand-name">ForensiQ</span>
+        </a>
+
+        <span class="app-top__sep" aria-hidden="true">·</span>
+
+        <!-- Chips de contexto operacional (preenchidas em runtime via JS auth) -->
+        <div class="app-top__chips" role="list" aria-label="Contexto operacional">
+            <span class="app-top__chip" data-variant="role" role="listitem"
+                  id="ctx-role" data-priority="high">—</span>
+            <span class="app-top__chip" role="listitem"
+                  id="ctx-name" data-priority="high">—</span>
+            <span class="app-top__chip" role="listitem"
+                  id="ctx-shift" data-priority="low" title="Turno operacional">Diurno</span>
+            <span class="app-top__chip" role="listitem"
+                  id="ctx-zone" data-priority="low" title="Zona territorial">PT-CONT</span>
+            <span class="app-top__chip" role="listitem"
+                  id="ctx-device" data-priority="low" title="Dispositivo">DESKTOP</span>
         </div>
 
-        <div class="nav-right">
-            <!-- Alternar tema (dia / noite) -->
-            <button type="button" class="icon-btn" id="theme-toggle"
-                    title="Alternar tema" aria-label="Alternar tema"
-                    aria-pressed="false">
-                <svg class="icon-sun" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="4"/>
-                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-                </svg>
-                <svg class="icon-moon" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
-                    <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+        <div class="app-top__spacer"></div>
+
+        <time class="app-top__clock" id="app-clock"
+              aria-label="Hora actual" datetime="">--:<span class="app-top__clock-sep">:</span>--:--</time>
+
+        <!-- Alternar tema (dia / noite) -->
+        <button type="button" class="icon-btn" id="theme-toggle"
+                title="Alternar tema" aria-label="Alternar tema"
+                aria-pressed="false">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="1.8"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>
+            </svg>
+        </button>
+
+        <!-- Menu de utilizador -->
+        <div class="user-menu">
+            <button type="button" class="user-menu-trigger" id="user-menu-trigger"
+                    aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu-panel">
+                <span class="user-avatar" id="user-avatar" aria-hidden="true">—</span>
+                <span class="user-menu-name" id="user-menu-name">Utilizador</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+                     width="14" height="14">
+                    <path d="m6 9 6 6 6-6"/>
                 </svg>
             </button>
 
-            <!-- Menu de utilizador -->
-            <div class="user-menu">
-                <button type="button" class="user-menu-trigger" id="user-menu-trigger"
-                        aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu-panel">
-                    <span class="user-avatar" id="user-avatar" aria-hidden="true">—</span>
-                    <span class="user-menu-name" id="user-menu-name">Utilizador</span>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
-                         width="14" height="14">
-                        <path d="m6 9 6 6 6-6"/>
+            <div class="user-menu-panel" id="user-menu-panel" role="menu" hidden>
+                <div class="user-menu-header">
+                    <div class="user-menu-header-name" id="user-menu-full-name">—</div>
+                    <div class="user-menu-header-role" id="user-menu-role">—</div>
+                </div>
+
+                <a href="/stats/" class="user-menu-item" role="menuitem">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 20h18M6 16V9M11 16V5M16 16v-8M21 16V11"/>
                     </svg>
+                    Estatísticas
+                </a>
+                <a href="/reports/" class="user-menu-item" role="menuitem">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                        <path d="M14 3v6h6M9 13h6M9 17h4"/>
+                    </svg>
+                    Relatórios PDF
+                </a>
+                <a href="/settings/" class="user-menu-item" role="menuitem">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+                    </svg>
+                    Definições
+                </a>
+
+                <hr>
+
+                <button type="button" class="user-menu-item danger" id="btn-logout" role="menuitem">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <path d="m16 17 5-5-5-5M21 12H9"/>
+                    </svg>
+                    Terminar sessão
                 </button>
+            </div>
+        </div>
+    </header>
+    {% endblock %}
 
-                <div class="user-menu-panel" id="user-menu-panel" role="menu" hidden>
-                    <div class="user-menu-header">
-                        <div class="user-menu-header-name" id="user-menu-full-name">—</div>
-                        <div class="user-menu-header-role" id="user-menu-role">—</div>
-                    </div>
+    <!-- =========================
+         Grid three-pane (sidebar | main | drawer)
+         ========================= -->
+    <div class="app-grid" id="app-grid" data-drawer="closed">
 
-                    <a href="/stats/" class="user-menu-item" role="menuitem">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3 20h18M6 16V9M11 16V5M16 16v-8M21 16V11"/>
+        {% block app_sidebar %}
+        <aside class="app-sidebar" aria-label="Navegação principal">
+            <nav>
+                <div class="app-sidebar__group">
+                    <h3 class="app-sidebar__group-title">Principal</h3>
+                    <a class="app-sidebar__link" href="/dashboard/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 12 12 4l9 8"/>
+                            <path d="M5 10v10h14V10"/>
                         </svg>
-                        Estatísticas
+                        <span class="app-sidebar__label">Painel</span>
                     </a>
-                    <a href="/reports/" class="user-menu-item" role="menuitem">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <a class="app-sidebar__link" href="/occurrences/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <rect x="4" y="4" width="16" height="16" rx="2"/>
+                            <path d="M8 8h8M8 12h8M8 16h5"/>
+                        </svg>
+                        <span class="app-sidebar__label">Ocorrências</span>
+                    </a>
+                </div>
+
+                <div class="app-sidebar__group">
+                    <h3 class="app-sidebar__group-title">Laboratório</h3>
+                    <a class="app-sidebar__link" href="/evidences/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
+                            <path d="M14 3v6h6"/>
+                        </svg>
+                        <span class="app-sidebar__label">Evidências</span>
+                    </a>
+                    <a class="app-sidebar__link" href="/custodies/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="9" cy="12" r="4"/>
+                            <circle cx="15" cy="12" r="4"/>
+                        </svg>
+                        <span class="app-sidebar__label">Custódias</span>
+                    </a>
+                </div>
+
+                <div class="app-sidebar__group">
+                    <h3 class="app-sidebar__group-title">Análise</h3>
+                    <a class="app-sidebar__link" href="/reports/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
                             <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
                             <path d="M14 3v6h6M9 13h6M9 17h4"/>
                         </svg>
-                        Relatórios PDF
+                        <span class="app-sidebar__label">Relatórios</span>
                     </a>
-                    <a href="/settings/" class="user-menu-item" role="menuitem">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <a class="app-sidebar__link" href="/stats/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 20h18M6 16V9M11 16V5M16 16v-8M21 16V11"/>
+                        </svg>
+                        <span class="app-sidebar__label">Estatísticas</span>
+                    </a>
+                </div>
+
+                <div class="app-sidebar__group">
+                    <h3 class="app-sidebar__group-title">Sistema</h3>
+                    <a class="app-sidebar__link" href="/settings/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
                             <circle cx="12" cy="12" r="3"/>
-                            <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+                            <path d="M19 12a7 7 0 0 1-.1 1.2l2 1.5-2 3.4-2.4-.9a7 7 0 0 1-2 1.2L14 21h-4l-.5-2.6a7 7 0 0 1-2-1.2l-2.4 1-2-3.5 2-1.5A7 7 0 0 1 5 12l-.1-1.2-2-1.5 2-3.4 2.4 1a7 7 0 0 1 2-1.2L10 3h4l.5 2.6a7 7 0 0 1 2 1.2l2.4-1 2 3.5-2 1.5z"/>
                         </svg>
-                        Definições
+                        <span class="app-sidebar__label">Definições</span>
                     </a>
-
-                    <hr>
-
-                    <button type="button" class="user-menu-item danger" id="btn-logout" role="menuitem">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                            <path d="m16 17 5-5-5-5M21 12H9"/>
+                    <a class="app-sidebar__link" href="/audit/investigation/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/>
+                            <path d="m9 12 2 2 4-4"/>
                         </svg>
-                        Terminar sessão
-                    </button>
+                        <span class="app-sidebar__label">Auditoria</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+        {% endblock %}
+
+        {% block app_main %}
+        <main class="app-main" id="main-content" tabindex="-1">
+            <nav class="breadcrumb app-breadcrumb" aria-label="Navegação">
+                {% block breadcrumb %}<span class="breadcrumb-current">Início</span>{% endblock %}
+            </nav>
+            <div class="container">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+        {% endblock %}
+
+        {% block app_drawer %}
+        <aside class="app-drawer" id="app-drawer" aria-label="Painel contextual" hidden>
+            <div class="app-drawer__rail" aria-hidden="true">
+                <button type="button" class="app-drawer__btn" data-drawer-action="expand"
+                        aria-label="Expandir painel" title="Expandir painel">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m15 18-6-6 6-6"/>
+                    </svg>
+                </button>
+                <button type="button" class="app-drawer__btn" data-drawer-action="close"
+                        aria-label="Fechar painel" title="Fechar painel">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="app-drawer__panel">
+                <header class="app-drawer__header">
+                    <h2 class="app-drawer__title" id="app-drawer-title">
+                        {% block drawer_title %}Painel{% endblock %}
+                    </h2>
+                    <div class="app-drawer__actions">
+                        <button type="button" class="app-drawer__btn"
+                                data-drawer-action="minimize"
+                                aria-label="Minimizar painel" title="Minimizar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M5 12h14"/>
+                            </svg>
+                        </button>
+                        <button type="button" class="app-drawer__btn"
+                                data-drawer-action="close"
+                                aria-label="Fechar painel" title="Fechar">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M18 6 6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                </header>
+
+                <div class="app-drawer__body" id="app-drawer-body">
+                    {% block drawer_content %}
+                    <p class="app-drawer__placeholder">Sem item seleccionado.</p>
+                    {% endblock %}
                 </div>
             </div>
-        </div>
-    </nav>
+        </aside>
+        {% endblock %}
+
+    </div>
+
+    <!-- =========================
+         Footer técnico
+         ========================= -->
+    {% block app_bottom %}
+    <footer class="app-bottom" role="contentinfo">
+        <span class="app-bottom__item" data-status="ok" title="Estado da sessão">
+            <span class="app-bottom__dot" aria-hidden="true"></span>
+            online
+        </span>
+        <span class="app-bottom__sep" aria-hidden="true">·</span>
+        <span class="app-bottom__item" title="Etiqueta de build">{{ app_build_label }}</span>
+        <span class="app-bottom__sep" aria-hidden="true">·</span>
+        <span class="app-bottom__item" title="Commit de origem">commit {{ app_commit }}</span>
+        <span class="app-bottom__sep" aria-hidden="true">·</span>
+        <span class="app-bottom__item" title="Região Fly.io">fly {{ app_region }}</span>
+        <span class="app-bottom__sep" aria-hidden="true">·</span>
+        <span class="app-bottom__item" title="Content Security Policy estrito">{{ app_csp_label }}</span>
+    </footer>
     {% endblock %}
 
-    <!-- Conteúdo principal -->
-    <main class="container" id="main-content">
-        {% block content %}{% endblock %}
-    </main>
+    {% endblock %} {# /body_root #}
 
     <!-- Notificações / alertas -->
     <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
@@ -149,6 +350,7 @@
     <script src="{% static 'js/components/data-table.js' %}"></script>
     <script src="{% static 'js/theme-switch.js' %}"></script>
     <script src="{% static 'js/user-menu.js' %}"></script>
+    <script src="{% static 'js/app-shell.js' %}"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

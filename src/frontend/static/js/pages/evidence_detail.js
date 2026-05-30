@@ -3,10 +3,10 @@
 /**
  * ForensiQ — Detalhe do item de prova (/evidences/<id>/).
  *
- * Carrega o item, sub-componentes integrantes (Evidence.sub_components),
- * dispositivos digitais legados (DigitalDevice) e o estado actual da
- * cadeia de custódia. Permite descarregar PDF individual e criar sub-
- * componentes directamente (com parent_evidence pré-preenchido).
+ * Carrega o item, sub-componentes integrantes (Evidence.sub_components)
+ * e o estado actual da cadeia de custódia. Permite descarregar PDF
+ * individual e criar sub-componentes directamente (com parent_evidence
+ * pré-preenchido).
  */
 
 const evidenceId = parseInt(
@@ -22,25 +22,6 @@ const STATE_LABELS = {
     CONCLUIDA: 'Concluída',
     DEVOLVIDA: 'Devolvida',
     DESTRUIDA: 'Destruída',
-};
-
-const DEVICE_LABELS = {
-    SMARTPHONE: 'Smartphone',     TABLET: 'Tablet',        LAPTOP: 'Portátil',
-    DESKTOP:    'Desktop',        USB_DRIVE: 'Pen USB',    HARD_DRIVE: 'Disco rígido',
-    SIM_CARD:   'Cartão SIM',     SD_CARD: 'Cartão SD',    CAMERA: 'Câmara',
-    DRONE:      'Drone',          OTHER: 'Outro',
-};
-
-const CONDITION_LABELS = {
-    FUNCTIONAL: 'Funcional', DAMAGED: 'Danificado', LOCKED: 'Bloqueado',
-    OFF: 'Desligado',        UNKNOWN: 'Desconhecido',
-};
-
-const LEGACY_DEVICE_ICON = {
-    SMARTPHONE: 'smartphone', TABLET: 'smartphone', LAPTOP: 'laptop',
-    DESKTOP: 'laptop',        USB_DRIVE: 'hard-drive', HARD_DRIVE: 'disc',
-    SIM_CARD: 'sim-card',     SD_CARD: 'sd-card', CAMERA: 'cctv',
-    DRONE: 'drone',           OTHER: 'box',
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -60,12 +41,6 @@ async function loadEvidence() {
         const ev = await API.get(`${CONFIG.ENDPOINTS.EVIDENCES}${evidenceId}/`);
         renderEvidence(ev);
         renderSubComponents(ev.sub_components || []);
-
-        const devicesData = await API.get(CONFIG.ENDPOINTS.DEVICES, {
-            evidence: evidenceId,
-            page_size: 50,
-        });
-        renderDevices(devicesData.results || []);
 
         // Ordering default do endpoint é `sequence` ASC (cronológico da
         // cadeia). Para o "estado actual" precisamos do MAIS RECENTE —
@@ -101,10 +76,10 @@ function renderEvidence(ev) {
         document.getElementById('meta-serial').textContent = ev.serial_number;
     }
 
-    if (ev.gps_lat && ev.gps_lon) {
+    if (ev.gps_lat && ev.gps_lng) {
         document.getElementById('meta-gps-row').hidden = false;
         document.getElementById('meta-gps').textContent =
-            `${parseFloat(ev.gps_lat).toFixed(5)}, ${parseFloat(ev.gps_lon).toFixed(5)}`;
+            `${parseFloat(ev.gps_lat).toFixed(5)}, ${parseFloat(ev.gps_lng).toFixed(5)}`;
     }
 
     const occLink = document.getElementById('meta-occurrence');
@@ -215,57 +190,6 @@ function renderSubComponents(subs) {
             meta.textContent = metaParts.join(' · ');
             body.appendChild(meta);
         }
-
-        row.appendChild(iconWrap);
-        row.appendChild(body);
-        container.appendChild(row);
-    });
-}
-
-function renderDevices(devices) {
-    if (!devices.length) return;
-    document.getElementById('devices-section').hidden = false;
-    document.getElementById('device-count').textContent = devices.length;
-
-    const container = document.getElementById('devices-container');
-    container.replaceChildren();
-
-    devices.forEach((d) => {
-        const row = document.createElement('div');
-        row.className = 'device-row';
-
-        const iconWrap = document.createElement('div');
-        iconWrap.className = 'device-row-icon';
-        const icon = Icons.element(LEGACY_DEVICE_ICON[d.type] || 'box', { size: 20 });
-        if (icon) iconWrap.appendChild(icon);
-
-        const body = document.createElement('div');
-        body.className = 'device-row-body';
-
-        const title = document.createElement('div');
-        title.className = 'device-row-title';
-        const typeLabel = DEVICE_LABELS[d.type] || d.type;
-        // Prefere "Marca Nome comercial (SKU)"; fallback para texto livre.
-        const brand = d.brand || '';
-        const commercial = d.commercial_name || '';
-        const sku = d.model || '';
-        let identity;
-        if (commercial && sku) identity = `${brand} ${commercial} (${sku})`.trim();
-        else if (commercial)   identity = `${brand} ${commercial}`.trim();
-        else if (sku)          identity = `${brand} ${sku}`.trim();
-        else                   identity = brand;
-        title.textContent = identity ? `${identity} (${typeLabel})` : typeLabel;
-        body.appendChild(title);
-
-        const metaParts = [];
-        if (d.serial_number) metaParts.push('S/N ' + d.serial_number);
-        if (d.imei)          metaParts.push('IMEI ' + d.imei);
-        metaParts.push(CONDITION_LABELS[d.condition] || d.condition);
-
-        const meta = document.createElement('div');
-        meta.className = 'device-row-meta';
-        meta.textContent = metaParts.join(' · ');
-        body.appendChild(meta);
 
         row.appendChild(iconWrap);
         row.appendChild(body);

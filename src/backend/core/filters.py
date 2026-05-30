@@ -9,7 +9,14 @@ pelo ``SearchFilter`` ou ``OrderingFilter``.
 
 from django_filters import rest_framework as filters
 
-from .models import ChainOfCustody, Evidence, Occurrence
+from .models import (
+    LEGAL_STATES,
+    ChainOfCustody,
+    EventType,
+    Evidence,
+    Occurrence,
+    derive_legal_state,
+)
 
 
 class OccurrenceFilter(filters.FilterSet):
@@ -24,7 +31,7 @@ class OccurrenceFilter(filters.FilterSet):
         fields = ['date_after', 'date_before', 'has_gps']
 
     def filter_has_gps(self, queryset, name, value):
-        # `gps_lat` e `gps_lon` são preenchidos em par (validado em clean()).
+        # `gps_lat` e `gps_lng` são preenchidos em par (validado em clean()).
         return (
             queryset.exclude(gps_lat__isnull=True)
             if value
@@ -65,15 +72,41 @@ class EvidenceFilter(filters.FilterSet):
 
 
 class CustodyFilter(filters.FilterSet):
-    """Filtros para ``/api/custody/``."""
+    """Filtros para ``/api/custody/`` (ledger de eventos, ADR-0015).
 
-    new_state = filters.MultipleChoiceFilter(
-        field_name='new_state',
-        choices=ChainOfCustody.CustodyState.choices,
+    ``event_type`` filtra directamente a coluna (enum). ``legal_state``
+    filtra pelo estado legal DERIVADO da sequência de eventos da evidência
+    — não há coluna 1:1, logo é um filtro de método que selecciona as
+    evidências cujo estado derivado coincide e devolve os seus eventos.
+    """
+
+    event_type = filters.MultipleChoiceFilter(
+        field_name='event_type',
+        choices=EventType.choices,
+    )
+    legal_state = filters.ChoiceFilter(
+        method='filter_legal_state',
+        choices=[(s, s) for s in sorted(LEGAL_STATES)],
     )
     date_after = filters.DateFilter(field_name='timestamp', lookup_expr='gte')
     date_before = filters.DateFilter(field_name='timestamp', lookup_expr='lte')
 
     class Meta:
         model = ChainOfCustody
-        fields = ['new_state', 'date_after', 'date_before']
+        fields = ['event_type', 'legal_state', 'date_after', 'date_before']
+
+    def filter_legal_state(self, queryset, name, value):
+        # Estado legal derivado não é coluna — computa-se por evidência sobre
+        # a sequência de eventos. Identifica as evidências cujo estado derivado
+        # coincide e devolve só os registos dessas evidências.
+        if not value:
+            return queryset
+        evidence_ids = {ev_id for ev_id, _ in queryset.values_list('evidence_id', 'id')}
+        matched = []
+        for ev_id in evidence_ids:
+            eventos = list(
+                ChainOfCustody.objects.filter(evidence_id=ev_id).order_by('sequence')
+            )
+            if derive_legal_state(eventos) == value:
+                matched.append(ev_id)
+        return queryset.filter(evidence_id__in=matched)

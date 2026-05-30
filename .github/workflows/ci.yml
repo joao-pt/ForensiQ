@@ -62,7 +62,11 @@ jobs:
       - name: Correr testes com cobertura
         working-directory: src/backend
         run: |
-          coverage run --source='core' manage.py test core \
+          # `--source` alinhado com pyproject [tool.coverage.run] (core +
+          # forensiq_project). `coverage report` lê `fail_under = 80` do
+          # pyproject e FALHA o build se a cobertura descer abaixo (T13) —
+          # gate único, em vez de três números divergentes.
+          coverage run --source='core,forensiq_project' manage.py test core \
             --settings=forensiq_project.test_settings \
             --verbosity=2
           coverage report --show-missing
@@ -75,3 +79,80 @@ jobs:
           name: coverage-report-py${{ matrix.python-version }}
           path: src/backend/coverage.xml
           retention-days: 14
+
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    # Enforça o linter no servidor (T13): um contributor sem o hook
+    # pre-commit instalado deixava de poder passar CI com código não-linted.
+    # `ruff check` lê as regras de src/backend/pyproject.toml [tool.ruff].
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Instalar ruff (versão fixa, reprodutível)
+        run: pip install ruff==0.15.13
+
+      - name: ruff check
+        run: ruff check src/backend
+
+  test-postgres:
+    name: Triggers PG (camada 3 de imutabilidade)
+    runs-on: ubuntu-latest
+    # Exercita os triggers PostgreSQL reais (prevent_*_modification), que não
+    # existem em SQLite — daí ImmutabilityTriggerTest fazer skip no job `test`.
+    # Sem este job a 3.ª camada de imutabilidade só seria validada em produção.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: forensiq
+          POSTGRES_PASSWORD: forensiq
+          POSTGRES_DB: forensiq_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SECRET_KEY: ci-dummy-secret-key-not-used-in-production
+      DEBUG: 'True'
+      ALLOWED_HOSTS: 'localhost,127.0.0.1'
+      DATABASE_URL: 'postgres://forensiq:forensiq@localhost:5432/forensiq_ci'
+      ADMIN_URL_PREFIX: 'admin'
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: src/backend/requirements.txt
+
+      - name: Instalar dependências
+        working-directory: src/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Correr testes de trigger contra PostgreSQL
+        working-directory: src/backend
+        # ci_postgres_settings herda test_settings (sem WhiteNoise/throttles)
+        # e só troca a BD para o serviço postgres acima. As migrations
+        # 0002/0013 instalam os triggers ao criar a BD de teste, pelo que
+        # ImmutabilityTriggerTest deixa de fazer skip e valida-os de facto.
+        run: |
+          python manage.py test core.tests.ImmutabilityTriggerTest \
+            --settings=forensiq_project.ci_postgres_settings \
+            --verbosity=2

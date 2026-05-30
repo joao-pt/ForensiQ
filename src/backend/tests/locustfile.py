@@ -107,7 +107,7 @@ class ForensiQUser(FastHttpUser):
             'number': f'NUIPC-2026-LOAD-{timestamp[:10]}-{int(datetime.now().timestamp()) % 10000}',
             'description': f'Ocorrência de teste Locust - {timestamp}',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         }
 
         response = self.client.post(
@@ -172,35 +172,15 @@ class ForensiQUser(FastHttpUser):
 
         return None
 
-    def _create_digital_device(self, evidence_id):
+    def _create_custody_record(self, evidence_id, event_type, custodian_type=''):
         """
-        POST /api/devices/ — cria dispositivo digital.
-        """
-        device_data = {
-            'evidence': evidence_id,
-            'type': 'SMARTPHONE',
-            'model': f'Test Device {int(datetime.now().timestamp()) % 1000}',
-            'serial_number': f'SN-{int(datetime.now().timestamp()) % 100000}',
-            'imei': '358623072123456',
-        }
-
-        response = self.client.post(
-            '/api/devices/',
-            json=device_data,
-            name='/api/devices/ (POST)'
-        )
-
-        return response.status_code == 201
-
-    def _create_custody_record(self, evidence_id, previous_state, new_state):
-        """
-        POST /api/custody/ — registar transição de custódia.
+        POST /api/custody/ — registar um evento do ledger de custódia.
         """
         custody_data = {
             'evidence': evidence_id,
-            'previous_state': previous_state,
-            'new_state': new_state,
-            'observations': f'Transição registada {datetime.now().isoformat()}',
+            'event_type': event_type,
+            'custodian_type': custodian_type,
+            'observations': f'Evento registado {datetime.now().isoformat()}',
         }
 
         response = self.client.post(
@@ -225,7 +205,7 @@ class ForensiQUser(FastHttpUser):
     @task(2)
     def create_occurrence_and_evidence(self):
         """
-        Workflow: criar ocorrência + evidência + dispositivo + custódia.
+        Workflow: criar ocorrência + evidência + custódia.
         Simula operação completa de first responder.
         """
         # 1. Criar ocorrência
@@ -238,13 +218,8 @@ class ForensiQUser(FastHttpUser):
         if not evidence_id:
             return
 
-        # 3. Criar dispositivo digital (quando a evidência é MOBILE_DEVICE
-        # ou COMPUTER — a API aceita o POST mesmo para outros tipos; é
-        # um cenário de carga, não uma regra de negócio).
-        self._create_digital_device(evidence_id)
-
-        # 4. Registar primeiro estado de custódia
-        self._create_custody_record(evidence_id, '', 'APREENDIDA')
+        # 3. Registar o primeiro evento do ledger (APREENSAO pelo OPC)
+        self._create_custody_record(evidence_id, 'APREENSAO', 'OPC')
 
     @task(1)
     def export_evidence_pdf(self):

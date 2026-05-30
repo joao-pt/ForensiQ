@@ -12,10 +12,35 @@ sensíveis só sejam carregados via API.
 
 from functools import wraps
 
-from django.http import HttpResponsePermanentRedirect, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
 from django.shortcuts import render
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
+
+
+class _ScopeView:
+    """Objecto mínimo que expõe ``throttle_scope`` ao ``ScopedRateThrottle``.
+
+    O ``ScopedRateThrottle`` do DRF lê o scope a partir de ``view.throttle_scope``;
+    como ``public_verify_view`` é uma vista Django pura (não DRF), passamos este
+    shim em vez de uma APIView.
+    """
+
+    def __init__(self, scope):
+        self.throttle_scope = scope
+
+
+def _throttle_public_verify(request):
+    """Aplica o rate-limit do scope ``verify_public`` a uma vista Django pura.
+
+    Reusa o ``ScopedRateThrottle`` do DRF (mesma família dos endpoints da API —
+    ver ``views.ReverseGeocodeView`` / ``EvidenceIMEILookupView``) sobre o pedido
+    Django, identificando o cliente por IP quando anónimo. Devolve ``True`` se o
+    pedido é permitido; ``False`` se excedeu o limite (chamador devolve 429).
+    """
+    throttle = ScopedRateThrottle()
+    return throttle.allow_request(request, _ScopeView('verify_public'))
 
 
 def jwt_cookie_required(view_func):
@@ -61,6 +86,16 @@ def public_verify_view(request, short_hash):
     `occurrence.id`.
     """
     from core.qr_verify import resolve_occurrence
+
+    # Rate-limit por IP (scope `verify_public`, ADR-0012): superfície pública
+    # não-autenticada; sem freio um atacante poderia tentar enumerar hashes
+    # curtos. Aplicado ANTES de resolver para travar tentativas inválidas.
+    if not _throttle_public_verify(request):
+        return HttpResponse(
+            'Demasiados pedidos. Tente novamente mais tarde.',
+            status=429,
+            content_type='text/plain; charset=utf-8',
+        )
 
     occurrence = resolve_occurrence(short_hash)
     if occurrence is None:
@@ -173,12 +208,12 @@ def custody_list_view(request):
 @jwt_cookie_required
 def investigation_report_view(request):
     """
-    Relatório de investigação estática da aplicação (auditoria).
+    Relatório de investigação estática da aplicação (LEGACY v1, congelado).
 
-    Página editorial que lista achados de revisão de código organizados por
-    severidade (Crítico / Alto / Médio / Baixo / Notas). O conteúdo é estático
-    — serve como referência de arquitectura e registo do estado conhecido da
-    base de código à data do relatório. Requer token JWT válido.
+    **v2 (T11):** página editorial estática (achados de revisão por
+    severidade), fora da arquitectura de informação da v2. Fronteira
+    congelada — a reinvenção do frontend (Fase 3) remove-a ou reescreve-a;
+    não construir em cima. Mantida por ora; requer token JWT válido.
     """
     return render(request, 'investigation_report.html')
 
@@ -195,8 +230,9 @@ def occurrence_intake_view(request, occurrence_id):
     Acessível só a EXPERT (ou staff). AGENT em campo entrega; não faz
     intake. O template renderiza checklist das evidências esperadas;
     o submit é feito via JS para o endpoint `/api/custody/cascade/`
-    existente, transitando todos os itens marcados para
-    ``RECEBIDA_LABORATORIO`` numa só operação atómica.
+    existente, registando em todos os itens marcados um evento
+    ``TRANSFERENCIA`` para ``LAB_PUBLICO`` numa só operação atómica
+    (ledger de eventos, ADR-0015).
 
     Requisitos de auth (impostos no servidor antes do render):
     1. JWT válido em cookie `fq_access`.
@@ -228,32 +264,32 @@ def occurrence_intake_view(request, occurrence_id):
     if occurrence is None:
         return render(request, '404.html', status=404)
 
-    # Para cada evidência: estado actual de custódia (último ChainOfCustody).
-    from core.models import ChainOfCustody, Evidence
+    # Para cada evidência: estado legal DERIVADO (ADR-0015) da sequência de
+    # eventos. "Já recebida" = já encaminhada para laboratório ou além.
+    from core.models import ChainOfCustody, EventType, Evidence, derive_legal_state
+
+    # Estados legais a partir dos quais a prova já está (ou passou) no
+    # laboratório — não faz sentido voltar a "receber" no intake.
+    received_states = {
+        'encaminhada',
+        'em_pericia',
+        'pericia_concluida',
+        'restituida',
+        'perdida_favor_estado',
+        'destruida',
+    }
 
     evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
     state_by_evidence = {}
     for ev in evidences:
-        last = (
-            ChainOfCustody.objects.filter(evidence=ev)
-            .order_by('-sequence')
-            .only('new_state')
-            .first()
-        )
-        state_by_evidence[ev.id] = last.new_state if last else ''
+        eventos = list(ChainOfCustody.objects.filter(evidence=ev).order_by('sequence'))
+        state_by_evidence[ev.id] = derive_legal_state(eventos) if eventos else ''
 
     rows = [
         {
             'evidence': ev,
             'current_state': state_by_evidence[ev.id],
-            'already_received': state_by_evidence[ev.id]
-            in (
-                ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-                ChainOfCustody.CustodyState.EM_PERICIA,
-                ChainOfCustody.CustodyState.CONCLUIDA,
-                ChainOfCustody.CustodyState.DEVOLVIDA,
-                ChainOfCustody.CustodyState.DESTRUIDA,
-            ),
+            'already_received': state_by_evidence[ev.id] in received_states,
         }
         for ev in evidences
     ]
@@ -265,7 +301,13 @@ def occurrence_intake_view(request, occurrence_id):
             'occurrence': occurrence,
             'rows': rows,
             'evidence_count': len(rows),
-            'target_state': ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+            # Intake = registar TRANSFERENCIA → LAB_PUBLICO em lote (ADR-0015).
+            # ``target_state``/``target_custodian`` são consumidos pelo JS de
+            # intake para compor o POST a /api/custody/cascade/ (event_type +
+            # custodian_type). O template do intake será reformulado na fase
+            # frontend; o backend já entrega a semântica nova.
+            'target_state': EventType.TRANSFERENCIA,
+            'target_custodian': ChainOfCustody.CustodianType.LAB_PUBLICO,
         },
     )
 

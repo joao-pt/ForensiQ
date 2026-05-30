@@ -20,10 +20,10 @@
 
 🟢 **MVP funcional em produção · Sem. 9 (janela de revisão alargada) · Relatório Intercalar aprovado em 5 mai 2026.**
 
-- Backend Django 6 + DRF com **293 testes a passar (100%)** (cobertura ≥75%).
+- Backend Django 6 + DRF com **≈500 testes** (494 a passar + 6 skip de triggers só-PostgreSQL, exercitados no job postgres do CI) e cobertura **~84%** (gate CI a 80%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
-- Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select e CSV export streaming (cap 10k).
+- Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
 - Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com 5 ocorrências PT realistas e fotos placeholder.
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
@@ -61,8 +61,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - `User` (perfis **AGENT** / **EXPERT**, badge_number, phone)
 - `Occurrence` — caso/cena de crime (NUIPC, GPS, address, agent)
 - `Evidence` — item apreendido com taxonomia de **18 tipos digital-first** (ADR-0010): 14 raízes — `MOBILE_DEVICE`, `COMPUTER`, `STORAGE_MEDIA`, `GAMING_CONSOLE`, `GPS_TRACKER`, `SMART_TAG`, `CCTV_DEVICE`, `VEHICLE`, `DRONE`, `IOT_DEVICE`, `NETWORK_DEVICE`, `DIGITAL_FILE`, `RFID_NFC_CARD`, `OTHER_DIGITAL` — e 4 sub-componentes — `SIM_CARD`, `MEMORY_CARD`, `INTERNAL_DRIVE`, `VEHICLE_COMPONENT` — com hierarquia até 3 níveis via `parent_evidence`
-- `DigitalDevice` (legacy, coexiste com `Evidence.sub_components`)
-- `ChainOfCustody` — máquina de estados linear (APREENDIDA → EM_TRANSPORTE → RECEBIDA_LABORATORIO → EM_PERICIA → CONCLUIDA → DEVOLVIDA / DESTRUIDA)
+- `ChainOfCustody` — **ledger de eventos append-only** (ADR-0015): cada registo é um evento (`event_type` + `custodian_type` + local/GPS) com hash SHA-256 encadeado. O estado legal (à guarda do OPC, em perícia, restituída, perdida a favor do Estado, …) é **derivado** do log, não gravado. Substituiu a antiga máquina de estados linear.
 - `AuditLog` com correlation_id por request
 
 ### Backend (Django + DRF)
@@ -128,26 +127,30 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (293 a passar · cobertura ≥75%)
+### Testes (≈500 · cobertura ~84%, gate CI 80%)
 
-| Suite | Casos | Cobertura |
+Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real corre `pytest -q`.
+
+| Suite | Foco | Cobertura |
 |---|---|---|
-| `tests.py` | 14 modelos | User, Occurrence, Evidence, DigitalDevice, ChainOfCustody |
-| `tests_api.py` | 83 API | auth, CRUD, IDOR, imutabilidade, transições, validação, lookup, stats, throttle |
-| `tests_frontend.py` | 54 frontend (server-side) | views, templates, redirect, conteúdo HTML, JWT cookie |
-| `tests_pdf.py` | 18 PDF export | geração, sanitização, content-type, 404, com/sem dispositivos |
-| `tests_new_features.py` | 22 cascade + CSV | cascade custody, CSV streaming, audit log |
-| `tests_table_mode.py` | 22 modo tabela densa | DataTable, multi-select, sort, paginação |
-| `tests_coverage.py` | 69 cobertura adicional | exception handler, edge cases serializers, PDF content (via `pypdf`), hash chain, dashboard stats, IMEI lookup |
-| `tests_frontend_js_namespace.py` | 11 namespace JS | extracção de identificadores top-level + detecção de colisões cross-template |
-| `tests_factories.py` | — helpers | factory-boy fixtures partilhadas (não conta para o total) |
+| `tests.py` | modelos + imutabilidade | User, Occurrence, Evidence, `ChainOfCustody` (ledger de eventos), hash encadeado, triggers PG (camada 3) |
+| `tests_api.py` | API REST | auth/JWT cookie, CRUD, IDOR, imutabilidade, eventos de custódia, validação, lookup, fluxo CSRF dedicado |
+| `tests_frontend.py` | frontend (server-side) | views, templates, redirect, conteúdo HTML, JWT cookie |
+| `tests_pdf.py` | PDF export | geração, sanitização, content-type, 404, com/sem custódia |
+| `tests_new_features.py` | cascade + UX | cascade custody, filtros por estado derivado, media serve, audit log |
+| `tests_table_mode.py` | modo tabela densa | DataTable, multi-select, sort, paginação, filtros |
+| `tests_taxonomy.py` | taxonomia + prioridade | tabelas de referência, `crime_type`, prioridade derivada da Lei 51/2023 |
+| `tests_dashboard.py` | dashboard | feed de actividade, deltas 24h, séries 7d, ownership |
+| `tests_coverage.py` | cobertura adicional | exception handler, edge cases serializers, PDF content (`pypdf`), throttles |
+| `tests_frontend_js_namespace.py` | namespace JS | identificadores top-level + colisões cross-template |
+| `tests_factories.py` | helpers | factory-boy (inclui `AuditLogFactory`); não conta para o total |
 
 ```bash
 cd src/backend
 ../../.venv/Scripts/python.exe -m pytest -q
-# 293 passed
+# ~494 passed, 6 skipped (triggers só-PostgreSQL)
 ../../.venv/Scripts/python.exe -m pytest --cov=core --cov-report=term-missing
-# Cobertura ≥75% global em core/
+# Cobertura ~84% global (gate CI: fail_under=80)
 ```
 
 ### Conformidade
@@ -307,4 +310,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 17 mai 2026 · Sem. 9 (janela de revisão alargada) · **293 testes a passar (100%)** · cobertura ≥75%*
+*Última actualização: 30 mai 2026 · refactor backend (Fase 2) · **≈500 testes** (494 a passar + 6 skip de triggers PG) · cobertura ~84% (gate CI 80%)*

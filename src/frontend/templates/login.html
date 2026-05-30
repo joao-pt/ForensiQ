@@ -3,13 +3,15 @@
 
 {% block title %}ForensiQ — Iniciar sessão{% endblock %}
 
-{% block navbar %}{% endblock %}
+{# Login é full-bleed: salta a casca three-pane do base.html
+   (header / sidebar / drawer / footer) e renderiza só o seu conteúdo. #}
+{% block body_class %}lp-body{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'css/pages/login.css' %}">
 {% endblock %}
 
-{% block content %}
+{% block body_root %}
 <div class="lp-page" data-page="login">
 
     <aside class="lp-chain-panel" aria-hidden="true">
@@ -27,7 +29,7 @@
                         </mask>
                     </defs>
                     <circle cx="22" cy="24" r="10" fill="none"
-                            stroke="#2DD4BF" stroke-width="2.5"/>
+                            stroke="#F6AD55" stroke-width="2.5"/>
                     <circle cx="34" cy="24" r="10" fill="none"
                             stroke="currentColor" stroke-width="2.5"
                             mask="url(#lp-interlock-lg)"/>
@@ -84,7 +86,7 @@
                         </mask>
                     </defs>
                     <circle cx="22" cy="24" r="10" fill="none"
-                            stroke="#2DD4BF" stroke-width="2.5"/>
+                            stroke="#F6AD55" stroke-width="2.5"/>
                     <circle cx="34" cy="24" r="10" fill="none"
                             stroke="currentColor" stroke-width="2.5"
                             mask="url(#lp-interlock-sm)"/>

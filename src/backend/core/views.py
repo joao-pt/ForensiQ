@@ -10,7 +10,6 @@ Endpoints:
 - /api/evidences/          — evidências (AGENT cria, todos consultam)
 - /api/evidences/lookup/imei/<imei>/ — enriquecimento IMEI via imeidb.xyz
 - /api/evidences/lookup/vin/<vin>/   — redirect para vindecoder.eu
-- /api/devices/            — dispositivos digitais (AGENT cria, todos consultam)
 - /api/custody/            — cadeia de custódia (AGENT/EXPERT criam, todos consultam)
 - /api/stats/              — dashboard agregado
 - /api/stats/dashboard/    — payload estável consumido pelo dashboard (Wave 2d)
@@ -18,9 +17,10 @@ Endpoints:
 - /api/reverse-geocode/    — geocodificação inversa (proxy Nominatim, GDPR)
 """
 
-import csv
 import logging
+import math
 import mimetypes
+from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 
 import httpx
@@ -30,18 +30,25 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
 from django.db.models import Count
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.db.models.functions import TruncDate
+from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
-from django.views.decorators.http import require_safe
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import (
     filters,
+    generics,
     serializers as drf_serializers,  # Para converter ValidationError
     status,
     viewsets,
 )
-from rest_framework.decorators import action
-from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.decorators import (
+    action,
+    api_view,
+    authentication_classes,
+    permission_classes,
+    throttle_classes,
+)
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
@@ -49,18 +56,20 @@ from rest_framework.views import APIView
 from .audit import log_access
 from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
+    LEGAL_STATES,
+    TERMINAL_EVENTS,
     AuditLog,
     ChainOfCustody,
-    DigitalDevice,
     Evidence,
     Occurrence,
+    derive_legal_state,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
+    ActivityFeedSerializer,
     CascadeCustodyRequestSerializer,
     ChainOfCustodySerializer,
-    DigitalDeviceSerializer,
     EvidenceSerializer,
     OccurrenceSerializer,
     UserCreateSerializer,
@@ -69,6 +78,7 @@ from .serializers import (
 )
 from .services.imei_lookup import LookupError as ImeiLookupError, lookup_imei, mask_imei
 from .services.vin_lookup import build_vindecoder_url
+from .throttles import HealthcheckRateThrottle
 from .validators import validate_imei, validate_vin
 
 User = get_user_model()
@@ -79,59 +89,6 @@ log = logging.getLogger(__name__)
 # com ``CACHES['default']['TIMEOUT']`` mas declarado localmente para o
 # endpoint ser explícito sobre a política forense (imutabilidade do IMEI).
 _LOOKUP_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
-
-# Limite máximo de linhas exportadas em CSV — defesa contra extracções
-# massivas que ultrapassem a janela de auditoria razoável (uma exportação
-# legítima de 10k registos já indica que o agente devia ter aplicado
-# filtros). Acima disto retornamos 413 e pedimos ao cliente para filtrar.
-CSV_EXPORT_MAX_ROWS = 10_000
-
-
-class _CsvEcho:
-    """Pseudo file-object — devolve o que recebe. Usado pelo ``csv.writer``
-    para escrever directamente para o iterador do StreamingHttpResponse,
-    sem buffering em memória."""
-
-    def write(self, value):
-        return value
-
-
-def _csv_filename(prefix: str) -> str:
-    return f'forensiq_{prefix}_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv'
-
-
-def _csv_streaming_response(rows_iterator, filename: str) -> StreamingHttpResponse:
-    """StreamingHttpResponse com ``Content-Disposition: attachment``.
-
-    O iterador ``rows_iterator`` deve produzir listas/tuplos por linha
-    (a primeira é o header). UTF-8 BOM é incluído para o Excel abrir
-    correctamente em Windows.
-    """
-    pseudo_buffer = _CsvEcho()
-    writer = csv.writer(pseudo_buffer)
-
-    def stream():
-        # BOM para Excel pt-PT (ã/ç são preservados sem mojibake).
-        yield '﻿'
-        for row in rows_iterator:
-            yield writer.writerow(row)
-
-    response = StreamingHttpResponse(stream(), content_type='text/csv; charset=utf-8')
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-    return response
-
-
-def _check_csv_size(qs) -> int | None:
-    """Devolve count se ≤ limite; senão devolve None (sinaliza 413).
-
-    Faz ``count()`` cedo (antes de consumir o queryset) para evitar gerar
-    um CSV de 50 MB e abortar a meio. ``count()`` é uma query simples e
-    rápida na presença de índices.
-    """
-    count = qs.count()
-    if count > CSV_EXPORT_MAX_ROWS:
-        return None
-    return count
 
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
@@ -159,6 +116,23 @@ def _user_can_lookup(user) -> bool:
     if getattr(user, 'is_staff', False):
         return True
     return getattr(user, 'profile', None) in ('AGENT', 'EXPERT')
+
+
+def _evidence_ids_in_legal_state(custody_qs, state):
+    """IDs das evidências cujo estado legal DERIVADO (ADR-0015) é ``state``.
+
+    O estado legal não é coluna — calcula-se com ``derive_legal_state`` sobre
+    a sequência de eventos de cada evidência. ``custody_qs`` delimita o
+    universo (ownership já aplicado pelo chamador).
+    """
+    eventos_por_evidencia = {}
+    for rec in custody_qs.order_by('evidence_id', 'sequence'):
+        eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
+    return [
+        ev_id
+        for ev_id, eventos in eventos_por_evidencia.items()
+        if derive_legal_state(eventos) == state
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -209,9 +183,13 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     - O campo 'agent' é preenchido automaticamente.
     """
 
-    queryset = Occurrence.objects.select_related('agent').all()
+    queryset = Occurrence.objects.select_related('agent', 'crime_type').all()
     serializer_class = OccurrenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
+    # POST-only (ADR-0014): a Occurrence é imutável na BD (triggers 0013); expor
+    # PUT/PATCH/DELETE oferecia um caminho de escrita que a BD recusa. GET para
+    # consulta + acções @action (pdf). Sem update/destroy.
+    http_method_names = ['get', 'post', 'head', 'options']
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = OccurrenceFilter
     # Campos pesquisáveis via ?search= — NUIPC/número, descrição livre,
@@ -226,23 +204,29 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
             qs = qs.filter(agent=user)
-        # Filtro opcional por estado actual de custódia das evidências da
-        # ocorrência. Reutiliza Evidence.objects.with_current_state() para
-        # manter a definição de "estado actual" coerente com os outros
-        # endpoints e o dashboard.
+        # Filtro opcional por ESTADO LEGAL DERIVADO (ADR-0015) das evidências
+        # da ocorrência. O estado não é coluna — deriva-se da sequência de
+        # eventos via derive_legal_state, mantendo a definição coerente com os
+        # outros endpoints e o dashboard.
         state = self.request.query_params.get('state')
         if state:
-            valid_states = {s for s, _ in ChainOfCustody.CustodyState.choices}
-            if state not in valid_states:
+            if state not in LEGAL_STATES:
                 raise drf_serializers.ValidationError(
                     {
-                        'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
+                        'state': (
+                            f'Estado inválido. Valores aceites: '
+                            f'{", ".join(sorted(LEGAL_STATES))}.'
+                        )
                     }
                 )
+            custody_qs = ChainOfCustody.objects.all()
+            if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+                custody_qs = custody_qs.filter(evidence__occurrence__agent=user)
+            ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
             occ_ids = (
-                Evidence.objects.with_current_state()
-                .filter(current_state=state)
+                Evidence.objects.filter(id__in=ev_ids)
                 .values_list('occurrence_id', flat=True)
+                .distinct()
             )
             qs = qs.filter(id__in=list(occ_ids))
         return qs
@@ -271,57 +255,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         if self.action == 'export_pdf':
             self.throttle_scope = 'pdf_export'
             return [ScopedRateThrottle()]
-        if self.action == 'export_csv':
-            self.throttle_scope = 'csv_export'
-            return [ScopedRateThrottle()]
         return super().get_throttles()
-
-    @action(detail=False, methods=['get'], url_path='csv')
-    def export_csv(self, request):
-        """GET /api/occurrences/csv/ — exportação massiva (modo tabela densa).
-
-        Respeita filtros activos (``?date_after=``, ``?ordering=``,
-        ``?search=``, ``?state=``) e ownership (``IsOwnerOrReadOnly``).
-        StreamingHttpResponse → memória constante mesmo para 10k linhas.
-        Auditado em ``AuditLog`` com action ``EXPORT_CSV`` e detalhe dos
-        filtros aplicados.
-        """
-        qs = self.filter_queryset(self.get_queryset())
-        count = _check_csv_size(qs)
-        if count is None:
-            return Response(
-                {
-                    'detail': (
-                        f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
-                        'Aplica filtros antes de exportar.'
-                    )
-                },
-                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            )
-
-        log_access(
-            request=request,
-            action=AuditLog.Action.EXPORT_CSV,
-            resource_type=AuditLog.ResourceType.OCCURRENCE,
-            resource_id=0,
-            details={'count': count, 'filters': dict(request.query_params)},
-        )
-
-        def rows():
-            yield ['Codigo', 'NUIPC', 'Descricao', 'Data', 'Agente', 'Morada', 'GPS Lat', 'GPS Lon']
-            for occ in qs.iterator(chunk_size=500):
-                yield [
-                    occ.code,
-                    occ.number,
-                    occ.description,
-                    occ.date_time.isoformat() if occ.date_time else '',
-                    occ.agent.username if occ.agent_id else '',
-                    occ.address,
-                    str(occ.gps_lat) if occ.gps_lat is not None else '',
-                    str(occ.gps_lon) if occ.gps_lon is not None else '',
-                ]
-
-        return _csv_streaming_response(rows(), _csv_filename('ocorrencias'))
 
     @action(detail=True, methods=['get'], url_path='pdf')
     def export_pdf(self, request, pk=None):
@@ -334,9 +268,9 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         # ownership: get_queryset já filtra AGENT para ocorrências próprias
         # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
         # `pdf_export.generate_occurrence_pdf` itera: para cada
-        # evidência: digital_devices + custody_chain (ordenada por
-        # -sequence para `_current_custody_state` apanhar o último);
-        # para cada sub-componente: também o seu custody_chain.
+        # evidência: custody_chain (ordenada por -sequence para
+        # `_current_custody_state` apanhar o último); para cada
+        # sub-componente: também o seu custody_chain.
         from django.db.models import Prefetch
 
         custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
@@ -345,8 +279,6 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             'evidences__agent',
             'evidences__parent_evidence',
             'evidences__sub_components',
-            'evidences__sub_components__digital_devices',
-            'evidences__digital_devices',
             Prefetch('evidences__custody_chain', queryset=custody_qs),
             Prefetch('evidences__sub_components__custody_chain', queryset=custody_qs),
         )
@@ -364,7 +296,8 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             pdf_bytes = generate_occurrence_pdf(occurrence)
         except Exception as exc:  # noqa: BLE001 — erro claro no cliente
             return Response(
-                {'error': f'Erro ao gerar PDF: {exc}'},
+                # Chave `detail` — contrato de erro canónico (handler global).
+                {'detail': f'Erro ao gerar PDF: {exc}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -420,9 +353,6 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         if self.action == 'export_pdf':
             self.throttle_scope = 'pdf_export'
             return [ScopedRateThrottle()]
-        if self.action == 'export_csv':
-            self.throttle_scope = 'csv_export'
-            return [ScopedRateThrottle()]
         return super().get_throttles()
 
     def get_queryset(self):
@@ -445,14 +375,22 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(parent_evidence_id=parent_id)
         state = self.request.query_params.get('state')
         if state:
-            valid_states = {s for s, _ in ChainOfCustody.CustodyState.choices}
-            if state not in valid_states:
+            if state not in LEGAL_STATES:
                 raise drf_serializers.ValidationError(
                     {
-                        'state': f'Estado inválido. Valores aceites: {", ".join(sorted(valid_states))}.'
+                        'state': (
+                            f'Estado inválido. Valores aceites: '
+                            f'{", ".join(sorted(LEGAL_STATES))}.'
+                        )
                     }
                 )
-            qs = qs.filter(current_state=state)
+            # Estado legal derivado (ADR-0015) — não é coluna; computa-se sobre
+            # a sequência de eventos. Universo de custódia já segue o ownership.
+            custody_qs = ChainOfCustody.objects.all()
+            if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+                custody_qs = custody_qs.filter(evidence__occurrence__agent=user)
+            ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
+            qs = qs.filter(id__in=ev_ids)
         return qs
 
     def retrieve(self, request, *args, **kwargs):
@@ -493,9 +431,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         # optimizamos com select_related/prefetch_related. Se o utilizador
         # não for dono da ocorrência, get_object() devolve 404 (não 200).
         # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
-        # `pdf_export.generate_evidence_pdf` itera: digital_devices,
-        # sub_components (+ os seus digital_devices e custody_chain),
-        # e o próprio custody_chain ordenado.
+        # `pdf_export.generate_evidence_pdf` itera: sub_components
+        # (+ os seus custody_chain) e o próprio custody_chain ordenado.
         from django.db.models import Prefetch
 
         custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
@@ -504,9 +441,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             'occurrence__agent',
             'agent',
         ).prefetch_related(
-            'digital_devices',
             'sub_components',
-            'sub_components__digital_devices',
             Prefetch('custody_chain', queryset=custody_qs),
             Prefetch('sub_components__custody_chain', queryset=custody_qs),
         )
@@ -526,7 +461,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             pdf_bytes = generate_evidence_pdf(evidence)
         except Exception as exc:
             return Response(
-                {'error': f'Erro ao gerar PDF: {exc}'},
+                # Chave `detail` — contrato de erro canónico (handler global).
+                {'detail': f'Erro ao gerar PDF: {exc}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         filename = f'ForensiQ_Evidencia_{evidence.pk:04d}.pdf'
@@ -534,105 +470,6 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         response['Content-Length'] = len(pdf_bytes)
         return response
-
-    @action(detail=False, methods=['get'], url_path='csv')
-    def export_csv(self, request):
-        """GET /api/evidences/csv/ — exportação massiva (modo tabela densa).
-
-        Respeita filtros (``?type=``, ``?date_after=``, ``?has_gps=``,
-        ``?occurrence=``) e ownership. Imutabilidade ISO/IEC 27037 não é
-        afectada — o endpoint é GET.
-        """
-        qs = self.filter_queryset(self.get_queryset())
-        count = _check_csv_size(qs)
-        if count is None:
-            return Response(
-                {
-                    'detail': (
-                        f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
-                        'Aplica filtros antes de exportar.'
-                    )
-                },
-                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            )
-
-        log_access(
-            request=request,
-            action=AuditLog.Action.EXPORT_CSV,
-            resource_type=AuditLog.ResourceType.EVIDENCE,
-            resource_id=0,
-            details={'count': count, 'filters': dict(request.query_params)},
-        )
-
-        def rows():
-            yield [
-                'Codigo',
-                'Tipo',
-                'Descricao',
-                'NUIPC',
-                'Apreendido',
-                'Numero de serie',
-                'Hash SHA-256',
-                'GPS Lat',
-                'GPS Lon',
-                'Foto',
-                'Agente',
-            ]
-            for ev in qs.iterator(chunk_size=500):
-                yield [
-                    ev.code,
-                    ev.get_type_display(),
-                    ev.description,
-                    ev.occurrence.number if ev.occurrence_id else '',
-                    ev.timestamp_seizure.isoformat() if ev.timestamp_seizure else '',
-                    ev.serial_number,
-                    ev.integrity_hash,
-                    str(ev.gps_lat) if ev.gps_lat is not None else '',
-                    str(ev.gps_lon) if ev.gps_lon is not None else '',
-                    'sim' if ev.photo else 'nao',
-                    ev.agent.username if ev.agent_id else '',
-                ]
-
-        return _csv_streaming_response(rows(), _csv_filename('evidencias'))
-
-
-# ---------------------------------------------------------------------------
-# DigitalDevice
-# ---------------------------------------------------------------------------
-
-
-class DigitalDeviceViewSet(viewsets.ModelViewSet):
-    """
-    API de dispositivos digitais.
-
-    - Criação/edição: AGENT.
-    - Consulta: qualquer utilizador autenticado.
-    - Filtragem por evidência: ?evidence=<id>
-    """
-
-    queryset = DigitalDevice.objects.select_related('evidence').all()
-    serializer_class = DigitalDeviceSerializer
-    permission_classes = [IsAuthenticated, IsAgent]
-    http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
-    filter_backends = [filters.SearchFilter]
-    search_fields = [
-        'brand',
-        'model',
-        'commercial_name',
-        'serial_number',
-        'imei',
-        'notes',
-    ]
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(evidence__occurrence__agent=user)
-        evidence_id = self.request.query_params.get('evidence')
-        if evidence_id:
-            qs = qs.filter(evidence_id=evidence_id)
-        return qs
 
 
 # ---------------------------------------------------------------------------
@@ -680,12 +517,6 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
             qs = qs.filter(evidence_id=evidence_id)
         return qs
 
-    def get_throttles(self):
-        if self.action == 'export_csv':
-            self.throttle_scope = 'csv_export'
-            return [ScopedRateThrottle()]
-        return super().get_throttles()
-
     def perform_create(self, serializer):
         try:
             custody_record = serializer.save(agent=self.request.user)
@@ -696,74 +527,13 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 resource_id=custody_record.pk,
                 details={
                     'evidence_id': custody_record.evidence_id,
-                    'new_state': custody_record.new_state,
+                    'event_type': custody_record.event_type,
+                    'custodian_type': custody_record.custodian_type,
                 },
             )
         except DjangoValidationError as exc:
             # Converter ValidationError do Django para DRF (retorna 400)
             raise drf_serializers.ValidationError(exc.message_dict)
-
-    @action(detail=False, methods=['get'], url_path='csv')
-    def export_csv(self, request):
-        """GET /api/custody/csv/ — exportação massiva (modo tabela densa).
-
-        Cadeia de custódia é append-only — exportar não compromete
-        imutabilidade. Respeita ownership (AGENT só vê os seus) e
-        filtros activos (``?new_state=``, ``?date_after=``).
-        """
-        qs = self.filter_queryset(self.get_queryset())
-        count = _check_csv_size(qs)
-        if count is None:
-            return Response(
-                {
-                    'detail': (
-                        f'Resultado excede o limite de {CSV_EXPORT_MAX_ROWS} linhas. '
-                        'Aplica filtros antes de exportar.'
-                    )
-                },
-                status=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            )
-
-        log_access(
-            request=request,
-            action=AuditLog.Action.EXPORT_CSV,
-            resource_type=AuditLog.ResourceType.CUSTODY,
-            resource_id=0,
-            details={'count': count, 'filters': dict(request.query_params)},
-        )
-
-        def rows():
-            yield [
-                'Codigo',
-                'Item',
-                'NUIPC',
-                'Sequencia',
-                'Estado anterior',
-                'Novo estado',
-                'Agente',
-                'Data',
-                'Observacoes',
-                'Hash',
-            ]
-            for rec in qs.iterator(chunk_size=500):
-                yield [
-                    rec.code,
-                    rec.evidence.code if rec.evidence_id else '',
-                    (
-                        rec.evidence.occurrence.number
-                        if rec.evidence_id and rec.evidence.occurrence_id
-                        else ''
-                    ),
-                    rec.sequence,
-                    rec.get_previous_state_display() if rec.previous_state else '',
-                    rec.get_new_state_display(),
-                    rec.agent.username if rec.agent_id else '',
-                    rec.timestamp.isoformat() if rec.timestamp else '',
-                    rec.observations,
-                    rec.record_hash,
-                ]
-
-        return _csv_streaming_response(rows(), _csv_filename('custodia'))
 
     @action(detail=False, methods=['get'], url_path='evidence/(?P<evidence_id>[0-9]+)/timeline')
     def timeline(self, request, evidence_id=None):
@@ -778,31 +548,32 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='cascade')
     def cascade(self, request):
-        """POST /api/custody/cascade/ — transição atómica de várias evidências.
+        """POST /api/custody/cascade/ — evento atómico em várias evidências.
 
-        Permite ao utilizador mover um item-pai e os seus sub-componentes
-        (ex: telemóvel + cartão SIM + cartão de memória) para o mesmo
-        estado de custódia numa única acção, em vez de o fazer item a
-        item. Ver decisão UX no plano (Bloco E).
+        Permite ao utilizador registar o mesmo evento num item-pai e nos seus
+        sub-componentes (ex: telemóvel + cartão SIM + cartão de memória) numa
+        única acção, em vez de o fazer item a item. Caso de uso típico: o
+        intake EXPERT-only (ADR-0012) emite ``event_type=TRANSFERENCIA`` para
+        ``custodian_type=LAB_PUBLICO`` em lote.
 
         Garantias:
-        - Atomicidade: ou todas as transições são gravadas, ou nenhuma
+        - Atomicidade: ou todos os eventos são gravados, ou nenhum
           (envolto em ``transaction.atomic()``).
         - Cada ``ChainOfCustody.save()`` mantém o seu próprio
           ``select_for_update`` por evidência — não há contenção entre
           evidências distintas.
         - Ownership: utilizador tem de poder operar sobre TODAS as
           evidências (AGENT dono, EXPERT ou staff). Caso contrário 403.
-        - Validação da máquina de estados é feita por cada
-          ``ChainOfCustody.save()``; se uma evidência rejeitar a
-          transição, todas revertem e o cliente recebe 400 com
-          ``evidence_id`` e mensagem.
+        - As guardas do ledger (ADR-0015) são validadas por cada
+          ``ChainOfCustody.save()``; se uma evidência rejeitar o evento,
+          todas revertem e o cliente recebe 400 com ``evidence_id`` e mensagem.
         - Auditoria: cria um ``AuditLog`` por cada registo criado.
         """
         payload = CascadeCustodyRequestSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         evidence_ids = payload.validated_data['evidence_ids']
-        new_state = payload.validated_data['new_state']
+        event_type = payload.validated_data['event_type']
+        custodian_type = payload.validated_data.get('custodian_type', '')
         observations = payload.validated_data.get('observations', '')
 
         evidences = list(
@@ -828,7 +599,8 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 for ev in evidences:
                     record = ChainOfCustody(
                         evidence=ev,
-                        new_state=new_state,
+                        event_type=event_type,
+                        custodian_type=custodian_type,
                         observations=observations,
                         agent=request.user,
                     )
@@ -841,7 +613,8 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                         resource_id=record.pk,
                         details={
                             'evidence_id': ev.pk,
-                            'new_state': new_state,
+                            'event_type': event_type,
+                            'custodian_type': custodian_type,
                             'cascade': True,
                         },
                     )
@@ -856,7 +629,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 {
                     'evidence_id': failed_ev.pk if failed_ev else None,
                     'evidence_code': failed_ev.code if failed_ev else None,
-                    'error': exc.message_dict if hasattr(exc, 'message_dict') else exc.messages,
+                    # Chave canónica `detail` — alinhada com o handler global
+                    # (`core.exceptions.forensiq_exception_handler`). Os campos
+                    # `evidence_id`/`evidence_code` são contexto adicional para
+                    # o frontend identificar qual evidência rejeitou o evento.
+                    'detail': exc.message_dict if hasattr(exc, 'message_dict') else exc.messages,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -938,8 +715,7 @@ class EvidenceIMEILookupView(APIView):
             return Response(
                 {
                     'detail': (
-                        'Resposta parcial de imeidb.xyz (schema inesperado). '
-                        'Preenche manualmente.'
+                        'Resposta parcial de imeidb.xyz (schema inesperado). Preenche manualmente.'
                     ),
                     'cached': False,
                 },
@@ -1089,17 +865,180 @@ class ReverseGeocodeView(APIView):
 
 
 # ---------------------------------------------------------------------------
+# POIs próximos — proxy server-side para Overpass (ADR-0015)
+# ---------------------------------------------------------------------------
+
+
+class NearbyPOIsView(APIView):
+    """GET /api/nearby-pois/?lat=&lon=&radius= — POIs OSM próximos.
+
+    Proxy server-side para a Overpass API (OpenStreetMap), à imagem da
+    :class:`ReverseGeocodeView`: as coordenadas GPS do agente nunca saem
+    para terceiros a partir do browser (minimização RGPD). Como o proxy é
+    server-side, a CSP ``connect-src`` NÃO precisa de autorizar Overpass.
+
+    Devolve candidatos úteis para nomear o local de um evento de custódia
+    (esquadra, tribunal, laboratório/hospital, bombeiros, banco, posto de
+    combustível) — o agente selecciona um e o ``location_name`` fica gravado
+    no ledger. Degradação graciosa: em indisponibilidade do Overpass devolve
+    502 e o agente preenche o ``location_name`` manualmente.
+
+    Throttle: scope partilhado ``reverse_geocode`` (10 req/min em produção).
+    """
+
+    permission_classes = [IsAuthenticated, IsAgentOrExpert]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'reverse_geocode'
+
+    _OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
+    _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
+    _TIMEOUT_SECONDS = 5
+    _DEFAULT_RADIUS_M = 500
+    _MAX_RADIUS_M = 2000
+    _MAX_RESULTS = 30
+
+    # amenities OSM úteis para nomear nós da cadeia de custódia.
+    _USEFUL_AMENITIES = {
+        'police',
+        'courthouse',
+        'fire_station',
+        'hospital',
+        'fuel',
+        'bank',
+        'prison',
+        'townhall',
+    }
+
+    def get(self, request):
+        lat_raw = request.query_params.get('lat')
+        lon_raw = request.query_params.get('lon')
+
+        if not lat_raw or not lon_raw:
+            return Response(
+                {'detail': 'Parâmetros "lat" e "lon" são obrigatórios.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            lat = float(lat_raw)
+            lon = float(lon_raw)
+        except (ValueError, TypeError):
+            return Response(
+                {'detail': '"lat" e "lon" devem ser números válidos.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not (-90 <= lat <= 90):
+            return Response(
+                {'detail': '"lat" deve estar entre -90 e 90.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not (-180 <= lon <= 180):
+            return Response(
+                {'detail': '"lon" deve estar entre -180 e 180.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        radius = self._DEFAULT_RADIUS_M
+        radius_raw = request.query_params.get('radius')
+        if radius_raw:
+            try:
+                radius = int(float(radius_raw))
+            except (ValueError, TypeError):
+                return Response(
+                    {'detail': '"radius" deve ser um número válido (metros).'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            radius = max(1, min(radius, self._MAX_RADIUS_M))
+
+        amenity_regex = '|'.join(sorted(self._USEFUL_AMENITIES))
+        query = (
+            f'[out:json][timeout:{self._TIMEOUT_SECONDS}];'
+            f'('
+            f'node["amenity"~"^({amenity_regex})$"](around:{radius},{lat},{lon});'
+            f'way["amenity"~"^({amenity_regex})$"](around:{radius},{lat},{lon});'
+            f');out center {self._MAX_RESULTS};'
+        )
+
+        try:
+            resp = httpx.post(
+                self._OVERPASS_URL,
+                data={'data': query},
+                headers={'User-Agent': self._USER_AGENT},
+                timeout=self._TIMEOUT_SECONDS,
+            )
+            resp.raise_for_status()
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as exc:
+            log.warning('Overpass unreachable: %s', exc)
+            return Response(
+                {'detail': 'Serviço de POIs indisponível.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        try:
+            elements = resp.json().get('elements', [])
+        except ValueError:
+            log.warning('Overpass devolveu JSON inválido')
+            return Response(
+                {'detail': 'Serviço de POIs indisponível.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        pois = []
+        for el in elements:
+            tags = el.get('tags', {})
+            amenity = tags.get('amenity')
+            if amenity not in self._USEFUL_AMENITIES:
+                continue
+            # nodes têm lat/lon directos; ways trazem 'center'.
+            poi_lat = el.get('lat', el.get('center', {}).get('lat'))
+            poi_lon = el.get('lon', el.get('center', {}).get('lon'))
+            if poi_lat is None or poi_lon is None:
+                continue
+            nome = tags.get('name') or tags.get('official_name') or amenity
+            pois.append(
+                {
+                    'nome': nome,
+                    'tipo': amenity,
+                    'lat': poi_lat,
+                    'lon': poi_lon,
+                    'dist_m': round(_haversine_m(lat, lon, poi_lat, poi_lon)),
+                }
+            )
+
+        pois.sort(key=lambda p: p['dist_m'])
+        return Response(pois[: self._MAX_RESULTS])
+
+
+def _haversine_m(lat1, lon1, lat2, lon2):
+    """Distância em metros entre dois pontos (fórmula de Haversine)."""
+    r = 6371000.0  # raio médio da Terra (m)
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+# ---------------------------------------------------------------------------
 # Stats (dashboard) — endpoint agregado para evitar round-trips do frontend
 # ---------------------------------------------------------------------------
 
 
 class StatsView(APIView):
     """
-    GET /api/stats/ — devolve contagens agregadas para o dashboard.
+    GET /api/stats/ — contagens agregadas (LEGACY v1, fronteira congelada).
+
+    **v2 (T11):** o dashboard novo é alimentado por ``DashboardStatsView``
+    (`/api/stats/dashboard/`, com deltas/séries/estado derivado). Este endpoint
+    e a `/stats/` page (`stats.js`, com breakdown por taxonomia antiga) ficam
+    **congelados** — não construir features novas em cima; serão removidos ou
+    reescritos na reinvenção do frontend (Fase 3). Mantido por ora porque a
+    página `/stats/` v1 ainda o consome.
 
     Ao expor um único endpoint evitamos N round-trips (ocorrências, evidências,
-    dispositivos, cadeia de custódia) e beneficiamos de uma única transacção
-    coerente. AGENT vê apenas os seus; staff/EXPERT vêem totais globais.
+    cadeia de custódia) e beneficiamos de uma única transacção coerente.
+    AGENT vê apenas os seus; staff/EXPERT vêem totais globais.
     """
 
     permission_classes = [IsAuthenticated]
@@ -1108,27 +1047,29 @@ class StatsView(APIView):
         user = request.user
         occ_qs = Occurrence.objects.all()
         ev_qs = Evidence.objects.all()
-        dev_qs = DigitalDevice.objects.all()
         coc_qs = ChainOfCustody.objects.all()
 
         if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
             occ_qs = occ_qs.filter(agent=user)
             ev_qs = ev_qs.filter(occurrence__agent=user)
-            dev_qs = dev_qs.filter(evidence__occurrence__agent=user)
             coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
 
         evidence_by_type = dict(
             ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
         )
-        custody_by_state = dict(
-            coc_qs.values_list('new_state').annotate(n=Count('id')).values_list('new_state', 'n')
-        )
+        # Agregação por ESTADO LEGAL DERIVADO (ADR-0015), não por event_type cru:
+        # cada evidência conta uma vez, no seu estado derivado actual.
+        custody_by_state = {state: 0 for state in sorted(LEGAL_STATES)}
+        eventos_por_evidencia = {}
+        for rec in coc_qs.order_by('evidence_id', 'sequence'):
+            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
+        for eventos in eventos_por_evidencia.values():
+            custody_by_state[derive_legal_state(eventos)] += 1
 
         return Response(
             {
                 'occurrences': occ_qs.count(),
                 'evidences': ev_qs.count(),
-                'devices': dev_qs.count(),
                 'custody_records': coc_qs.count(),
                 'evidence_by_type': evidence_by_type,
                 'custody_by_state': custody_by_state,
@@ -1146,13 +1087,15 @@ class DashboardStatsView(APIView):
             "open_occurrences": int,
             "total_evidences": int,
             "evidences_by_type": {"MOBILE_DEVICE": int, ...},
-            "custodies_in_transit": int,
-            "evidences_in_analysis": int,    # itens cujo último estado é EM_PERICIA
+            "custodies_in_transit": int,     # itens cujo estado derivado é "encaminhada"
+            "evidences_in_analysis": int,    # itens cujo estado derivado é "em_pericia"
         }
 
     Ownership: AGENT vê apenas o seu scope; EXPERT / staff vêem totais.
     Uma ocorrência é considerada "aberta" enquanto nenhuma das suas
-    evidências atinge um estado terminal de custódia (DEVOLVIDA/DESTRUIDA).
+    evidências atinge um evento terminal de custódia (RESTITUICAO/DESTRUICAO).
+    Os agregados de estado usam o ESTADO LEGAL DERIVADO (ADR-0015), não o
+    event_type cru.
     """
 
     permission_classes = [IsAuthenticated]
@@ -1171,16 +1114,13 @@ class DashboardStatsView(APIView):
         total_occurrences = occ_qs.count()
         total_evidences = ev_qs.count()
 
-        # "Open": ocorrências cujas evidências ainda não têm registo em
-        # estado terminal (DEVOLVIDA / DESTRUIDA). Simplificamos contando
-        # as ocorrências que NÃO têm evidências nesses estados — evita
-        # joins caros e é coerente com a UX do dashboard.
-        terminal_states = [
-            ChainOfCustody.CustodyState.DEVOLVIDA,
-            ChainOfCustody.CustodyState.DESTRUIDA,
-        ]
+        # "Open": ocorrências cujas evidências ainda não têm um evento
+        # terminal (RESTITUICAO / DESTRUICAO). Contamos as ocorrências que
+        # NÃO têm evidências com esses eventos — evita joins caros e é
+        # coerente com a UX do dashboard.
+        terminal_events = list(TERMINAL_EVENTS)
         closed_occurrence_ids = (
-            coc_qs.filter(new_state__in=terminal_states)
+            coc_qs.filter(event_type__in=terminal_events)
             .values_list('evidence__occurrence_id', flat=True)
             .distinct()
         )
@@ -1190,45 +1130,31 @@ class DashboardStatsView(APIView):
             ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
         )
 
-        # Para cada evidência, identificar o ÚLTIMO estado de custódia.
-        # Counts de "Em trânsito" e "Em perícia" devem reflectir o estado
-        # actual, não o histórico (caso contrário um item que esteve em
-        # trânsito e agora está em perícia seria contado em ambos).
-        #
-        # Invariante: estado actual = registo com max(sequence) por evidence_id.
-        # Esta lógica foi auditada (2026-05-02) e está correcta — não muda para
-        # subquery SQL porque o índice composto coc_ev_seq_idx torna a iteração
-        # Python eficaz para o volume típico de operação. Refactor opcional
-        # noutra fase usando Evidence.objects.with_current_state().
-        latest_states = list(coc_qs.values('evidence_id', 'new_state', 'sequence'))
-        latest_by_ev = {}
-        for r in latest_states:
-            cur = latest_by_ev.get(r['evidence_id'])
-            if cur is None or r['sequence'] > cur['sequence']:
-                latest_by_ev[r['evidence_id']] = r
+        # Estado legal DERIVADO (ADR-0015) por evidência: a derivação é uma
+        # função pura da sequência completa de eventos. Agrupamos os eventos
+        # por evidência (ordenados por sequence, suportado pelo índice
+        # coc_ev_seq_idx) e derivamos o estado uma vez por item.
+        eventos_por_evidencia = {}
+        for rec in coc_qs.order_by('evidence_id', 'sequence'):
+            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
 
-        custodies_in_transit = sum(
-            1
-            for r in latest_by_ev.values()
-            if r['new_state'] == ChainOfCustody.CustodyState.EM_TRANSPORTE
-        )
-        evidences_in_analysis = sum(
-            1
-            for r in latest_by_ev.values()
-            if r['new_state'] == ChainOfCustody.CustodyState.EM_PERICIA
-        )
+        derived_by_ev = {
+            ev_id: derive_legal_state(eventos)
+            for ev_id, eventos in eventos_por_evidencia.items()
+        }
 
-        # Distribuição completa por estado actual de custódia. Usado pelo
+        custodies_in_transit = sum(1 for s in derived_by_ev.values() if s == 'encaminhada')
+        evidences_in_analysis = sum(1 for s in derived_by_ev.values() if s == 'em_pericia')
+
+        # Distribuição completa por estado legal derivado. Usado pelo
         # dashboard para a visualização "Cadeia de custódia" (river bar +
         # cards). Itens sem qualquer registo ainda ficam fora — não foram
         # apreendidos formalmente, é o caso de seed parcial / wizard a meio.
-        evidences_by_current_state = {state: 0 for state, _ in ChainOfCustody.CustodyState.choices}
-        for r in latest_by_ev.values():
-            evidences_by_current_state[r['new_state']] = (
-                evidences_by_current_state.get(r['new_state'], 0) + 1
-            )
+        evidences_by_current_state = {state: 0 for state in sorted(LEGAL_STATES)}
+        for s in derived_by_ev.values():
+            evidences_by_current_state[s] += 1
         # Itens sem nenhum registo de custódia (raros — wizard incompleto).
-        evidences_without_custody = total_evidences - len(latest_by_ev)
+        evidences_without_custody = total_evidences - len(derived_by_ev)
 
         return Response(
             {
@@ -1240,8 +1166,158 @@ class DashboardStatsView(APIView):
                 'evidences_without_custody': evidences_without_custody,
                 'custodies_in_transit': custodies_in_transit,
                 'evidences_in_analysis': evidences_in_analysis,
+                # --- Enriquecimento T07 (aditivo) ---
+                'deltas_24h': self._deltas_24h(occ_qs, ev_qs, coc_qs),
+                'total_active': self._total_active(coc_qs, total_evidences),
+                'occurrences_series_7d': self._occurrences_series_7d(occ_qs),
             }
         )
+
+    # ------------------------------------------------------------------
+    # Helpers do enriquecimento T07
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _deltas_24h(occ_qs, ev_qs, coc_qs):
+        """Variação das últimas 24h vs as 24h anteriores (T07).
+
+        Compara a janela [agora-24h, agora] (``last_24h``) com a janela
+        [agora-48h, agora-24h] (``prev_24h``) para ocorrências, evidências e
+        eventos de custódia. ``delta`` = ``last_24h - prev_24h`` (positivo =
+        aceleração da actividade). Ocorrências e evidências contam por
+        ``created_at``; os eventos de custódia por ``timestamp`` (o ledger não
+        tem ``created_at``).
+        """
+        now = timezone.now()
+        h24 = now - timedelta(hours=24)
+        h48 = now - timedelta(hours=48)
+
+        def janelas(qs, campo):
+            last_n = qs.filter(**{f'{campo}__gte': h24, f'{campo}__lte': now}).count()
+            prev_n = qs.filter(**{f'{campo}__gte': h48, f'{campo}__lt': h24}).count()
+            return {'last_24h': last_n, 'prev_24h': prev_n, 'delta': last_n - prev_n}
+
+        return {
+            'occurrences': janelas(occ_qs, 'created_at'),
+            'evidences': janelas(ev_qs, 'created_at'),
+            'custody_events': janelas(coc_qs, 'timestamp'),
+        }
+
+    @staticmethod
+    def _total_active(coc_qs, total_evidences):
+        """Nº de evidências cujo estado legal derivado NÃO é terminal (T07).
+
+        Uma evidência está "activa" enquanto o seu último evento de custódia
+        não é terminal (RESTITUICAO/DESTRUICAO — ``TERMINAL_EVENTS``).
+        Evidências sem qualquer registo de custódia contam como activas
+        (ainda não saíram do circuito). Deriva o estado por evidência a partir
+        da sequência de eventos, coerente com o resto do dashboard.
+        """
+        eventos_por_evidencia = {}
+        for rec in coc_qs.order_by('evidence_id', 'sequence'):
+            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
+        terminais = {
+            ev_id
+            for ev_id, eventos in eventos_por_evidencia.items()
+            if eventos[-1].event_type in TERMINAL_EVENTS
+        }
+        # Activas = todas as evidências menos as que estão em estado terminal.
+        # Itens sem custódia não entram em ``terminais`` → contam como activas.
+        return total_evidences - len(terminais)
+
+    @staticmethod
+    def _occurrences_series_7d(occ_qs):
+        """Série diária de ocorrências criadas nos últimos 7 dias (T07).
+
+        Devolve 7 objectos ``{"date": "YYYY-MM-DD", "count": N}`` do mais
+        antigo (há 6 dias) ao dia de hoje, inclusive dias com zero. A agregação
+        usa o dia LOCAL (``timezone.localdate``) para alinhar com o fuso do
+        projecto — uma ocorrência criada às 23h conta no dia local correcto.
+        """
+        hoje = timezone.localdate()
+        dias = [hoje - timedelta(days=offset) for offset in range(6, -1, -1)]
+        inicio = dias[0]
+        # Janela [inicio_local_00h, agora]; agrega por dia local via
+        # TruncDate, que respeita o TIME_ZONE activo do projecto.
+        inicio_dt = timezone.make_aware(datetime.combine(inicio, dt_time.min))
+        contagens = dict(
+            occ_qs.filter(created_at__gte=inicio_dt)
+            .annotate(dia=TruncDate('created_at'))
+            .values('dia')
+            .annotate(n=Count('id'))
+            .values_list('dia', 'n')
+        )
+        return [{'date': dia.isoformat(), 'count': contagens.get(dia, 0)} for dia in dias]
+
+
+# ---------------------------------------------------------------------------
+# Activity Feed — feed read-only de actividade sobre o AuditLog (T06)
+# ---------------------------------------------------------------------------
+
+
+class ActivityFeedView(generics.ListAPIView):
+    """GET /api/activity-feed/ — feed read-only de actividade (T06).
+
+    Lista os eventos do ``AuditLog`` (append-only) por ``-timestamp``,
+    paginado pela paginação default do projecto. Read-only: apenas GET é
+    exposto (``ListAPIView``); POST/PUT/PATCH/DELETE devolvem 405.
+
+    Âmbito (documentado):
+    - EXPERT / staff vêem TODOS os eventos de auditoria.
+    - AGENT vê APENAS os eventos que ELE praticou (``user_id == request.user.id``).
+      Como o ``AuditLog`` regista acessos a prova potencialmente sob segredo de
+      justiça, não se expõe a um agente a actividade de terceiros.
+
+    O sinal ``is_priority_alert`` (ADR-0014 §7) destaca a criação de
+    ocorrências prioritárias. Para evitar N+1, os ids das ocorrências
+    prioritárias REFERENCIADAS pela página corrente são resolvidos numa única
+    query e passados ao serializer via contexto.
+    """
+
+    serializer_class = ActivityFeedSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = AuditLog.objects.select_related('user').order_by('-timestamp')
+        user = self.request.user
+        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+            qs = qs.filter(user_id=user.id)
+        return qs
+
+    def get_serializer_context(self):
+        """Pré-carrega os ids de ocorrências prioritárias da página (sem N+1).
+
+        Resolve, numa só query, quais das ocorrências referenciadas pelos
+        eventos CREATE/OCCURRENCE da página corrente têm
+        ``priority=PRIORITARIA``. Ocorrências entretanto eliminadas não
+        constam do resultado → ``is_priority_alert=False`` para elas.
+        """
+        context = super().get_serializer_context()
+        page = getattr(self, '_paginated_object_list', None)
+        occ_ids = [
+            log.resource_id
+            for log in (page or [])
+            if log.action == AuditLog.Action.CREATE
+            and log.resource_type == AuditLog.ResourceType.OCCURRENCE
+        ]
+        priority_ids = set()
+        if occ_ids:
+            priority_ids = set(
+                Occurrence.objects.filter(
+                    id__in=occ_ids,
+                    priority=Occurrence.Priority.PRIORITARIA,
+                ).values_list('id', flat=True)
+            )
+        context['priority_occurrence_ids'] = priority_ids
+        return context
+
+    def paginate_queryset(self, queryset):
+        """Guarda a página materializada para o contexto resolver prioridades."""
+        page = super().paginate_queryset(queryset)
+        # Quando há paginação, ``page`` é a lista da página corrente; caso
+        # contrário (paginação desligada) usamos o queryset inteiro.
+        self._paginated_object_list = page if page is not None else list(queryset)
+        return page
 
 
 # ---------------------------------------------------------------------------
@@ -1326,8 +1402,10 @@ class MediaServeView(APIView):
             )
 
         content_type, _ = mimetypes.guess_type(str(target))
+        # FileResponse assume a posse do handle e fecha-o quando a resposta é
+        # fechada; um `with` fecharia o ficheiro antes do streaming (SIM115 N/A).
         response = FileResponse(
-            open(target, 'rb'),
+            open(target, 'rb'),  # noqa: SIM115
             content_type=content_type or 'application/octet-stream',
         )
         response['Content-Disposition'] = f'inline; filename="{target.name}"'
@@ -1341,17 +1419,22 @@ class MediaServeView(APIView):
 # ---------------------------------------------------------------------------
 
 
-@require_safe
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+@throttle_classes([HealthcheckRateThrottle])
 def healthcheck(request):
     """GET /api/health/ — 200 se a DB responde, 503 caso contrário.
 
     Alinha com a convenção do Fly.io / Kubernetes (``/healthz`` equivalente).
-    Não exige autenticação para permitir probes externos simples.
+    Não exige autenticação para permitir probes externos simples, mas aplica
+    ``HealthcheckRateThrottle`` (por IP) para travar varredura/amplificação
+    anónima da BD sem nunca travar probes legítimos.
     """
     try:
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        return JsonResponse({'status': 'ok'})
+        return Response({'status': 'ok'})
     except Exception:  # noqa: BLE001 — devolvemos 503 em qualquer erro de DB
-        return JsonResponse({'status': 'degraded'}, status=503)
+        return Response({'status': 'degraded'}, status=503)

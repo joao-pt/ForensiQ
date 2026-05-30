@@ -92,7 +92,6 @@ function mountDataTable() {
             }
             const live = document.getElementById('results-announce');
             if (live) live.textContent = `${n} resultado${n !== 1 ? 's' : ''} após filtragem`;
-            refreshExportLink();
         },
     });
 
@@ -143,16 +142,6 @@ function setupSidebarFilters() {
             dataTable.setFilter('has_gps', '');
         });
     }
-}
-
-function refreshExportLink() {
-    const btn = document.getElementById('btn-export-csv');
-    if (!btn) return;
-    const params = new URLSearchParams(window.location.search);
-    params.delete('page');
-    params.delete('page_size');
-    const qs = params.toString();
-    btn.href = qs ? `/api/occurrences/csv/?${qs}` : '/api/occurrences/csv/';
 }
 
 function renderStateFilterChip() {
@@ -350,12 +339,12 @@ function addMarkersToMap(occurrences) {
     let added = 0;
 
     occurrences.forEach(occ => {
-        if (!occ.gps_lat || !occ.gps_lon) {
+        if (!occ.gps_lat || !occ.gps_lng) {
             noGps.push(occ);
             return;
         }
         const lat = parseFloat(occ.gps_lat);
-        const lon = parseFloat(occ.gps_lon);
+        const lon = parseFloat(occ.gps_lng);
         if (isNaN(lat) || isNaN(lon)) {
             noGps.push(occ);
             return;
@@ -406,7 +395,7 @@ function renderNoGpsList(occurrences) {
 // .list-item original. Usado pelo DataTable para mobile-first.
 // ----------------------------------------------------------
 function renderRow(occ) {
-    const hasGps = !!(occ.gps_lat && occ.gps_lon);
+    const hasGps = !!(occ.gps_lat && occ.gps_lng);
 
     const row = document.createElement('a');
     row.className = 'list-item';
