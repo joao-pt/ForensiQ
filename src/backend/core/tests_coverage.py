@@ -881,7 +881,7 @@ class OccurrenceCodeTest(APITestCase):
                 'description': 'Teste de codigo',
                 'date_time': '2026-05-08T10:00:00Z',
                 'gps_lat': '38.7223',
-                'gps_lon': '-9.1393',
+                'gps_lng': '-9.1393',
                 'address': 'Lisboa',
             },
         )
@@ -898,7 +898,7 @@ class OccurrenceCodeTest(APITestCase):
                     'description': f'Teste {i}',
                     'date_time': '2026-05-08T10:00:00Z',
                     'gps_lat': '38.7223',
-                    'gps_lon': '-9.1393',
+                    'gps_lng': '-9.1393',
                     'address': 'Lisboa',
                 },
             )

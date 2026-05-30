@@ -828,7 +828,7 @@ class OccurrenceFilterTest(APITestCase):
             description='Com GPS',
             date_time=timezone.now() - timedelta(days=5),
             gps_lat=Decimal('38.72'),
-            gps_lon=Decimal('-9.13'),
+            gps_lng=Decimal('-9.13'),
             address='Lisboa',
             agent=self.user,
         )
@@ -838,7 +838,7 @@ class OccurrenceFilterTest(APITestCase):
             description='Sem GPS',
             date_time=timezone.now() - timedelta(days=10),
             gps_lat=None,
-            gps_lon=None,
+            gps_lng=None,
             address='Porto',
             agent=self.user,
         )
@@ -897,7 +897,7 @@ class EvidenceFilterTest(APITestCase):
             serial_number='SN-FILT-001',
             timestamp_seizure=timezone.now(),
             gps_lat=Decimal('38.72'),
-            gps_lon=Decimal('-9.13'),
+            gps_lng=Decimal('-9.13'),
             agent=self.user,
         )
         self.ev_sim = Evidence.objects.create(
@@ -953,7 +953,7 @@ class CustodyFilterTest(APITestCase):
             serial_number='SN-CUSTFILT-001',
             timestamp_seizure=timezone.now(),
             gps_lat=Decimal('38.72'),
-            gps_lon=Decimal('-9.13'),
+            gps_lng=Decimal('-9.13'),
             agent=self.user,
         )
         # Criar registo de custódia via API

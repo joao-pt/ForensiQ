@@ -136,7 +136,7 @@ class OccurrenceSerializer(serializers.ModelSerializer):
         model = Occurrence
         fields = [
             'id', 'code', 'number', 'description', 'date_time',
-            'gps_lat', 'gps_lon', 'address',
+            'gps_lat', 'gps_lng', 'address',
             'agent', 'agent_name',
             'created_at', 'updated_at',
         ]
@@ -244,7 +244,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'id', 'code', 'occurrence', 'occurrence_number', 'occurrence_code',
             'type', 'parent_evidence', 'parent_evidence_label',
             'description', 'photo',
-            'gps_lat', 'gps_lon',
+            'gps_lat', 'gps_lng',
             'timestamp_seizure', 'serial_number',
             'agent', 'agent_name', 'integrity_hash',
             'type_specific_data',

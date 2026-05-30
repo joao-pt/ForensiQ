@@ -60,7 +60,7 @@ def _make_occurrence(agent):
         description='Intake test',
         date_time=timezone.now(),
         gps_lat=Decimal('38.7'),
-        gps_lon=Decimal('-9.1'),
+        gps_lng=Decimal('-9.1'),
         address='Lab Test',
         agent=agent,
     )

@@ -350,12 +350,12 @@ function addMarkersToMap(occurrences) {
     let added = 0;
 
     occurrences.forEach(occ => {
-        if (!occ.gps_lat || !occ.gps_lon) {
+        if (!occ.gps_lat || !occ.gps_lng) {
             noGps.push(occ);
             return;
         }
         const lat = parseFloat(occ.gps_lat);
-        const lon = parseFloat(occ.gps_lon);
+        const lon = parseFloat(occ.gps_lng);
         if (isNaN(lat) || isNaN(lon)) {
             noGps.push(occ);
             return;
@@ -406,7 +406,7 @@ function renderNoGpsList(occurrences) {
 // .list-item original. Usado pelo DataTable para mobile-first.
 // ----------------------------------------------------------
 function renderRow(occ) {
-    const hasGps = !!(occ.gps_lat && occ.gps_lon);
+    const hasGps = !!(occ.gps_lat && occ.gps_lng);
 
     const row = document.createElement('a');
     row.className = 'list-item';

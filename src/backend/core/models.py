@@ -248,7 +248,7 @@ class Occurrence(models.Model):
         validators=[MinValueValidator(-90), MaxValueValidator(90)],
         verbose_name='Latitude GPS',
     )
-    gps_lon = models.DecimalField(
+    gps_lng = models.DecimalField(
         max_digits=10,
         decimal_places=7,
         null=True,
@@ -287,7 +287,7 @@ class Occurrence(models.Model):
         # Normalizar número da ocorrência (collapse spaces + strip)
         if self.number:
             self.number = ' '.join(self.number.split())
-        if (self.gps_lat is not None) != (self.gps_lon is not None):
+        if (self.gps_lat is not None) != (self.gps_lng is not None):
             raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
         if self.date_time and self.date_time > timezone.now():
             raise ValidationError({'date_time': 'A data da ocorrência não pode estar no futuro.'})
@@ -451,7 +451,7 @@ class Evidence(models.Model):
         validators=[MinValueValidator(-90), MaxValueValidator(90)],
         verbose_name='Latitude GPS (apreensão)',
     )
-    gps_lon = models.DecimalField(
+    gps_lng = models.DecimalField(
         max_digits=10,
         decimal_places=7,
         null=True,
@@ -623,7 +623,7 @@ class Evidence(models.Model):
             f'{self.type}|'
             f'{self.parent_evidence_id or ""}|'
             f'{self.description}|'
-            f'{self.gps_lat}|{self.gps_lon}|'
+            f'{self.gps_lat}|{self.gps_lng}|'
             f'{self.timestamp_seizure.isoformat()}|'
             f'{self.serial_number}|'
             f'{self.agent_id}|'
@@ -681,7 +681,7 @@ class Evidence(models.Model):
 
     def clean(self):
         super().clean()
-        if (self.gps_lat is not None) != (self.gps_lon is not None):
+        if (self.gps_lat is not None) != (self.gps_lng is not None):
             raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
         if self.timestamp_seizure and self.timestamp_seizure > timezone.now():
             raise ValidationError(

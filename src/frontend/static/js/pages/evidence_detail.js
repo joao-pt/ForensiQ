@@ -101,10 +101,10 @@ function renderEvidence(ev) {
         document.getElementById('meta-serial').textContent = ev.serial_number;
     }
 
-    if (ev.gps_lat && ev.gps_lon) {
+    if (ev.gps_lat && ev.gps_lng) {
         document.getElementById('meta-gps-row').hidden = false;
         document.getElementById('meta-gps').textContent =
-            `${parseFloat(ev.gps_lat).toFixed(5)}, ${parseFloat(ev.gps_lon).toFixed(5)}`;
+            `${parseFloat(ev.gps_lat).toFixed(5)}, ${parseFloat(ev.gps_lng).toFixed(5)}`;
     }
 
     const occLink = document.getElementById('meta-occurrence');

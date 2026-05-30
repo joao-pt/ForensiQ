@@ -196,7 +196,7 @@ class OccurrenceAPITest(BaseAPITestCase):
             'number': 'NUIPC-2026-API-001',
             'description': 'Teste de ocorrência via API.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['number'], 'NUIPC-2026-API-001')
@@ -1105,7 +1105,7 @@ class EndToEndFlowTest(BaseAPITestCase):
             'number': 'NUIPC-2026-E2E-001',
             'description': 'Ocorrência end-to-end: roubo com dispositivo digital.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(occurrence_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(occurrence_response.data['number'], 'NUIPC-2026-E2E-001')
@@ -1222,7 +1222,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LAT-HIGH',
             'description': 'Teste de latitude inválida.',
             'gps_lat': '200.0000000',  # Fora do intervalo [-90, 90]
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1234,7 +1234,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LAT-LOW',
             'description': 'Teste de latitude inválida.',
             'gps_lat': '-150.0000000',  # Fora do intervalo [-90, 90]
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1246,7 +1246,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LON-HIGH',
             'description': 'Teste de longitude inválida.',
             'gps_lat': '38.7223340',
-            'gps_lon': '200.0000000',  # Fora do intervalo [-180, 180]
+            'gps_lng': '200.0000000',  # Fora do intervalo [-180, 180]
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1258,7 +1258,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LON-LOW',
             'description': 'Teste de longitude inválida.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-200.0000000',  # Fora do intervalo [-180, 180]
+            'gps_lng': '-200.0000000',  # Fora do intervalo [-180, 180]
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1271,7 +1271,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LIMIT-1',
             'description': 'Latitude em +90.',
             'gps_lat': '90.0000000',
-            'gps_lon': '0.0000000',
+            'gps_lng': '0.0000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1279,7 +1279,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LIMIT-2',
             'description': 'Latitude em -90.',
             'gps_lat': '-90.0000000',
-            'gps_lon': '0.0000000',
+            'gps_lng': '0.0000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1287,7 +1287,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LIMIT-3',
             'description': 'Longitude em +180.',
             'gps_lat': '0.0000000',
-            'gps_lon': '180.0000000',
+            'gps_lng': '180.0000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1295,7 +1295,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-GPS-LIMIT-4',
             'description': 'Longitude em -180.',
             'gps_lat': '0.0000000',
-            'gps_lon': '-180.0000000',
+            'gps_lng': '-180.0000000',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1309,7 +1309,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-DUP-001',
             'description': 'Primeira ocorrência.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
 
@@ -1318,7 +1318,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-DUP-001',  # Número duplicado
             'description': 'Segunda ocorrência com número duplicado.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1334,7 +1334,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-LONG-DESC',
             'description': long_description,
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1360,7 +1360,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-UNICODE',
             'description': unicode_description,
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1386,7 +1386,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-XSS-TEST',
             'description': injection_payload,
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         # Deve ser aceito (não rejeitar injeção, apenas escapar na saída)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -1407,7 +1407,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': 'NUIPC-2026-NULL-BYTE',
             'description': description_with_null,
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         # Deve ser rejeitado ou o null byte deve ser removido
         # Se aceito, verificar que foi tratado corretamente
@@ -1428,7 +1428,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': long_number,
             'description': 'Ocorrência com número muito longo.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1441,7 +1441,7 @@ class InputValidationTest(BaseAPITestCase):
             'number': '',
             'description': 'Ocorrência sem número.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1454,7 +1454,7 @@ class InputValidationTest(BaseAPITestCase):
         response = self.client.post(url, {
             'description': 'Ocorrência sem número.',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         })
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
