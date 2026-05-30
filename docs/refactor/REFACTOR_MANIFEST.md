@@ -385,7 +385,11 @@ ou registadas abaixo):
 - Track GPS (T01/T02): **`0018`** (rename `gps_lng`) + **`0019`** (GPS na custódia).
 - Track taxonomia (T19): **`0020`** (taxonomia) + **`0021`** (`crime_type`/`priority` na Occurrence).
 
-**Próximo:** obter o seed da **Tabela de Crimes 2024** (1.ª tarefa de dados, fundamenta o seed de T19) + arrancar o código do PASSO 1/2 (T02 rename → T04/T05 remoções → T01 GPS). T20 (FSM) por último, com verificação adversarial antes de tocar o validador.
+**PASSO 1 — Dados de referência da taxonomia (T19) — concluído:**
+- ✅ **Tabela de Crimes Registados 1.7 (2024)** em `src/backend/core/data/tabela_crimes_2024.json` — fonte autêntica recuperada do arquivo Wayback (o portal SIEJ 404a a pedidos directos). **7 categorias N1 / 50 subcategorias N2 / 219 tipos N3**; descritivos *verbatim*; cross-check determinístico dos 219 códigos N3 contra extracção `pypdf` independente (**0 divergências**). Revelou que a 7.ª categoria (`10` animais de companhia) invalida o "1-6" → **ADR-0014 reconciliado** (códigos `{1,2,3,4,5,6,10}`; exemplos 2024: `53`→`241-244`, `57`=abuso de cartão, extorsão=`246`).
+- ✅ **Mapa Lei 51/2023 ↔ Tabela 1.7** em `core/data/mapa_politica_criminal.json` — **46 tipos INVESTIGACAO** (Art.5, operativo) + **51 PREVENCAO** (Art.4, informativo). Produzido por workflow de **verificação adversarial** (2 lentes/alínea → reconciliador céptico → crítico de cobertura; validação determinística anti-invenção de códigos). Alíneas `4g`/`5f` (transversais/contextuais) não mapeadas por desenho. Inclui `core/data/README.md` de proveniência + procedimento de re-seed.
+
+**Próximo (código T19):** models das 4 tabelas de referência + `Occurrence.crime_type`/`priority`/`priority_source`; migrations **`0020`**/**`0021`**; comando `seed_crime_taxonomy` (consome os 2 JSON); `OccurrenceViewSet` POST-only + serializers + testes. Em paralelo, o track GPS: **T02** (rename `gps_lng`) → T04/T05 (remoções) → **T01** (GPS). **T20** (ledger de eventos) por último, com verificação adversarial antes de tocar o validador.
 
 ---
 

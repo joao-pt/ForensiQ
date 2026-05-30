@@ -1,0 +1,1538 @@
+{
+  "meta": {
+    "lei": "Lei n.º 51/2023, de 28 de agosto",
+    "designacao": "Lei de Política Criminal (biénio 2023-2025)",
+    "biennium": "2023-2025",
+    "vigente_desde": "2023-08-29",
+    "vigente_ate": null,
+    "is_active": true,
+    "fonte_tabela": "Tabela de Crimes Registados 1.7 (2024)",
+    "eixos": {
+      "INVESTIGACAO": "Art. 5.º — eixo OPERATIVO: governa Occurrence.priority (PRIORITARIA/NORMAL)",
+      "PREVENCAO": "Art. 4.º — eixo INFORMATIVO: valor analítico, não governa a prioridade operativa"
+    },
+    "metodo": "workflow de mapeamento com verificação adversarial (2 lentes por alínea -> reconciliador céptico -> crítico de cobertura) + validação determinística de existência de códigos contra a Tabela 1.7",
+    "n_investigacao": 46,
+    "n_prevencao": 51,
+    "alineas_contextuais_nao_mapeadas": [
+      "4g",
+      "5f"
+    ],
+    "notas_curadoria": [
+      "Assimetrias INTENCIONAIS e textuais da Lei 51/2023 (não corrigir): N3=171 (condução sem habilitação) só em PREVENCAO (Art.4 f); N3=142 (fraude na obtenção de subsídios) só em INVESTIGACAO (Art.5 e).",
+      "N3=8 (ofensa à integridade física por negligência em acidente de viação) é usado como proxy em 5c para 'ofensas à integridade física graves em contexto rodoviário': a Tabela 1.7 não tem tipo de ofensa GRAVE por negligência rodoviária; o requisito de gravidade não fica garantido pelo código.",
+      "N3=245 (extorsão sexual) excluído de 5b: 'a extorsão' no âmbito patrimonial mapeia para N3=246 (Outras extorsões); 245 é de natureza sexual, fora do âmbito da alínea.",
+      "N3=79 (detenção ou tráfico de armas proibidas) mapeado em 4f e 5e apesar de estar em N1=4 (perigo comum) e não na legislação avulsa declarada: é a única correspondência da Tabela 1.7 para 'armas proibidas' / 'tráfico de armas'.",
+      "Alíneas 4g e 5f são transversais/contextuais (criminalidade violenta/organizada, ambiente escolar/saúde, vítimas vulneráveis, violência de género): descrevem contexto/agravante, não tipos N3 próprios — não mapeadas por desenho."
+    ],
+    "url_lei": "https://diariodarepublica.pt/dr/detalhe/lei/51-2023-218776599"
+  },
+  "associacoes": [
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 1,
+      "descritivo": "Homicidio voluntário consumado",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 2,
+      "descritivo": "Homicídio por negligência em acidente de viação",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 6,
+      "descritivo": "Ofensa à integridade física voluntária grave",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 7,
+      "descritivo": "Ofensa à integridade física voluntária simples",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 8,
+      "descritivo": "Ofensa à integridade física por negligência em acidente de viação",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 14,
+      "descritivo": "Outros crimes contra a integridade física",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 18,
+      "descritivo": "Violação",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 20,
+      "descritivo": "Outros crimes contra a liberdade e a autodeterminação sexual",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 40,
+      "descritivo": "Roubo na via pública (excepto por esticão)",
+      "alineas": [
+        "5b"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 74,
+      "descritivo": "Incêndio/fogo posto floresta, mata, arvoredo ou seara",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 75,
+      "descritivo": "Dano contra a natureza",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 76,
+      "descritivo": "Poluição",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 79,
+      "descritivo": "Detenção ou tráfico de armas proibidas",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 82,
+      "descritivo": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 83,
+      "descritivo": "Condução perigosa de veículo rodoviário",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 88,
+      "descritivo": "Associação criminosa",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 92,
+      "descritivo": "Tráfico de influência",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 102,
+      "descritivo": "Branqueamento de vantagens de proveniência ilícita",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 106,
+      "descritivo": "Corrupção",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 107,
+      "descritivo": "Peculato",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 109,
+      "descritivo": "Outros crimes cometidos no exercício de funções públicas",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 111,
+      "descritivo": "Tráfico de estupefacientes (inclui precursores)",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 115,
+      "descritivo": "Organizações terroristas e terrorismo nacional",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 116,
+      "descritivo": "Outras organizações terroristas e terrorismo internacional",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 117,
+      "descritivo": "Auxílio à imigração ilegal",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 135,
+      "descritivo": "Fraude fiscal",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 136,
+      "descritivo": "Abuso de confiança fiscal",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 137,
+      "descritivo": "Fraude contra a segurança social",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 138,
+      "descritivo": "Abuso de confiança contra a segurança social",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 139,
+      "descritivo": "Abate clandestino e aquisição de animais assim abatidos para consumo público",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 140,
+      "descritivo": "Outros crimes contra a saúde/crime contra a saúde n.e.",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 142,
+      "descritivo": "Fraude obtenção de subsídios, subvenções, créditos e desvio na sua utilização",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 153,
+      "descritivo": "Reprodução ilegítima de programa protegido",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 157,
+      "descritivo": "Acesso indevido ou ilegítimo/intercepção ilegítima",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 158,
+      "descritivo": "Viciação ou destruição de dados/dano relativo a dados/programas",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 159,
+      "descritivo": "Falsidade informática",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 160,
+      "descritivo": "Sabotagem informática",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 161,
+      "descritivo": "Outros crimes informáticos/crimes informáticos n.e.",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 194,
+      "descritivo": "Violência doméstica contra cônjuge ou análogos",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 195,
+      "descritivo": "Violência doméstica contra menores",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 196,
+      "descritivo": "Outros crimes de violência doméstica",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 197,
+      "descritivo": "Tráfico de pessoas",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 198,
+      "descritivo": "Abuso sexual de crianças, adolescentes e menores dependentes ou em situação vulnerável",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 199,
+      "descritivo": "Lenocínio e pornografia de menores",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 200,
+      "descritivo": "Roubo a residência",
+      "alineas": [
+        "5b"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 246,
+      "descritivo": "Outras extorsões",
+      "alineas": [
+        "5b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 1,
+      "descritivo": "Homicidio voluntário consumado",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 6,
+      "descritivo": "Ofensa à integridade física voluntária grave",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 7,
+      "descritivo": "Ofensa à integridade física voluntária simples",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 13,
+      "descritivo": "Violação de regras de segurança",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 18,
+      "descritivo": "Violação",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 20,
+      "descritivo": "Outros crimes contra a liberdade e a autodeterminação sexual",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 33,
+      "descritivo": "Furto em residência com arrombamento, escalamento ou chaves falsas",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 34,
+      "descritivo": "Furto em edifício comercial ou industrial com arrombamento, escalamento ou chaves falsas",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 50,
+      "descritivo": "Burla com fraude bancária",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 57,
+      "descritivo": "Abuso de cartão de garantia ou de cartão, dispositivo ou dados de pagamento",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 63,
+      "descritivo": "Discriminação e incitamento ao ódio e à violência",
+      "alineas": [
+        "4c"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 74,
+      "descritivo": "Incêndio/fogo posto floresta, mata, arvoredo ou seara",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 75,
+      "descritivo": "Dano contra a natureza",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 76,
+      "descritivo": "Poluição",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 79,
+      "descritivo": "Detenção ou tráfico de armas proibidas",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 82,
+      "descritivo": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 83,
+      "descritivo": "Condução perigosa de veículo rodoviário",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 92,
+      "descritivo": "Tráfico de influência",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 102,
+      "descritivo": "Branqueamento de vantagens de proveniência ilícita",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 106,
+      "descritivo": "Corrupção",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 107,
+      "descritivo": "Peculato",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 115,
+      "descritivo": "Organizações terroristas e terrorismo nacional",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 116,
+      "descritivo": "Outras organizações terroristas e terrorismo internacional",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 117,
+      "descritivo": "Auxílio à imigração ilegal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 135,
+      "descritivo": "Fraude fiscal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 136,
+      "descritivo": "Abuso de confiança fiscal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 137,
+      "descritivo": "Fraude contra a segurança social",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 138,
+      "descritivo": "Abuso de confiança contra a segurança social",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 139,
+      "descritivo": "Abate clandestino e aquisição de animais assim abatidos para consumo público",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 140,
+      "descritivo": "Outros crimes contra a saúde/crime contra a saúde n.e.",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 153,
+      "descritivo": "Reprodução ilegítima de programa protegido",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 157,
+      "descritivo": "Acesso indevido ou ilegítimo/intercepção ilegítima",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 158,
+      "descritivo": "Viciação ou destruição de dados/dano relativo a dados/programas",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 159,
+      "descritivo": "Falsidade informática",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 160,
+      "descritivo": "Sabotagem informática",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 161,
+      "descritivo": "Outros crimes informáticos/crimes informáticos n.e.",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 171,
+      "descritivo": "Condução sem habilitação legal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 194,
+      "descritivo": "Violência doméstica contra cônjuge ou análogos",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 195,
+      "descritivo": "Violência doméstica contra menores",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 196,
+      "descritivo": "Outros crimes de violência doméstica",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 198,
+      "descritivo": "Abuso sexual de crianças, adolescentes e menores dependentes ou em situação vulnerável",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 199,
+      "descritivo": "Lenocínio e pornografia de menores",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 200,
+      "descritivo": "Roubo a residência",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 202,
+      "descritivo": "Roubo a outros edifícios comerciais ou industriais",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 229,
+      "descritivo": "Furto de combustível em veículo motorizado",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 230,
+      "descritivo": "Furto de acessórios/peças em veículo motorizado",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 231,
+      "descritivo": "Outros furtos em veículo motorizado",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 241,
+      "descritivo": "Burla informática/comunicações por obtenção ilegitima de dados do utilizador",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 242,
+      "descritivo": "Burla informática/comunicações com uso de aplicação para transferência imediata de dinheiro",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 243,
+      "descritivo": "Burla informática/comunicações em investimentos em criptoativos",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 244,
+      "descritivo": "Outras burlas informáticas/comunicações",
+      "alineas": [
+        "4b"
+      ]
+    }
+  ],
+  "curadoria_por_alinea": [
+    {
+      "artigo": "4",
+      "alinea": "a",
+      "eixo": "PREVENCAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 1,
+          "descritivo_oficial": "Homicidio voluntário consumado",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 6,
+          "descritivo_oficial": "Ofensa à integridade física voluntária grave",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 7,
+          "descritivo_oficial": "Ofensa à integridade física voluntária simples",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 13,
+          "descritivo_oficial": "Violação de regras de segurança",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 194,
+          "descritivo_oficial": "Violência doméstica contra cônjuge ou análogos",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 195,
+          "descritivo_oficial": "Violência doméstica contra menores",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 196,
+          "descritivo_oficial": "Outros crimes de violência doméstica",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 4,
+          "descritivo_oficial": "Crimes contra a liberdade e autodeterminação sexual",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 5,
+          "motivo": "Proposto pelo mapeador abrangente para 'o homicídio' em sentido amplo. REMOVIDO: a alínea nomeia especificamente 'o homicídio', não 'outros crimes contra a vida'. O cód. 5 é um tipo residual (aborto/exposição/incitamento ao suicídio etc.) que não corresponde ao sentido criminal-político de 'homicídio' enquanto crime violento prioritário. Sobreinclusivo — a lente estrita exclui-o."
+        },
+        {
+          "codigo": 14,
+          "motivo": "Proposto pelo mapeador abrangente para 'crimes em contexto de violência grupal com uso de armas de fogo e armas brancas'. REMOVIDO: este segmento é CONTEXTO/modus operandi ('em contexto de'), não um tipo de crime. Mapear o residual 14 (Outros crimes contra a integridade física) é forçar correspondência onde não existe tipo nomeado. O próprio mapeador atribuiu confiança média reconhecendo o carácter agravante/contextual. Sobreinclusivo."
+        },
+        {
+          "codigo": 18,
+          "motivo": "Proposto pelo mapeador estrito como tipo N3 individual de 'os crimes contra a liberdade e a autodeterminação sexual'. SUBSTITUÍDO (não erro de mapeamento) pelo N2=4: a frase legal reproduz o nome integral da subcategoria e cobre-a toda, pelo que a regra dura impõe mapeamento ao nível N2 em vez de enumerar 18/198/199/20. O conteúdo permanece coberto via N2=4."
+        },
+        {
+          "codigo": 198,
+          "motivo": "Idem cód. 18: tipo N3 individual da subcategoria sexual, substituído pelo mapeamento ao nível N2=4 (subcategoria coberta integralmente pela expressão legal). Conteúdo preservado via N2=4."
+        },
+        {
+          "codigo": 199,
+          "motivo": "Idem cód. 18: tipo N3 individual da subcategoria sexual, substituído pelo mapeamento ao nível N2=4. Conteúdo preservado via N2=4."
+        },
+        {
+          "codigo": 20,
+          "motivo": "Idem cód. 18: tipo N3 residual da subcategoria sexual, substituído pelo mapeamento ao nível N2=4. Conteúdo preservado via N2=4."
+        }
+      ],
+      "notas": "Âmbito declarado: N1=1 (Crimes contra as pessoas). Todos os edges finais pertencem a N1=1 (subcategorias N2=1, N2=2, N2=4).\n\nReconciliação item-a-item da frase legal:\n\n1) 'o homicídio' -> cód. 1. Removido o cód. 5 (sobreinclusivo: tipo residual da vida, não 'homicídio' em sentido criminal-político).\n\n2) 'os crimes contra a integridade física praticados contra ou por agentes de autoridade' -> códs. 6 e 7 (OIF voluntária grave + simples). MANTIDOS porque a alínea nomeia expressamente 'crimes contra a integridade física' como categoria de crime; o 'contra/por agentes de autoridade' é agravante contextual (a Tabela INE não desagrega por qualidade do agente). Distingue-se de segmentos puramente contextuais ('em contexto de') por aqui haver um tipo de crime explicitamente nomeado. Nota: ofensas a agentes podem também caber em 'Resistência e coacção sobre funcionário' (N3=95), MAS esse tipo está em N1=5 (crimes contra o Estado), FORA do âmbito declarado — por isso não incluído.\n\n3) 'os crimes em contexto de violência grupal com uso de armas de fogo e armas brancas' -> SEM EDGE. Contexto/modus operandi transversal, não tipo próprio. Removido o cód. 14 (forçado). O cód. 79 (Detenção/tráfico de armas proibidas) está em N1=4, fora do âmbito.\n\n4) 'a violência doméstica' -> 194, 195, 196 (os três tipos de VD). Não se usou N2=2 inteira por incluir OIF genéricas e maus tratos não abrangidos.\n\n5) 'a violência de género' -> SEM EDGE. Sem tipo próprio na Tabela INE (conceito transversal). Não inventado; materializa-se em homicídio/OIF/VD/crimes sexuais já mapeados.\n\n6) 'a violação de regras de segurança' -> cód. 13 (verbatim).\n\n7) 'os crimes contra a liberdade e a autodeterminação sexual' -> N2=4 (subcategoria inteira). A frase reproduz o nome integral da subcategoria; pela regra dura mapeia-se ao nível N2 em vez dos 4 tipos N3 individuais (18/198/199/20 substituídos, não eliminados materialmente). O cód. 245 (Extorsão sexual) está em N1=2, fora do âmbito.\n\n8) 'a violência juvenil' -> SEM EDGE. Sem tipo próprio (descritor etário/contextual). Não inventado.\n\n9) 'a violência associada ao desporto' -> SEM EDGE no âmbito N1=1. Os tipos relevantes (213-216 / 214 'Participação em rixa e ofensas à integridade física em grupo aquando de espectáculos desportivos') existem mas estão em N1=6 (Legislação avulsa, N2=57), FORA do âmbito declarado 'crimes contra as pessoas'. Pela regra de respeito ao âmbito, não mapeados aqui.\n\nResultado: 8 edges (7 N3 + 1 N2), todos em N1=1. Quatro segmentos da frase ficam sem edge por serem contextuais/agravantes, inexistentes na Tabela, ou fora do âmbito N1=1. Divergência principal entre mapeadores resolvida: (i) cód. 5 e 14 removidos por sobreinclusão; (ii) subcategoria sexual consolidada em N2=4; (iii) OIF 6/7 mantidos por a integridade física ser crime expressamente nomeado, não mero contexto."
+    },
+    {
+      "artigo": "4",
+      "alinea": "b",
+      "eixo": "PREVENCAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 229,
+          "descritivo_oficial": "Furto de combustível em veículo motorizado",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 230,
+          "descritivo_oficial": "Furto de acessórios/peças em veículo motorizado",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 231,
+          "descritivo_oficial": "Outros furtos em veículo motorizado",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 33,
+          "descritivo_oficial": "Furto em residência com arrombamento, escalamento ou chaves falsas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 34,
+          "descritivo_oficial": "Furto em edifício comercial ou industrial com arrombamento, escalamento ou chaves falsas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 200,
+          "descritivo_oficial": "Roubo a residência",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 202,
+          "descritivo_oficial": "Roubo a outros edifícios comerciais ou industriais",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 50,
+          "descritivo_oficial": "Burla com fraude bancária",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 57,
+          "descritivo_oficial": "Abuso de cartão de garantia ou de cartão, dispositivo ou dados de pagamento",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 241,
+          "descritivo_oficial": "Burla informática/comunicações por obtenção ilegitima de dados do utilizador",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 242,
+          "descritivo_oficial": "Burla informática/comunicações com uso de aplicação para transferência imediata de dinheiro",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 243,
+          "descritivo_oficial": "Burla informática/comunicações em investimentos em criptoativos",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 244,
+          "descritivo_oficial": "Outras burlas informáticas/comunicações",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 31,
+          "motivo": "Proposto apenas pela lente abrangente. A lei diz \"furto EM viaturas\" (preposição EM = furto no interior/de bens do veículo: combustível, acessórios/peças, outros — 229/230/231), e NÃO \"furto DE veículo\". O código 31 (\"Furto de veículo motorizado\") é tipo autónomo na Tabela com descritivo distinto (furto DO próprio veículo). A escolha lexical da lei é deliberada; incluir 31 ultrapassa o enunciado literal."
+        },
+        {
+          "codigo": 41,
+          "motivo": "Proposto apenas pela lente abrangente (confiança média). A lei usa a fórmula genérica \"edifício comercial ou industrial\", que mapeia para a rubrica residual 202. O roubo a banco/estabelecimento de crédito está autonomizado na Tabela precisamente por NÃO ser o genérico; incluí-lo seria sobre-extensão da enumeração literal."
+        },
+        {
+          "codigo": 42,
+          "motivo": "Proposto apenas pela lente abrangente (confiança média). Roubo a tesouraria/estação de correios é tipo específico autonomizado na Tabela, fora da fórmula genérica \"edifício comercial ou industrial\" (que -> 202). Sobre-extensão."
+        },
+        {
+          "codigo": 203,
+          "motivo": "Proposto apenas pela lente abrangente (confiança média). Roubo a farmácias é subtipo específico autonomizado; a lei refere-se ao genérico \"edifício comercial ou industrial\" (-> 202). Não há nomeação inequívoca de farmácias na alínea."
+        },
+        {
+          "codigo": 204,
+          "motivo": "Proposto apenas pela lente abrangente (confiança média). Roubo a ourivesarias é subtipo específico autonomizado; fora da fórmula genérica da lei (-> 202). Sobre-extensão."
+        },
+        {
+          "codigo": 43,
+          "motivo": "Proposto apenas pela lente abrangente (confiança média). Roubo a posto de abastecimento de combustível é subtipo específico autonomizado; a lei refere o genérico \"edifício comercial ou industrial\" (-> 202). Sobre-extensão."
+        }
+      ],
+      "notas": "Reconciliação adversarial. Alínea ENUMERATIVA dentro da categoria N1=2 (crimes contra o património); todos os edges finais respeitam esse âmbito. Decisões-chave de fronteira: (1) \\\"furto EM viaturas\\\" lê-se literalmente como furto no interior/de bens do veículo -> 229 (combustível), 230 (acessórios/peças), 231 (outros). EXCLUI-SE 31 \\\"furto DE veículo motorizado\\\", que é tipo autónomo distinto; a preposição \\\"em\\\" da lei é deliberada. (2) \\\"furto qualificado... em residências e em edifício comercial ou industrial\\\" -> apenas as formas COM arrombamento/escalamento/chaves falsas (33, 34); as variantes \\\"sem arrombamento\\\" (220, 218) e \\\"área anexa\\\" (219) são furto simples, fora da qualificação expressa. (3) \\\"roubo em residências\\\" -> 200; \\\"roubo em edifício comercial ou industrial\\\" -> 202 (rubrica genérica/residual que espelha a fórmula legal genérica). EXCLUEM-SE os subtipos específicos 41 (banco), 42 (tesouraria/correios), 203 (farmácias), 204 (ourivesarias), 43 (posto combustível): estão autonomizados na Tabela precisamente por não serem o genérico \\\"edifício comercial ou industrial\\\"; a lei não os nomeia inequivocamente, pelo que a lente abrangente sobre-extende. (4) \\\"burla com fraude bancária\\\" -> 50 (literal); \\\"abuso de cartão...\\\" -> 57 (literal). (5) \\\"burla cometida através de meio informático ou comunicações\\\" -> 241–244 (todos os N3 da rubrica de burla informática/comunicações); NÃO se eleva para N2=9 \\\"Crimes contra o património em geral\\\", que contém muitas outras burlas e extorsões não abrangidas. Os dois mapeadores convergem em 13 códigos (todos mantidos); a única divergência são os 6 códigos da lente abrangente (31 + 5 roubos específicos), removidos por sobre-extensão face ao enunciado literal e à estrutura da Tabela. Nenhum código claramente nomeado pela alínea foi omitido por ambos; logo, sem adições. Total final: 13 tipos N3."
+    },
+    {
+      "artigo": "4",
+      "alinea": "c",
+      "eixo": "PREVENCAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 63,
+          "descritivo_oficial": "Discriminação e incitamento ao ódio e à violência",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 65,
+          "motivo": "N3=65 'Outros crimes contra a identidade cultural e integridade pessoal' é um tipo residual/catch-all. A frase legal é específica e precisa sobre discriminação (enumera fundamentos discriminatórios concretos), não nomeia nem descreve quaisquer 'outros' crimes desta categoria. O mapeador abrangente incluiu-o apenas por especulação de fronteira ('pode abranger'), violando a regra dura de mapear só tipos inequivocamente nomeados. O conteúdo discriminatório está integralmente absorvido pelo tipo nuclear N3=63. Removido."
+        }
+      ],
+      "notas": "Alínea com âmbito explícito declarado (N1=3, crimes contra a identidade cultural e integridade pessoal). Mapeamento confinado a esta categoria. A enumeração de fundamentos discriminatórios (origem racial/étnica, nacionalidade, religião, língua, sexo, orientação sexual, identidade/expressão de género, características sexuais, deficiência, opinião política, instrução, condição social) corresponde directa e verbatim ao tipo de discriminação do art. 240.º CP, captado pelo código N3=63. Edge final: 1. N3=64 (Tortura e tratamentos cruéis) corretamente excluído por ambos — a frase é especificamente sobre discriminação, não tortura. N3=65 (residual) removido por ser catch-all não nomeado pela frase. Não se mapeia à subcategoria N2=12 inteira porque a frase não cobre tortura, apenas a vertente discriminatória. Nota: 'discriminação por sexo/orientação/identidade de género' não tem tipo autónomo na Tabela enquanto violência de género — a vertente é absorvida pelo tipo de discriminação N3=63."
+    },
+    {
+      "artigo": "4",
+      "alinea": "d",
+      "eixo": "PREVENCAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 74,
+          "descritivo_oficial": "Incêndio/fogo posto floresta, mata, arvoredo ou seara",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 75,
+          "descritivo_oficial": "Dano contra a natureza",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 76,
+          "descritivo_oficial": "Poluição",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 83,
+          "descritivo_oficial": "Condução perigosa de veículo rodoviário",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 82,
+          "descritivo_oficial": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [],
+      "notas": "Ambos os mapeadores convergiram exactamente no mesmo conjunto (74, 75, 76, 82, 83), todos dentro do âmbito declarado N1=4. Reconciliação adversarial confirma: zero remoções, zero adições.\\n\\nFronteiras verificadas:\\n- Cód. 73 (Incêndio em edifício/construção/meio de transporte): EXCLUÍDO corretamente — a frase qualifica 'florestal'.\\n- Cód. 77 (Corrupção de substâncias alimentares/medicinais) e 78 (Perigo relativo a animais): EXCLUÍDOS corretamente — fora do núcleo 'natureza/ambiente' (arts. 278.º-280.º CP). 'Perigo relativo a animais' não é crime ambiental no sentido da frase.\\n- Cód. 84 (Outros crimes contra a segurança das comunicações): catch-all não nomeado pela frase; não se mapeia.\\n- Cód. 171 (Condução sem habilitação legal, N2=46): fora de N1=4 e não corresponde a condução perigosa nem embriaguez; bem excluído.\\n- Não se mapearam N2 inteiras (15 nem 16), pois a frase selecciona tipos específicos, deixando de fora p.ex. detenção de armas proibidas, pirataria aérea, corrupção de substâncias alimentares.\\n\\nLimitação registada sem invenção: a condução sob estupefacientes/psicotrópicos (art. 292.º n.º 2 CP) carece de código N3 autónomo na Tabela 1.7, ficando estatisticamente agregada no cód. 82 (mesmo tipo legal). Mantém-se 82 como melhor e única correspondência possível."
+    },
+    {
+      "artigo": "4",
+      "alinea": "e",
+      "eixo": "PREVENCAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 106,
+          "descritivo_oficial": "Corrupção",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 92,
+          "descritivo_oficial": "Tráfico de influência",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 102,
+          "descritivo_oficial": "Branqueamento de vantagens de proveniência ilícita",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 107,
+          "descritivo_oficial": "Peculato",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 109,
+          "motivo": "N3=109 'Outros crimes cometidos no exercício de funções públicas' é um contentor residual catch-all proposto pela lente abrangente para subsumir 'participação económica em negócio' (art. 377.º CP), que não tem tipo N3 próprio na Tabela 1.7. Removido por violar a regra dura contra catch-alls: o descritivo 'Outros crimes...' não identifica inequivocamente a participação económica em negócio, englobando indistintamente muitos outros tipos não nomeados pela alínea (a frase enumera tipos concretos, não uma subcategoria residual). A confiança média do próprio mapeador abrangente confirma a fragilidade. Fica por mapear por ausência de código específico, não por estar fora de âmbito."
+        }
+      ],
+      "notas": "Quatro dos cinco crimes nomeados têm tipo N3 dedicado e inequívoco dentro da categoria N1=5 (Crimes contra o Estado), respeitando o âmbito declarado: corrupção (106), tráfico de influência (92), branqueamento (102), peculato (107). O quinto crime nomeado — 'participação económica em negócio' (art. 377.º CP) — NÃO tem tipo N3 próprio na Tabela 1.7. Os dois mapeadores divergiram apenas neste ponto: o estrito excluiu-o e o abrangente subsumiu-o em N3=109 'Outros crimes cometidos no exercício de funções públicas'. Resolvo a favor da lente estrita: 109 é um agregador residual que não corresponde inequivocamente a um crime concreto nomeado, e mapear um termo legal específico para um 'Outros...' viola a regra de só usar correspondências genuínas. Não se usou nenhum N2 inteiro porque a frase enumera tipos concretos, não subcategorias completas (N2=25 inclui ainda abuso de autoridade, código 108, que a alínea não cobre). Resultado: 4 edges mantidos, 1 removido, 0 adicionados."
+    },
+    {
+      "artigo": "4",
+      "alinea": "f",
+      "eixo": "PREVENCAO",
+      "tipos": [
+        {
+          "nivel": "N2",
+          "codigo": 29,
+          "descritivo_oficial": "Crimes de terrorismo e organizações terroristas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 43,
+          "descritivo_oficial": "Crimes informáticos",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 117,
+          "descritivo_oficial": "Auxílio à imigração ilegal",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 37,
+          "descritivo_oficial": "Crimes fiscais",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 38,
+          "descritivo_oficial": "Crimes contra a segurança social",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 39,
+          "descritivo_oficial": "Crimes contra a saúde pública",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 79,
+          "descritivo_oficial": "Detenção ou tráfico de armas proibidas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 171,
+          "descritivo_oficial": "Condução sem habilitação legal",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 115,
+          "motivo": "Não removido por estar errado, mas SUBSUMIDO no mapeamento N2=29. A frase 'o terrorismo e a criminalidade conexa' cobre toda a subcategoria N2=29 (que esgota em 115+116), pelo que se prefere o edge N2=29 único em vez dos dois N3 separados do mapeador estrito. O tipo 115 está coberto pelo N2=29."
+        },
+        {
+          "codigo": 116,
+          "motivo": "Igualmente SUBSUMIDO no mapeamento N2=29. A subcategoria inteira de terrorismo é coberta pela frase legal, pelo que 115 e 116 colapsam num único edge N2=29 conforme a regra de elevação a N2 quando a frase cobre toda a subcategoria."
+        },
+        {
+          "codigo": 30,
+          "motivo": "REMOVIDO (proposto só pelo mapeador abrangente). A alínea nomeia especificamente 'o auxílio à imigração ilegal' (tipo nuclear 117, descritivo verbatim), e NÃO a generalidade dos crimes de imigração ilegal. A subcategoria N2=30 inclui tipos que a frase legal não nomeia (associação de auxílio 207, angariação de mão-de-obra ilegal 208, casamento de conveniência 209, violação de interdição de entrada 210, outros 118). Elevação a N2 é excesso; mapeia-se só o tipo nomeado N3=117."
+        }
+      ],
+      "notas": "Alínea enumerativa de 8 tipos concretos da legislação avulsa (N1=6), com uma única excepção de localização na Tabela (armas proibidas). NÃO é alínea transversal/contextual — produz edges não-vazios. 8 edges finais.\n\nDecisões de reconciliação adversarial:\n\n1. TERRORISMO -> N2=29 (não 115+116 separados). A frase cobre toda a subcategoria, que esgota nos dois tipos; preferida a elevação a N2 conforme regra. Os edges 115 e 116 do mapeador estrito ficam SUBSUMIDOS no N2=29 (listados em removidos por colapso, não por erro).\n\n2. CIBERCRIMINALIDADE -> N2=43 inteira (consenso; exemplo das regras).\n\n3. AUXÍLIO À IMIGRAÇÃO ILEGAL -> SÓ N3=117 (lente estrita vence). REMOVIDO o N2=30 do mapeador abrangente: a alínea nomeia o tipo concreto 'auxílio', não a subcategoria; os tipos 207/208/209/210/118 não são nomeados pela frase. Evita-se excesso.\n\n4. CRIMES FISCAIS -> N2=37 (consenso; descritivo verbatim).\n\n5. SEGURANÇA SOCIAL -> N2=38 (consenso; descritivo verbatim).\n\n6. SISTEMA DE SAÚDE -> N2=39 'Crimes contra a saúde pública' (confiança média). Edge semanticamente folgado ('sistema de saúde' vs 'saúde pública') mas único correspondente dentro do âmbito N1=6; mantido.\n\n7. ARMAS PROIBIDAS -> N3=79 (mantido com sinalização). TENSÃO DE ÂMBITO: o código vive em N1=4 (perigo comum), fora da categoria 6 declarada. Mantido por fidelidade ao texto legal — a alínea nomeia explicitamente este crime e não existe correspondente em N1=6. O critério substantivo do tipo nomeado prevalece sobre a localização tabular; excluí-lo frustraria a intenção legal. Divergência registada para revisão a jusante.\n\n8. CONDUÇÃO SEM HABILITAÇÃO LEGAL -> N3=171 (consenso; descritivo verbatim, dentro de N1=6).\n\nNão se mapeou 'criminalidade conexa' ao terrorismo (financiamento, etc.) por não ter tipo próprio inequívoco na Tabela. Todos os descritivos são VERBATIM da Tabela; nenhum código inventado."
+    },
+    {
+      "artigo": "4",
+      "alinea": "g",
+      "eixo": "PREVENCAO",
+      "tipos": [],
+      "removidos": [],
+      "notas": "RECONCILIAÇÃO: edges_finais VAZIO confirmado. Concordo integralmente com ambos os mapeadores independentes — esta alínea é TRANSVERSAL/CONTEXTUAL por desenho e não se reconduz a tipos N3/N2 concretos da Tabela 1.7. A frase legal combina três dimensões, todas de contexto/gravidade/agravante, nenhuma das quais nomeia claramente um crime discreto:\n\n(1) GRAVIDADE/FORMA — \"criminalidade violenta, especialmente violenta e altamente organizada\" são conceitos jurídico-processuais agregadores (art. 1.º als. j), l), m) CPP; Lei n.º 5/2002), agravantes/categorias de molduras que atravessam dezenas de tipos heterogéneos (homicídio, roubo, sequestro, tráfico, terrorismo, etc.). Não existem como código na Tabela. \"Altamente organizada\" é descritor de gravidade, NÃO equivalente ao tipo N3=88 (Associação criminosa) — mapear 88 seria forçar (a alínea não visa o tipo associação criminosa, mas a forma organizada de qualquer crime violento). EXCLUÍDO.\n\n(2) CONTEXTO/LOCAL — \"ambiente escolar\" e \"ambiente de saúde\" descrevem o local de prática, não a conduta. Os únicos tipos da Tabela com referência a estabelecimento de ensino são patrimoniais (N3=35 furto; N3=212 roubo em estabelecimento de ensino) e estão FORA do âmbito visado (criminalidade violenta contra pessoas vulneráveis nesses ambientes, não furto/roubo de bens). Não há tipo para \"ambiente de saúde\". Mapear 35/212 seria erro de categoria. EXCLUÍDO.\n\n(3) VULNERABILIDADE DA VÍTIMA — \"vítimas especialmente vulneráveis, incluindo crianças e jovens, mulheres grávidas, pessoas idosas, doentes, pessoas com deficiência e imigrantes\" é perfil/qualidade da vítima, operando como circunstância agravante geral (art. 132.º, 145.º, 152.º-A, 155.º CP), não como tipo autónomo. A Tabela só categoriza por perfil de vítima onde o próprio tipo o incorpora (ex.: N3=10 maus tratos de menores, N3=195 violência doméstica contra menores, N3=198 abuso sexual de crianças); mas a alínea nomeia estes grupos ENQUANTO categoria de vítima transversal a toda a criminalidade violenta, não enquanto crimes concretos — pelo que não se forçam esses tipos. \"Imigrantes\" aqui são vítimas vulneráveis de crime violento, NÃO os crimes de auxílio à imigração ilegal (N2=30) — mapear N2=30 inverteria o sentido (agressor vs. vítima). EXCLUÍDO.\n\n\"Violência de género\" e \"violência juvenil\" não têm tipo próprio na Tabela — não inventados. A própria alínea declara-se de \"categoria transversal/contextual\". Conforme regra dura, alíneas que descrevem contexto/gravidade/vulnerabilidade da vítima devolvem edges vazio e não forçam mapeamentos. Nenhuma remoção nem adição: ambos os mapeadores já entregaram listas vazias corretas."
+    },
+    {
+      "artigo": "5",
+      "alinea": "a",
+      "eixo": "INVESTIGACAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 1,
+          "descritivo_oficial": "Homicidio voluntário consumado",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 6,
+          "descritivo_oficial": "Ofensa à integridade física voluntária grave",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 7,
+          "descritivo_oficial": "Ofensa à integridade física voluntária simples",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 14,
+          "descritivo_oficial": "Outros crimes contra a integridade física",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 194,
+          "descritivo_oficial": "Violência doméstica contra cônjuge ou análogos",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 195,
+          "descritivo_oficial": "Violência doméstica contra menores",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 196,
+          "descritivo_oficial": "Outros crimes de violência doméstica",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 197,
+          "descritivo_oficial": "Tráfico de pessoas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 18,
+          "descritivo_oficial": "Violação",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 198,
+          "descritivo_oficial": "Abuso sexual de crianças, adolescentes e menores dependentes ou em situação vulnerável",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 199,
+          "descritivo_oficial": "Lenocínio e pornografia de menores",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 20,
+          "descritivo_oficial": "Outros crimes contra a liberdade e a autodeterminação sexual",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 5,
+          "motivo": "Removido (excesso do mapeador abrangente). A lei diz especificamente 'o homicídio', não 'crimes contra a vida'. 'Outros crimes contra a vida' é tipo fronteiriço/residual em N2=1 que extravasa a referência expressa ao homicídio; sob reconciliação céptica não cai genuinamente na frase legal."
+        },
+        {
+          "codigo": 4,
+          "motivo": "Não estava nas propostas; confirma-se a exclusão. 'Aborto' não corresponde a 'homicídio' nem a qualquer outro elemento nomeado."
+        }
+      ],
+      "notas": "Alínea de catálogo (não transversal): mapeamento para tipos N3 dentro do âmbito N1=1 (crimes contra as pessoas). Decisões de reconciliação: (1) 'o homicídio' -> apenas 1 (voluntário consumado); excluídos 5 (outros crimes contra a vida), 2/3 (negligência) e 4 (aborto) por extravasarem a referência expressa ao homicídio. (2) 'crimes contra a integridade física praticados contra ou por agentes de autoridade' -> 6, 7, 14 (formas voluntárias/dolosas em N2=2); o mapeador estrito OMITIU este elemento expressamente nomeado pela lei — corrigido mantendo as três ofensas dolosas. Não há tipo autónomo por qualidade do agente: 'agente de autoridade' é contexto, captado pela tipificação de ofensa à integridade física. Excluídas as ofensas por negligência (8, 9), incompatíveis com o contexto. (3) 'a violência doméstica' -> 194/195/196 (tipos próprios); maus tratos de menores (10) e outros maus tratos (12) excluídos por terem autonomia própria e não serem nomeados. (4) 'crimes contra a liberdade e a autodeterminação sexual' -> coincide com o nome de N2=4; opto pela forma N3 granular (18, 198, 199, 20) em vez do edge N2=4, descartando este último como redundante (a regra prefere N3 quando os tipos são enumeráveis e auditáveis). ELEMENTOS NÃO MAPEÁVEIS (contexto/agravante, sem tipo próprio): 'cometidos de forma organizada ou em contexto de violência grupal' é modificador transversal de modo de execução (associação criminosa N3=88 fica fora do âmbito N1=1) — não gera edge. 'violência de género' não tem tipo próprio na Tabela (categoria criminológica transversal, parcialmente captada por violência doméstica e crimes sexuais já mapeados) — não se inventa código."
+    },
+    {
+      "artigo": "5",
+      "alinea": "b",
+      "eixo": "INVESTIGACAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 40,
+          "descritivo_oficial": "Roubo na via pública (excepto por esticão)",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 200,
+          "descritivo_oficial": "Roubo a residência",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 246,
+          "descritivo_oficial": "Outras extorsões",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 211,
+          "motivo": "Removido. Proposto apenas pelo mapeador abrangente (confiança média). O roubo 'por esticão' é, por definição, uma subtracção por arrancamento súbito (snatch-and-grab), conceptualmente incompatível com o qualificativo legal expresso 'cometido com arma de fogo ou arma branca'. A Tabela autonomiza o esticão (211) precisamente como modalidade de via pública SEM arma, em contraposição ao código 40 ('excepto por esticão'). Incluí-lo contraria a delimitação da própria frase legal, que circunscreve o roubo na via pública ao cometido com arma. A lente estrita exclui-o com razão."
+        },
+        {
+          "codigo": 245,
+          "motivo": "Removido. Proposto apenas pelo mapeador abrangente. 'Extorsão sexual' é figura distinta, ligada à coacção/autodeterminação sexual, e não corresponde à 'extorsão' patrimonial que a alínea refere no contexto dos crimes contra o património. A referência legal genérica a 'a extorsão' nesta alínea (eixo património, art. 223.º CP) aponta para o tipo-padrão (246), não para a modalidade sexual. Manter 245 seria forçar uma figura não visada pela frase."
+        }
+      ],
+      "notas": "Âmbito: N1=2 (crimes contra o património). Três núcleos na frase: (1) 'praticados de forma organizada' — qualificador transversal de modo (criminalidade organizada); não tem tipo N3 próprio na Tabela e não se força mapeamento. Associação criminosa (88) está em N1=4, fora do âmbito patrimonial, logo não incluída. (2) 'roubo em residências ou na via pública cometido com arma de fogo ou arma branca' — mapeado a 200 (Roubo a residência) + 40 (Roubo na via pública excepto por esticão); o uso de arma é agravante não segmentada, mapeia-se ao locus. EXCLUI-SE 211 (esticão = via pública SEM arma, incompatível com o qualificativo legal). Demais roubos por local (banco, ourivesaria, farmácia, transportes, etc.) não incluídos por não corresponderem a 'residências' nem 'via pública'. (3) 'a extorsão' — mapeada a 246 (Outras extorsões), figura patrimonial padrão. EXCLUI-SE 245 (extorsão sexual, figura distinta não visada). Resultado final: 40, 200, 246 (todos mantidos). Descritivos copiados verbatim da Tabela 1.7."
+    },
+    {
+      "artigo": "5",
+      "alinea": "c",
+      "eixo": "INVESTIGACAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 74,
+          "descritivo_oficial": "Incêndio/fogo posto floresta, mata, arvoredo ou seara",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 75,
+          "descritivo_oficial": "Dano contra a natureza",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 76,
+          "descritivo_oficial": "Poluição",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 83,
+          "descritivo_oficial": "Condução perigosa de veículo rodoviário",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 82,
+          "descritivo_oficial": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 88,
+          "descritivo_oficial": "Associação criminosa",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 2,
+          "descritivo_oficial": "Homicídio por negligência em acidente de viação",
+          "accao": "adicionado"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 8,
+          "descritivo_oficial": "Ofensa à integridade física por negligência em acidente de viação",
+          "accao": "adicionado"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 73,
+          "motivo": "Incêndio/fogo posto em edifício, construção ou meio de transporte. A alínea nomeia especificamente \"incêndio FLORESTAL\", que é precisamente o código 74. O código 73 é uma modalidade distinta (edifícios/construções/meios de transporte) NÃO nomeada pela alínea. Proposto só pela lente abrangente com confiança média, como extensão para além do qualificativo \"florestal\". Excesso — removido."
+        },
+        {
+          "codigo": 84,
+          "motivo": "Outros crimes contra a segurança das comunicações — código residual/catch-all (N3 \"Outros...\"). A alínea nomeia tipos rodoviários específicos (condução perigosa=83, condução em embriaguez=82), não toda a subcategoria N2=16 nem o seu resíduo. O segmento \"contexto rodoviário com morte/ofensa grave\" aponta para homicídio/ofensa por negligência em viação (codigos 2 e 8, agora adicionados), e não para este residual. Mapear o catch-all sem tipo claramente nomeado é over-reach. Proposto só pela lente abrangente, confiança média. Removido."
+        }
+      ],
+      "notas": "Reconciliação da alínea 5.º/c (eixo INVESTIGACAO). Núcleo consensual mantido: 74 (incêndio florestal), 75 (dano contra a natureza), 76 (poluição), 83 (condução perigosa), 82 (condução em embriaguez >=1,2g/l), 88 (associação criminosa) — todos N1=4, descritivos copiados verbatim.\n\nDECISÃO CRÍTICA — adição cross-categoria de 2 e 8: a alínea enumera expressamente \\\"em contexto rodoviário de que resulte a morte ou ofensas à integridade física graves\\\". Ambos os mapeadores identificaram correctamente que isto descreve os códigos 2 (Homicídio por negligência em acidente de viação) e 8 (Ofensa à integridade física por negligência em acidente de viação), mas excluíram-nos por viverem em N1=1 (crimes contra as pessoas) e não em N1=4 (o âmbito de conveniência declarado). Como reconciliador, decido ADICIONÁ-LOS: a regra de respeito de âmbito (\\\"No âmbito dos crimes contra X -> mapeia só dentro dessa categoria N1\\\") destina-se a alíneas que se limitam a uma categoria; aqui a alínea ENUMERA EXPLICITAMENTE um segmento de crime que materialmente vive noutra categoria. A enumeração legal expressa prevalece sobre a etiqueta de categoria — caso contrário o segmento rodoviário-letal/ofensa-grave da alínea ficaria sem qualquer código na Tabela, o que seria uma omissão grave. Sinaliza-se ao órgão gestor que estes dois códigos atravessam para N1=1 por imperativo da letra da lei.\n\nREMOÇÕES: 73 (incêndio em edifício/transporte — não é \\\"florestal\\\", excesso da lente abrangente) e 84 (residual \\\"outros crimes contra a segurança das comunicações\\\" — catch-all não nomeado, o segmento que pretendia cobrir é antes 2/8). Ambos eram propostas só-abrangente de confiança média.\n\nCONDUÇÃO SOB ESTUPEFACIENTES: não existe N3 autónomo na Tabela; é subsumida materialmente em 82 (condução em estado de embriaguez/influenciada). Não se mapeia o residual 84 para a capturar.\n\nLIMIAR ETÍLICO: condução com TAS entre 0,5 e 1,2g/l é contraordenação (não crime), logo sem código na Tabela de Crimes Registados; só 82 (>=1,2g/l) é crime.\n\nLista final: 8 edges N3 — seis em N1=4 (74,75,76,82,83,88) e dois adicionados em N1=1 por enumeração legal expressa (2,8). Nenhum N2 inteiro usado: a alínea nomeia tipos específicos, não subcategorias completas."
+    },
+    {
+      "artigo": "5",
+      "alinea": "d",
+      "eixo": "INVESTIGACAO",
+      "tipos": [
+        {
+          "nivel": "N3",
+          "codigo": 106,
+          "descritivo_oficial": "Corrupção",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 92,
+          "descritivo_oficial": "Tráfico de influência",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 102,
+          "descritivo_oficial": "Branqueamento de vantagens de proveniência ilícita",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 107,
+          "descritivo_oficial": "Peculato",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 109,
+          "descritivo_oficial": "Outros crimes cometidos no exercício de funções públicas",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [],
+      "notas": "Alínea ENUMERATIVA fechada de cinco crimes específicos, todos dentro do âmbito declarado N1=5 (Crimes contra o Estado); eixo INVESTIGACAO. Não é transversal/contextual — nomeia tipos concretos, pelo que produz edges.\n\nQuatro crimes têm tipo próprio e match verbatim (consenso de ambos os mapeadores): corrupção (106, N2=25), tráfico de influência (92, N2=21), branqueamento (102, N2=24), peculato (107, N2=25).\n\nPonto de divergência reconciliado — código 109: o mapeador estrito excluiu 'participação económica em negócio' (art. 377.º CP) por 109 ser residual; o mapeador abrangente incluiu-o. DECISÃO ADVERSARIAL: incluir (mantido). Fundamento — a alínea NOMEIA EXPRESSAMENTE este crime (não o invoca como contexto nem agravante), e o crime pertence inequivocamente ao Capítulo 'crimes cometidos no exercício de funções públicas'; não existindo tipo N3 dedicado na Tabela 1.7, o residual N3=109 (N2=25) é o seu lar taxonómico correcto e único. Excluí-lo deixaria 1 dos 5 crimes enumerados sem mapeamento (omissão), o que é pior do que o uso justificado de um residual nomeado. Confiança média assinalada.\n\nÂmbito respeitado: os cinco tipos atravessam três subcategorias (N2=21, 24, 25) mas todas dentro de N1=5; sem extravasamento. Nenhum mapeamento N2 inteiro — a alínea seleciona crimes pontuais, não subcategorias completas. Nenhuma remoção: todas as propostas (incluindo 109) são genuínas face à frase legal."
+    },
+    {
+      "artigo": "5",
+      "alinea": "e",
+      "eixo": "INVESTIGACAO",
+      "tipos": [
+        {
+          "nivel": "N2",
+          "codigo": 29,
+          "descritivo_oficial": "Crimes de terrorismo e organizações terroristas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 79,
+          "descritivo_oficial": "Detenção ou tráfico de armas proibidas",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 43,
+          "descritivo_oficial": "Crimes informáticos",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 117,
+          "descritivo_oficial": "Auxílio à imigração ilegal",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 142,
+          "descritivo_oficial": "Fraude obtenção de subsídios, subvenções, créditos e desvio na sua utilização",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N3",
+          "codigo": 111,
+          "descritivo_oficial": "Tráfico de estupefacientes (inclui precursores)",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 37,
+          "descritivo_oficial": "Crimes fiscais",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 38,
+          "descritivo_oficial": "Crimes contra a segurança social",
+          "accao": "mantido"
+        },
+        {
+          "nivel": "N2",
+          "codigo": 39,
+          "descritivo_oficial": "Crimes contra a saúde pública",
+          "accao": "mantido"
+        }
+      ],
+      "removidos": [
+        {
+          "codigo": 115,
+          "motivo": "Absorvido em N2=29 (mantido ao nivel da subcategoria inteira). Mapeador B mapeou-o como N3 individual; substituido pelo N2=29 que o contem, evitando redundancia de nivel."
+        },
+        {
+          "codigo": 116,
+          "motivo": "Absorvido em N2=29 (mantido ao nivel da subcategoria inteira). Idem 115."
+        },
+        {
+          "codigo": 207,
+          "motivo": "'Associacao de auxilio a imigracao ilegal' e tipo autonomo distinto de 'auxilio a imigracao ilegal' (117), nomeado especificamente pela lei. Sob lente estrita, a alinea nomeia apenas 'o auxilio a imigracao ilegal', nao a sua modalidade associativa. Over-inclusao do mapeador B."
+        },
+        {
+          "codigo": 208,
+          "motivo": "'Angariacao de mao-de-obra ilegal' nao e 'auxilio a imigracao ilegal'; tipo conexo da subcategoria N2=30 nao nomeado pela alinea. Confianca baixa do proprio mapeador B; removido."
+        },
+        {
+          "codigo": 209,
+          "motivo": "'Casamento de conveniencia' nao e 'auxilio a imigracao ilegal'; tipo conexo da N2=30 nao nomeado pela alinea. Removido por over-inclusao."
+        },
+        {
+          "codigo": 210,
+          "motivo": "'Violacao da medida de interdicao de entrada' nao e 'auxilio a imigracao ilegal'; tipo conexo da N2=30 nao nomeado. Removido por over-inclusao."
+        },
+        {
+          "codigo": 118,
+          "motivo": "'Outros crimes relacionados com a imigracao ilegal' e categoria residual da N2=30; a alinea nomeia especificamente 'auxilio a imigracao ilegal' (117), nao a generalidade dos crimes de imigracao. Removido por over-inclusao."
+        },
+        {
+          "codigo": 119,
+          "motivo": "'Abuso de informacao' (insider trading) e criminalidade economico-financeira em sentido lato, mas a alinea so explicita, dentro desse chapeu, a fraude/desvio de subsidios (142). Mapear a subcategoria N2=31 extravasa a lente estrita. Removido."
+        },
+        {
+          "codigo": 120,
+          "motivo": "'Manipulacao do mercado' nao e nomeada pela alinea; cai sob a expressao-chapeu generica 'criminalidade economico-financeira', cujo unico exemplo explicito e a fraude a subsidios (142). Removido por over-inclusao."
+        },
+        {
+          "codigo": 121,
+          "motivo": "'Outros crimes no exercicio de actividade comercial/financeira' e residual da N2=31, nao nomeado pela alinea. Removido por over-inclusao sobre o chapeu generico."
+        },
+        {
+          "codigo": 135,
+          "motivo": "Absorvido em N2=37 (mantido ao nivel da subcategoria inteira 'Crimes fiscais', que so contem 135 e 136). Mapeador B mapeou-o como N3; substituido pelo N2 que o contem."
+        },
+        {
+          "codigo": 136,
+          "motivo": "Absorvido em N2=37 (subcategoria inteira). Idem 135."
+        },
+        {
+          "codigo": 137,
+          "motivo": "Absorvido em N2=38 (mantido ao nivel da subcategoria inteira 'Crimes contra a seguranca social', que so contem 137 e 138). Substituido pelo N2 que o contem."
+        },
+        {
+          "codigo": 138,
+          "motivo": "Absorvido em N2=38 (subcategoria inteira). Idem 137."
+        }
+      ],
+      "notas": "Alinea NAO transversal: enumera 7 fenomenos materiais concretos, todos mapeados. Decisoes de reconciliacao por segmento: (1) 'terrorismo e criminalidade conexa' -> N2=29 inteiro (substitui os N3 115/116 do mapeador B, mesma cobertura). (2) 'trafico de armas' -> N3=79, unica correspondencia da Tabela apesar de estar em N1=4 (perigo comum) e nao na categoria 6 declarada; mantido por inexistencia de tipo de trafico de armas em legislacao avulsa. (3) 'cibercriminalidade' -> N2=43 inteiro. (4) 'auxilio a imigracao ilegal' -> SO N3=117; removidos 207/208/209/210/118 (over-inclusao do mapeador B da subcategoria N2=30 inteira) — a lei nomeia especificamente o auxilio, nao a generalidade dos crimes de imigracao nem a modalidade associativa. (5) 'criminalidade economico-financeira, incluindo [subsidios]' -> SO N3=142 (exemplo explicito); removidos 119/120/121 — a expressao-chapeu generica nao habilita mapear a subcategoria N2=31 sob lente estrita. (6) 'trafico de estupefacientes, incluindo em ambiente prisional' -> SO N3=111; ambiente prisional e contexto agravante, nao tipo autonomo. (7) 'crimes fiscais e contra a seguranca social e o sistema de saude' -> N2=37 + N2=38 + N2=39. RESSALVA em N2=39: 'sistema de saude' (institucional/SNS) e semanticamente mais amplo que 'saude publica' (cujos tipos sao abate clandestino 139 e outros 140); match fraco mas e a unica ancora existente na Tabela — mantido com a reserva expressa. Nenhum codigo adicionado: ambos os mapeadores cobriram os elementos nomeados; o trabalho foi de poda do excesso (subcategoria 30 e 31) e de normalizacao N3->N2 onde a subcategoria inteira coincide com o rotulo legal. Excluidos confirmados fora de ambito: N2=24 branqueamento (102), N2=35 crimes tributarios comuns, N2=36 aduaneiros, burlas informaticas N2=9 (241-244) — economico-financeiros em sentido lato mas nao explicitados pela alinea."
+    },
+    {
+      "artigo": "5",
+      "alinea": "f",
+      "eixo": "INVESTIGACAO",
+      "tipos": [],
+      "removidos": [],
+      "notas": "RECONCILIAÇÃO FINAL: edges_finais VAZIO — confirmo a convergência dos dois mapeadores. Esta alínea é TRANSVERSAL/CONTEXTUAL e não mapeia a qualquer tipo N3/N2 da Tabela. A frase legal não nomeia nenhum crime concreto; descreve exclusivamente (a) o LOCAL/CONTEXTO da prática (\"ambiente escolar\", \"serviços de saúde\") e (b) características da VÍTIMA (\"vítimas especialmente vulneráveis, incluindo crianças e jovens, mulheres grávidas e pessoas idosas, doentes, pessoas com deficiência e imigrantes\"). Ambos são circunstâncias agravantes/qualificativas que atravessam TODA a Tabela — qualquer tipo de crime (furto, ofensa à integridade física, burla, dano, etc.) pode ser praticado nesses locais ou contra essas vítimas. A instrução identifica explicitamente \"praticados em ambiente escolar\" e \"contra vítimas especialmente vulneráveis\" como exemplos canónicos de alíneas contextuais que devolvem edges VAZIO. CÉPTICO QUANTO A EXCESSOS: rejeito a tentação de mapear um subconjunto (194/195/196 violência doméstica, 10 maus tratos de menores, 198 abuso sexual de crianças, 197 tráfico de pessoas, 117 auxílio à imigração ilegal) — seria sobre-ajuste arbitrário, pois a alínea não circunscreve a estes tipos e a vulnerabilidade/local são atributos do caso, não nós taxonómicos. ATENTO A OMISSÕES: não existe na frase qualquer crime claramente nomeado que ambos os mapeadores tenham falhado — a estrutura é puramente adjectiva (contexto + perfil de vítima). Nada a remover, nada a adicionar. edges_finais corretamente VAZIO."
+    }
+  ]
+}
