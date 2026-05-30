@@ -368,12 +368,21 @@ ou registadas abaixo):
 - [x] Manifesto commitado na branch `refactor/art-direction-v2` (`0fcd970`).
 - [x] **Dono aprovou o âmbito** — D1/D2/D5/D8 decididas (2026-05-30); D3/D4/D6/D7 seguem a recomendação por defeito (§6).
 
-> **Fase 1 fechada.** Próximo passo concreto da Fase 2: abrir
-> `refactor/backend-cleanup` a partir de `refactor/art-direction-v2` e executar o
-> **PASSO 0** — escrever **ADR-0013** (GPS na cadeia: hash versionado aditivo,
-> precisão máxima sem arredondamento por papel, ajuste manual pré-hash,
-> localização de armazenamento, convenção `gps_lng`) + **T02** (rename
-> `gps_lon`→`gps_lng`). Só depois tocar código GPS (T01).
+> **Fase 1 fechada.** Fase 2 em curso na branch `refactor/backend-cleanup`.
+
+## 10. Progresso da Fase 2
+
+**PASSO 0 — ADRs (concluído, commit `5798b01`):**
+- ✅ **ADR-0013** — GPS na cadeia (hash versionado aditivo; **dono único da fórmula completa**: segmentos `|gps=` e `|loc=` com ordem fixa, escaping e quantização a 7 casas; convenção `gps_lng`; precisão máxima sem arredondamento; ajuste manual pré-hash).
+- ✅ **ADR-0014** — Taxonomia de crimes (3 tabelas, Tabela 2024) + prioridade binária da Lei 51/2023 Art. 5.º (config versionada, override manual, alertas).
+- ✅ **ADR-0015** — FSM ramificada (CPP Art. 178.º; grafo superconjunto do linear, +4 estados) + localização/custódio (`location_name` OSM, `storage_location` armário, `custodian_type`).
+- Redigidos por workflow + **verificação adversarial** (7 issues corrigidos; invariantes forenses confirmados intactos).
+
+**Reserva de numeração de migrations** (evita colisão entre tracks paralelos):
+- Track GPS (T01/T02): **`0018`** (rename `gps_lng`) + **`0019`** (GPS na custódia).
+- Track taxonomia (T19): **`0020`** (taxonomia) + **`0021`** (`crime_type`/`priority` na Occurrence).
+
+**Próximo:** obter o seed da **Tabela de Crimes 2024** (1.ª tarefa de dados, fundamenta o seed de T19) + arrancar o código do PASSO 1/2 (T02 rename → T04/T05 remoções → T01 GPS). T20 (FSM) por último, com verificação adversarial antes de tocar o validador.
 
 ---
 
