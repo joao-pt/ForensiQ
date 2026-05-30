@@ -12,10 +12,35 @@ sensíveis só sejam carregados via API.
 
 from functools import wraps
 
-from django.http import HttpResponsePermanentRedirect, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
 from django.shortcuts import render
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
+
+
+class _ScopeView:
+    """Objecto mínimo que expõe ``throttle_scope`` ao ``ScopedRateThrottle``.
+
+    O ``ScopedRateThrottle`` do DRF lê o scope a partir de ``view.throttle_scope``;
+    como ``public_verify_view`` é uma vista Django pura (não DRF), passamos este
+    shim em vez de uma APIView.
+    """
+
+    def __init__(self, scope):
+        self.throttle_scope = scope
+
+
+def _throttle_public_verify(request):
+    """Aplica o rate-limit do scope ``verify_public`` a uma vista Django pura.
+
+    Reusa o ``ScopedRateThrottle`` do DRF (mesma família dos endpoints da API —
+    ver ``views.ReverseGeocodeView`` / ``EvidenceIMEILookupView``) sobre o pedido
+    Django, identificando o cliente por IP quando anónimo. Devolve ``True`` se o
+    pedido é permitido; ``False`` se excedeu o limite (chamador devolve 429).
+    """
+    throttle = ScopedRateThrottle()
+    return throttle.allow_request(request, _ScopeView('verify_public'))
 
 
 def jwt_cookie_required(view_func):
@@ -61,6 +86,16 @@ def public_verify_view(request, short_hash):
     `occurrence.id`.
     """
     from core.qr_verify import resolve_occurrence
+
+    # Rate-limit por IP (scope `verify_public`, ADR-0012): superfície pública
+    # não-autenticada; sem freio um atacante poderia tentar enumerar hashes
+    # curtos. Aplicado ANTES de resolver para travar tentativas inválidas.
+    if not _throttle_public_verify(request):
+        return HttpResponse(
+            'Demasiados pedidos. Tente novamente mais tarde.',
+            status=429,
+            content_type='text/plain; charset=utf-8',
+        )
 
     occurrence = resolve_occurrence(short_hash)
     if occurrence is None:

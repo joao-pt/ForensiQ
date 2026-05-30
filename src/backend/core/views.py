@@ -290,7 +290,8 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             pdf_bytes = generate_occurrence_pdf(occurrence)
         except Exception as exc:  # noqa: BLE001 — erro claro no cliente
             return Response(
-                {'error': f'Erro ao gerar PDF: {exc}'},
+                # Chave `detail` — contrato de erro canónico (handler global).
+                {'detail': f'Erro ao gerar PDF: {exc}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
@@ -454,7 +455,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             pdf_bytes = generate_evidence_pdf(evidence)
         except Exception as exc:
             return Response(
-                {'error': f'Erro ao gerar PDF: {exc}'},
+                # Chave `detail` — contrato de erro canónico (handler global).
+                {'detail': f'Erro ao gerar PDF: {exc}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
         filename = f'ForensiQ_Evidencia_{evidence.pk:04d}.pdf'
@@ -621,7 +623,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 {
                     'evidence_id': failed_ev.pk if failed_ev else None,
                     'evidence_code': failed_ev.code if failed_ev else None,
-                    'error': exc.message_dict if hasattr(exc, 'message_dict') else exc.messages,
+                    # Chave canónica `detail` — alinhada com o handler global
+                    # (`core.exceptions.forensiq_exception_handler`). Os campos
+                    # `evidence_id`/`evidence_code` são contexto adicional para
+                    # o frontend identificar qual evidência rejeitou o evento.
+                    'detail': exc.message_dict if hasattr(exc, 'message_dict') else exc.messages,
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
