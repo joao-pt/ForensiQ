@@ -394,7 +394,11 @@ ou registadas abaixo):
 
 **T19 — código concluído (`8d2c293`):** 5 modelos de referência + `Occurrence.crime_type`/`priority`/`priority_source` (derivada no `clean()`, eixo operativo Art. 5.º; override manual só eleva); migration `0019`; `seed_crime_taxonomy` idempotente; `OccurrenceViewSet` POST-only; admin dos modelos de referência; `seed_demo` re-semeia + classifica os 5 casos; 16 testes novos. Suite 464 verde.
 
-**Próximo:** **T04** (remover exportação CSV) → **T05** (remover DigitalDevice) → **T08** (CSP Overpass) → **T01+T20** (reforma da custódia: ledger de eventos + GPS + hash limpo, com verificação adversarial antes de tocar o validador) → **T03/T06/T07** (prioridade no UI, feed, deltas).
+**T04 — concluído (`c39fbb0`):** remoção total da exportação CSV (3 @action + helpers + throttle + frontend + testes); mantido `AuditLog.Action.EXPORT_CSV` por integridade do ledger de auditoria. Suite 457 verde.
+
+**T05 — concluído (`1c8ad11`):** remoção do `DigitalDevice` (modelo+ViewSet+serializer+admin+rota+factory+testes+PDF+frontend+StatsView). Migration `0020`: em Postgres dropa triggers `trg_device_no_*` + função `prevent_device_modification` antes do `DeleteModel`. Retidos por integridade de histórico: `validate_imei/imsi/vin` (partilhados por Evidence), `_digital_device_imei_validator` (migração 0014) e `AuditLog.ResourceType.DEVICE`. Suite 445 verde.
+
+**Próximo:** **T01+T20** — reforma da custódia (ledger de eventos + GPS + hash limpo do ADR-0013), com **verificação adversarial** antes de tocar o validador. O **T08** (CSP `overpass-api.de`) decide-se aqui: se a procura de POIs for **proxy server-side** (reusa a `ReverseGeocodeView`, como ADR-0015 indica), o browser não contacta o Overpass e o `connect-src` dispensa-o. Depois **T03/T06/T07** (prioridade no UI, feed, deltas).
 
 ---
 
