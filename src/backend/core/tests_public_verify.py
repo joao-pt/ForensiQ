@@ -42,7 +42,7 @@ def _make_occurrence(agent, number='OCC-PV-001'):
         description='Cena de crime sensível — não deve aparecer na vista pública',
         date_time=timezone.now(),
         gps_lat=Decimal('38.7'),
-        gps_lon=Decimal('-9.1'),
+        gps_lng=Decimal('-9.1'),
         address='Rua Sensível 42, Lisboa',
         agent=agent,
     )

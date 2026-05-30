@@ -318,7 +318,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
                     occ.agent.username if occ.agent_id else '',
                     occ.address,
                     str(occ.gps_lat) if occ.gps_lat is not None else '',
-                    str(occ.gps_lon) if occ.gps_lon is not None else '',
+                    str(occ.gps_lng) if occ.gps_lng is not None else '',
                 ]
 
         return _csv_streaming_response(rows(), _csv_filename('ocorrencias'))
@@ -588,7 +588,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
                     ev.serial_number,
                     ev.integrity_hash,
                     str(ev.gps_lat) if ev.gps_lat is not None else '',
-                    str(ev.gps_lon) if ev.gps_lon is not None else '',
+                    str(ev.gps_lng) if ev.gps_lng is not None else '',
                     'sim' if ev.photo else 'nao',
                     ev.agent.username if ev.agent_id else '',
                 ]

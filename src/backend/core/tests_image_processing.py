@@ -68,7 +68,7 @@ class _Fixture:
             description='Ocorrência de teste para strip EXIF.',
             date_time=timezone.now(),
             gps_lat=Decimal('38.7169000'),
-            gps_lon=Decimal('-9.1399000'),
+            gps_lng=Decimal('-9.1399000'),
             address='Lisboa, Portugal',
             agent=cls.agent,
         )
@@ -164,7 +164,7 @@ class EvidenceIntegrityHashInvariantToExifTest(_Fixture, TestCase):
             type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='Foto idêntica em pixels.',
             gps_lat=Decimal('38.7169000'),
-            gps_lon=Decimal('-9.1399000'),
+            gps_lng=Decimal('-9.1399000'),
             timestamp_seizure=fixed_ts,
             serial_number='SN-INVARIANT',
             agent=self.agent,

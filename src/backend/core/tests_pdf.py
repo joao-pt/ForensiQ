@@ -56,7 +56,7 @@ def _make_occurrence(agent, number='OCC-PDF-001'):
         description='Ocorrência de teste para exportação PDF.',
         date_time=timezone.now(),
         gps_lat=Decimal('38.7169000'),
-        gps_lon=Decimal('-9.1399000'),
+        gps_lng=Decimal('-9.1399000'),
         address='Lisboa, Portugal',
         agent=agent,
     )
@@ -68,7 +68,7 @@ def _make_evidence(occurrence, agent):
         type=Evidence.EvidenceType.MOBILE_DEVICE,
         description='Smartphone encontrado na cena de crime.',
         gps_lat=Decimal('38.7169000'),
-        gps_lon=Decimal('-9.1399000'),
+        gps_lng=Decimal('-9.1399000'),
         serial_number='SN-TEST-001',
         agent=agent,
     )
@@ -359,7 +359,7 @@ class PdfNoNPlusOneTest(TestCase):
                 serial_number=f'SN-NPL-{i:03d}',
                 agent=cls.agent,
                 gps_lat=Decimal('38.7'),
-                gps_lon=Decimal('-9.1'),
+                gps_lng=Decimal('-9.1'),
             )
             for j in range(2):
                 DigitalDevice.objects.create(

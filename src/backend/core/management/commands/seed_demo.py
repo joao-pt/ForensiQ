@@ -323,7 +323,7 @@ class Command(BaseCommand):
             ),
             date_time=now - timedelta(days=12, hours=4),
             gps_lat=Decimal('38.7197'),
-            gps_lon=Decimal('-9.1467'),
+            gps_lng=Decimal('-9.1467'),
             address='Av. da Liberdade 250, Lisboa',
             agent=agent,
         )
@@ -331,7 +331,7 @@ class Command(BaseCommand):
             occurrence=c1, type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='iPhone 15 Pro Max, ecrã ligeiramente fissurado.',
             timestamp_seizure=now - timedelta(days=12, hours=3),
-            gps_lat=Decimal('38.7197'), gps_lon=Decimal('-9.1467'),
+            gps_lat=Decimal('38.7197'), gps_lng=Decimal('-9.1467'),
             serial_number='F2LXV3PJ9K',
             agent=agent,
             type_specific_data={'imei': '353918023456789'},
@@ -346,7 +346,7 @@ class Command(BaseCommand):
             description='Cartão SIM (operadora MEO) extraído do telemóvel.',
             parent_evidence=e1a,
             timestamp_seizure=now - timedelta(days=12, hours=3),
-            gps_lat=None, gps_lon=None,
+            gps_lat=None, gps_lng=None,
             serial_number='8935101234567890123',
             agent=agent,
             type_specific_data={'imsi': '268010012345678'},
@@ -371,7 +371,7 @@ class Command(BaseCommand):
             ),
             date_time=now - timedelta(days=9, hours=2),
             gps_lat=Decimal('41.1496'),
-            gps_lon=Decimal('-8.6109'),
+            gps_lng=Decimal('-8.6109'),
             address='Rua de Santa Catarina 215, Porto',
             agent=agent,
         )
@@ -379,7 +379,7 @@ class Command(BaseCommand):
             occurrence=c2, type=Evidence.EvidenceType.COMPUTER,
             description='MacBook Pro 14" 2023, com adesivo "Skull" tampa.',
             timestamp_seizure=now - timedelta(days=9, hours=1),
-            gps_lat=Decimal('41.1496'), gps_lon=Decimal('-8.6109'),
+            gps_lat=Decimal('41.1496'), gps_lng=Decimal('-8.6109'),
             serial_number='C02ABCDEFGHJ',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -392,7 +392,7 @@ class Command(BaseCommand):
             occurrence=c2, type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='Samsung Galaxy S23, capa preta de silicone.',
             timestamp_seizure=now - timedelta(days=9, hours=1),
-            gps_lat=Decimal('41.1496'), gps_lon=Decimal('-8.6109'),
+            gps_lat=Decimal('41.1496'), gps_lng=Decimal('-8.6109'),
             serial_number='RZ8M407JKLM',
             agent=agent,
             type_specific_data={'imei': '358412345987650'},
@@ -407,7 +407,7 @@ class Command(BaseCommand):
             description='Cartão SIM (operadora NOS) extraído do Samsung.',
             parent_evidence=e2b,
             timestamp_seizure=now - timedelta(days=9, hours=1),
-            gps_lat=None, gps_lon=None,
+            gps_lat=None, gps_lng=None,
             serial_number='8935106789012345678',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -432,7 +432,7 @@ class Command(BaseCommand):
             ),
             date_time=now - timedelta(days=23, hours=6),
             gps_lat=Decimal('40.2056'),
-            gps_lon=Decimal('-8.4197'),
+            gps_lng=Decimal('-8.4197'),
             address='Praça 8 de Maio, Coimbra',
             agent=agent,
         )
@@ -440,7 +440,7 @@ class Command(BaseCommand):
             occurrence=c3, type=Evidence.EvidenceType.STORAGE_MEDIA,
             description='Disco externo Seagate Backup Plus 2 TB, USB 3.0.',
             timestamp_seizure=now - timedelta(days=23, hours=5),
-            gps_lat=None, gps_lon=None,
+            gps_lat=None, gps_lng=None,
             serial_number='NA8ABCDXYZ',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -466,7 +466,7 @@ class Command(BaseCommand):
             ),
             date_time=now - timedelta(days=4, hours=1),
             gps_lat=Decimal('41.5454'),
-            gps_lon=Decimal('-8.4265'),
+            gps_lng=Decimal('-8.4265'),
             address='Quartel-General de Braga',
             agent=agent,
         )
@@ -474,7 +474,7 @@ class Command(BaseCommand):
             occurrence=c4, type=Evidence.EvidenceType.DRONE,
             description='DJI Mavic 3 Pro, danos no propulsor frontal direito.',
             timestamp_seizure=now - timedelta(days=4),
-            gps_lat=Decimal('41.5454'), gps_lon=Decimal('-8.4265'),
+            gps_lat=Decimal('41.5454'), gps_lng=Decimal('-8.4265'),
             serial_number='1581F5A0B0C0D',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -488,7 +488,7 @@ class Command(BaseCommand):
             description='Cartão microSD 256 GB Sandisk Extreme.',
             parent_evidence=e4a,
             timestamp_seizure=now - timedelta(days=4),
-            gps_lat=None, gps_lon=None,
+            gps_lat=None, gps_lng=None,
             serial_number='SDC0010203',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -513,7 +513,7 @@ class Command(BaseCommand):
             ),
             date_time=now - timedelta(days=2),
             gps_lat=Decimal('37.0194'),
-            gps_lon=Decimal('-7.9304'),
+            gps_lng=Decimal('-7.9304'),
             address='Marina de Faro, Faro',
             agent=agent,
         )
@@ -521,7 +521,7 @@ class Command(BaseCommand):
             occurrence=c5, type=Evidence.EvidenceType.VEHICLE,
             description='Audi A4 Avant 2021, matrícula PT 12-AB-34.',
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=Decimal('37.0194'), gps_lon=Decimal('-7.9304'),
+            gps_lat=Decimal('37.0194'), gps_lng=Decimal('-7.9304'),
             serial_number='WAUZZZ8E5BA123456',
             agent=agent,
             type_specific_data={'vin': '1HGBH41JXMN109186'},
@@ -537,7 +537,7 @@ class Command(BaseCommand):
                         'fábrica visível no chassis traseiro.',
             parent_evidence=e5a,
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=None, gps_lon=None,
+            gps_lat=None, gps_lng=None,
             serial_number='4M0035043G',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -551,7 +551,7 @@ class Command(BaseCommand):
             description='Localizador GPS magnético, Concox JM-VL01.',
             parent_evidence=e5a,
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=Decimal('37.0194'), gps_lon=Decimal('-7.9304'),
+            gps_lat=Decimal('37.0194'), gps_lng=Decimal('-7.9304'),
             serial_number='862785043210123',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -565,7 +565,7 @@ class Command(BaseCommand):
             description='Cartão SIM Vodafone M2M usado pelo localizador GPS.',
             parent_evidence=e5c,
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=None, gps_lon=None,
+            gps_lat=None, gps_lng=None,
             serial_number='8935107654321098765',
             agent=agent,
             photo=_make_placeholder_photo(

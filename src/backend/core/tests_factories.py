@@ -119,7 +119,7 @@ class OccurrenceFactory(factory.django.DjangoModelFactory):
     )
     date_time = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
-    gps_lon = Decimal('-9.1393366')
+    gps_lng = Decimal('-9.1393366')
     address = 'Marquês de Pombal, Lisboa'
     agent = factory.SubFactory(UserFactory)
 
@@ -142,7 +142,7 @@ class EvidenceMobileFactory(factory.django.DjangoModelFactory):
     serial_number = factory.Sequence(lambda n: f'IMEI-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
-    gps_lon = Decimal('-9.1393366')
+    gps_lng = Decimal('-9.1393366')
     agent = factory.SubFactory(UserFactory)
 
 
@@ -165,7 +165,7 @@ class EvidenceVehicleFactory(factory.django.DjangoModelFactory):
     serial_number = factory.Sequence(lambda n: f'VEH-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
-    gps_lon = Decimal('-9.1393366')
+    gps_lng = Decimal('-9.1393366')
     agent = factory.SubFactory(UserFactory)
 
 
@@ -192,7 +192,7 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
     timestamp_seizure = factory.LazyFunction(timezone.now)
     # SIM cards não costumam ter GPS próprio — herdam do pai.
     gps_lat = None
-    gps_lon = None
+    gps_lng = None
     agent = factory.SubFactory(UserFactory)
 
 

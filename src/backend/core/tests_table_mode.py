@@ -88,7 +88,7 @@ class OccurrenceFilterTest(APITestCase):
         )
         # Sem GPS
         cls.occ_no_gps = OccurrenceFactory.create(
-            agent=cls.agent, gps_lat=None, gps_lon=None,
+            agent=cls.agent, gps_lat=None, gps_lng=None,
         )
 
     def setUp(self):

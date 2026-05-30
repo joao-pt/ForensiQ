@@ -107,7 +107,7 @@ class ForensiQUser(FastHttpUser):
             'number': f'NUIPC-2026-LOAD-{timestamp[:10]}-{int(datetime.now().timestamp()) % 10000}',
             'description': f'Ocorrência de teste Locust - {timestamp}',
             'gps_lat': '38.7223340',
-            'gps_lon': '-9.1393366',
+            'gps_lng': '-9.1393366',
         }
 
         response = self.client.post(

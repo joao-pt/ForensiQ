@@ -173,9 +173,9 @@ function renderCaseHeader(occ) {
         addressRow.hidden = false;
         hasAnyLocation = true;
     }
-    if (occ.gps_lat && occ.gps_lon) {
+    if (occ.gps_lat && occ.gps_lng) {
         document.getElementById('case-gps').textContent =
-            `${parseFloat(occ.gps_lat).toFixed(5)}, ${parseFloat(occ.gps_lon).toFixed(5)}`;
+            `${parseFloat(occ.gps_lat).toFixed(5)}, ${parseFloat(occ.gps_lng).toFixed(5)}`;
         gpsRow.hidden = false;
         hasAnyLocation = true;
     }
@@ -222,8 +222,8 @@ function buildMapPopup(title, subtitle) {
 }
 
 function renderMap(occ, evidences) {
-    const hasOccGps = occ.gps_lat && occ.gps_lon;
-    const evidencesWithGps = evidences.filter((e) => e.gps_lat && e.gps_lon);
+    const hasOccGps = occ.gps_lat && occ.gps_lng;
+    const evidencesWithGps = evidences.filter((e) => e.gps_lat && e.gps_lng);
 
     // Sem GPS: mapa fica escondido; a mensagem "Sem morada/coordenadas"
     // aparece em case-location-empty (renderCaseHeader).
@@ -244,7 +244,7 @@ function renderMap(occ, evidences) {
 
     if (hasOccGps) {
         const m = L.marker(
-            [parseFloat(occ.gps_lat), parseFloat(occ.gps_lon)],
+            [parseFloat(occ.gps_lat), parseFloat(occ.gps_lng)],
             { icon: mapMarkerIcon({ variant: 'case' }) },
         ).addTo(map);
         m.bindPopup(buildMapPopup(occ.number, occ.address || 'Local da ocorrência'));
@@ -254,11 +254,11 @@ function renderMap(occ, evidences) {
     evidencesWithGps.forEach((ev) => {
         const isDistinct = !hasOccGps
             || Math.abs(parseFloat(ev.gps_lat) - parseFloat(occ.gps_lat)) > 0.0001
-            || Math.abs(parseFloat(ev.gps_lon) - parseFloat(occ.gps_lon)) > 0.0001;
+            || Math.abs(parseFloat(ev.gps_lng) - parseFloat(occ.gps_lng)) > 0.0001;
         if (!isDistinct) return;
 
         const m = L.marker(
-            [parseFloat(ev.gps_lat), parseFloat(ev.gps_lon)],
+            [parseFloat(ev.gps_lat), parseFloat(ev.gps_lng)],
             { icon: mapMarkerIcon({ variant: 'evidence' }) },
         ).addTo(map);
         const popupTitle = ev.code

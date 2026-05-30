@@ -283,7 +283,7 @@ function renderEvidenceItem(ev) {
         if (ic) b.appendChild(ic);
         badges.appendChild(b);
     }
-    if (ev.gps_lat && ev.gps_lon) {
+    if (ev.gps_lat && ev.gps_lng) {
         const b = document.createElement('span');
         b.className = 'badge badge-success';
         b.title = 'Com GPS';

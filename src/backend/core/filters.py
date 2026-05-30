@@ -24,7 +24,7 @@ class OccurrenceFilter(filters.FilterSet):
         fields = ['date_after', 'date_before', 'has_gps']
 
     def filter_has_gps(self, queryset, name, value):
-        # `gps_lat` e `gps_lon` são preenchidos em par (validado em clean()).
+        # `gps_lat` e `gps_lng` são preenchidos em par (validado em clean()).
         return (
             queryset.exclude(gps_lat__isnull=True)
             if value
