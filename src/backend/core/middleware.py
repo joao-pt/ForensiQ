@@ -7,6 +7,7 @@ Inclui:
 """
 
 import logging
+import re
 import secrets
 import uuid
 from contextvars import ContextVar
@@ -18,6 +19,24 @@ _correlation_id: ContextVar[str] = ContextVar('correlation_id', default='')
 
 # Logger do módulo
 logger = logging.getLogger(__name__)
+
+# Formato aceite para o `X-Correlation-ID` fornecido pelo cliente: apenas
+# caracteres alfanuméricos e hífen, comprimento máximo 64. Cobre UUIDs
+# (com ou sem hífens) e identificadores curtos de tracing, mas rejeita
+# qualquer payload arbitrário — o valor é ecoado no response header e
+# escrito nos logs, logo não pode aceitar input não validado do cliente
+# (mitigação de log/header injection — finding `correlation-id-aceita-input-cliente`).
+_CORRELATION_ID_RE = re.compile(r'^[A-Za-z0-9-]{1,64}$')
+
+
+def _sanitize_correlation_id(value: str | None) -> str | None:
+    """Devolve o correlation_id do cliente se válido; caso contrário ``None``.
+
+    ``None`` sinaliza ao chamador que deve gerar um novo UUID.
+    """
+    if value and _CORRELATION_ID_RE.match(value):
+        return value
+    return None
 
 
 def get_correlation_id() -> str:
@@ -41,9 +60,11 @@ class CorrelationIDMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Tenta usar correlation_id do cliente (se fornecido)
-        # Caso contrário, gera um novo UUID
-        correlation_id = request.headers.get('X-Correlation-ID')
+        # Tenta usar correlation_id do cliente (se fornecido E com formato
+        # válido). Um header malformado/arbitrário é ignorado e substituído
+        # por um UUID novo — o valor é ecoado no response e nos logs, pelo
+        # que não pode ser input não validado do cliente.
+        correlation_id = _sanitize_correlation_id(request.headers.get('X-Correlation-ID'))
         if not correlation_id:
             correlation_id = str(uuid.uuid4())
 
