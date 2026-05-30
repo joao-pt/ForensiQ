@@ -71,17 +71,16 @@ class ContentSecurityPolicyMiddleware:
 
     Política CSP (hardened, sem unsafe-inline/unsafe-eval em script-src nem style-src):
     - default-src 'self': bloqueia todos os recursos externos por defeito
-    - script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com:
-      scripts só correm do próprio domínio, CDN Cloudflare (Leaflet) ou
-      quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
-      'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79).
-    - style-src 'self' 'nonce-{nonce}' ...: scripts inline (Leaflet etc.)
-      foram migrados para classes/CSSStyleDeclaration. Restantes <style>
+    - script-src 'self' 'nonce-{nonce}': scripts só correm do próprio domínio
+      ou quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
+      'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79). O Leaflet é
+      self-hosted (sem CDN externo; cdnjs removido no T08).
+    - style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com: <style>
       blocks (Leaflet runtime injecta um) precisam de nonce; o setter
       element.style.X = ... do DOM API não é controlado pelo style-src.
-    - connect-src: AJAX ao próprio domínio e geocoding OSM
+    - connect-src: AJAX ao próprio domínio e geocoding OSM (Nominatim)
     - img-src: imagens do domínio, data URIs e tiles OSM
-    - font-src: fontes do domínio e CDNs usadas
+    - font-src: fontes do domínio e Google Fonts (IBM Plex)
     - base-uri 'self': bloqueia <base> injection
     - frame-ancestors 'none': anti-clickjacking (CWE-1021)
     - form-action 'self': restringe destino de formulários
@@ -118,11 +117,14 @@ class ContentSecurityPolicyMiddleware:
         """
         directives = [
             "default-src 'self'",
-            f"script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com",
-            f"style-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+            # cdnjs.cloudflare.com removido (T08): o Leaflet passou a self-hosted
+            # (drift do ADR-0007 alt. A2) e a swagger usa drf-spectacular-sidecar
+            # local — nenhum asset vivo vem de cdnjs. Fontes IBM Plex via Google Fonts.
+            f"script-src 'self' 'nonce-{nonce}'",
+            f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com",
             "connect-src 'self' https://nominatim.openstreetmap.org",
-            "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com",
-            "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
+            "img-src 'self' data: https://*.tile.openstreetmap.org",
+            "font-src 'self' https://fonts.gstatic.com",
             "object-src 'none'",
             "frame-src 'none'",
             "base-uri 'self'",

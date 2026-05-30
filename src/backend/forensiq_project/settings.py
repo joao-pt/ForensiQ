@@ -225,10 +225,10 @@ IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
 
 # --- drf-spectacular (Swagger / OpenAPI) ---
 # SWAGGER_UI_DIST/FAVICON_HREF: por defeito o drf-spectacular carrega assets
-# de cdn.jsdelivr.net, que não está na allowlist do CSP (cdnjs.cloudflare.com
-# apenas). Apontamos para o pacote sidecar `drf-spectacular-sidecar` que
-# serve os mesmos ficheiros via STATIC_URL — fica dentro de 'self' no CSP
-# e elimina dependência externa em produção.
+# de cdn.jsdelivr.net, que não está na allowlist do CSP. Apontamos para o
+# pacote sidecar `drf-spectacular-sidecar` que serve os mesmos ficheiros via
+# STATIC_URL — fica dentro de 'self' no CSP e elimina dependência externa em
+# produção.
 SPECTACULAR_SETTINGS = {
     'TITLE': 'ForensiQ API',
     'DESCRIPTION': (
