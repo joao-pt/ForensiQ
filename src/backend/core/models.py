@@ -5,13 +5,15 @@ Entidades principais:
 - User: utilizador com perfil AGENT (first responder) ou EXPERT (perito forense)
 - Occurrence: ocorrência / cena de crime
 - Evidence: evidência apreendida (com hash SHA-256 para integridade)
-- ChainOfCustody: registo imutável (append-only) de transições de custódia
+- ChainOfCustody: ledger de eventos imutável (append-only) da custódia
 
 Conformidade: ISO/IEC 27037 — hash SHA-256 em metadados de prova.
 """
 
 import hashlib
 import uuid
+from datetime import timedelta
+from decimal import Decimal
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -556,19 +558,25 @@ class EvidenceQuerySet(models.QuerySet):
     """QuerySet de Evidence com helpers comuns."""
 
     def with_current_state(self):
-        """Anota cada evidência com ``current_state`` (último ChainOfCustody).
+        """Anota cada evidência com ``current_event_type`` (último evento).
 
-        O estado actual é definido pelo registo com maior ``sequence`` por
-        ``evidence_id`` — invariante mantida pelo append-only de
-        ChainOfCustody.save(). O índice ``coc_ev_seq_idx`` suporta a
-        ordenação sem table scan.
+        Com o ledger de eventos (ADR-0015) deixou de existir um campo de
+        estado gravado; o "estado actual" passa a ser o ``event_type`` do
+        registo com maior ``sequence`` por ``evidence_id`` — invariante
+        mantida pelo append-only de ChainOfCustody.save(). O índice
+        ``coc_ev_seq_idx`` suporta a ordenação sem table scan.
+
+        Para o **estado legal derivado** (não o event_type cru) usa-se a
+        função pura :func:`derive_legal_state` sobre a sequência completa de
+        eventos — esta anotação serve apenas filtros/contagens por tipo de
+        evento e a leitura barata do último evento.
         """
-        latest_state = (
+        latest_event = (
             ChainOfCustody.objects.filter(evidence=OuterRef('pk'))
             .order_by('-sequence')
-            .values('new_state')[:1]
+            .values('event_type')[:1]
         )
-        return self.annotate(current_state=Subquery(latest_state))
+        return self.annotate(current_event_type=Subquery(latest_event))
 
 
 def evidence_photo_path(instance, filename):
@@ -1021,45 +1029,156 @@ def _digital_device_imei_validator(value):
 
 
 # ---------------------------------------------------------------------------
-# Cadeia de Custódia (append-only — NUNCA permite UPDATE/DELETE)
+# Cadeia de Custódia — LEDGER DE EVENTOS (append-only, NUNCA UPDATE/DELETE)
 # ---------------------------------------------------------------------------
+
+
+class EventType(models.TextChoices):
+    """Acto processual registado em cada evento do ledger (ADR-0015, CPP)."""
+
+    APREENSAO = 'APREENSAO', 'Apreensão'
+    VALIDACAO = 'VALIDACAO', 'Validação da apreensão'
+    DESPACHO_PERICIA = 'DESPACHO_PERICIA', 'Despacho para perícia'
+    TRANSFERENCIA = 'TRANSFERENCIA', 'Transferência de custódia'
+    INICIO_PERICIA = 'INICIO_PERICIA', 'Início de perícia'
+    CONCLUSAO_PERICIA = 'CONCLUSAO_PERICIA', 'Conclusão de perícia'
+    RESTITUICAO = 'RESTITUICAO', 'Restituição'  # terminal
+    PERDA_FAVOR_ESTADO = 'PERDA_FAVOR_ESTADO', 'Perda a favor do Estado'
+    DESTRUICAO = 'DESTRUICAO', 'Destruição'  # terminal
+
+
+class CustodianType(models.TextChoices):
+    """Quem detém a prova APÓS o evento (eixo ortogonal ao event_type)."""
+
+    LOCAL_CRIME = 'LOCAL_CRIME', 'Local do crime'
+    OPC = 'OPC', 'Órgão de polícia criminal'
+    LAB_PUBLICO = 'LAB_PUBLICO', 'Laboratório público'
+    LAB_PRIVADO = 'LAB_PRIVADO', 'Laboratório privado'
+    TRIBUNAL = 'TRIBUNAL', 'Tribunal'
+    DEPOSITARIO = 'DEPOSITARIO', 'Depositário'
+    PROPRIETARIO = 'PROPRIETARIO', 'Proprietário'
+
+
+# Eventos que fecham o ledger — nenhum evento é aceite depois de um deles.
+TERMINAL_EVENTS = {EventType.RESTITUICAO, EventType.DESTRUICAO}
+
+# Prazo legal de validação da apreensão (CPP Art. 178.º/6). O incumprimento é
+# assinalado (validation_overdue) no momento em que o evento VALIDACAO é gravado,
+# nunca bloqueado; para leitura/feed (T06) deriva-se dos timestamps gravados.
+VALIDATION_DEADLINE = timedelta(hours=72)
+
+
+def derive_legal_state(eventos_ordenados):
+    """Estado legal DERIVADO da sequência de eventos (ADR-0015 §6).
+
+    Função pura — única fonte das strings de estado em todo o backend
+    (filtros, serializer, stats) e no frontend/CSS. Recebe a lista de
+    registos ``ChainOfCustody`` de uma evidência **ordenada por sequence**
+    e devolve uma de:
+
+        a_guarda_opc | validada | em_pericia | pericia_concluida |
+        encaminhada | restituida | perdida_favor_estado | destruida
+
+    O estado segue o ÚLTIMO acto relevante (a custódia é não-linear: várias
+    perícias e encaminhamentos em ordem livre — CPP Art. 158.º), com duas
+    excepções de presença: os terminais e a perda a favor do Estado.
+
+    - último DESTRUICAO/RESTITUICAO → ``destruida``/``restituida`` (fecham).
+    - existe PERDA_FAVOR_ESTADO (sem terminal posterior) → ``perdida_favor_estado``
+      (estatuto legal forte; domina mesmo uma perícia em curso).
+    - último INICIO_PERICIA → ``em_pericia``; último CONCLUSAO_PERICIA → ``pericia_concluida``.
+    - último TRANSFERENCIA → ``a_guarda_opc`` se de volta ao OPC, senão
+      ``encaminhada`` (lab/tribunal/depositário/proprietário).
+    - DESPACHO_PERICIA/VALIDACAO/APREENSAO como último → patamar atingido
+      (``validada`` se já houve validação, senão ``a_guarda_opc``).
+    """
+    if not eventos_ordenados:
+        return 'a_guarda_opc'
+
+    tipos = [r.event_type for r in eventos_ordenados]
+    ultimo = eventos_ordenados[-1]
+    et = ultimo.event_type
+
+    # Terminais (pelo último evento) fecham o ledger.
+    if et == EventType.DESTRUICAO:
+        return 'destruida'
+    if et == EventType.RESTITUICAO:
+        return 'restituida'
+
+    # Perda a favor do Estado: estatuto legal forte — domina enquanto presente
+    # (terminal posterior já tratado acima), incl. sobre uma perícia em curso.
+    if EventType.PERDA_FAVOR_ESTADO in tipos:
+        return 'perdida_favor_estado'
+
+    # A partir daqui, o estado segue o ÚLTIMO acto relevante (não-linearidade).
+    if et == EventType.INICIO_PERICIA:
+        return 'em_pericia'
+    if et == EventType.CONCLUSAO_PERICIA:
+        return 'pericia_concluida'
+    if et == EventType.TRANSFERENCIA:
+        # De volta ao OPC = à guarda do OPC; qualquer outro custódio = encaminhada.
+        return 'a_guarda_opc' if ultimo.custodian_type == CustodianType.OPC else 'encaminhada'
+
+    # DESPACHO_PERICIA / VALIDACAO / APREENSAO como último: patamar atingido.
+    if EventType.VALIDACAO in tipos:
+        return 'validada'
+    return 'a_guarda_opc'
+
+
+# Conjunto canónico de estados legais derivados (para validação de filtros).
+LEGAL_STATES = frozenset(
+    {
+        'a_guarda_opc',
+        'validada',
+        'em_pericia',
+        'pericia_concluida',
+        'encaminhada',
+        'restituida',
+        'perdida_favor_estado',
+        'destruida',
+    }
+)
+
+
+def _hash_escape(value):
+    r"""Escapa separadores do hash em campos de texto livre (ADR-0013).
+
+    Ordem fixa e irreversível: backslash PRIMEIRO, depois os separadores
+    ``|`` e ``,``. Impede que ``location_name``/``storage_location`` colidam
+    com a estrutura da string de dados do ``record_hash``.
+    """
+    return (value or '').replace('\\', '\\\\').replace('|', '\\|').replace(',', '\\,')
+
+
+def _hash_str(value):
+    """Serializa um campo do hash: None → '' (dado em falta), determinístico."""
+    return '' if value is None else str(value)
 
 
 class ChainOfCustody(models.Model):
     """
-    Registo imutável de transição na cadeia de custódia.
+    Registo imutável de UM evento do ledger de custódia (ADR-0015).
 
-    Máquina de estados:
-    APREENDIDA → EM_TRANSPORTE → RECEBIDA_LABORATORIO → EM_PERICIA
-    → CONCLUIDA → DEVOLVIDA | DESTRUIDA
+    Ledger de eventos (não máquina de estados): cada registo documenta um
+    acto processual da trajetória da prova — ``event_type`` diz *o que
+    aconteceu*, ``custodian_type`` diz *em mãos de quem ficou*, e o GPS +
+    ``location_name``/``storage_location`` dizem *onde* (ADR-0013). O estado
+    legal é DERIVADO da leitura do log (:func:`derive_legal_state`), nunca
+    gravado como coluna.
 
     Regras:
     - Append-only: save() só permite criação, nunca atualização.
     - delete() está bloqueado.
-    - Cada registo inclui hash SHA-256 do registo anterior (blockchain-like).
-    - Transições são validadas pela máquina de estados.
+    - Cada registo inclui hash SHA-256 encadeado com o anterior (ADR-0013).
+    - Guardas mínimas no clean() (não um grafo): 1.º evento = APREENSAO;
+      VALIDACAO exige APREENSAO e só uma vez (≤72h assinalado); INICIO_PERICIA
+      exige DESPACHO_PERICIA prévio; terminais (RESTITUICAO/DESTRUICAO) fecham.
     """
 
-    class CustodyState(models.TextChoices):
-        APREENDIDA = 'APREENDIDA', 'Apreendida'
-        EM_TRANSPORTE = 'EM_TRANSPORTE', 'Em Transporte'
-        RECEBIDA_LABORATORIO = 'RECEBIDA_LABORATORIO', 'Recebida no Laboratório'
-        EM_PERICIA = 'EM_PERICIA', 'Em Perícia'
-        CONCLUIDA = 'CONCLUIDA', 'Concluída'
-        DEVOLVIDA = 'DEVOLVIDA', 'Devolvida'
-        DESTRUIDA = 'DESTRUIDA', 'Destruída'
-
-    # Transições válidas: estado_atual → [estados_seguintes_possíveis]
-    VALID_TRANSITIONS = {
-        '': [CustodyState.APREENDIDA],  # estado inicial (sem estado anterior)
-        CustodyState.APREENDIDA: [CustodyState.EM_TRANSPORTE],
-        CustodyState.EM_TRANSPORTE: [CustodyState.RECEBIDA_LABORATORIO],
-        CustodyState.RECEBIDA_LABORATORIO: [CustodyState.EM_PERICIA],
-        CustodyState.EM_PERICIA: [CustodyState.CONCLUIDA],
-        CustodyState.CONCLUIDA: [CustodyState.DEVOLVIDA, CustodyState.DESTRUIDA],
-        CustodyState.DEVOLVIDA: [],  # estado terminal
-        CustodyState.DESTRUIDA: [],  # estado terminal
-    }
+    # Enums expostos também como atributos de classe para retrocompatibilidade
+    # de imports antigos (``ChainOfCustody.EventType``).
+    EventType = EventType
+    CustodianType = CustodianType
 
     code = models.CharField(
         max_length=20,
@@ -1076,27 +1195,64 @@ class ChainOfCustody(models.Model):
         related_name='custody_chain',
         verbose_name='Evidência',
     )
-    previous_state = models.CharField(
-        max_length=25,
-        choices=CustodyState.choices,
+    event_type = models.CharField(
+        max_length=20,
+        choices=EventType.choices,
+        verbose_name='Tipo de evento',
+    )
+    custodian_type = models.CharField(
+        max_length=20,
+        choices=CustodianType.choices,
         blank=True,
         default='',
-        verbose_name='Estado anterior',
+        verbose_name='Custódio após o evento',
     )
-    new_state = models.CharField(
-        max_length=25,
-        choices=CustodyState.choices,
-        verbose_name='Novo estado',
+    location_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Local (POI OSM)',
+    )
+    storage_location = models.CharField(
+        max_length=120,
+        blank=True,
+        default='',
+        verbose_name='Localização interna de armazenamento',
+    )
+    gps_lat = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+        verbose_name='Latitude GPS (evento)',
+    )
+    gps_lng = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+        verbose_name='Longitude GPS (evento)',
+    )
+    gps_accuracy_m = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Precisão GPS reportada (m)',
+        help_text=(
+            'Raio de incerteza em metros reportado pelo dispositivo. '
+            'Metadado de precisão — não altera a coordenada gravada.'
+        ),
     )
     agent = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
         related_name='custody_actions',
-        verbose_name='Responsável pela transição',
+        verbose_name='Responsável pelo evento',
     )
     timestamp = models.DateTimeField(
         default=timezone.now,
-        verbose_name='Data/hora da transição',
+        verbose_name='Data/hora do evento',
     )
     observations = models.TextField(
         blank=True,
@@ -1135,69 +1291,140 @@ class ChainOfCustody(models.Model):
             models.Index(fields=['agent', '-timestamp'], name='coc_agent_ts_idx'),
         ]
 
+    # Flag DERIVADA (não-coluna): assinala VALIDACAO fora do prazo de 72h.
+    # Calculada em clean(); facto juridicamente relevante, não bloqueia.
+    validation_overdue = False
+
     def __str__(self):
-        prev = self.get_previous_state_display() or '(início)'
         ev_label = self.evidence.code if self.evidence_id else f'#{self.evidence_id}'
-        return f'Item {ev_label}: {prev} → {self.get_new_state_display()}'
+        evento = self.get_event_type_display() if self.event_type else '(evento)'
+        custodio = self.get_custodian_type_display() if self.custodian_type else '—'
+        return f'Item {ev_label}: {evento} → {custodio}'
 
     def clean(self):
-        """Valida a transição de estado conforme a máquina de estados."""
+        """Guardas mínimas do ledger de eventos (ADR-0015) + quantização GPS.
+
+        Não é um grafo de transições: aplica apenas as restrições legais
+        reais, lendo os eventos anteriores da mesma evidência (dentro do
+        ``select_for_update`` de :meth:`save`).
+        """
         super().clean()
 
-        # Verificar se a transição é válida
-        allowed = self.VALID_TRANSITIONS.get(self.previous_state, [])
-        if self.new_state not in allowed:
+        prior = list(
+            ChainOfCustody.objects.filter(evidence=self.evidence).order_by('sequence')
+        )
+        prior_types = [r.event_type for r in prior]
+
+        # 1.º evento tem de ser APREENSAO; APREENSAO só pode ser o 1.º.
+        if not prior and self.event_type != EventType.APREENSAO:
+            raise ValidationError(
+                {'event_type': 'O primeiro evento de uma evidência tem de ser APREENSAO.'}
+            )
+        if prior and self.event_type == EventType.APREENSAO:
+            raise ValidationError({'event_type': 'APREENSAO só pode ser o primeiro evento.'})
+
+        # Terminais fecham o ledger — nenhum evento depois de RESTITUICAO/DESTRUICAO,
+        # em QUALQUER posição (semântica de presença, ADR-0015; robusto a sequences
+        # fora de ordem hipotéticas).
+        if any(t in TERMINAL_EVENTS for t in prior_types):
             raise ValidationError(
                 {
-                    'new_state': (
-                        f'Transição inválida: '
-                        f'{self.get_previous_state_display() or "(início)"} '
-                        f'→ {self.get_new_state_display()}. '
-                        f'Estados permitidos: {", ".join(str(s) for s in allowed) or "nenhum (estado terminal)"}.'
+                    'event_type': (
+                        'A evidência tem um evento terminal (restituição/destruição); '
+                        'não são aceites mais eventos.'
                     )
                 }
             )
 
+        # VALIDACAO: exige APREENSAO prévia, só uma vez, prazo ≤72h (assinalado).
+        if self.event_type == EventType.VALIDACAO:
+            if EventType.APREENSAO not in prior_types:
+                raise ValidationError({'event_type': 'VALIDACAO requer uma APREENSAO prévia.'})
+            if EventType.VALIDACAO in prior_types:
+                raise ValidationError({'event_type': 'A apreensão só pode ser validada uma vez.'})
+            apreensao = next(r for r in prior if r.event_type == EventType.APREENSAO)
+            ts = self.timestamp or timezone.now()
+            self.validation_overdue = ts - apreensao.timestamp > VALIDATION_DEADLINE
+
+        # INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º).
+        if self.event_type == EventType.INICIO_PERICIA:
+            if EventType.DESPACHO_PERICIA not in prior_types:
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'INICIO_PERICIA requer um DESPACHO_PERICIA anterior '
+                            '(CPP Art. 154.º).'
+                        )
+                    }
+                )
+
+        # Coerência GPS: lat e lng ambas presentes ou ambas ausentes (como Occurrence).
+        if (self.gps_lat is not None) != (self.gps_lng is not None):
+            raise ValidationError(
+                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+            )
+
+        # Quantização GPS a 7 casas (ADR-0013), ANTES do hash — garante
+        # valor em memória == valor na BD == valor recalculado pelo perito.
+        q = Decimal('0.0000001')
+        if self.gps_lat is not None:
+            self.gps_lat = self.gps_lat.quantize(q)
+        if self.gps_lng is not None:
+            self.gps_lng = self.gps_lng.quantize(q)
+
     def compute_record_hash(self, previous_hash=None):
         """
-        Calcula hash SHA-256 encadeando com o registo anterior.
+        Calcula o ``record_hash`` SHA-256 encadeado (fórmula única, ADR-0013).
 
-        Determinístico e puro: recebe `previous_hash` como parâmetro para
+        Determinístico e puro: recebe ``previous_hash`` como parâmetro para
         não depender de queries à DB. Qualquer perito independente pode
-        recalcular o hash a partir dos campos públicos do registo e do
-        hash do registo anterior, verificando a integridade da cadeia
-        (ISO/IEC 27037).
+        recalcular o hash a partir dos campos relidos da BD e do hash do
+        registo anterior, verificando a integridade da cadeia (ISO/IEC 27037).
 
-        Fórmula: SHA-256(previous_hash | seq | evidence_id | previous_state |
-                         new_state | agent_id | timestamp_iso | observations)
+        Fórmula (13 segmentos por ``|``, ordem fixa — contrato irreversível):
 
-        Fix B-C2 da auditoria 2026-04-19 — antes, esta função fazia uma
-        query à DB para obter o registo anterior, tornando-a impura e
-        expondo uma race condition (entre a leitura aqui e o INSERT em
-        `save()`) quando havia escritas concorrentes na mesma evidência.
+            previous_hash | seq=N | evidence_id | event_type | custodian_type |
+            agent_id | timestamp_iso | gps_lat | gps_lng | gps_accuracy_m |
+            esc(location_name) | esc(storage_location) | observations
+
+        Regras de serialização (ADR-0013):
+        - Todos os campos entram SEMPRE; campo ``None`` → string vazia
+          (``_hash_str``) na sua posição fixa (dado em falta determinístico).
+        - ``event_type`` e ``custodian_type`` são enums controlados (sem
+          separadores) → entram CRUS.
+        - ``location_name`` e ``storage_location`` são texto livre → passam
+          por ``_hash_escape`` (``\\`` → ``\\\\``, ``|`` → ``\\|``,
+          ``,`` → ``\\,``), impedindo colisão com os separadores.
+        - ``gps_lat``/``gps_lng`` já quantizados a 7 casas no ``clean()``.
 
         Args:
             previous_hash: hash do registo anterior (hex string). Se None,
-                cai para leitura da DB via `_lookup_previous_hash()` apenas
-                para compatibilidade com utilizadores antigos (legacy);
-                chamadores novos DEVEM fornecer o valor explicitamente,
-                tipicamente obtido dentro da mesma transacção do save().
+                cai para leitura da DB via ``_lookup_previous_hash()`` apenas
+                para compatibilidade com chamadores que não o passam; os novos
+                (incluindo ``save()``) fornecem-no dentro do
+                ``transaction.atomic()`` + ``select_for_update()`` (fix B-C2).
         """
         if previous_hash is None:
             # NOTE: impure path — reads ChainOfCustody via last-record query.
             # Mantido para compatibilidade com código legacy que não passa
-            # previous_hash. Novas chamadas (incluindo Evidence.save()
-            # abaixo) devem passar o valor explicitamente dentro do
-            # `transaction.atomic()` + `select_for_update()`.
+            # previous_hash. Novas chamadas (incluindo save() abaixo) devem
+            # passar o valor explicitamente dentro do transaction.atomic()
+            # + select_for_update().
             previous_hash = self._lookup_previous_hash()
 
         data = (
             f'{previous_hash}|'
             f'seq={self.sequence}|'
             f'{self.evidence_id}|'
-            f'{self.previous_state}|{self.new_state}|'
+            f'{self.event_type}|'
+            f'{self.custodian_type}|'
             f'{self.agent_id}|'
             f'{self.timestamp.isoformat()}|'
+            f'{_hash_str(self.gps_lat)}|'
+            f'{_hash_str(self.gps_lng)}|'
+            f'{_hash_str(self.gps_accuracy_m)}|'
+            f'{_hash_escape(self.location_name)}|'
+            f'{_hash_escape(self.storage_location)}|'
             f'{self.observations}'
         )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
@@ -1213,10 +1440,10 @@ class ChainOfCustody(models.Model):
     def save(self, *args, **kwargs):
         """
         Override: apenas permite criação (append-only).
-        O previous_state é determinado automaticamente a partir do último
-        registo da evidência — nunca confiamos no valor enviado pelo cliente.
+        O ``sequence`` é determinado automaticamente a partir do último
+        registo da evidência — nunca confiamos em valor enviado pelo cliente.
         O timestamp usa timezone.now() do servidor (NTP-synced).
-        Calcula hash e valida transição antes de gravar.
+        Valida as guardas (clean) e calcula o hash encadeado antes de gravar.
 
         A lógica é envolvida em transaction.atomic() com select_for_update()
         para evitar race conditions entre a leitura do último registo e a
@@ -1245,17 +1472,15 @@ class ChainOfCustody(models.Model):
                     # serializada do início ao fim.
                     Evidence.objects.select_for_update().filter(pk=self.evidence_id).first()
 
-                    # Auto-determinar previous_state e sequence a partir do
-                    # último registo. select_for_update() garante serialização
-                    # entre escritores concorrentes na mesma evidência quando
-                    # já existem registos.
+                    # Auto-determinar sequence a partir do último registo.
+                    # select_for_update() garante serialização entre escritores
+                    # concorrentes na mesma evidência quando já existem registos.
                     last_record = (
                         ChainOfCustody.objects.select_for_update()
                         .filter(evidence=self.evidence)
                         .order_by('-sequence')
                         .first()
                     )
-                    self.previous_state = last_record.new_state if last_record else ''
                     self.sequence = (last_record.sequence + 1) if last_record else 1
 
                     # Timestamp sempre do servidor (NTP-synced) — nunca do cliente

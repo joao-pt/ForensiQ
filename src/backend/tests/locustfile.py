@@ -172,15 +172,15 @@ class ForensiQUser(FastHttpUser):
 
         return None
 
-    def _create_custody_record(self, evidence_id, previous_state, new_state):
+    def _create_custody_record(self, evidence_id, event_type, custodian_type=''):
         """
-        POST /api/custody/ — registar transição de custódia.
+        POST /api/custody/ — registar um evento do ledger de custódia.
         """
         custody_data = {
             'evidence': evidence_id,
-            'previous_state': previous_state,
-            'new_state': new_state,
-            'observations': f'Transição registada {datetime.now().isoformat()}',
+            'event_type': event_type,
+            'custodian_type': custodian_type,
+            'observations': f'Evento registado {datetime.now().isoformat()}',
         }
 
         response = self.client.post(
@@ -218,8 +218,8 @@ class ForensiQUser(FastHttpUser):
         if not evidence_id:
             return
 
-        # 3. Registar primeiro estado de custódia
-        self._create_custody_record(evidence_id, '', 'APREENDIDA')
+        # 3. Registar o primeiro evento do ledger (APREENSAO pelo OPC)
+        self._create_custody_record(evidence_id, 'APREENSAO', 'OPC')
 
     @task(1)
     def export_evidence_pdf(self):

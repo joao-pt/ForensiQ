@@ -60,6 +60,8 @@ from core.models import (
     AuditLog,
     ChainOfCustody,
     CrimeTipo,
+    CustodianType,
+    EventType,
     Evidence,
     Occurrence,
 )
@@ -380,13 +382,15 @@ class Command(BaseCommand):
                 'SIM MEO — sub-componente do iPhone.',
             ),
         )
+        # Sequência de eventos (ledger, ADR-0015): apreendida e validada,
+        # ainda à guarda do OPC.
         cases.append(
             (
                 c1,
                 [e1a, e1b],
                 [
-                    ChainOfCustody.CustodyState.APREENDIDA,
-                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                    (EventType.APREENSAO, CustodianType.OPC),
+                    (EventType.VALIDACAO, CustodianType.OPC),
                 ],
             )
         )
@@ -453,15 +457,17 @@ class Command(BaseCommand):
                 'SIM NOS — sub-componente do Samsung.',
             ),
         )
+        # Encaminhada ao laboratório público e em perícia.
         cases.append(
             (
                 c2,
                 [e2a, e2b, e2c],
                 [
-                    ChainOfCustody.CustodyState.APREENDIDA,
-                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
-                    ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-                    ChainOfCustody.CustodyState.EM_PERICIA,
+                    (EventType.APREENSAO, CustodianType.OPC),
+                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 ],
             )
         )
@@ -495,16 +501,19 @@ class Command(BaseCommand):
                 'Disco externo Seagate 2TB — burla bancária.',
             ),
         )
+        # Perícia concluída e prova restituída ao proprietário (terminal).
         cases.append(
             (
                 c3,
                 [e3],
                 [
-                    ChainOfCustody.CustodyState.APREENDIDA,
-                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
-                    ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-                    ChainOfCustody.CustodyState.EM_PERICIA,
-                    ChainOfCustody.CustodyState.CONCLUIDA,
+                    (EventType.APREENSAO, CustodianType.OPC),
+                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
+                    (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
+                    (EventType.RESTITUICAO, CustodianType.PROPRIETARIO),
                 ],
             )
         )
@@ -554,14 +563,15 @@ class Command(BaseCommand):
                 'microSD 256 GB recuperado do drone.',
             ),
         )
+        # Encaminhada ao laboratório público (aguarda despacho/perícia).
         cases.append(
             (
                 c4,
                 [e4a, e4b],
                 [
-                    ChainOfCustody.CustodyState.APREENDIDA,
-                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
-                    ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                    (EventType.APREENSAO, CustodianType.OPC),
+                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
                 ],
             )
         )
@@ -646,34 +656,36 @@ class Command(BaseCommand):
                 'SIM Vodafone — sub-componente do GPS tracker.',
             ),
         )
+        # Apreendida e validada, ainda à guarda do OPC.
         cases.append(
             (
                 c5,
                 [e5a, e5b, e5c, e5d],
                 [
-                    ChainOfCustody.CustodyState.APREENDIDA,
-                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                    (EventType.APREENSAO, CustodianType.OPC),
+                    (EventType.VALIDACAO, CustodianType.OPC),
                 ],
             )
         )
 
-        # Cadeia de custódia — progredir cada item até ao estado alvo.
+        # Ledger de eventos — registar a sequência coerente de cada item.
         # ChainOfCustody.timestamp é sempre fixado em save() via
         # timezone.now() (NTP-synced server-side, ISO/IEC 27037).
         # A ordem canónica é dada pelo campo sequence (auto-incrementado).
-        lab_states = (
-            ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-            ChainOfCustody.CustodyState.EM_PERICIA,
-            ChainOfCustody.CustodyState.CONCLUIDA,
-        )
-        for occurrence, evidences, target_states in cases:
+        # Eventos no laboratório são da responsabilidade do perito (EXPERT).
+        lab_custodians = (CustodianType.LAB_PUBLICO, CustodianType.LAB_PRIVADO)
+        for occurrence, evidences, eventos in cases:
             for ev in evidences:
-                for state in target_states:
+                for event_type, custodian_type in eventos:
                     record = ChainOfCustody(
                         evidence=ev,
-                        new_state=state,
-                        agent=expert if state in lab_states else agent,
-                        observations=f'Transição de demonstração para {state}.',
+                        event_type=event_type,
+                        custodian_type=custodian_type,
+                        agent=expert if custodian_type in lab_custodians else agent,
+                        observations=(
+                            f'Evento de demonstração: {event_type} '
+                            f'(custódio {custodian_type}).'
+                        ),
                     )
                     record.save()
 

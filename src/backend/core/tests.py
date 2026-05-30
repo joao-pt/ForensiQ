@@ -5,7 +5,7 @@ Testa:
 - Criação de utilizadores (AGENT e EXPERT)
 - Criação de ocorrências e evidências
 - Hash SHA-256 automático em evidências
-- Máquina de estados da cadeia de custódia
+- Ledger de eventos da cadeia de custódia (guardas mínimas + estado derivado)
 - Imutabilidade da cadeia de custódia (append-only)
 
 Nota de taxonomia (ver ADR-0010): os tipos de Evidence passaram de 5
@@ -15,9 +15,13 @@ DOCUMENT       → OTHER_DIGITAL (fallback — papel deixou de existir)
 PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 """
 
+import hashlib
+import unittest
+from datetime import timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import TestCase
 from django.utils import timezone
 
@@ -25,9 +29,12 @@ from core.tests_factories import CrimeTipoFactory
 
 from .models import (
     ChainOfCustody,
+    CustodianType,
+    EventType,
     Evidence,
     Occurrence,
     User,
+    derive_legal_state,
 )
 
 
@@ -148,7 +155,7 @@ class EvidenceModelTest(TestCase):
 
 
 class ChainOfCustodyModelTest(TestCase):
-    """Testes para a cadeia de custódia (máquina de estados + imutabilidade)."""
+    """Testes do ledger de eventos (guardas mínimas + imutabilidade), ADR-0015."""
 
     def setUp(self):
         self.agent = User.objects.create_user(
@@ -173,93 +180,480 @@ class ChainOfCustodyModelTest(TestCase):
             agent=self.agent,
         )
 
-    def test_valid_first_transition(self):
-        """Primeira transição: '' → APREENDIDA."""
-        record = ChainOfCustody(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-            observations='Apreensão no local.',
-        )
+    def _evento(self, event_type, **kwargs):
+        kwargs.setdefault('agent', self.agent)
+        record = ChainOfCustody(evidence=self.evidence, event_type=event_type, **kwargs)
         record.save()
+        return record
+
+    # --- Primeiro evento de uma evidência ---
+
+    def test_primeiro_evento_apreensao_passa(self):
+        record = self._evento(EventType.APREENSAO, custodian_type=CustodianType.OPC)
         self.assertEqual(len(record.record_hash), 64)
+        self.assertEqual(record.sequence, 1)
 
-    def test_valid_sequential_transitions(self):
-        """Transições sequenciais válidas pela máquina de estados."""
-        ChainOfCustody(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        ).save()
-
-        ChainOfCustody(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-        ).save()
-
-        self.assertEqual(ChainOfCustody.objects.filter(evidence=self.evidence).count(), 2)
-
-    def test_invalid_transition_raises_error(self):
-        """Transição inválida deve levantar ValidationError."""
+    def test_primeiro_evento_diferente_de_apreensao_falha(self):
         with self.assertRaises(ValidationError):
-            ChainOfCustody(
-                evidence=self.evidence,
-                previous_state='',
-                new_state=ChainOfCustody.CustodyState.EM_PERICIA,  # Inválido!
-                agent=self.agent,
-            ).save()
+            self._evento(EventType.VALIDACAO)
+
+    def test_apreensao_so_pode_ser_primeiro(self):
+        self._evento(EventType.APREENSAO)
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.APREENSAO)
+
+    # --- Guarda da validação ---
+
+    def test_validacao_requer_apreensao_previa(self):
+        # Primeiro evento tem de ser APREENSAO; aqui forçamos uma evidência
+        # nova cujo 1.º evento seria VALIDACAO — bloqueado pela guarda do 1.º.
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.VALIDACAO)
+
+    def test_validacao_so_uma_vez(self):
+        self._evento(EventType.APREENSAO)
+        self._evento(EventType.VALIDACAO)
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.VALIDACAO)
+
+    def test_validacao_fora_de_prazo_aceite_mas_assinalada(self):
+        """VALIDACAO >72h após apreensão é aceite, mas validation_overdue=True."""
+        apre = self._evento(EventType.APREENSAO)
+        # Recuar o timestamp da apreensão >72h (UPDATE directo na BD; o trigger
+        # PG bloqueia, mas em SQLite-de-teste passa — só precisamos do estado).
+        ChainOfCustody.objects.filter(pk=apre.pk).update(
+            timestamp=timezone.now() - timedelta(hours=80)
+        )
+        record = self._evento(EventType.VALIDACAO)
+        self.assertTrue(record.validation_overdue)
+
+    def test_validacao_dentro_do_prazo_nao_assinalada(self):
+        self._evento(EventType.APREENSAO)
+        record = self._evento(EventType.VALIDACAO)
+        self.assertFalse(record.validation_overdue)
+
+    # --- Guarda da perícia ---
+
+    def test_inicio_pericia_sem_despacho_falha(self):
+        self._evento(EventType.APREENSAO)
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.INICIO_PERICIA)
+
+    def test_inicio_pericia_com_despacho_passa(self):
+        self._evento(EventType.APREENSAO)
+        self._evento(EventType.DESPACHO_PERICIA)
+        record = self._evento(EventType.INICIO_PERICIA)
+        self.assertEqual(record.event_type, EventType.INICIO_PERICIA)
+
+    # --- Terminais fecham o ledger ---
+
+    def test_terminal_restituicao_fecha(self):
+        self._evento(EventType.APREENSAO)
+        self._evento(EventType.RESTITUICAO, custodian_type=CustodianType.PROPRIETARIO)
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.TRANSFERENCIA)
+
+    def test_terminal_destruicao_fecha(self):
+        self._evento(EventType.APREENSAO)
+        self._evento(EventType.DESTRUICAO)
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.TRANSFERENCIA)
+
+    # --- Ordem livre e repetível ---
+
+    def test_ordem_livre_transferencias_e_pericias_repetidas(self):
+        self._evento(EventType.APREENSAO, custodian_type=CustodianType.OPC)
+        self._evento(EventType.VALIDACAO, custodian_type=CustodianType.OPC)
+        self._evento(EventType.DESPACHO_PERICIA, custodian_type=CustodianType.OPC)
+        self._evento(EventType.TRANSFERENCIA, custodian_type=CustodianType.LAB_PUBLICO)
+        self._evento(EventType.INICIO_PERICIA, custodian_type=CustodianType.LAB_PUBLICO)
+        self._evento(EventType.CONCLUSAO_PERICIA, custodian_type=CustodianType.LAB_PUBLICO)
+        # Nova perícia noutro laboratório (Art. 158.º) — encaminhamento de volta.
+        self._evento(EventType.TRANSFERENCIA, custodian_type=CustodianType.OPC)
+        self._evento(EventType.TRANSFERENCIA, custodian_type=CustodianType.LAB_PRIVADO)
+        self._evento(EventType.INICIO_PERICIA, custodian_type=CustodianType.LAB_PRIVADO)
+        self.assertEqual(self.evidence.custody_chain.count(), 9)
+
+    # --- Imutabilidade (append-only) ---
 
     def test_update_blocked(self):
         """Atualizar um registo existente deve levantar ValidationError."""
-        record = ChainOfCustody(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        record.save()
-
+        record = self._evento(EventType.APREENSAO)
         record.observations = 'Tentativa de alteração.'
         with self.assertRaises(ValidationError):
             record.save()
 
     def test_delete_blocked(self):
         """Eliminar um registo deve levantar ValidationError."""
-        record = ChainOfCustody(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        record.save()
-
+        record = self._evento(EventType.APREENSAO)
         with self.assertRaises(ValidationError):
             record.delete()
 
     def test_hash_chain_integrity(self):
-        """Hashes encadeiam-se (blockchain-like)."""
-        r1 = ChainOfCustody(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        r1.save()
+        """Hashes encadeiam-se (blockchain-like) e recomputam-se."""
+        r1 = self._evento(EventType.APREENSAO, custodian_type=CustodianType.OPC)
+        r2 = self._evento(EventType.VALIDACAO, custodian_type=CustodianType.OPC)
 
-        r2 = ChainOfCustody(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-        )
-        r2.save()
-
-        # Os hashes devem ser diferentes
         self.assertNotEqual(r1.record_hash, r2.record_hash)
-        # Ambos devem ter 64 caracteres (SHA-256 hex)
         self.assertEqual(len(r1.record_hash), 64)
         self.assertEqual(len(r2.record_hash), 64)
+        # r2 encadeia com r1: recomputar com previous_hash=r1.record_hash bate certo.
+        self.assertEqual(
+            r2.compute_record_hash(previous_hash=r1.record_hash),
+            r2.record_hash,
+        )
+
+
+class DeriveLegalStateTest(TestCase):
+    """Estado legal derivado (ADR-0015 §6) — função pura sobre a sequência."""
+
+    def setUp(self):
+        self.agent = User.objects.create_user(username='ag_dls', password='x12345678')
+        self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
+            number='NUIPC-DLS-001',
+            description='Estado derivado.',
+            agent=self.agent,
+        )
+
+    def _evidence(self, sn):
+        return Evidence.objects.create(
+            occurrence=self.occ,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Item',
+            serial_number=sn,
+            agent=self.agent,
+        )
+
+    def _chain(self, ev, eventos):
+        for event_type, custodian_type in eventos:
+            ChainOfCustody(
+                evidence=ev,
+                event_type=event_type,
+                custodian_type=custodian_type,
+                agent=self.agent,
+            ).save()
+        return list(ev.custody_chain.order_by('sequence'))
+
+    def test_estado_vazio_fallback(self):
+        self.assertEqual(derive_legal_state([]), 'a_guarda_opc')
+
+    def test_a_guarda_opc(self):
+        ev = self._evidence('DLS-1')
+        eventos = self._chain(ev, [(EventType.APREENSAO, CustodianType.OPC)])
+        self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
+
+    def test_validada(self):
+        ev = self._evidence('DLS-2')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.VALIDACAO, CustodianType.OPC),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'validada')
+
+    def test_encaminhada(self):
+        ev = self._evidence('DLS-3')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.VALIDACAO, CustodianType.OPC),
+                (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'encaminhada')
+
+    def test_em_pericia(self):
+        ev = self._evidence('DLS-4')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'em_pericia')
+
+    def test_pericia_concluida(self):
+        ev = self._evidence('DLS-5')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'pericia_concluida')
+
+    def test_segunda_pericia_volta_a_em_pericia(self):
+        """Nova perícia (Art. 158.º) após conclusão → em_pericia outra vez."""
+        ev = self._evidence('DLS-5b')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.INICIO_PERICIA, CustodianType.LAB_PRIVADO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'em_pericia')
+
+    def test_restituida_terminal(self):
+        ev = self._evidence('DLS-6')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.RESTITUICAO, CustodianType.PROPRIETARIO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'restituida')
+
+    def test_perdida_favor_estado(self):
+        ev = self._evidence('DLS-7')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.PERDA_FAVOR_ESTADO, CustodianType.DEPOSITARIO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'perdida_favor_estado')
+
+    def test_destruida_terminal(self):
+        ev = self._evidence('DLS-8')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.DESTRUICAO, CustodianType.DEPOSITARIO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'destruida')
+
+    def test_encaminhada_apos_pericia_concluida(self):
+        """Transferência para outro lab APÓS uma perícia concluída → encaminhada.
+
+        Regressão: o estado segue o ÚLTIMO acto (a transferência), não a perícia
+        anterior — fluxo de 2.ª perícia noutro laboratório (CPP Art. 158.º).
+        """
+        ev = self._evidence('DLS-9')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.TRANSFERENCIA, CustodianType.LAB_PRIVADO),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'encaminhada')
+
+    def test_transferencia_para_tribunal_e_encaminhada(self):
+        """Transferência para custódio não-laboratorial (tribunal) → encaminhada."""
+        ev = self._evidence('DLS-10')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.VALIDACAO, CustodianType.OPC),
+                (EventType.TRANSFERENCIA, CustodianType.TRIBUNAL),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'encaminhada')
+
+    def test_transferencia_de_volta_ao_opc(self):
+        """Transferência de regresso ao OPC → à guarda do OPC (não encaminhada)."""
+        ev = self._evidence('DLS-11')
+        eventos = self._chain(
+            ev,
+            [
+                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
+                (EventType.TRANSFERENCIA, CustodianType.OPC),
+            ],
+        )
+        self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
+
+
+class CustodyHashFormulaTest(TestCase):
+    """Determinismo, vector de regressão, GPS, escaping e quantização (ADR-0013)."""
+
+    def setUp(self):
+        self.agent = User.objects.create_user(username='ag_hash', password='x12345678')
+        self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
+            number='NUIPC-HASH-001',
+            description='Hash.',
+            agent=self.agent,
+        )
+        self.evidence = Evidence.objects.create(
+            occurrence=self.occ,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Item hash.',
+            agent=self.agent,
+        )
+
+    def _build(self, **kwargs):
+        """Constrói (sem gravar) um registo já com sequence/timestamp fixos."""
+        defaults = dict(
+            evidence=self.evidence,
+            event_type=EventType.APREENSAO,
+            custodian_type=CustodianType.OPC,
+            agent=self.agent,
+            sequence=1,
+            timestamp=timezone.now(),
+            observations='obs',
+        )
+        defaults.update(kwargs)
+        return ChainOfCustody(**defaults)
+
+    def test_hash_determinista(self):
+        rec = self._build()
+        self.assertEqual(
+            rec.compute_record_hash(previous_hash='0' * 64),
+            rec.compute_record_hash(previous_hash='0' * 64),
+        )
+
+    def test_hash_vector_de_regressao(self):
+        """Congela a STRING DE DADOS exacta e o SHA-256 esperado (contrato)."""
+        ts = timezone.datetime(2026, 5, 30, 12, 0, 0, tzinfo=dt_timezone.utc)
+        rec = self._build(
+            sequence=2,
+            timestamp=ts,
+            event_type=EventType.TRANSFERENCIA,
+            custodian_type=CustodianType.LAB_PUBLICO,
+            location_name='Bomba BP, Av. da Liberdade | Lisboa',
+            storage_location='Armário B-12, Sala 3',
+            gps_lat=Decimal('38.7223340'),
+            gps_lng=Decimal('-9.1393366'),
+            gps_accuracy_m=8,
+            observations='obs reg',
+        )
+        prev = 'a' * 64
+        # String de dados esperada (13 segmentos, ordem fixa do ADR-0013).
+        # event_type/custodian_type CRUS; texto livre escapado (| e , → \| \,);
+        # gps_* já com 7 casas; observations cru no fim.
+        esperado = (
+            f'{prev}|'
+            'seq=2|'
+            f'{self.evidence.id}|'
+            'TRANSFERENCIA|'
+            'LAB_PUBLICO|'
+            f'{self.agent.id}|'
+            '2026-05-30T12:00:00+00:00|'
+            '38.7223340|'
+            '-9.1393366|'
+            '8|'
+            r'Bomba BP\, Av. da Liberdade \| Lisboa|'
+            r'Armário B-12\, Sala 3|'
+            'obs reg'
+        )
+        esperado_hash = hashlib.sha256(esperado.encode('utf-8')).hexdigest()
+        self.assertEqual(rec.compute_record_hash(previous_hash=prev), esperado_hash)
+
+    def test_hash_difere_com_e_sem_gps(self):
+        com = self._build(gps_lat=Decimal('38.7223340'), gps_lng=Decimal('-9.1393366'))
+        sem = self._build()
+        self.assertNotEqual(
+            com.compute_record_hash(previous_hash='0' * 64),
+            sem.compute_record_hash(previous_hash='0' * 64),
+        )
+
+    def test_hash_gps_parcial_difere_de_sem_gps(self):
+        """Só gps_accuracy_m preenchido (lat/lng nulos) difere de tudo nulo."""
+        parcial = self._build(gps_accuracy_m=12)
+        sem = self._build()
+        self.assertNotEqual(
+            parcial.compute_record_hash(previous_hash='0' * 64),
+            sem.compute_record_hash(previous_hash='0' * 64),
+        )
+
+    def test_hash_ordem_lat_lng_nao_comutavel(self):
+        a = self._build(gps_lat=Decimal('38.7223340'), gps_lng=Decimal('-9.1393366'))
+        b = self._build(gps_lat=Decimal('-9.1393366'), gps_lng=Decimal('38.7223340'))
+        self.assertNotEqual(
+            a.compute_record_hash(previous_hash='0' * 64),
+            b.compute_record_hash(previous_hash='0' * 64),
+        )
+
+    def test_hash_escaping_evita_colisao(self):
+        """Sem escaping, estas duas location_name colidiriam na string de dados."""
+        a = self._build(location_name='A,B', storage_location='')
+        b = self._build(location_name='A', storage_location='B')
+        self.assertNotEqual(
+            a.compute_record_hash(previous_hash='0' * 64),
+            b.compute_record_hash(previous_hash='0' * 64),
+        )
+
+    def test_quantizacao_no_clean_determinismo(self):
+        """gps_lat com 5 casas é quantizado a 7 no clean(); o hash recomputado
+        a partir do registo relido da BD bate certo com o gravado."""
+        rec = ChainOfCustody(
+            evidence=self.evidence,
+            event_type=EventType.APREENSAO,
+            custodian_type=CustodianType.OPC,
+            agent=self.agent,
+            gps_lat=Decimal('38.72234'),
+            gps_lng=Decimal('-9.13934'),
+        )
+        rec.save()
+        relido = ChainOfCustody.objects.get(pk=rec.pk)
+        self.assertEqual(str(relido.gps_lat), '38.7223400')
+        self.assertEqual(
+            relido.compute_record_hash(previous_hash='0' * 64),
+            relido.record_hash,
+        )
+
+
+class CustodyImmutabilityTriggerTest(TestCase):
+    """3.ª camada de imutabilidade (trigger PG) cobre as colunas novas."""
+
+    def setUp(self):
+        self.agent = User.objects.create_user(username='ag_trg', password='x12345678')
+        self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
+            number='NUIPC-TRG-001',
+            description='Trigger.',
+            agent=self.agent,
+        )
+        self.evidence = Evidence.objects.create(
+            occurrence=self.occ,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Item trigger.',
+            agent=self.agent,
+        )
+        self.record = ChainOfCustody(
+            evidence=self.evidence,
+            event_type=EventType.APREENSAO,
+            custodian_type=CustodianType.OPC,
+            agent=self.agent,
+        )
+        self.record.save()
+
+    @unittest.skipUnless(
+        connection.vendor == 'postgresql',
+        'Os triggers de imutabilidade só existem em PostgreSQL.',
+    )
+    def test_update_directo_coluna_nova_bloqueado(self):
+        """UPDATE directo numa coluna NOVA (event_type) é recusado pelo trigger."""
+        from django.db import DatabaseError
+
+        with self.assertRaises(DatabaseError):
+            with connection.cursor() as cur:
+                cur.execute(
+                    'UPDATE core_chainofcustody SET event_type = %s WHERE id = %s',
+                    [EventType.VALIDACAO, self.record.pk],
+                )

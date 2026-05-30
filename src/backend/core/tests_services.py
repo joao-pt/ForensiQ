@@ -956,7 +956,7 @@ class EvidenceFilterTest(APITestCase):
 
 
 class CustodyFilterTest(APITestCase):
-    """Testes para CustodyFilter (new_state, date_after)."""
+    """Testes para CustodyFilter (event_type, legal_state, date_after)."""
 
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
@@ -990,22 +990,30 @@ class CustodyFilterTest(APITestCase):
             gps_lng=Decimal('-9.13'),
             agent=self.user,
         )
-        # Criar registo de custódia via API
+        # Criar o primeiro evento do ledger via API
         self.client.post(
             reverse('core:custody-list'),
             {
                 'evidence': self.ev.pk,
-                'new_state': 'APREENDIDA',
+                'event_type': 'APREENSAO',
+                'custodian_type': 'OPC',
                 'observations': 'Apreensão teste filtro',
             },
         )
 
-    def test_filter_by_new_state(self):
-        url = reverse('core:custody-list') + '?new_state=APREENDIDA'
+    def test_filter_by_event_type(self):
+        url = reverse('core:custody-list') + '?event_type=APREENSAO'
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        states = [r['new_state'] for r in response.data['results']]
-        self.assertTrue(all(s == 'APREENDIDA' for s in states))
+        events = [r['event_type'] for r in response.data['results']]
+        self.assertTrue(all(e == 'APREENSAO' for e in events))
+
+    def test_filter_by_legal_state(self):
+        url = reverse('core:custody-list') + '?legal_state=a_guarda_opc'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        states = [r['legal_state'] for r in response.data['results']]
+        self.assertTrue(all(s == 'a_guarda_opc' for s in states))
 
 
 # =========================================================================

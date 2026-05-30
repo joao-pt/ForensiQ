@@ -111,10 +111,11 @@ class PDFGenerationUnitTest(TestCase):
 
     def test_pdf_with_custody(self):
         """PDF com cadeia de custódia deve ser gerado sem erros."""
-        # Adicionar registo de custódia
+        # Adicionar evento de custódia
         ChainOfCustody.objects.create(
             evidence=self.evidence,
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
             observations='Apreensão inicial.',
         )
@@ -352,20 +353,24 @@ class PdfNoNPlusOneTest(TestCase):
                 gps_lat=Decimal('38.7'),
                 gps_lng=Decimal('-9.1'),
             )
-            # 1ª transição APREENDIDA (auto), depois mais transições
+            # Sequência de eventos do ledger: apreensão → validação →
+            # transferência para laboratório (3 eventos por evidência).
             ChainOfCustody.objects.create(
                 evidence=ev,
-                new_state=ChainOfCustody.CustodyState.APREENDIDA,
+                event_type=ChainOfCustody.EventType.APREENSAO,
+                custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
             )
             ChainOfCustody.objects.create(
                 evidence=ev,
-                new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                event_type=ChainOfCustody.EventType.VALIDACAO,
+                custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
             )
             ChainOfCustody.objects.create(
                 evidence=ev,
-                new_state=ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                event_type=ChainOfCustody.EventType.TRANSFERENCIA,
+                custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
                 agent=cls.agent,
             )
 

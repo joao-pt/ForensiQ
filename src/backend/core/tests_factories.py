@@ -238,14 +238,14 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
 
 
 class ChainOfCustodyFactory(factory.django.DjangoModelFactory):
-    """Primeira transição '' → APREENDIDA (máquina de estados)."""
+    """Primeiro evento do ledger: APREENSAO pelo OPC (ADR-0015)."""
 
     class Meta:
         model = ChainOfCustody
 
     evidence = factory.SubFactory(EvidenceMobileFactory)
-    previous_state = ''
-    new_state = ChainOfCustody.CustodyState.APREENDIDA
+    event_type = ChainOfCustody.EventType.APREENSAO
+    custodian_type = ChainOfCustody.CustodianType.OPC
     agent = factory.SubFactory(UserFactory)
     observations = 'Apreensão inicial no local (factory).'
 

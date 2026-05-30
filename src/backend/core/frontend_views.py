@@ -195,8 +195,9 @@ def occurrence_intake_view(request, occurrence_id):
     Acessível só a EXPERT (ou staff). AGENT em campo entrega; não faz
     intake. O template renderiza checklist das evidências esperadas;
     o submit é feito via JS para o endpoint `/api/custody/cascade/`
-    existente, transitando todos os itens marcados para
-    ``RECEBIDA_LABORATORIO`` numa só operação atómica.
+    existente, registando em todos os itens marcados um evento
+    ``TRANSFERENCIA`` para ``LAB_PUBLICO`` numa só operação atómica
+    (ledger de eventos, ADR-0015).
 
     Requisitos de auth (impostos no servidor antes do render):
     1. JWT válido em cookie `fq_access`.
@@ -228,32 +229,32 @@ def occurrence_intake_view(request, occurrence_id):
     if occurrence is None:
         return render(request, '404.html', status=404)
 
-    # Para cada evidência: estado actual de custódia (último ChainOfCustody).
-    from core.models import ChainOfCustody, Evidence
+    # Para cada evidência: estado legal DERIVADO (ADR-0015) da sequência de
+    # eventos. "Já recebida" = já encaminhada para laboratório ou além.
+    from core.models import ChainOfCustody, Evidence, EventType, derive_legal_state
+
+    # Estados legais a partir dos quais a prova já está (ou passou) no
+    # laboratório — não faz sentido voltar a "receber" no intake.
+    received_states = {
+        'encaminhada',
+        'em_pericia',
+        'pericia_concluida',
+        'restituida',
+        'perdida_favor_estado',
+        'destruida',
+    }
 
     evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
     state_by_evidence = {}
     for ev in evidences:
-        last = (
-            ChainOfCustody.objects.filter(evidence=ev)
-            .order_by('-sequence')
-            .only('new_state')
-            .first()
-        )
-        state_by_evidence[ev.id] = last.new_state if last else ''
+        eventos = list(ChainOfCustody.objects.filter(evidence=ev).order_by('sequence'))
+        state_by_evidence[ev.id] = derive_legal_state(eventos) if eventos else ''
 
     rows = [
         {
             'evidence': ev,
             'current_state': state_by_evidence[ev.id],
-            'already_received': state_by_evidence[ev.id]
-            in (
-                ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-                ChainOfCustody.CustodyState.EM_PERICIA,
-                ChainOfCustody.CustodyState.CONCLUIDA,
-                ChainOfCustody.CustodyState.DEVOLVIDA,
-                ChainOfCustody.CustodyState.DESTRUIDA,
-            ),
+            'already_received': state_by_evidence[ev.id] in received_states,
         }
         for ev in evidences
     ]
@@ -265,7 +266,13 @@ def occurrence_intake_view(request, occurrence_id):
             'occurrence': occurrence,
             'rows': rows,
             'evidence_count': len(rows),
-            'target_state': ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+            # Intake = registar TRANSFERENCIA → LAB_PUBLICO em lote (ADR-0015).
+            # ``target_state``/``target_custodian`` são consumidos pelo JS de
+            # intake para compor o POST a /api/custody/cascade/ (event_type +
+            # custodian_type). O template do intake será reformulado na fase
+            # frontend; o backend já entrega a semântica nova.
+            'target_state': EventType.TRANSFERENCIA,
+            'target_custodian': ChainOfCustody.CustodianType.LAB_PUBLICO,
         },
     )
 

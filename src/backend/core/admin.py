@@ -115,9 +115,9 @@ class EvidenceAdmin(admin.ModelAdmin):
 
 @admin.register(ChainOfCustody)
 class ChainOfCustodyAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'evidence', 'previous_state', 'new_state', 'agent', 'timestamp')
-    list_filter = ('new_state',)
-    search_fields = ('observations',)
+    list_display = ('pk', 'evidence', 'event_type', 'custodian_type', 'agent', 'timestamp')
+    list_filter = ('event_type', 'custodian_type')
+    search_fields = ('observations', 'location_name', 'storage_location')
     raw_id_fields = ('evidence', 'agent')
     readonly_fields = ('record_hash',)
 
