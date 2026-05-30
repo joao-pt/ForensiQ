@@ -149,7 +149,7 @@ footer técnico com métricas hardcoded/ausentes. Bug já presente: o do hero ge
 | **T17** | Coerência de contrato API (shapes de erro, snapshot lookup, auditar Occurrence) | 2-backend | P3 | L | Baixo |
 | **T18** | *(novo — §7)* Coerência API/BD da `Occurrence` (imutável em PG vs ViewSet mutável) + Intake | ambas | **P1** | M | **Médio-Alto** |
 | **T19** | *(novo — 2026-05-30)* Taxonomia oficial de crimes + prioridade por Política Criminal + alertas | ambas | **P1** | L | Médio |
-| **T20** | *(novo — 2026-05-30)* FSM da custódia ramificada (CPP Art. 178.º) + localização/custódio por transição (OSM) | ambas | **P1** | XL | **ALTO** |
+| **T20** | *(novo — 2026-05-30)* Custódia como **ledger de eventos** (CPP Art. 154/158/178) + localização/custódio (OSM) | ambas | **P1** | XL | **ALTO** |
 
 ### Detalhe dos temas
 
@@ -226,15 +226,16 @@ Torna a `priority` **semântica** (ancorada na lei) e acelera/normaliza a entrad
 
 **Implicação Fase 3 (`art-direction.md`):** a colorbar/legenda do hero deixa de ser P1-P4 e passa a **2 estados (prioritária/normal)** — actualizar `art-direction.md` §Hero e o `geo-hero`. *Estende:* T03 (priority), T06 (feed/alertas). *Findings relacionados:* `gap-occurrence-priority`, `gap-occurrence-priority-serializer`, `gap-table-priority-feed-source`. *Depende de:* obter a Tabela 2024 (1.ª tarefa de dados da Fase 2).
 
-**T20 — *(novo, 2026-05-30)* FSM da cadeia de custódia ramificada (CPP) + localização/custódio por transição.** `[P1 · ambas · XL · risco ALTO]`
-Redesenha a máquina de estados **linear** actual numa **FSM ramificada fiel ao CPP** (DL 78/87, Art. 178.º), capturando **localização + estabelecimento + custódio em cada transição**. É a maior mudança da Fase 2 e toca o núcleo forense. Decisões do dono (2026-05-30):
-- **Dois eixos (decisão Q2):** separar **estado** (processo) de **localização/custódio**. Cada registo do ledger leva: `new_state` + `gps_lat/lng/accuracy` (de T01) + `location_name` (texto) + `custodian_type` (enum: `LOCAL_CRIME` / `ESQUADRA` / `LAB_PUBLICO` / `LAB_PRIVADO` / `TRIBUNAL` / `DEPOSITARIO` / `PROPRIETARIO`).
-- **Estados (aditivos — ver nota forense):** mantêm-se `APREENDIDA`, `EM_TRANSPORTE`, `RECEBIDA_LABORATORIO`, `EM_PERICIA`, `CONCLUIDA`, `DEVOLVIDA`⛔, `DESTRUIDA`⛔; **acrescentam-se** `A_AGUARDAR_VALIDACAO` (≤72h, Art. 178.º/6), `VALIDADA`, `ENCAMINHADA` (outro lab púb./priv.), `PERDIDA_FAVOR_ESTADO`. Ramos legais: não-validada→restituição; sem-despacho→guarda→restituição; perícia concluída→restituição | perda a favor do Estado→destruição.
-- **Validador ramificado:** substitui o validador linear estrito por um grafo de transições permitidas (continua **no modelo**, não nas views). Estados terminais (`DEVOLVIDA`/`DESTRUIDA`) colocam a prova em terminal automaticamente.
-- **Estabelecimentos = OSM/Nominatim (decisão Q3):** `location_name` vem de POIs próximos via **OSM** — reusa o reverse-geocode Nominatim existente (+ throttle `reverse_geocode`), estendido a pesquisa de POIs próximos (ex.: Overpass). Agente selecciona; mantém-se sempre GPS+morada. Cena do crime (bombas, marcos) e nós oficiais (esquadras/labs/tribunais) todos via OSM (sem tabela curada).
+**T20 — *(novo, 2026-05-30; redesenhado para ledger de eventos)* Custódia como ledger de eventos.** `[P1 · ambas · XL · risco ALTO]`
+Substitui a máquina de estados linear por um **ledger de eventos** (trajetória documentada). Largou-se o grafo rígido: a custódia real é **não-linear** — a prova move-se livremente entre OPC / lab / lab privado / tribunal, com **múltiplas perícias** (CPP Art. 158.º) e encaminhamentos em **ordem livre** (Art. 154.º; cadeia de custódia = documentar o percurso, não impor sequência). É a maior mudança da Fase 2 e toca o núcleo forense. Modelo (ADR-0015):
+- **Registo = evento.** Sai `previous_state/new_state` + `VALID_TRANSITIONS`. Entra `event_type`: `APREENSAO` · `VALIDACAO` · `DESPACHO_PERICIA` · `TRANSFERENCIA` · `INICIO_PERICIA` · `CONCLUSAO_PERICIA` · `RESTITUICAO`⛔ · `PERDA_FAVOR_ESTADO` · `DESTRUICAO`⛔.
+- **Dois eixos:** evento + `custodian_type` (`LOCAL_CRIME`/`OPC`/`LAB_PUBLICO`/`LAB_PRIVADO`/`TRIBUNAL`/`DEPOSITARIO`/`PROPRIETARIO`) + `location_name` (POI OSM) + `storage_location` (armário/sala) + GPS (de T01).
+- **Validador = guardas mínimas** no `clean()` (não grafo): apreensão é o 1.º evento; validação ≤72h, uma vez; perícia exige despacho prévio; terminais fecham; **tudo o resto é ordem livre e repetível**.
+- **Estado legal derivado** do log (não gravado): à_guarda_OPC / validada / em_perícia / perícia_concluída / encaminhada / restituída⛔ / perdida_a_favor_do_Estado / destruída⛔ — para filtros, colorbar e timeline.
+- **Estabelecimentos via OSM/Nominatim** (sem tabela curada): reusa o reverse-geocode + throttle `reverse_geocode`, estendido a POIs próximos (Overpass); CSP a coordenar com T08.
 
-**Nota forense (crítica):** o ledger é **append-only imutável** — **não se reescrevem registos antigos**. Os estados novos são **aditivos** (novos choices); registos existentes mantêm os seus estados; o validador aceita os legados. Os campos de localização entram pela **migração aditiva do T01** (cobertos pelos triggers de linha). Hash-chain **inalterado** (a localização entra no hash de forma versionada, decisão D1). **Precisa de ADR próprio (ADR-0015), migração aditiva, e verificação adversarial** (workflow) de que (a) a FSM é legalmente coerente e (b) imutabilidade/hash-chain não regridem. *Estende:* T01 (GPS), liga-se a T18 (intake = recepção/validação no lab). *Depende de:* T01 + ADR.
-**Implicação Fase 3:** o `transition_modal` ganha captura GPS + selecção de POI (OSM) + tipo de custódio; o mini-mapa "Cadeia" mostra a jornada com os nós nomeados.
+**Nota forense:** **sem legado/retrocompatibilidade** (greenfield — substituição limpa de colunas, não migração aditiva). Hash **único e limpo** fixado no ADR-0013 (todos os campos sempre incluídos; null→vazio; texto livre escapado; coordenadas quantizadas a 7 casas). Append-only / imutabilidade 3 camadas / POST-only / validador-no-modelo intactos. *Estende:* T01 (GPS), liga-se a T18 (intake = `TRANSFERENCIA`→lab). *Depende de:* T01 + **ADR-0015 (escrito: `ADR-0015-custodia-ledger-eventos.md`)**. Verificação adversarial feita (workflow).
+**Implicação Fase 3:** o `transition_modal` passa a `event_type` + custódio + GPS + POI; o mini-mapa "Cadeia" mostra a trajetória.
 
 ---
 
@@ -270,7 +271,7 @@ Redesenha a máquina de estados **linear** actual numa **FSM ramificada fiel ao 
 
 **Tracks novos desta sessão (2026-05-30):**
 - **T19 (taxonomia de crimes + prioridade):** track independente do GPS. Arranca por **obter a Tabela 2024** + redigir **ADR-0014**; depois 3 tabelas de referência + `crime_type`/`priority` na Occurrence (com T03/T18) + alertas (com T06). Paralelizável com o PASSO 2/3.
-- **T20 (FSM da custódia ramificada + localização):** o maior e mais sensível. **Depende de T01** (campos GPS/localização) + **ADR-0015**. Entra **depois** do PASSO 2 (GPS no hash fechado), com validação adversarial por workflow antes de tocar o validador da FSM. Liga-se a T18 (intake = recepção/validação).
+- **T20 (custódia como ledger de eventos + localização):** o maior e mais sensível. **Depende de T01** (campos GPS/localização) + **ADR-0015**. Entra **depois** do PASSO 2 (GPS no hash fechado), com validação adversarial por workflow antes de tocar o validador (guardas mínimas no `clean()`). Liga-se a T18 (intake = `TRANSFERENCIA`→lab).
 
 **Invariante a guardar em todos os passos:** nunca mudar a classe base dos ViewSets POST-only nem `http_method_names` (reabriria PUT/PATCH/DELETE); nunca squashar migrations de imutabilidade (`0002`/`0008`/`0013`) nem RunPython de dados; **nunca reescrever registos da cadeia** (estados/campos novos são sempre aditivos); qualquer processamento de GPS (incl. ajuste manual) é **sempre** pré-hash, server-side.
 
@@ -372,11 +373,13 @@ ou registadas abaixo):
 
 ## 10. Progresso da Fase 2
 
-**PASSO 0 — ADRs (concluído, commit `5798b01`):**
-- ✅ **ADR-0013** — GPS na cadeia (hash versionado aditivo; **dono único da fórmula completa**: segmentos `|gps=` e `|loc=` com ordem fixa, escaping e quantização a 7 casas; convenção `gps_lng`; precisão máxima sem arredondamento; ajuste manual pré-hash).
-- ✅ **ADR-0014** — Taxonomia de crimes (3 tabelas, Tabela 2024) + prioridade binária da Lei 51/2023 Art. 5.º (config versionada, override manual, alertas).
-- ✅ **ADR-0015** — FSM ramificada (CPP Art. 178.º; grafo superconjunto do linear, +4 estados) + localização/custódio (`location_name` OSM, `storage_location` armário, `custodian_type`).
-- Redigidos por workflow + **verificação adversarial** (7 issues corrigidos; invariantes forenses confirmados intactos).
+**PASSO 0 — ADRs (concluído; escritos em `5798b01`, reescritos em `eaa63e7`):**
+- ✅ **ADR-0013** — `ADR-0013-gps-cadeia-custodia.md`. GPS na cadeia; **dono único da fórmula do hash** (única e limpa: todos os campos sempre incluídos, null→vazio, texto livre escapado, coordenadas quantizadas a 7 casas); convenção `gps_lng`; precisão máxima; ajuste manual pré-hash.
+- ✅ **ADR-0014** — `ADR-0014-taxonomia-crimes-prioridade.md`. 3 tabelas (Tabela 2024) + prioridade binária da Lei 51/2023 Art. 5.º (config versionada, override manual, alertas).
+- ✅ **ADR-0015** — `ADR-0015-custodia-ledger-eventos.md`. **Custódia como ledger de eventos** (CPP Art. 154/158/178): `event_type` + custódio + local; validador = guardas mínimas; estado legal derivado; OSM/Overpass.
+- **3 correcções do dono aplicadas na reescrita (`eaa63e7`):** (1) **sem legado/retrocompatibilidade** — greenfield, substituição pura (hash limpo, sem versionamento); (2) **ADR-0015 refeito de raiz** como ledger de eventos (largou a FSM rígida); (3) **voz na 1.ª pessoa** do projecto (zero "o dono decidiu"). Redigidos por workflow + **verificação adversarial** (`voice_ok`/`no_legacy_ok`/`model_coherent` = true; invariantes intactos).
+
+> **Princípio global da Fase 2 (decisão do projecto):** **sem legado, sem retrocompatibilidade.** A aplicação é construída de raiz; substitui-se código/campos/formatos sem preservar nada antigo. Aplica-se a todo o refactor.
 
 **Reserva de numeração de migrations** (evita colisão entre tracks paralelos):
 - Track GPS (T01/T02): **`0018`** (rename `gps_lng`) + **`0019`** (GPS na custódia).
