@@ -400,7 +400,12 @@ ou registadas abaixo):
 
 **T01+T20 — backend concluído (`beae78f`):** `ChainOfCustody` passa a **ledger de eventos** (`event_type`/`custodian_type`/`location_name`/`storage_location` + GPS por evento); validador de guardas mínimas; estado legal **derivado** (`derive_legal_state`); **hash limpo de 13 segmentos** (ADR-0013) com vector de regressão; migration `0021`; `NearbyPOIsView` (proxy Overpass **server-side** — **T08 `connect-src` dispensado**); stats/`?state=` por estado derivado; `seed_demo` por sequências de eventos. **Verificação adversarial** (3 lentes: hash/validador/imutabilidade) conforme; 2 bugs do `derive_legal_state` corrigidos + 3 testes de regressão. Suite **472 verde** (1 skip = trigger PG). O **frontend da custódia** (consumir event-ledger/estado derivado) fica para a **Fase 3**.
 
-**Estado da Fase 2 (backend):** estruturais **concluídos** — T01, T02, T03(=T19), T04, T05, **T08** (`c2f2016`, CSP `cdnjs` removido), T20. Falta a **higiene de backend** (verificável por testes): **T06** (feed read-only sobre `AuditLog`), **T07** (deltas 24h no `/api/stats/dashboard/`), **T12** (aplicar throttle `verify_public` à vista pública), **T13** (endurecer pipeline), **T16** (consolidar testes + `AuditLogFactory` + CSRF/triggers), **T17** (coerência de contrato de API) + findings `low` avulsos (scope órfão `schema`; `_fmt_gps` hemisfério **já corrigido** no T20).
+**Estado da Fase 2 (backend) — quase fechada.** Concluídos e committados, **suite 501 verde** (1 skip = trigger PG):
+- Estruturais: **T01, T02, T03(=T19), T04, T05, T08, T20**.
+- Features dashboard: **T06** (feed `/api/activity-feed/` c/ `is_priority_alert`) + **T07** (deltas 24h, `total_active`, série 7d) — `06c86bf`.
+- Higiene/API: **T12** (throttles órfãos `verify_public`+`schema` aplicados) + **T17** (shape de erro → `{detail}`) + validação do `X-Correlation-ID` — `f872977`. Bug `_fmt_gps` (hemisfério) já corrigido no T20.
+
+**Falta na Fase 2 (menor, baixo risco):** **T13** (endurecer pipeline — CI/ops, `.github/workflows`), **T16** (consolidar testes + `AuditLogFactory` + testes de trigger PG/CSRF) e findings `low` de segurança avulsos (healthcheck sem throttle; `jwt-signing-key-fallback`; CSP Report-Only sem `report-uri` em DEBUG). **Fase 3 (frontend)** consome todo o novo backend (custódia event-ledger, prioridade 2-estados, feed, deltas, tiles CartoDB; `transition_modal.js` passa a ler `data.detail`).
 
 **Fase 3 (frontend, só após Fase 2 merge):** reinvenção — casca v2 em todas as páginas (T10), bug hero geo + helper de mapas (T09), IIFE/a11y (T15) e o **consumo do novo backend** (custódia event-ledger, prioridade 2-estados, feed, deltas, tiles CartoDB).
 
