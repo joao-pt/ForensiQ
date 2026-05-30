@@ -143,7 +143,6 @@ REST_FRAMEWORK = {
         'auth': '5/minute',
         'evidence_upload': '20/minute',
         'pdf_export': '30/minute',
-        'csv_export': '10/minute',
         'schema': '30/minute',
         'reverse_geocode': '10/minute',
         # 5/min é deliberadamente apertado: cada chamada consome saldo
@@ -171,7 +170,6 @@ if TESTING:
         'auth': '10000/minute',
         'evidence_upload': '10000/minute',
         'pdf_export': '10000/minute',
-        'csv_export': '10000/minute',
         'schema': '10000/minute',
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',

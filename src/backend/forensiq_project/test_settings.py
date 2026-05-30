@@ -77,7 +77,6 @@ REST_FRAMEWORK = {
         'auth': '10000/minute',
         'evidence_upload': '10000/minute',
         'pdf_export': '10000/minute',
-        'csv_export': '10000/minute',
         'schema': '10000/minute',
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',
