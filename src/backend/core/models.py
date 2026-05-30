@@ -79,7 +79,7 @@ def validate_image_max_size(value):
     if value.size > MAX_IMAGE_BYTES:
         raise ValidationError(
             f'O ficheiro excede o tamanho máximo permitido de 25 MB '
-            f'(tamanho actual: {value.size / (1024*1024):.1f} MB).'
+            f'(tamanho actual: {value.size / (1024 * 1024):.1f} MB).'
         )
 
     try:
@@ -214,8 +214,195 @@ class User(AbstractUser):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Taxonomia de crimes (dados de referência — ADR-0014)
+#
+# Espelha a Tabela de Crimes Registados 1.7 (2024) do CSE/INE — DGPJ/SIEJ em 3
+# níveis (N1 categorias → N2 subcategorias → N3 tipos). NÃO é prova: é lookup
+# editável/versionável no admin e NÃO está sujeita aos invariantes de
+# imutabilidade (sem triggers PG). Semeada por `manage.py seed_crime_taxonomy`
+# a partir de core/data/tabela_crimes_2024.json.
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoria(models.Model):
+    """Nível 1 da Tabela de Crimes Registados (categorias)."""
+
+    codigo = models.PositiveSmallIntegerField(
+        unique=True,
+        verbose_name='Código N1',
+        help_text='Código oficial da categoria (não contíguo: {1..6, 10}).',
+    )
+    nome = models.CharField(max_length=255, verbose_name='Categoria')
+
+    class Meta:
+        verbose_name = 'Categoria de crime (N1)'
+        verbose_name_plural = 'Categorias de crime (N1)'
+        ordering = ['codigo']
+
+    def __str__(self):
+        return f'{self.codigo} — {self.nome}'
+
+
+class CrimeSubcategoria(models.Model):
+    """Nível 2 da Tabela de Crimes Registados (subcategorias)."""
+
+    categoria = models.ForeignKey(
+        CrimeCategoria,
+        on_delete=models.PROTECT,
+        related_name='subcategorias',
+        verbose_name='Categoria (N1)',
+    )
+    codigo = models.PositiveSmallIntegerField(verbose_name='Código N2')
+    nome = models.CharField(max_length=255, verbose_name='Subcategoria')
+
+    class Meta:
+        verbose_name = 'Subcategoria de crime (N2)'
+        verbose_name_plural = 'Subcategorias de crime (N2)'
+        ordering = ['codigo']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['categoria', 'codigo'],
+                name='uniq_subcategoria_categoria_codigo',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.codigo} — {self.nome}'
+
+
+class CrimeTipo(models.Model):
+    """Nível 3 da Tabela de Crimes Registados (tipos, com código oficial)."""
+
+    subcategoria = models.ForeignKey(
+        CrimeSubcategoria,
+        on_delete=models.PROTECT,
+        related_name='tipos',
+        verbose_name='Subcategoria (N2)',
+    )
+    codigo = models.PositiveIntegerField(
+        unique=True,
+        verbose_name='Código N3',
+        help_text='Código oficial do tipo de crime (alinhado com o INE/DGPJ).',
+    )
+    descritivo = models.CharField(max_length=255, verbose_name='Tipo de crime')
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Activo',
+        help_text='Falso para tipos retirados em versões futuras da Tabela.',
+    )
+
+    class Meta:
+        verbose_name = 'Tipo de crime (N3)'
+        verbose_name_plural = 'Tipos de crime (N3)'
+        ordering = ['codigo']
+
+    def __str__(self):
+        return f'{self.codigo} — {self.descritivo}'
+
+
+class PoliticaCriminalManager(models.Manager):
+    def vigente(self):
+        """Devolve a versão activa da Lei de Política Criminal, ou ``None``."""
+        return self.filter(is_active=True).first()
+
+
+class PoliticaCriminalPrioridade(models.Model):
+    """Versão de uma Lei de Política Criminal e os crimes que prioriza (ADR-0014).
+
+    A ``priority`` da ``Occurrence`` deriva da versão activa pelo eixo
+    ``INVESTIGACAO`` (Art. 5.º — operativo). Trocar de biénio é semear uma nova
+    versão e marcá-la activa: operação de dados, sem código.
+    """
+
+    lei = models.CharField(max_length=120, verbose_name='Lei')
+    biennium = models.CharField(max_length=20, verbose_name='Biénio')
+    vigente_desde = models.DateField(verbose_name='Vigente desde')
+    vigente_ate = models.DateField(null=True, blank=True, verbose_name='Vigente até')
+    is_active = models.BooleanField(default=False, verbose_name='Activa')
+    tipos = models.ManyToManyField(
+        CrimeTipo,
+        through='PrioridadeCrimeTipo',
+        related_name='politicas',
+    )
+
+    objects = PoliticaCriminalManager()
+
+    class Meta:
+        verbose_name = 'Política criminal (prioridade)'
+        verbose_name_plural = 'Políticas criminais (prioridade)'
+        ordering = ['-vigente_desde']
+        constraints = [
+            # Garante uma só versão activa em simultâneo.
+            models.UniqueConstraint(
+                fields=['is_active'],
+                condition=models.Q(is_active=True),
+                name='uniq_politica_criminal_activa',
+            ),
+        ]
+
+    def __str__(self):
+        marca = ' [activa]' if self.is_active else ''
+        return f'{self.lei} ({self.biennium}){marca}'
+
+    def classifica_prioritaria(self, crime_tipo_id):
+        """True se o tipo está no eixo INVESTIGACAO (operativo) desta versão."""
+        if crime_tipo_id is None:
+            return False
+        return self.associacoes.filter(
+            crime_tipo_id=crime_tipo_id,
+            eixo=PrioridadeCrimeTipo.Eixo.INVESTIGACAO,
+        ).exists()
+
+
+class PrioridadeCrimeTipo(models.Model):
+    """Associação versão-de-lei ↔ tipo de crime, com o eixo (Art. 4.º/5.º)."""
+
+    class Eixo(models.TextChoices):
+        INVESTIGACAO = 'INVESTIGACAO', 'Investigação prioritária (Art. 5.º)'
+        PREVENCAO = 'PREVENCAO', 'Prevenção prioritária (Art. 4.º)'
+
+    politica = models.ForeignKey(
+        PoliticaCriminalPrioridade,
+        on_delete=models.CASCADE,
+        related_name='associacoes',
+    )
+    crime_tipo = models.ForeignKey(
+        CrimeTipo,
+        on_delete=models.PROTECT,
+        related_name='associacoes_prioridade',
+    )
+    eixo = models.CharField(max_length=20, choices=Eixo.choices)
+
+    class Meta:
+        verbose_name = 'Associação prioridade↔tipo'
+        verbose_name_plural = 'Associações prioridade↔tipo'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['politica', 'crime_tipo', 'eixo'],
+                name='uniq_politica_tipo_eixo',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.politica_id} · {self.crime_tipo_id} · {self.eixo}'
+
+
+# ---------------------------------------------------------------------------
+# Ocorrência
+# ---------------------------------------------------------------------------
+
+
 class Occurrence(models.Model):
     """Ocorrência policial / cena de crime."""
+
+    class Priority(models.TextChoices):
+        PRIORITARIA = 'PRIORITARIA', 'Prioritária'
+        NORMAL = 'NORMAL', 'Normal'
+
+    class PrioritySource(models.TextChoices):
+        LEI = 'LEI', 'Derivada da lei'
+        MANUAL = 'MANUAL', 'Override manual'
 
     code = models.CharField(
         max_length=20,
@@ -268,6 +455,26 @@ class Occurrence(models.Model):
         related_name='occurrences',
         verbose_name='Agente responsável',
     )
+    crime_type = models.ForeignKey(
+        CrimeTipo,
+        on_delete=models.PROTECT,
+        related_name='occurrences',
+        verbose_name='Tipo de crime',
+        help_text='Classificação na Tabela de Crimes Registados (N3).',
+    )
+    priority = models.CharField(
+        max_length=12,
+        choices=Priority.choices,
+        default=Priority.NORMAL,
+        verbose_name='Prioridade',
+        help_text='Derivada da Política Criminal na criação (ADR-0014).',
+    )
+    priority_source = models.CharField(
+        max_length=6,
+        choices=PrioritySource.choices,
+        default=PrioritySource.LEI,
+        verbose_name='Origem da prioridade',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -291,6 +498,32 @@ class Occurrence(models.Model):
             raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
         if self.date_time and self.date_time > timezone.now():
             raise ValidationError({'date_time': 'A data da ocorrência não pode estar no futuro.'})
+        # Prioridade derivada da Política Criminal (ADR-0014). Corre só na
+        # criação; a Occurrence é imutável (POST-only + triggers), logo a
+        # prioridade fixa-se aqui, pré-gravação.
+        if self.pk is None and self.crime_type_id is not None:
+            self._aplicar_prioridade()
+
+    def _aplicar_prioridade(self):
+        """Deriva ``priority``/``priority_source`` do ``crime_type`` (ADR-0014).
+
+        Eixo operativo = INVESTIGACAO (Art. 5.º) da versão activa da Política
+        Criminal. A lei prevalece como fonte; o override manual
+        (``priority_source=MANUAL`` no POST) só **eleva** NORMAL→PRIORITÁRIA —
+        não permite despromover um crime que a lei marca prioritário.
+        """
+        vigente = PoliticaCriminalPrioridade.objects.vigente()
+        lei_prioritaria = bool(vigente and vigente.classifica_prioritaria(self.crime_type_id))
+        override_manual = self.priority_source == self.PrioritySource.MANUAL
+        if lei_prioritaria:
+            self.priority = self.Priority.PRIORITARIA
+            self.priority_source = self.PrioritySource.LEI
+        elif override_manual:
+            self.priority = self.Priority.PRIORITARIA
+            self.priority_source = self.PrioritySource.MANUAL
+        else:
+            self.priority = self.Priority.NORMAL
+            self.priority_source = self.PrioritySource.LEI
 
     def save(self, *args, **kwargs):
         """Chama full_clean e atribui ``code`` (OCC-YYYY-NNNNN) na criação."""
@@ -310,7 +543,7 @@ class Occurrence(models.Model):
                     self.code = ''
                     self.pk = None
             raise RuntimeError(
-                'Não foi possível gerar um código OCC-YYYY-NNNNN único ' 'após várias tentativas.'
+                'Não foi possível gerar um código OCC-YYYY-NNNNN único após várias tentativas.'
             )
         super().save(*args, **kwargs)
 
@@ -487,9 +720,7 @@ class Evidence(models.Model):
         default=dict,
         blank=True,
         verbose_name='Dados específicos do tipo',
-        help_text=(
-            'Campos específicos do tipo de evidência (IMEI, VIN, ' 'IMSI, ICCID, MAC, etc.).'
-        ),
+        help_text=('Campos específicos do tipo de evidência (IMEI, VIN, IMSI, ICCID, MAC, etc.).'),
     )
     external_lookup_snapshot = models.JSONField(
         null=True,
@@ -666,13 +897,13 @@ class Evidence(models.Model):
                 self.code = ''
                 self.pk = None
         raise RuntimeError(
-            'Não foi possível gerar um código ITM-YYYY-NNNNN único ' 'após várias tentativas.'
+            'Não foi possível gerar um código ITM-YYYY-NNNNN único após várias tentativas.'
         )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de evidência."""
         raise ValidationError(
-            'Registos de evidência são imutáveis. ' 'Não é permitido eliminar registos de prova.'
+            'Registos de evidência são imutáveis. Não é permitido eliminar registos de prova.'
         )
 
     # ------------------------------------------------------------------
@@ -1174,13 +1405,13 @@ class ChainOfCustody(models.Model):
                 self.code = ''
                 self.pk = None
         raise RuntimeError(
-            'Não foi possível gerar um código CC-YYYY-NNNNN único ' 'após várias tentativas.'
+            'Não foi possível gerar um código CC-YYYY-NNNNN único após várias tentativas.'
         )
 
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de custódia."""
         raise ValidationError(
-            'Registos de cadeia de custódia são imutáveis. ' 'Não é permitido eliminar registos.'
+            'Registos de cadeia de custódia são imutáveis. Não é permitido eliminar registos.'
         )
 
 
@@ -1372,5 +1603,5 @@ class AuditLog(models.Model):
     def delete(self, *args, **kwargs):
         """Override: NUNCA permite eliminação de registos de auditoria."""
         raise ValidationError(
-            'Registos de auditoria são imutáveis. ' 'Não é permitido eliminar registos.'
+            'Registos de auditoria são imutáveis. Não é permitido eliminar registos.'
         )

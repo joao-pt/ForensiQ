@@ -34,6 +34,9 @@ from django.utils import timezone
 
 from core.models import (
     ChainOfCustody,
+    CrimeCategoria,
+    CrimeSubcategoria,
+    CrimeTipo,
     DigitalDevice,
     Evidence,
     Occurrence,
@@ -60,9 +63,11 @@ def _luhn_complete(prefix14: str) -> str:
     check = (10 - (total % 10)) % 10
     return f'{prefix14}{check}'
 
+
 # ---------------------------------------------------------------------------
 # Utilizadores
 # ---------------------------------------------------------------------------
+
 
 class UserFactory(factory.django.DjangoModelFactory):
     """Agente (first responder) autenticado. Uso: ``UserFactory.create()``."""
@@ -103,8 +108,50 @@ PeritoFactory = ExpertFactory
 
 
 # ---------------------------------------------------------------------------
+# Taxonomia de crimes (dados de referência — ADR-0014)
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoriaFactory(factory.django.DjangoModelFactory):
+    """Categoria N1 (default: 1 — Crimes contra as pessoas)."""
+
+    class Meta:
+        model = CrimeCategoria
+        django_get_or_create = ('codigo',)
+
+    codigo = 1
+    nome = 'Código Penal - Crimes contra as pessoas'
+
+
+class CrimeSubcategoriaFactory(factory.django.DjangoModelFactory):
+    """Subcategoria N2 (default: 1 — Crimes contra a vida)."""
+
+    class Meta:
+        model = CrimeSubcategoria
+        django_get_or_create = ('codigo',)
+
+    codigo = 1
+    nome = 'Crimes contra a vida'
+    categoria = factory.SubFactory(CrimeCategoriaFactory)
+
+
+class CrimeTipoFactory(factory.django.DjangoModelFactory):
+    """Tipo N3 (default: 1 — Homicídio voluntário consumado)."""
+
+    class Meta:
+        model = CrimeTipo
+        django_get_or_create = ('codigo',)
+
+    codigo = 1
+    descritivo = 'Homicidio voluntário consumado'
+    subcategoria = factory.SubFactory(CrimeSubcategoriaFactory)
+    is_active = True
+
+
+# ---------------------------------------------------------------------------
 # Ocorrência
 # ---------------------------------------------------------------------------
+
 
 class OccurrenceFactory(factory.django.DjangoModelFactory):
     """Ocorrência com coordenadas GPS em Lisboa (Marquês de Pombal)."""
@@ -115,18 +162,22 @@ class OccurrenceFactory(factory.django.DjangoModelFactory):
 
     number = factory.Sequence(lambda n: f'NUIPC-2026-{n:06d}')
     description = factory.Faker(
-        'sentence', nb_words=12, locale='pt_PT',
+        'sentence',
+        nb_words=12,
+        locale='pt_PT',
     )
     date_time = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
     gps_lng = Decimal('-9.1393366')
     address = 'Marquês de Pombal, Lisboa'
     agent = factory.SubFactory(UserFactory)
+    crime_type = factory.SubFactory(CrimeTipoFactory)
 
 
 # ---------------------------------------------------------------------------
 # Evidências — taxonomia digital-first (ADR-0010)
 # ---------------------------------------------------------------------------
+
 
 class EvidenceMobileFactory(factory.django.DjangoModelFactory):
     """Evidência do tipo ``MOBILE_DEVICE`` (telemóvel/smartphone)."""
@@ -137,7 +188,9 @@ class EvidenceMobileFactory(factory.django.DjangoModelFactory):
     occurrence = factory.SubFactory(OccurrenceFactory)
     type = Evidence.EvidenceType.MOBILE_DEVICE
     description = factory.Faker(
-        'sentence', nb_words=10, locale='pt_PT',
+        'sentence',
+        nb_words=10,
+        locale='pt_PT',
     )
     serial_number = factory.Sequence(lambda n: f'IMEI-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
@@ -156,7 +209,9 @@ class EvidenceVehicleFactory(factory.django.DjangoModelFactory):
     occurrence = factory.SubFactory(OccurrenceFactory)
     type = Evidence.EvidenceType.VEHICLE
     description = factory.Faker(
-        'sentence', nb_words=10, locale='pt_PT',
+        'sentence',
+        nb_words=10,
+        locale='pt_PT',
     )
     # Número de série genérico do container-veículo. NOTA: o campo
     # ``serial_number`` é uma string livre; o VIN (ISO 3779, 17 chars,
@@ -186,7 +241,9 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
     occurrence = factory.SubFactory(OccurrenceFactory)
     type = Evidence.EvidenceType.SIM_CARD
     description = factory.Faker(
-        'sentence', nb_words=8, locale='pt_PT',
+        'sentence',
+        nb_words=8,
+        locale='pt_PT',
     )
     serial_number = factory.Sequence(lambda n: f'ICCID-{n:019d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
@@ -200,6 +257,7 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
 # Dispositivo digital
 # ---------------------------------------------------------------------------
 
+
 class DigitalDeviceFactory(factory.django.DjangoModelFactory):
     """Dispositivo digital associado a uma evidência (``MOBILE_DEVICE``)."""
 
@@ -209,7 +267,8 @@ class DigitalDeviceFactory(factory.django.DjangoModelFactory):
     evidence = factory.SubFactory(EvidenceMobileFactory)
     type = DigitalDevice.DeviceType.SMARTPHONE
     brand = factory.Faker(
-        'random_element', elements=('Samsung', 'Apple', 'Xiaomi', 'Google'),
+        'random_element',
+        elements=('Samsung', 'Apple', 'Xiaomi', 'Google'),
     )
     model = factory.Sequence(lambda n: f'Model-{n:04d}')
     condition = DigitalDevice.DeviceCondition.FUNCTIONAL
@@ -223,6 +282,7 @@ class DigitalDeviceFactory(factory.django.DjangoModelFactory):
 # ---------------------------------------------------------------------------
 # Cadeia de custódia
 # ---------------------------------------------------------------------------
+
 
 class ChainOfCustodyFactory(factory.django.DjangoModelFactory):
     """Primeira transição '' → APREENDIDA (máquina de estados)."""
@@ -241,6 +301,9 @@ __all__ = [
     'UserFactory',
     'ExpertFactory',
     'PeritoFactory',
+    'CrimeCategoriaFactory',
+    'CrimeSubcategoriaFactory',
+    'CrimeTipoFactory',
     'OccurrenceFactory',
     'EvidenceMobileFactory',
     'EvidenceVehicleFactory',

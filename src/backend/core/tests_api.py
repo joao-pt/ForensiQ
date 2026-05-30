@@ -19,6 +19,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from core.tests_factories import CrimeTipoFactory
+
 from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import (
     ChainOfCustody,
@@ -68,16 +70,20 @@ class BaseAPITestCase(TestCase):
         também em `self.client.cookies` para pedidos subsequentes.
         """
         url = reverse('auth_login')
-        response = self.client.post(url, {
-            'username': username,
-            'password': password,
-        })
+        response = self.client.post(
+            url,
+            {
+                'username': username,
+                'password': password,
+            },
+        )
         return response
 
 
 # ---------------------------------------------------------------------------
 # Testes de Autenticação JWT
 # ---------------------------------------------------------------------------
+
 
 class JWTAuthTest(BaseAPITestCase):
     """Testes de autenticação JWT via cookies HttpOnly (ADR-0009)."""
@@ -137,6 +143,7 @@ class JWTAuthTest(BaseAPITestCase):
 # Testes de User
 # ---------------------------------------------------------------------------
 
+
 class UserAPITest(BaseAPITestCase):
     """Testes para o endpoint /api/users/."""
 
@@ -160,23 +167,29 @@ class UserAPITest(BaseAPITestCase):
         """Apenas administradores podem criar utilizadores."""
         self.authenticate_as(self.agent)
         url = reverse('core:user-list')
-        response = self.client.post(url, {
-            'username': 'novo_agente',
-            'password': 'NovoPass123!',
-            'profile': 'AGENT',
-        })
+        response = self.client.post(
+            url,
+            {
+                'username': 'novo_agente',
+                'password': 'NovoPass123!',
+                'profile': 'AGENT',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_admin_can_create_user(self):
         """Administrador pode criar utilizadores."""
         self.authenticate_as(self.admin)
         url = reverse('core:user-list')
-        response = self.client.post(url, {
-            'username': 'novo_agente',
-            'password': 'NovoPass123!',
-            'profile': 'AGENT',
-            'badge_number': 'AGT-NEW-01',
-        })
+        response = self.client.post(
+            url,
+            {
+                'username': 'novo_agente',
+                'password': 'NovoPass123!',
+                'profile': 'AGENT',
+                'badge_number': 'AGT-NEW-01',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['username'], 'novo_agente')
 
@@ -185,6 +198,7 @@ class UserAPITest(BaseAPITestCase):
 # Testes de Occurrence
 # ---------------------------------------------------------------------------
 
+
 class OccurrenceAPITest(BaseAPITestCase):
     """Testes para o endpoint /api/occurrences/."""
 
@@ -192,12 +206,16 @@ class OccurrenceAPITest(BaseAPITestCase):
         """AGENT pode criar ocorrências."""
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-API-001',
-            'description': 'Teste de ocorrência via API.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-API-001',
+                'description': 'Teste de ocorrência via API.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['number'], 'NUIPC-2026-API-001')
         # Agent preenchido automaticamente
@@ -207,10 +225,14 @@ class OccurrenceAPITest(BaseAPITestCase):
         """EXPERT não pode criar ocorrências."""
         self.authenticate_as(self.expert)
         url = reverse('core:occurrence-list')
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-API-002',
-            'description': 'Tentativa de perito.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-API-002',
+                'description': 'Tentativa de perito.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_expert_can_list_occurrences(self):
@@ -224,6 +246,7 @@ class OccurrenceAPITest(BaseAPITestCase):
         """Detalhe de uma ocorrência específica."""
         self.authenticate_as(self.agent)
         occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-DET',
             description='Ocorrência para detalhe.',
             agent=self.agent,
@@ -238,12 +261,14 @@ class OccurrenceAPITest(BaseAPITestCase):
 # Testes de Evidence
 # ---------------------------------------------------------------------------
 
+
 class EvidenceAPITest(BaseAPITestCase):
     """Testes para o endpoint /api/evidences/."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-EV',
             description='Ocorrência para evidências.',
             agent=self.agent,
@@ -253,11 +278,14 @@ class EvidenceAPITest(BaseAPITestCase):
         """AGENT pode criar evidências com hash automático."""
         self.authenticate_as(self.agent)
         url = reverse('core:evidence-list')
-        response = self.client.post(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Smartphone encontrado no local.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Smartphone encontrado no local.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         # Hash SHA-256 calculado automaticamente
         self.assertEqual(len(response.data['integrity_hash']), 64)
@@ -281,12 +309,14 @@ class EvidenceAPITest(BaseAPITestCase):
 # Testes de DigitalDevice
 # ---------------------------------------------------------------------------
 
+
 class DigitalDeviceAPITest(BaseAPITestCase):
     """Testes para o endpoint /api/devices/."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-DEV',
             description='Ocorrência para dispositivos.',
             agent=self.agent,
@@ -302,14 +332,17 @@ class DigitalDeviceAPITest(BaseAPITestCase):
         """AGENT pode registar um dispositivo digital."""
         self.authenticate_as(self.agent)
         url = reverse('core:device-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'type': 'LAPTOP',
-            'brand': 'Lenovo',
-            'model': 'ThinkPad X1',
-            'condition': 'FUNCTIONAL',
-            'serial_number': 'SN-TEST-001',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'type': 'LAPTOP',
+                'brand': 'Lenovo',
+                'model': 'ThinkPad X1',
+                'condition': 'FUNCTIONAL',
+                'serial_number': 'SN-TEST-001',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['brand'], 'Lenovo')
 
@@ -318,12 +351,14 @@ class DigitalDeviceAPITest(BaseAPITestCase):
 # Testes de ChainOfCustody
 # ---------------------------------------------------------------------------
 
+
 class ChainOfCustodyAPITest(BaseAPITestCase):
     """Testes para o endpoint /api/custody/."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-COC',
             description='Ocorrência para custódia.',
             agent=self.agent,
@@ -339,12 +374,15 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """AGENT pode criar primeiro registo de custódia."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': '',
-            'new_state': 'APREENDIDA',
-            'observations': 'Apreensão no local do crime.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': '',
+                'new_state': 'APREENDIDA',
+                'observations': 'Apreensão no local do crime.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['record_hash']), 64)
 
@@ -367,12 +405,15 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         # Perito recebe no laboratório
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'EM_TRANSPORTE',
-            'new_state': 'RECEBIDA_LABORATORIO',
-            'observations': 'Recebido no laboratório forense.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'EM_TRANSPORTE',
+                'new_state': 'RECEBIDA_LABORATORIO',
+                'observations': 'Recebido no laboratório forense.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_put_not_allowed(self):
@@ -387,12 +428,15 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         record = ChainOfCustody.objects.first()
         self.authenticate_as(self.agent)
         url = reverse('core:custody-detail', kwargs={'pk': record.pk})
-        response = self.client.put(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': '',
-            'new_state': 'APREENDIDA',
-            'observations': 'Alteração bloqueada.',
-        })
+        response = self.client.put(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': '',
+                'new_state': 'APREENDIDA',
+                'observations': 'Alteração bloqueada.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_delete_not_allowed(self):
@@ -414,12 +458,15 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """Transição inválida retorna 400."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': '',
-            'new_state': 'EM_PERICIA',  # Inválido — deve ser APREENDIDA primeiro
-            'observations': 'Transição inválida.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': '',
+                'new_state': 'EM_PERICIA',  # Inválido — deve ser APREENDIDA primeiro
+                'observations': 'Transição inválida.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_timeline_endpoint(self):
@@ -451,6 +498,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
 # Testes de Autorização — IDOR (Insecure Direct Object Reference)
 # ---------------------------------------------------------------------------
 
+
 class AuthorizationIDORTest(BaseAPITestCase):
     """
     Testa isolamento de dados entre agentes.
@@ -471,6 +519,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
 
         # Ocorrência e evidência do Agent A
         self.occurrence_a = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-IDOR-A',
             description='Ocorrência do Agent A.',
             agent=self.agent,
@@ -484,6 +533,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
 
         # Ocorrência e evidência do Agent B
         self.occurrence_b = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-IDOR-B',
             description='Ocorrência do Agent B.',
             agent=self.agent_b,
@@ -597,6 +647,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
 # Testes de Imutabilidade — Evidence (API)
 # ---------------------------------------------------------------------------
 
+
 class EvidenceImmutabilityAPITest(BaseAPITestCase):
     """
     Testa que evidências são imutáveis via API.
@@ -606,6 +657,7 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-IMMUT-EV',
             description='Ocorrência para teste de imutabilidade.',
             agent=self.agent,
@@ -621,20 +673,26 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
         """PUT na evidência retorna 405 Method Not Allowed."""
         self.authenticate_as(self.agent)
         url = reverse('core:evidence-detail', kwargs={'pk': self.evidence.pk})
-        response = self.client.put(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'OTHER_DIGITAL',
-            'description': 'Descrição alterada.',
-        })
+        response = self.client.put(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'OTHER_DIGITAL',
+                'description': 'Descrição alterada.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_evidence_patch_returns_405(self):
         """PATCH na evidência retorna 405 Method Not Allowed."""
         self.authenticate_as(self.agent)
         url = reverse('core:evidence-detail', kwargs={'pk': self.evidence.pk})
-        response = self.client.patch(url, {
-            'description': 'Descrição alterada.',
-        })
+        response = self.client.patch(
+            url,
+            {
+                'description': 'Descrição alterada.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_evidence_delete_returns_405(self):
@@ -651,11 +709,14 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:evidence-detail', kwargs={'pk': self.evidence.pk})
-        self.client.put(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'OTHER_DIGITAL',
-            'description': 'Nova descrição.',
-        })
+        self.client.put(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'OTHER_DIGITAL',
+                'description': 'Nova descrição.',
+            },
+        )
 
         # Recarregar evidência da BD
         self.evidence.refresh_from_db()
@@ -678,6 +739,7 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
 # Testes de Imutabilidade — DigitalDevice (API)
 # ---------------------------------------------------------------------------
 
+
 class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
     """
     Testa que dispositivos digitais são imutáveis via API.
@@ -687,6 +749,7 @@ class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-IMMUT-DEV',
             description='Ocorrência para teste de imutabilidade de dispositivos.',
             agent=self.agent,
@@ -710,22 +773,28 @@ class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
         """PUT no dispositivo retorna 405 Method Not Allowed."""
         self.authenticate_as(self.agent)
         url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        response = self.client.put(url, {
-            'evidence': self.evidence.pk,
-            'type': 'DESKTOP',
-            'brand': 'Dell',
-            'model': 'XPS 13',
-            'condition': 'DAMAGED',
-        })
+        response = self.client.put(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'type': 'DESKTOP',
+                'brand': 'Dell',
+                'model': 'XPS 13',
+                'condition': 'DAMAGED',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_device_patch_returns_405(self):
         """PATCH no dispositivo retorna 405 Method Not Allowed."""
         self.authenticate_as(self.agent)
         url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        response = self.client.patch(url, {
-            'condition': 'DAMAGED',
-        })
+        response = self.client.patch(
+            url,
+            {
+                'condition': 'DAMAGED',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_device_delete_returns_405(self):
@@ -743,11 +812,14 @@ class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        self.client.patch(url, {
-            'brand': 'HP',
-            'model': 'Pavilion 15',
-            'condition': 'DAMAGED',
-        })
+        self.client.patch(
+            url,
+            {
+                'brand': 'HP',
+                'model': 'Pavilion 15',
+                'condition': 'DAMAGED',
+            },
+        )
 
         # Recarregar dispositivo da BD
         self.device.refresh_from_db()
@@ -761,10 +833,13 @@ class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
         url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
         response = self.client.delete(url)
         # EXPERT recebe 403 (não tem permissão IsAgent) antes do 405
-        self.assertIn(response.status_code, [
-            status.HTTP_403_FORBIDDEN,
-            status.HTTP_405_METHOD_NOT_ALLOWED,
-        ])
+        self.assertIn(
+            response.status_code,
+            [
+                status.HTTP_403_FORBIDDEN,
+                status.HTTP_405_METHOD_NOT_ALLOWED,
+            ],
+        )
 
         # Verificar que dispositivo ainda existe
         self.assertTrue(DigitalDevice.objects.filter(pk=self.device.pk).exists())
@@ -773,6 +848,7 @@ class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
 # ---------------------------------------------------------------------------
 # Testes de Máquina de Estados — Transições de Custódia
 # ---------------------------------------------------------------------------
+
 
 class CustodyStateTransitionsTest(BaseAPITestCase):
     """
@@ -783,6 +859,7 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-STATE-TEST',
             description='Ocorrência para teste de transições de custódia.',
             agent=self.agent,
@@ -798,12 +875,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
         """Transição válida: (vazio) → APREENDIDA."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': '',
-            'new_state': 'APREENDIDA',
-            'observations': 'Apreendida no local.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': '',
+                'new_state': 'APREENDIDA',
+                'observations': 'Apreendida no local.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'APREENDIDA')
 
@@ -819,12 +899,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'APREENDIDA',
-            'new_state': 'EM_TRANSPORTE',
-            'observations': 'Em transporte para laboratório.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'APREENDIDA',
+                'new_state': 'EM_TRANSPORTE',
+                'observations': 'Em transporte para laboratório.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'EM_TRANSPORTE')
 
@@ -846,12 +929,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'EM_TRANSPORTE',
-            'new_state': 'RECEBIDA_LABORATORIO',
-            'observations': 'Recebido e catalogado no laboratório.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'EM_TRANSPORTE',
+                'new_state': 'RECEBIDA_LABORATORIO',
+                'observations': 'Recebido e catalogado no laboratório.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'RECEBIDA_LABORATORIO')
 
@@ -879,12 +965,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'RECEBIDA_LABORATORIO',
-            'new_state': 'EM_PERICIA',
-            'observations': 'Iniciada análise forense.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'RECEBIDA_LABORATORIO',
+                'new_state': 'EM_PERICIA',
+                'observations': 'Iniciada análise forense.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'EM_PERICIA')
 
@@ -918,12 +1007,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'EM_PERICIA',
-            'new_state': 'CONCLUIDA',
-            'observations': 'Perícia concluída. Relatório pronto.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'EM_PERICIA',
+                'new_state': 'CONCLUIDA',
+                'observations': 'Perícia concluída. Relatório pronto.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'CONCLUIDA')
 
@@ -934,12 +1026,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'CONCLUIDA',
-            'new_state': 'DEVOLVIDA',
-            'observations': 'Devolvida ao dono após conclusão.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'CONCLUIDA',
+                'new_state': 'DEVOLVIDA',
+                'observations': 'Devolvida ao dono após conclusão.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'DEVOLVIDA')
 
@@ -950,12 +1045,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'CONCLUIDA',
-            'new_state': 'DESTRUIDA',
-            'observations': 'Destruída conforme procedimentos.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'CONCLUIDA',
+                'new_state': 'DESTRUIDA',
+                'observations': 'Destruída conforme procedimentos.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data['new_state'], 'DESTRUIDA')
 
@@ -970,12 +1068,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'APREENDIDA',
-            'new_state': 'EM_PERICIA',  # Inválido: salta EM_TRANSPORTE e RECEBIDA_LABORATORIO
-            'observations': 'Tentativa de saltar estados.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'APREENDIDA',
+                'new_state': 'EM_PERICIA',  # Inválido: salta EM_TRANSPORTE e RECEBIDA_LABORATORIO
+                'observations': 'Tentativa de saltar estados.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_invalid_transition_from_devolvida(self):
@@ -985,12 +1086,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'DEVOLVIDA',
-            'new_state': 'DESTRUIDA',
-            'observations': 'Tentativa de transição de estado terminal.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'DEVOLVIDA',
+                'new_state': 'DESTRUIDA',
+                'observations': 'Tentativa de transição de estado terminal.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_invalid_transition_from_destruida(self):
@@ -1000,12 +1104,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'DESTRUIDA',
-            'new_state': 'DEVOLVIDA',
-            'observations': 'Tentativa de transição a partir de DESTRUIDA.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'DESTRUIDA',
+                'new_state': 'DEVOLVIDA',
+                'observations': 'Tentativa de transição a partir de DESTRUIDA.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_invalid_transition_backwards(self):
@@ -1025,12 +1132,15 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
-        response = self.client.post(url, {
-            'evidence': self.evidence.pk,
-            'previous_state': 'EM_TRANSPORTE',
-            'new_state': 'APREENDIDA',  # Inválido: recuo não permitido
-            'observations': 'Tentativa de recuo na cadeia.',
-        })
+        response = self.client.post(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'previous_state': 'EM_TRANSPORTE',
+                'new_state': 'APREENDIDA',  # Inválido: recuo não permitido
+                'observations': 'Tentativa de recuo na cadeia.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def _create_custody_chain_to_state(self, target_state):
@@ -1040,18 +1150,32 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
         Útil para testes de transições a partir de estados intermediários/terminais.
         """
         # Caminho completo de estados (incluindo o alvo)
-        full_chain = ['', 'APREENDIDA', 'EM_TRANSPORTE', 'RECEBIDA_LABORATORIO',
-                       'EM_PERICIA', 'CONCLUIDA', 'DEVOLVIDA']
+        full_chain = [
+            '',
+            'APREENDIDA',
+            'EM_TRANSPORTE',
+            'RECEBIDA_LABORATORIO',
+            'EM_PERICIA',
+            'CONCLUIDA',
+            'DEVOLVIDA',
+        ]
         # Caminho alternativo para DESTRUIDA (bifurca a partir de CONCLUIDA)
         if target_state == ChainOfCustody.CustodyState.DESTRUIDA:
-            full_chain = ['', 'APREENDIDA', 'EM_TRANSPORTE', 'RECEBIDA_LABORATORIO',
-                           'EM_PERICIA', 'CONCLUIDA', 'DESTRUIDA']
+            full_chain = [
+                '',
+                'APREENDIDA',
+                'EM_TRANSPORTE',
+                'RECEBIDA_LABORATORIO',
+                'EM_PERICIA',
+                'CONCLUIDA',
+                'DESTRUIDA',
+            ]
 
         # Encontrar o índice do estado-alvo e cortar o caminho
         target_str = str(target_state)
         if target_str in full_chain:
             target_idx = full_chain.index(target_str)
-            path = full_chain[:target_idx + 1]
+            path = full_chain[: target_idx + 1]
         else:
             path = full_chain
 
@@ -1059,7 +1183,9 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
         for i in range(len(path) - 1):
             prev_state = path[i]
             next_state = path[i + 1]
-            responsible_user = self.expert if next_state in ['RECEBIDA_LABORATORIO', 'EM_PERICIA'] else self.agent
+            responsible_user = (
+                self.expert if next_state in ['RECEBIDA_LABORATORIO', 'EM_PERICIA'] else self.agent
+            )
 
             ChainOfCustody.objects.create(
                 evidence=self.evidence,
@@ -1072,6 +1198,7 @@ class CustodyStateTransitionsTest(BaseAPITestCase):
 # ---------------------------------------------------------------------------
 # Testes End-to-End
 # ---------------------------------------------------------------------------
+
 
 class EndToEndFlowTest(BaseAPITestCase):
     """
@@ -1101,23 +1228,30 @@ class EndToEndFlowTest(BaseAPITestCase):
 
         # --- STEP 2: Criar ocorrência com GPS ---
         occurrence_url = reverse('core:occurrence-list')
-        occurrence_response = self.client.post(occurrence_url, {
-            'number': 'NUIPC-2026-E2E-001',
-            'description': 'Ocorrência end-to-end: roubo com dispositivo digital.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        occurrence_response = self.client.post(
+            occurrence_url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-E2E-001',
+                'description': 'Ocorrência end-to-end: roubo com dispositivo digital.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(occurrence_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(occurrence_response.data['number'], 'NUIPC-2026-E2E-001')
         occurrence_id = occurrence_response.data['id']
 
         # --- STEP 3: Criar evidência ---
         evidence_url = reverse('core:evidence-list')
-        evidence_response = self.client.post(evidence_url, {
-            'occurrence': occurrence_id,
-            'type': 'MOBILE_DEVICE',
-            'description': 'iPhone 13 Pro encontrado no local do crime.',
-        })
+        evidence_response = self.client.post(
+            evidence_url,
+            {
+                'occurrence': occurrence_id,
+                'type': 'MOBILE_DEVICE',
+                'description': 'iPhone 13 Pro encontrado no local do crime.',
+            },
+        )
         self.assertEqual(evidence_response.status_code, status.HTTP_201_CREATED)
         evidence_id = evidence_response.data['id']
         # Verificar hash de integridade
@@ -1126,13 +1260,16 @@ class EndToEndFlowTest(BaseAPITestCase):
 
         # --- STEP 4: Criar dispositivo digital ---
         device_url = reverse('core:device-list')
-        device_response = self.client.post(device_url, {
-            'evidence': evidence_id,
-            'type': 'SMARTPHONE',
-            'model': 'Apple iPhone 13 Pro',
-            'serial_number': 'MGLN3LL/A',
-            'imei': '358623072123455',  # Luhn-válido (check digit 5)
-        })
+        device_response = self.client.post(
+            device_url,
+            {
+                'evidence': evidence_id,
+                'type': 'SMARTPHONE',
+                'model': 'Apple iPhone 13 Pro',
+                'serial_number': 'MGLN3LL/A',
+                'imei': '358623072123455',  # Luhn-válido (check digit 5)
+            },
+        )
         self.assertEqual(device_response.status_code, status.HTTP_201_CREATED)
         # device_id é devolvido pela resposta mas não precisamos de o
         # referenciar nas asserções seguintes — o teste segue pela
@@ -1141,12 +1278,15 @@ class EndToEndFlowTest(BaseAPITestCase):
 
         # --- STEP 5: Criar primeiro registo de custódia ('' → APREENDIDA) ---
         custody_url = reverse('core:custody-list')
-        custody_response_1 = self.client.post(custody_url, {
-            'evidence': evidence_id,
-            'previous_state': '',
-            'new_state': 'APREENDIDA',
-            'observations': 'Apreensão no local do crime. Dispositivo selado.',
-        })
+        custody_response_1 = self.client.post(
+            custody_url,
+            {
+                'evidence': evidence_id,
+                'previous_state': '',
+                'new_state': 'APREENDIDA',
+                'observations': 'Apreensão no local do crime. Dispositivo selado.',
+            },
+        )
         self.assertEqual(custody_response_1.status_code, status.HTTP_201_CREATED)
         self.assertEqual(custody_response_1.data['new_state'], 'APREENDIDA')
         # Verificar hash do registo
@@ -1154,12 +1294,15 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertRegex(custody_response_1.data['record_hash'], r'^[a-f0-9]{64}$')
 
         # --- STEP 6: Criar segundo registo (APREENDIDA → EM_TRANSPORTE) ---
-        custody_response_2 = self.client.post(custody_url, {
-            'evidence': evidence_id,
-            'previous_state': 'APREENDIDA',
-            'new_state': 'EM_TRANSPORTE',
-            'observations': 'Transporte para o laboratório. Transportado por OPC.',
-        })
+        custody_response_2 = self.client.post(
+            custody_url,
+            {
+                'evidence': evidence_id,
+                'previous_state': 'APREENDIDA',
+                'new_state': 'EM_TRANSPORTE',
+                'observations': 'Transporte para o laboratório. Transportado por OPC.',
+            },
+        )
         self.assertEqual(custody_response_2.status_code, status.HTTP_201_CREATED)
         self.assertEqual(custody_response_2.data['new_state'], 'EM_TRANSPORTE')
         self.assertEqual(len(custody_response_2.data['record_hash']), 64)
@@ -1168,12 +1311,15 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.authenticate_as(self.expert)
 
         # --- STEP 8: Criar terceiro registo (EM_TRANSPORTE → RECEBIDA_LABORATORIO) ---
-        custody_response_3 = self.client.post(custody_url, {
-            'evidence': evidence_id,
-            'previous_state': 'EM_TRANSPORTE',
-            'new_state': 'RECEBIDA_LABORATORIO',
-            'observations': 'Recepção no laboratório. Catalogado e armazenado.',
-        })
+        custody_response_3 = self.client.post(
+            custody_url,
+            {
+                'evidence': evidence_id,
+                'previous_state': 'EM_TRANSPORTE',
+                'new_state': 'RECEBIDA_LABORATORIO',
+                'observations': 'Recepção no laboratório. Catalogado e armazenado.',
+            },
+        )
         self.assertEqual(custody_response_3.status_code, status.HTTP_201_CREATED)
         self.assertEqual(custody_response_3.data['new_state'], 'RECEBIDA_LABORATORIO')
         self.assertEqual(len(custody_response_3.data['record_hash']), 64)
@@ -1208,6 +1354,7 @@ class EndToEndFlowTest(BaseAPITestCase):
 # Testes de Validação de Entrada (Input Validation)
 # ---------------------------------------------------------------------------
 
+
 class InputValidationTest(BaseAPITestCase):
     """
     Testa validação de entrada para campos GPS, números duplicados,
@@ -1218,48 +1365,64 @@ class InputValidationTest(BaseAPITestCase):
         """GPS latitude acima de 90 deve ser rejeitado."""
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LAT-HIGH',
-            'description': 'Teste de latitude inválida.',
-            'gps_lat': '200.0000000',  # Fora do intervalo [-90, 90]
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LAT-HIGH',
+                'description': 'Teste de latitude inválida.',
+                'gps_lat': '200.0000000',  # Fora do intervalo [-90, 90]
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_gps_latitude_below_minus_90_rejected(self):
         """GPS latitude abaixo de -90 deve ser rejeitado."""
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LAT-LOW',
-            'description': 'Teste de latitude inválida.',
-            'gps_lat': '-150.0000000',  # Fora do intervalo [-90, 90]
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LAT-LOW',
+                'description': 'Teste de latitude inválida.',
+                'gps_lat': '-150.0000000',  # Fora do intervalo [-90, 90]
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_gps_longitude_above_180_rejected(self):
         """GPS longitude acima de 180 deve ser rejeitado."""
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LON-HIGH',
-            'description': 'Teste de longitude inválida.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '200.0000000',  # Fora do intervalo [-180, 180]
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LON-HIGH',
+                'description': 'Teste de longitude inválida.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '200.0000000',  # Fora do intervalo [-180, 180]
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_gps_longitude_below_minus_180_rejected(self):
         """GPS longitude abaixo de -180 deve ser rejeitado."""
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LON-LOW',
-            'description': 'Teste de longitude inválida.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-200.0000000',  # Fora do intervalo [-180, 180]
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LON-LOW',
+                'description': 'Teste de longitude inválida.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-200.0000000',  # Fora do intervalo [-180, 180]
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_gps_valid_boundaries_accepted(self):
@@ -1267,36 +1430,52 @@ class InputValidationTest(BaseAPITestCase):
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
         # Teste com latitudes nos limites
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LIMIT-1',
-            'description': 'Latitude em +90.',
-            'gps_lat': '90.0000000',
-            'gps_lng': '0.0000000',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LIMIT-1',
+                'description': 'Latitude em +90.',
+                'gps_lat': '90.0000000',
+                'gps_lng': '0.0000000',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LIMIT-2',
-            'description': 'Latitude em -90.',
-            'gps_lat': '-90.0000000',
-            'gps_lng': '0.0000000',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LIMIT-2',
+                'description': 'Latitude em -90.',
+                'gps_lat': '-90.0000000',
+                'gps_lng': '0.0000000',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LIMIT-3',
-            'description': 'Longitude em +180.',
-            'gps_lat': '0.0000000',
-            'gps_lng': '180.0000000',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LIMIT-3',
+                'description': 'Longitude em +180.',
+                'gps_lat': '0.0000000',
+                'gps_lng': '180.0000000',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-LIMIT-4',
-            'description': 'Longitude em -180.',
-            'gps_lat': '0.0000000',
-            'gps_lng': '-180.0000000',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-LIMIT-4',
+                'description': 'Longitude em -180.',
+                'gps_lat': '0.0000000',
+                'gps_lng': '-180.0000000',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_duplicate_occurrence_number_rejected(self):
@@ -1305,21 +1484,29 @@ class InputValidationTest(BaseAPITestCase):
         url = reverse('core:occurrence-list')
 
         # Criar primeira ocorrência
-        response1 = self.client.post(url, {
-            'number': 'NUIPC-2026-DUP-001',
-            'description': 'Primeira ocorrência.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response1 = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-DUP-001',
+                'description': 'Primeira ocorrência.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
 
         # Tentar criar segunda com mesmo número
-        response2 = self.client.post(url, {
-            'number': 'NUIPC-2026-DUP-001',  # Número duplicado
-            'description': 'Segunda ocorrência com número duplicado.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response2 = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-DUP-001',  # Número duplicado
+                'description': 'Segunda ocorrência com número duplicado.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_very_long_description_accepted(self):
@@ -1330,12 +1517,16 @@ class InputValidationTest(BaseAPITestCase):
         # Criar string com 100.000 caracteres
         long_description = 'A' * 100000
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-LONG-DESC',
-            'description': long_description,
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-LONG-DESC',
+                'description': long_description,
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Verificar que a descrição foi armazenada corretamente
@@ -1356,12 +1547,16 @@ class InputValidationTest(BaseAPITestCase):
             'emoji (😀🎉🚀)'
         )
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-UNICODE',
-            'description': unicode_description,
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-UNICODE',
+                'description': unicode_description,
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         # Verificar que a descrição foi armazenada corretamente
@@ -1382,12 +1577,16 @@ class InputValidationTest(BaseAPITestCase):
             '<?php echo "dangerous"; ?>'
         )
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-XSS-TEST',
-            'description': injection_payload,
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-XSS-TEST',
+                'description': injection_payload,
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         # Deve ser aceito (não rejeitar injeção, apenas escapar na saída)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1403,12 +1602,16 @@ class InputValidationTest(BaseAPITestCase):
         # Null byte pode causar problemas de segurança
         description_with_null = 'Normal description\x00dangerous data'
 
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-NULL-BYTE',
-            'description': description_with_null,
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-NULL-BYTE',
+                'description': description_with_null,
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         # Deve ser rejeitado ou o null byte deve ser removido
         # Se aceito, verificar que foi tratado corretamente
         if response.status_code == status.HTTP_201_CREATED:
@@ -1424,12 +1627,16 @@ class InputValidationTest(BaseAPITestCase):
         # Campo number tem max_length=50
         long_number = 'NUIPC-' + 'A' * 100
 
-        response = self.client.post(url, {
-            'number': long_number,
-            'description': 'Ocorrência com número muito longo.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': long_number,
+                'description': 'Ocorrência com número muito longo.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_empty_number_field_rejected(self):
@@ -1437,12 +1644,16 @@ class InputValidationTest(BaseAPITestCase):
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
 
-        response = self.client.post(url, {
-            'number': '',
-            'description': 'Ocorrência sem número.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': '',
+                'description': 'Ocorrência sem número.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_missing_required_field_rejected(self):
@@ -1451,11 +1662,14 @@ class InputValidationTest(BaseAPITestCase):
         url = reverse('core:occurrence-list')
 
         # number é obrigatório
-        response = self.client.post(url, {
-            'description': 'Ocorrência sem número.',
-            'gps_lat': '38.7223340',
-            'gps_lng': '-9.1393366',
-        })
+        response = self.client.post(
+            url,
+            {
+                'description': 'Ocorrência sem número.',
+                'gps_lat': '38.7223340',
+                'gps_lng': '-9.1393366',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_partial_gps_coordinates_rejected(self):
@@ -1467,18 +1681,26 @@ class InputValidationTest(BaseAPITestCase):
         url = reverse('core:occurrence-list')
 
         # Apenas latitude (longitude omissa) → ValidationError no clean()
-        response = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-PARTIAL-1',
-            'description': 'Ocorrência com apenas latitude.',
-            'gps_lat': '38.7223340',
-        })
+        response = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-PARTIAL-1',
+                'description': 'Ocorrência com apenas latitude.',
+                'gps_lat': '38.7223340',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # Ambos omissos → aceite (GPS é opcional)
-        response_both = self.client.post(url, {
-            'number': 'NUIPC-2026-GPS-NONE-1',
-            'description': 'Ocorrência sem GPS.',
-        })
+        response_both = self.client.post(
+            url,
+            {
+                'crime_type': CrimeTipoFactory().id,
+                'number': 'NUIPC-2026-GPS-NONE-1',
+                'description': 'Ocorrência sem GPS.',
+            },
+        )
         self.assertEqual(response_both.status_code, status.HTTP_201_CREATED)
 
 
@@ -1490,6 +1712,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-IMG',
             description='Ocorrência para testes de imagem.',
             agent=self.agent,
@@ -1500,6 +1723,7 @@ class ImageUploadValidationTest(BaseAPITestCase):
         import io
 
         from PIL import Image
+
         img = Image.new('RGB', (1, 1), color='red')
         buf = io.BytesIO()
         img.save(buf, format='JPEG')
@@ -1523,17 +1747,18 @@ class ImageUploadValidationTest(BaseAPITestCase):
 
         image_content = self._make_valid_jpeg(1024)  # 1KB JPEG válido
         image_file = SimpleUploadedFile(
-            name='test_image_valid.jpg',
-            content=image_content,
-            content_type='image/jpeg'
+            name='test_image_valid.jpg', content=image_content, content_type='image/jpeg'
         )
 
-        response = self.client.post(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Evidência com imagem.',
-            'photo': image_file,
-        })
+        response = self.client.post(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Evidência com imagem.',
+                'photo': image_file,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_image_upload_too_large_rejected(self):
@@ -1543,17 +1768,18 @@ class ImageUploadValidationTest(BaseAPITestCase):
 
         image_content = self._make_valid_jpeg(26 * 1024 * 1024)  # 26MB
         image_file = SimpleUploadedFile(
-            name='test_image_large.jpg',
-            content=image_content,
-            content_type='image/jpeg'
+            name='test_image_large.jpg', content=image_content, content_type='image/jpeg'
         )
 
-        response = self.client.post(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Evidência com imagem muito grande.',
-            'photo': image_file,
-        })
+        response = self.client.post(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Evidência com imagem muito grande.',
+                'photo': image_file,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_invalid_file_type_rejected(self):
@@ -1564,15 +1790,18 @@ class ImageUploadValidationTest(BaseAPITestCase):
         invalid_file = SimpleUploadedFile(
             name='not_an_image.txt',
             content=b'This is plain text, not an image.',
-            content_type='text/plain'
+            content_type='text/plain',
         )
 
-        response = self.client.post(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Evidência com ficheiro de texto.',
-            'photo': invalid_file,
-        })
+        response = self.client.post(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Evidência com ficheiro de texto.',
+                'photo': invalid_file,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_empty_file_upload_rejected(self):
@@ -1581,23 +1810,25 @@ class ImageUploadValidationTest(BaseAPITestCase):
         url = reverse('core:evidence-list')
 
         empty_file = SimpleUploadedFile(
-            name='empty_file.jpg',
-            content=b'',
-            content_type='image/jpeg'
+            name='empty_file.jpg', content=b'', content_type='image/jpeg'
         )
 
-        response = self.client.post(url, {
-            'occurrence': self.occurrence.pk,
-            'type': 'MOBILE_DEVICE',
-            'description': 'Evidência com ficheiro vazio.',
-            'photo': empty_file,
-        })
+        response = self.client.post(
+            url,
+            {
+                'occurrence': self.occurrence.pk,
+                'type': 'MOBILE_DEVICE',
+                'description': 'Evidência com ficheiro vazio.',
+                'photo': empty_file,
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 # ---------------------------------------------------------------------------
 # Testes de Segurança — Token JWT tampered/expirado
 # ---------------------------------------------------------------------------
+
 
 class JWTSecurityTest(BaseAPITestCase):
     """
@@ -1615,10 +1846,13 @@ class JWTSecurityTest(BaseAPITestCase):
         """
         # Obter token válido via login (devolvido em cookie).
         login_url = reverse('auth_login')
-        login_response = self.client.post(login_url, {
-            'username': 'agente_api',
-            'password': 'TestPass123!',
-        })
+        login_response = self.client.post(
+            login_url,
+            {
+                'username': 'agente_api',
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
         valid_token = login_response.cookies[ACCESS_COOKIE_NAME].value
         # Corromper um carácter NÃO-terminal do payload (header.payload.signature).
@@ -1629,7 +1863,7 @@ class JWTSecurityTest(BaseAPITestCase):
         # deixa de bater certo → 401 determinístico.
         head, payload, sig = valid_token.split('.')
         i = 5  # posição interior, fora dos bits de padding
-        payload = payload[:i] + ('A' if payload[i] != 'A' else 'B') + payload[i + 1:]
+        payload = payload[:i] + ('A' if payload[i] != 'A' else 'B') + payload[i + 1 :]
         tampered = '.'.join([head, payload, sig])
         # Substituir o cookie mantido pelo APIClient
         self.client.cookies[ACCESS_COOKIE_NAME] = tampered
@@ -1664,6 +1898,7 @@ class JWTSecurityTest(BaseAPITestCase):
 # Testes de Segurança — CSP Header
 # ---------------------------------------------------------------------------
 
+
 class CSPHeaderTest(BaseAPITestCase):
     """
     Testa que o middleware CSP adiciona o header Content-Security-Policy.
@@ -1688,7 +1923,9 @@ class CSPHeaderTest(BaseAPITestCase):
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
         response = self.client.get(url)
-        csp = response.get('Content-Security-Policy-Report-Only', '') or response.get('Content-Security-Policy', '')
+        csp = response.get('Content-Security-Policy-Report-Only', '') or response.get(
+            'Content-Security-Policy', ''
+        )
         self.assertIn("default-src 'self'", csp)
 
     def test_csp_header_contains_frame_ancestors(self):
@@ -1696,13 +1933,16 @@ class CSPHeaderTest(BaseAPITestCase):
         self.authenticate_as(self.agent)
         url = reverse('core:occurrence-list')
         response = self.client.get(url)
-        csp = response.get('Content-Security-Policy-Report-Only', '') or response.get('Content-Security-Policy', '')
+        csp = response.get('Content-Security-Policy-Report-Only', '') or response.get(
+            'Content-Security-Policy', ''
+        )
         self.assertIn("frame-ancestors 'none'", csp)
 
 
 # ---------------------------------------------------------------------------
 # Testes de Segurança — Rate Limiting nos endpoints de auth
 # ---------------------------------------------------------------------------
+
 
 class AuthRateLimitingTest(TestCase):
     """
@@ -1737,6 +1977,7 @@ class AuthRateLimitingTest(TestCase):
 # Testes de Imutabilidade — ChainOfCustody via API
 # ---------------------------------------------------------------------------
 
+
 class CustodyImmutabilityAPITest(BaseAPITestCase):
     """
     Testa que registos de cadeia de custódia são imutáveis via API.
@@ -1746,6 +1987,7 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-IMMUT-COC',
             description='Ocorrência para teste de imutabilidade CoC.',
             agent=self.agent,
@@ -1767,11 +2009,14 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
         """PUT num registo de custódia deve retornar 405."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
-        response = self.client.put(url, {
-            'evidence': self.evidence.pk,
-            'new_state': 'EM_TRANSPORTE',
-            'observations': 'Tentativa de PUT.',
-        })
+        response = self.client.put(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'new_state': 'EM_TRANSPORTE',
+                'observations': 'Tentativa de PUT.',
+            },
+        )
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_custody_patch_returns_405(self):
@@ -1792,11 +2037,14 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
         """Dados de custódia permanecem inalterados após tentativa de PUT."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-detail', kwargs={'pk': self.custody.pk})
-        self.client.put(url, {
-            'evidence': self.evidence.pk,
-            'new_state': 'EM_TRANSPORTE',
-            'observations': 'Adulteração.',
-        })
+        self.client.put(
+            url,
+            {
+                'evidence': self.evidence.pk,
+                'new_state': 'EM_TRANSPORTE',
+                'observations': 'Adulteração.',
+            },
+        )
         self.custody.refresh_from_db()
         self.assertEqual(self.custody.new_state, 'APREENDIDA')
         self.assertNotEqual(self.custody.observations, 'Adulteração.')

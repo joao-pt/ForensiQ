@@ -25,6 +25,11 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+# ---------------------------------------------------------------------------
+# Fixtures reutilizáveis
+# ---------------------------------------------------------------------------
+from core.tests_factories import CrimeTipoFactory
+
 from .models import (
     ChainOfCustody,
     DigitalDevice,
@@ -33,10 +38,6 @@ from .models import (
     User,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
-
-# ---------------------------------------------------------------------------
-# Fixtures reutilizáveis
-# ---------------------------------------------------------------------------
 
 
 def _make_agent(username='agente_pdf', badge='AGT-PDF-01'):
@@ -52,6 +53,7 @@ def _make_agent(username='agente_pdf', badge='AGT-PDF-01'):
 
 def _make_occurrence(agent, number='OCC-PDF-001'):
     return Occurrence.objects.create(
+        crime_type=CrimeTipoFactory(),
         number=number,
         description='Ocorrência de teste para exportação PDF.',
         date_time=timezone.now(),
@@ -414,7 +416,7 @@ class PdfNoNPlusOneTest(TestCase):
         self.assertLessEqual(
             n_queries,
             30,
-            f'N+1 regressão: {n_queries} queries para 3 evidências ' '(esperado ≤30 com prefetch).',
+            f'N+1 regressão: {n_queries} queries para 3 evidências (esperado ≤30 com prefetch).',
         )
 
     def test_evidence_pdf_endpoint_sem_n_plus_one(self):
@@ -429,7 +431,7 @@ class PdfNoNPlusOneTest(TestCase):
         self.assertLessEqual(
             n_queries,
             25,
-            f'N+1 regressão em evidence PDF: {n_queries} queries ' '(esperado ≤25 com prefetch).',
+            f'N+1 regressão em evidence PDF: {n_queries} queries (esperado ≤25 com prefetch).',
         )
 
 

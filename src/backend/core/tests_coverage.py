@@ -26,8 +26,13 @@ from core.exceptions import forensiq_exception_handler
 from core.middleware import ContentSecurityPolicyMiddleware, CorrelationIDMiddleware
 from core.models import ChainOfCustody, DigitalDevice, Evidence, Occurrence, User
 from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOnly
+
+# =========================================================================
+# 1. VALIDADORES - testes unitarios puros (sem BD)
+# =========================================================================
 from core.tests_factories import (
     ChainOfCustodyFactory,
+    CrimeTipoFactory,
     DigitalDeviceFactory,
     EvidenceMobileFactory,
     ExpertFactory,
@@ -42,10 +47,6 @@ from core.validators import (
     validate_vin,
     validate_vin_advisory,
 )
-
-# =========================================================================
-# 1. VALIDADORES - testes unitarios puros (sem BD)
-# =========================================================================
 
 
 class ValidateIMEITest(TestCase):
@@ -377,7 +378,7 @@ class ExceptionHandlerTest(TestCase):
     """Cobertura de ``core.exceptions.forensiq_exception_handler``."""
 
     def test_django_validation_error_with_message_dict(self):
-        exc = DjangoValidationError({'number': ['Ja existe.']})
+        exc = DjangoValidationError({'crime_type': CrimeTipoFactory().id, 'number': ['Ja existe.']})
         resp = forensiq_exception_handler(exc, {})
         self.assertEqual(resp.status_code, 400)
         self.assertIn('number', resp.data)
@@ -877,6 +878,7 @@ class OccurrenceCodeTest(APITestCase):
         resp = self.client.post(
             '/api/occurrences/',
             {
+                'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-TEST-001',
                 'description': 'Teste de codigo',
                 'date_time': '2026-05-08T10:00:00Z',
@@ -894,6 +896,7 @@ class OccurrenceCodeTest(APITestCase):
             resp = self.client.post(
                 '/api/occurrences/',
                 {
+                    'crime_type': CrimeTipoFactory().id,
                     'number': f'NUIPC-UNIQ-{i:03d}',
                     'description': f'Teste {i}',
                     'date_time': '2026-05-08T10:00:00Z',

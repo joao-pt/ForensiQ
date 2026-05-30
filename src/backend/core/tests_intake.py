@@ -33,6 +33,9 @@ from core.models import ChainOfCustody, Evidence, Occurrence
 User = get_user_model()
 
 
+from core.tests_factories import CrimeTipoFactory
+
+
 def _make_user(username, profile='AGENT', is_staff=False, is_superuser=False):
     user = User.objects.create_user(
         username=username,
@@ -56,6 +59,7 @@ def _login_cookie(client, user):
 
 def _make_occurrence(agent):
     return Occurrence.objects.create(
+        crime_type=CrimeTipoFactory(),
         number='OCC-INTAKE-001',
         description='Intake test',
         date_time=timezone.now(),

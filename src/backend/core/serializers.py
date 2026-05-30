@@ -12,6 +12,7 @@ from rest_framework import serializers
 
 from .models import (
     ChainOfCustody,
+    CrimeTipo,
     DigitalDevice,
     Evidence,
     Occurrence,
@@ -24,6 +25,7 @@ User = get_user_model()
 # ---------------------------------------------------------------------------
 # Helpers partilhados
 # ---------------------------------------------------------------------------
+
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
     """Verifica se ``user`` pode operar sobre uma ``occurrence``.
@@ -51,6 +53,7 @@ def _user_can_access_occurrence(user, occurrence) -> bool:
 # User
 # ---------------------------------------------------------------------------
 
+
 class UserSerializer(serializers.ModelSerializer):
     """Serializer público (listagem) — sem ``badge_number`` nem PII.
 
@@ -67,8 +70,12 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'full_name',
-            'first_name', 'last_name', 'profile',
+            'id',
+            'username',
+            'full_name',
+            'first_name',
+            'last_name',
+            'profile',
         ]
         read_only_fields = ['id']
 
@@ -79,8 +86,14 @@ class UserDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'profile', 'badge_number', 'phone',
+            'id',
+            'username',
+            'email',
+            'first_name',
+            'last_name',
+            'profile',
+            'badge_number',
+            'phone',
         ]
         read_only_fields = ['id', 'profile', 'badge_number']
 
@@ -93,8 +106,15 @@ class UserCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'email', 'password', 'first_name', 'last_name',
-            'profile', 'badge_number', 'phone',
+            'id',
+            'username',
+            'email',
+            'password',
+            'first_name',
+            'last_name',
+            'profile',
+            'badge_number',
+            'phone',
         ]
         read_only_fields = ['id']
 
@@ -123,29 +143,81 @@ class UserCreateSerializer(serializers.ModelSerializer):
 # Occurrence
 # ---------------------------------------------------------------------------
 
+
 class OccurrenceSerializer(serializers.ModelSerializer):
-    """Serializer para ocorrências policiais."""
+    """Serializer para ocorrências policiais.
+
+    ``crime_type`` (Tabela de Crimes Registados, N3) é obrigatório na criação.
+    ``priority``/``priority_source`` são **derivados** pelo modelo (ADR-0014) e
+    read-only. O sinal de override manual entra via ``elevar_prioridade`` (só
+    eleva NORMAL→PRIORITÁRIA; a lei prevalece como fonte).
+    """
 
     agent_name = serializers.SerializerMethodField()
+    crime_type = serializers.PrimaryKeyRelatedField(
+        queryset=CrimeTipo.objects.filter(is_active=True),
+    )
+    crime_type_label = serializers.SerializerMethodField()
+    elevar_prioridade = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
+        help_text='Se verdadeiro, eleva manualmente a prioridade para PRIORITÁRIA.',
+    )
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
         return obj.agent.get_full_name() or obj.agent.username
 
+    def get_crime_type_label(self, obj):
+        """Rótulo legível do tipo de crime (ex.: '40 — Roubo na via pública')."""
+        ct = obj.crime_type
+        return f'{ct.codigo} — {ct.descritivo}' if ct else None
+
+    def create(self, validated_data):
+        # O override manual sinaliza-se pondo priority_source=MANUAL antes do
+        # save; o modelo (_aplicar_prioridade) finaliza a derivação.
+        if validated_data.pop('elevar_prioridade', False):
+            validated_data['priority_source'] = Occurrence.PrioritySource.MANUAL
+        return super().create(validated_data)
+
     class Meta:
         model = Occurrence
         fields = [
-            'id', 'code', 'number', 'description', 'date_time',
-            'gps_lat', 'gps_lng', 'address',
-            'agent', 'agent_name',
-            'created_at', 'updated_at',
+            'id',
+            'code',
+            'number',
+            'description',
+            'date_time',
+            'gps_lat',
+            'gps_lng',
+            'address',
+            'crime_type',
+            'crime_type_label',
+            'priority',
+            'priority_source',
+            'elevar_prioridade',
+            'agent',
+            'agent_name',
+            'created_at',
+            'updated_at',
         ]
-        read_only_fields = ['id', 'code', 'agent', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id',
+            'code',
+            'agent',
+            'priority',
+            'priority_source',
+            'crime_type_label',
+            'created_at',
+            'updated_at',
+        ]
 
 
 # ---------------------------------------------------------------------------
 # Evidence
 # ---------------------------------------------------------------------------
+
 
 class EvidenceSerializer(serializers.ModelSerializer):
     """
@@ -172,10 +244,12 @@ class EvidenceSerializer(serializers.ModelSerializer):
     )
     parent_evidence_label = serializers.SerializerMethodField()
     occurrence_number = serializers.CharField(
-        source='occurrence.number', read_only=True,
+        source='occurrence.number',
+        read_only=True,
     )
     occurrence_code = serializers.CharField(
-        source='occurrence.code', read_only=True,
+        source='occurrence.code',
+        read_only=True,
     )
     type_specific_data = serializers.JSONField(required=False)
     sub_components = serializers.SerializerMethodField()
@@ -232,31 +306,43 @@ class EvidenceSerializer(serializers.ModelSerializer):
         annotated = getattr(obj, 'current_state', None)
         if annotated is not None:
             return annotated
-        return (
-            obj.custody_chain.order_by('-sequence')
-            .values_list('new_state', flat=True)
-            .first()
-        )
+        return obj.custody_chain.order_by('-sequence').values_list('new_state', flat=True).first()
 
     class Meta:
         model = Evidence
         fields = [
-            'id', 'code', 'occurrence', 'occurrence_number', 'occurrence_code',
-            'type', 'parent_evidence', 'parent_evidence_label',
-            'description', 'photo',
-            'gps_lat', 'gps_lng',
-            'timestamp_seizure', 'serial_number',
-            'agent', 'agent_name', 'integrity_hash',
+            'id',
+            'code',
+            'occurrence',
+            'occurrence_number',
+            'occurrence_code',
+            'type',
+            'parent_evidence',
+            'parent_evidence_label',
+            'description',
+            'photo',
+            'gps_lat',
+            'gps_lng',
+            'timestamp_seizure',
+            'serial_number',
+            'agent',
+            'agent_name',
+            'integrity_hash',
             'type_specific_data',
             'external_lookup_snapshot',
             'external_lookup_source',
             'external_lookup_at',
             'sub_components',
             'current_state',
-            'created_at', 'updated_at',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = [
-            'id', 'code', 'agent', 'timestamp_seizure', 'integrity_hash',
+            'id',
+            'code',
+            'agent',
+            'timestamp_seizure',
+            'integrity_hash',
             'external_lookup_snapshot',
             'external_lookup_source',
             'external_lookup_at',
@@ -265,7 +351,8 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'occurrence_number',
             'occurrence_code',
             'parent_evidence_label',
-            'created_at', 'updated_at',
+            'created_at',
+            'updated_at',
         ]
 
     def validate_occurrence(self, occurrence):
@@ -287,9 +374,9 @@ class EvidenceSerializer(serializers.ModelSerializer):
             tsd = self.instance.type_specific_data or {}
         tsd = tsd or {}
         if not isinstance(tsd, dict):
-            raise serializers.ValidationError({
-                'type_specific_data': 'Deve ser um objecto JSON (dicionário).'
-            })
+            raise serializers.ValidationError(
+                {'type_specific_data': 'Deve ser um objecto JSON (dicionário).'}
+            )
 
         etype = attrs.get('type') or (self.instance and self.instance.type)
 
@@ -303,43 +390,33 @@ class EvidenceSerializer(serializers.ModelSerializer):
                 try:
                     validate_imei(imei)
                 except DjangoValidationError as exc:
-                    errors['type_specific_data'] = (
-                        f'imei: {"; ".join(exc.messages)}'
-                    )
+                    errors['type_specific_data'] = f'imei: {"; ".join(exc.messages)}'
         elif etype == Evidence.EvidenceType.SIM_CARD:
             imsi = tsd.get('imsi')
             if imsi:
                 try:
                     validate_imsi(imsi)
                 except DjangoValidationError as exc:
-                    errors['type_specific_data'] = (
-                        f'imsi: {"; ".join(exc.messages)}'
-                    )
+                    errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
         elif etype == Evidence.EvidenceType.VEHICLE:
             vin = tsd.get('vin')
             if vin:
                 try:
                     validate_vin(vin)
                 except DjangoValidationError as exc:
-                    errors['type_specific_data'] = (
-                        f'vin: {"; ".join(exc.messages)}'
-                    )
+                    errors['type_specific_data'] = f'vin: {"; ".join(exc.messages)}'
         if errors:
             raise serializers.ValidationError(errors)
 
         # --- Parent evidence: tem de partilhar ocorrência.
         parent = attrs.get('parent_evidence')
         if parent is not None:
-            occ = attrs.get('occurrence') or (
-                self.instance and self.instance.occurrence
-            )
+            occ = attrs.get('occurrence') or (self.instance and self.instance.occurrence)
             occ_id = occ.id if occ is not None else None
             if parent.occurrence_id != occ_id:
-                raise serializers.ValidationError({
-                    'parent_evidence': (
-                        'Sub-componente tem de pertencer à mesma ocorrência.'
-                    )
-                })
+                raise serializers.ValidationError(
+                    {'parent_evidence': ('Sub-componente tem de pertencer à mesma ocorrência.')}
+                )
 
         return attrs
 
@@ -347,6 +424,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # DigitalDevice
 # ---------------------------------------------------------------------------
+
 
 class DigitalDeviceSerializer(serializers.ModelSerializer):
     """Serializer para dispositivos digitais.
@@ -359,8 +437,16 @@ class DigitalDeviceSerializer(serializers.ModelSerializer):
     class Meta:
         model = DigitalDevice
         fields = [
-            'id', 'evidence', 'type', 'brand', 'model', 'commercial_name',
-            'condition', 'imei', 'serial_number', 'notes',
+            'id',
+            'evidence',
+            'type',
+            'brand',
+            'model',
+            'commercial_name',
+            'condition',
+            'imei',
+            'serial_number',
+            'notes',
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
@@ -380,6 +466,7 @@ class DigitalDeviceSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # ChainOfCustody
 # ---------------------------------------------------------------------------
+
 
 class ChainOfCustodySerializer(serializers.ModelSerializer):
     """
@@ -404,14 +491,28 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
     class Meta:
         model = ChainOfCustody
         fields = [
-            'id', 'code', 'evidence', 'evidence_code', 'sequence',
-            'previous_state', 'new_state',
-            'agent', 'agent_name', 'timestamp', 'observations',
+            'id',
+            'code',
+            'evidence',
+            'evidence_code',
+            'sequence',
+            'previous_state',
+            'new_state',
+            'agent',
+            'agent_name',
+            'timestamp',
+            'observations',
             'record_hash',
         ]
         read_only_fields = [
-            'id', 'code', 'evidence_code', 'agent', 'sequence', 'previous_state',
-            'timestamp', 'record_hash',
+            'id',
+            'code',
+            'evidence_code',
+            'agent',
+            'sequence',
+            'previous_state',
+            'timestamp',
+            'record_hash',
         ]
 
     def validate_evidence(self, evidence):
@@ -429,6 +530,7 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # CascadeCustodyRequest — payload para POST /api/custody/cascade/
 # ---------------------------------------------------------------------------
+
 
 class CascadeCustodyRequestSerializer(serializers.Serializer):
     """Payload do endpoint de transição em cascata.
@@ -451,5 +553,8 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
         help_text='Novo estado a aplicar a todas as evidências.',
     )
     observations = serializers.CharField(
-        required=False, allow_blank=True, default='', max_length=2000,
+        required=False,
+        allow_blank=True,
+        default='',
+        max_length=2000,
     )
