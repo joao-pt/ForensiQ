@@ -266,7 +266,7 @@ def occurrence_intake_view(request, occurrence_id):
 
     # Para cada evidência: estado legal DERIVADO (ADR-0015) da sequência de
     # eventos. "Já recebida" = já encaminhada para laboratório ou além.
-    from core.models import ChainOfCustody, Evidence, EventType, derive_legal_state
+    from core.models import ChainOfCustody, EventType, Evidence, derive_legal_state
 
     # Estados legais a partir dos quais a prova já está (ou passou) no
     # laboratório — não faz sentido voltar a "receber" no intake.

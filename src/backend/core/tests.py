@@ -17,7 +17,7 @@ PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 
 import hashlib
 import unittest
-from datetime import timedelta, timezone as dt_timezone
+from datetime import UTC, timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
@@ -529,7 +529,7 @@ class CustodyHashFormulaTest(TestCase):
 
     def test_hash_vector_de_regressao(self):
         """Congela a STRING DE DADOS exacta e o SHA-256 esperado (contrato)."""
-        ts = timezone.datetime(2026, 5, 30, 12, 0, 0, tzinfo=dt_timezone.utc)
+        ts = timezone.datetime(2026, 5, 30, 12, 0, 0, tzinfo=UTC)
         rec = self._build(
             sequence=2,
             timestamp=ts,
@@ -664,34 +664,31 @@ class ImmutabilityTriggerTest(TestCase):
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
     def test_update_directo_custody_bloqueado(self):
         """UPDATE directo numa coluna do ledger (event_type) é recusado pelo trigger."""
-        with self.assertRaises(DatabaseError):
-            with connection.cursor() as cur:
-                cur.execute(
-                    'UPDATE core_chainofcustody SET event_type = %s WHERE id = %s',
-                    [EventType.VALIDACAO, self.record.pk],
-                )
+        with self.assertRaises(DatabaseError), connection.cursor() as cur:
+            cur.execute(
+                'UPDATE core_chainofcustody SET event_type = %s WHERE id = %s',
+                [EventType.VALIDACAO, self.record.pk],
+            )
 
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
     def test_delete_directo_custody_bloqueado(self):
         """DELETE directo de um registo do ledger é recusado pelo trigger."""
-        with self.assertRaises(DatabaseError):
-            with connection.cursor() as cur:
-                cur.execute(
-                    'DELETE FROM core_chainofcustody WHERE id = %s',
-                    [self.record.pk],
-                )
+        with self.assertRaises(DatabaseError), connection.cursor() as cur:
+            cur.execute(
+                'DELETE FROM core_chainofcustody WHERE id = %s',
+                [self.record.pk],
+            )
 
     # -- Evidence (core_evidence, trigger de 0002) ------------------------
 
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
     def test_update_directo_evidence_bloqueado(self):
         """UPDATE directo numa coluna da evidência é recusado pelo trigger."""
-        with self.assertRaises(DatabaseError):
-            with connection.cursor() as cur:
-                cur.execute(
-                    'UPDATE core_evidence SET description = %s WHERE id = %s',
-                    ['adulterado', self.evidence.pk],
-                )
+        with self.assertRaises(DatabaseError), connection.cursor() as cur:
+            cur.execute(
+                'UPDATE core_evidence SET description = %s WHERE id = %s',
+                ['adulterado', self.evidence.pk],
+            )
 
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
     def test_delete_directo_evidence_bloqueado(self):
@@ -706,21 +703,19 @@ class ImmutabilityTriggerTest(TestCase):
             description='Sem custódia.',
             agent=self.agent,
         )
-        with self.assertRaises(DatabaseError):
-            with connection.cursor() as cur:
-                cur.execute('DELETE FROM core_evidence WHERE id = %s', [ev.pk])
+        with self.assertRaises(DatabaseError), connection.cursor() as cur:
+            cur.execute('DELETE FROM core_evidence WHERE id = %s', [ev.pk])
 
     # -- Occurrence (core_occurrence, trigger de 0013) --------------------
 
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
     def test_update_directo_occurrence_bloqueado(self):
         """UPDATE directo numa coluna da ocorrência é recusado pelo trigger (0013)."""
-        with self.assertRaises(DatabaseError):
-            with connection.cursor() as cur:
-                cur.execute(
-                    'UPDATE core_occurrence SET description = %s WHERE id = %s',
-                    ['adulterado', self.occ.pk],
-                )
+        with self.assertRaises(DatabaseError), connection.cursor() as cur:
+            cur.execute(
+                'UPDATE core_occurrence SET description = %s WHERE id = %s',
+                ['adulterado', self.occ.pk],
+            )
 
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
     def test_delete_directo_occurrence_bloqueado(self):
@@ -735,6 +730,5 @@ class ImmutabilityTriggerTest(TestCase):
             description='Sem evidências.',
             agent=self.agent,
         )
-        with self.assertRaises(DatabaseError):
-            with connection.cursor() as cur:
-                cur.execute('DELETE FROM core_occurrence WHERE id = %s', [occ.pk])
+        with self.assertRaises(DatabaseError), connection.cursor() as cur:
+            cur.execute('DELETE FROM core_occurrence WHERE id = %s', [occ.pk])

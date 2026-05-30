@@ -1347,16 +1347,18 @@ class ChainOfCustody(models.Model):
             self.validation_overdue = ts - apreensao.timestamp > VALIDATION_DEADLINE
 
         # INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º).
-        if self.event_type == EventType.INICIO_PERICIA:
-            if EventType.DESPACHO_PERICIA not in prior_types:
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'INICIO_PERICIA requer um DESPACHO_PERICIA anterior '
-                            '(CPP Art. 154.º).'
-                        )
-                    }
-                )
+        if (
+            self.event_type == EventType.INICIO_PERICIA
+            and EventType.DESPACHO_PERICIA not in prior_types
+        ):
+            raise ValidationError(
+                {
+                    'event_type': (
+                        'INICIO_PERICIA requer um DESPACHO_PERICIA anterior '
+                        '(CPP Art. 154.º).'
+                    )
+                }
+            )
 
         # Coerência GPS: lat e lng ambas presentes ou ambas ausentes (como Occurrence).
         if (self.gps_lat is not None) != (self.gps_lng is not None):
