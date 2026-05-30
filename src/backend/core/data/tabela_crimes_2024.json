@@ -1,0 +1,1393 @@
+{
+  "meta": {
+    "fonte": "Tabela de Crimes Registados (Conselho Superior de Estatística / INE — DGPJ-SIEJ, Modelo 262)",
+    "versao": "1.7",
+    "ano": 2024,
+    "niveis": "N1 Categorias / N2 Subcategorias / N3 Tipos (código oficial)",
+    "descritivos": "verbatim da fonte oficial (preserva a grafia do original)",
+    "url_oficial": "https://estatisticas.justica.gov.pt/sites/siej/pt-pt/Documents/Tabela_Crimes_Registados_2024.pdf",
+    "url_arquivo": "https://web.archive.org/web/20250401172838/https://estatisticas.justica.gov.pt/sites/siej/pt-pt/Documents/Tabela_Crimes_Registados_2024.pdf",
+    "n_categorias": 7,
+    "n_subcategorias": 50,
+    "n_tipos": 219
+  },
+  "categorias": [
+    {
+      "codigo": 1,
+      "nome": "Código Penal - Crimes contra as pessoas"
+    },
+    {
+      "codigo": 2,
+      "nome": "Código Penal - Crimes contra o património"
+    },
+    {
+      "codigo": 3,
+      "nome": "Código Penal - Crimes contra a identidade cultural e integridade pessoal (inclui crimes contra a paz até 2004)"
+    },
+    {
+      "codigo": 4,
+      "nome": "Código Penal - Crimes contra a vida em sociedade"
+    },
+    {
+      "codigo": 5,
+      "nome": "Código Penal - Crimes contra o Estado"
+    },
+    {
+      "codigo": 10,
+      "nome": "Código Penal - Crimes contra animais de companhia"
+    },
+    {
+      "codigo": 6,
+      "nome": "Legislação avulsa"
+    }
+  ],
+  "subcategorias": [
+    {
+      "categoria": 1,
+      "codigo": 1,
+      "nome": "Crimes contra a vida"
+    },
+    {
+      "categoria": 1,
+      "codigo": 2,
+      "nome": "Crimes contra a integridade física"
+    },
+    {
+      "categoria": 1,
+      "codigo": 3,
+      "nome": "Crimes contra a liberdade pessoal"
+    },
+    {
+      "categoria": 1,
+      "codigo": 4,
+      "nome": "Crimes contra a liberdade e autodeterminação sexual"
+    },
+    {
+      "categoria": 1,
+      "codigo": 5,
+      "nome": "Crimes contra a honra"
+    },
+    {
+      "categoria": 1,
+      "codigo": 6,
+      "nome": "Crimes contra a reserva da vida privada"
+    },
+    {
+      "categoria": 1,
+      "codigo": 7,
+      "nome": "Outros crimes contra as pessoas"
+    },
+    {
+      "categoria": 2,
+      "codigo": 8,
+      "nome": "Crimes contra a propriedade"
+    },
+    {
+      "categoria": 2,
+      "codigo": 9,
+      "nome": "Crimes contra o património em geral"
+    },
+    {
+      "categoria": 2,
+      "codigo": 10,
+      "nome": "Crimes contra direitos patrimoniais"
+    },
+    {
+      "categoria": 2,
+      "codigo": 11,
+      "nome": "Outros crimes contra o património"
+    },
+    {
+      "categoria": 3,
+      "codigo": 12,
+      "nome": "Crimes contra a identidade cultural e integridade pessoal (e crimes contra a paz/até 2004)"
+    },
+    {
+      "categoria": 4,
+      "codigo": 13,
+      "nome": "Crimes contra a família"
+    },
+    {
+      "categoria": 4,
+      "codigo": 14,
+      "nome": "Crimes de falsificação"
+    },
+    {
+      "categoria": 4,
+      "codigo": 15,
+      "nome": "Crimes de perigo comum"
+    },
+    {
+      "categoria": 4,
+      "codigo": 16,
+      "nome": "Crimes contra a segurança das comunicações"
+    },
+    {
+      "categoria": 4,
+      "codigo": 17,
+      "nome": "Crimes de anti-sociabilidade perigosa"
+    },
+    {
+      "categoria": 4,
+      "codigo": 18,
+      "nome": "Crimes contra a paz pública"
+    },
+    {
+      "categoria": 4,
+      "codigo": 19,
+      "nome": "Outros crimes contra a vida em sociedade"
+    },
+    {
+      "categoria": 5,
+      "codigo": 20,
+      "nome": "Crimes contra a soberania nacional"
+    },
+    {
+      "categoria": 5,
+      "codigo": 21,
+      "nome": "Crimes contra a realização do Estado de Direito"
+    },
+    {
+      "categoria": 5,
+      "codigo": 22,
+      "nome": "Crimes eleitorais"
+    },
+    {
+      "categoria": 5,
+      "codigo": 23,
+      "nome": "Crimes contra a autoridade pública"
+    },
+    {
+      "categoria": 5,
+      "codigo": 24,
+      "nome": "Crimes contra a realização da justiça"
+    },
+    {
+      "categoria": 5,
+      "codigo": 25,
+      "nome": "Crimes cometidos no exercício de funções públicas"
+    },
+    {
+      "categoria": 5,
+      "codigo": 26,
+      "nome": "Outros crimes contra o Estado"
+    },
+    {
+      "categoria": 10,
+      "codigo": 58,
+      "nome": "Crimes contra animais de companhia"
+    },
+    {
+      "categoria": 6,
+      "codigo": 54,
+      "nome": "Crimes estritamente militares"
+    },
+    {
+      "categoria": 6,
+      "codigo": 27,
+      "nome": "Crimes respeitantes a estupefacientes"
+    },
+    {
+      "categoria": 6,
+      "codigo": 28,
+      "nome": "Crimes de violação do direito internacional humanitário"
+    },
+    {
+      "categoria": 6,
+      "codigo": 29,
+      "nome": "Crimes de terrorismo e organizações terroristas"
+    },
+    {
+      "categoria": 6,
+      "codigo": 30,
+      "nome": "Crimes relativos à imigração ilegal"
+    },
+    {
+      "categoria": 6,
+      "codigo": 31,
+      "nome": "Crimes cometidos no exercício de actividades comercial ou financeira"
+    },
+    {
+      "categoria": 6,
+      "codigo": 32,
+      "nome": "Crimes relativos à imprensa"
+    },
+    {
+      "categoria": 6,
+      "codigo": 33,
+      "nome": "Crimes contra os direitos de autor e a propriedade industrial"
+    },
+    {
+      "categoria": 6,
+      "codigo": 34,
+      "nome": "Emissão de cheque sem provisão"
+    },
+    {
+      "categoria": 6,
+      "codigo": 35,
+      "nome": "Crimes tributários comuns"
+    },
+    {
+      "categoria": 6,
+      "codigo": 36,
+      "nome": "Crimes aduaneiros"
+    },
+    {
+      "categoria": 6,
+      "codigo": 37,
+      "nome": "Crimes fiscais"
+    },
+    {
+      "categoria": 6,
+      "codigo": 38,
+      "nome": "Crimes contra a segurança social"
+    },
+    {
+      "categoria": 6,
+      "codigo": 39,
+      "nome": "Crimes contra a saúde pública"
+    },
+    {
+      "categoria": 6,
+      "codigo": 40,
+      "nome": "Crimes contra a economia"
+    },
+    {
+      "categoria": 6,
+      "codigo": 41,
+      "nome": "Crimes de jogo"
+    },
+    {
+      "categoria": 6,
+      "codigo": 42,
+      "nome": "Crimes relativos à caça e pesca"
+    },
+    {
+      "categoria": 6,
+      "codigo": 43,
+      "nome": "Crimes informáticos"
+    },
+    {
+      "categoria": 6,
+      "codigo": 44,
+      "nome": "Crimes relativos ao serviço militar"
+    },
+    {
+      "categoria": 6,
+      "codigo": 45,
+      "nome": "Crimes marítimos"
+    },
+    {
+      "categoria": 6,
+      "codigo": 57,
+      "nome": "Crimes relativos ao desporto"
+    },
+    {
+      "categoria": 6,
+      "codigo": 46,
+      "nome": "Crimes de condução sem habilitação legal"
+    },
+    {
+      "categoria": 6,
+      "codigo": 47,
+      "nome": "Outros crimes"
+    }
+  ],
+  "tipos": [
+    {
+      "subcategoria": 1,
+      "codigo": 1,
+      "descritivo": "Homicidio voluntário consumado"
+    },
+    {
+      "subcategoria": 1,
+      "codigo": 2,
+      "descritivo": "Homicídio por negligência em acidente de viação"
+    },
+    {
+      "subcategoria": 1,
+      "codigo": 3,
+      "descritivo": "Homicídio por negligência em outras circunstâncias"
+    },
+    {
+      "subcategoria": 1,
+      "codigo": 4,
+      "descritivo": "Aborto"
+    },
+    {
+      "subcategoria": 1,
+      "codigo": 5,
+      "descritivo": "Outros crimes contra a vida"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 6,
+      "descritivo": "Ofensa à integridade física voluntária grave"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 7,
+      "descritivo": "Ofensa à integridade física voluntária simples"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 8,
+      "descritivo": "Ofensa à integridade física por negligência em acidente de viação"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 9,
+      "descritivo": "Ofensa à integridade física por negligência em outras circunstâncias"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 194,
+      "descritivo": "Violência doméstica contra cônjuge ou análogos"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 195,
+      "descritivo": "Violência doméstica contra menores"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 196,
+      "descritivo": "Outros crimes de violência doméstica"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 10,
+      "descritivo": "Maus tratos ou sobrecarga de menores"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 12,
+      "descritivo": "Outros crimes de maus tratos"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 13,
+      "descritivo": "Violação de regras de segurança"
+    },
+    {
+      "subcategoria": 2,
+      "codigo": 14,
+      "descritivo": "Outros crimes contra a integridade física"
+    },
+    {
+      "subcategoria": 3,
+      "codigo": 15,
+      "descritivo": "Rapto, sequestro e tomada de reféns"
+    },
+    {
+      "subcategoria": 3,
+      "codigo": 16,
+      "descritivo": "Ameaça e coacção"
+    },
+    {
+      "subcategoria": 3,
+      "codigo": 197,
+      "descritivo": "Tráfico de pessoas"
+    },
+    {
+      "subcategoria": 3,
+      "codigo": 17,
+      "descritivo": "Outros crimes contra a liberdade pessoal"
+    },
+    {
+      "subcategoria": 4,
+      "codigo": 18,
+      "descritivo": "Violação"
+    },
+    {
+      "subcategoria": 4,
+      "codigo": 198,
+      "descritivo": "Abuso sexual de crianças, adolescentes e menores dependentes ou em situação vulnerável"
+    },
+    {
+      "subcategoria": 4,
+      "codigo": 199,
+      "descritivo": "Lenocínio e pornografia de menores"
+    },
+    {
+      "subcategoria": 4,
+      "codigo": 20,
+      "descritivo": "Outros crimes contra a liberdade e a autodeterminação sexual"
+    },
+    {
+      "subcategoria": 5,
+      "codigo": 21,
+      "descritivo": "Difamação, calúnia e injúria"
+    },
+    {
+      "subcategoria": 5,
+      "codigo": 22,
+      "descritivo": "Crimes contra a honra cometidos através de meio de comunicação social"
+    },
+    {
+      "subcategoria": 5,
+      "codigo": 23,
+      "descritivo": "Outros crimes contra a honra"
+    },
+    {
+      "subcategoria": 6,
+      "codigo": 24,
+      "descritivo": "Violação de domicílio e introdução em lugar vedado ao público"
+    },
+    {
+      "subcategoria": 6,
+      "codigo": 25,
+      "descritivo": "Devassa da vida privada e violação de segredo"
+    },
+    {
+      "subcategoria": 6,
+      "codigo": 247,
+      "descritivo": "Devassa p/meio de comunicação social, Internet ou outro meio de difusão"
+    },
+    {
+      "subcategoria": 6,
+      "codigo": 27,
+      "descritivo": "Outros crimes contra a reserva da vida privada"
+    },
+    {
+      "subcategoria": 7,
+      "codigo": 191,
+      "descritivo": "Omissão de auxílio"
+    },
+    {
+      "subcategoria": 7,
+      "codigo": 28,
+      "descritivo": "Outros crimes contra as pessoas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 29,
+      "descritivo": "Furto,tráfico de obras de arte e outros bens culturais"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 31,
+      "descritivo": "Furto de veículo motorizado"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 225,
+      "descritivo": "Furto de máquinas industriais ou agrícolas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 192,
+      "descritivo": "Furto de motor de embarcação"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 224,
+      "descritivo": "Furto de combustível em depósitos/máquinas agrícolas ou industriais"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 223,
+      "descritivo": "Furto de metais não preciosos"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 222,
+      "descritivo": "Furto de animais de explorações agro-pecuárias"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 221,
+      "descritivo": "Furto de produtos agrícolas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 229,
+      "descritivo": "Furto de combustível em veículo motorizado"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 230,
+      "descritivo": "Furto de acessórios/peças em veículo motorizado"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 231,
+      "descritivo": "Outros furtos em veículo motorizado"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 33,
+      "descritivo": "Furto em residência com arrombamento, escalamento ou chaves falsas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 220,
+      "descritivo": "Furto em residência sem arrombamento, escalamento ou chaves falsas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 219,
+      "descritivo": "Furto em área anexa a residência"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 38,
+      "descritivo": "Furto em supermercado"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 232,
+      "descritivo": "Furto de combustível em posto abastecimento"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 34,
+      "descritivo": "Furto em edifício comercial ou industrial com arrombamento, escalamento ou chaves falsas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 218,
+      "descritivo": "Furto em edifício comercial ou industrial sem arrombamento, escalamento ou chaves falsas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 35,
+      "descritivo": "Furto em estabelecimento de ensino com arrombamento, escalamento ou chaves falsas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 36,
+      "descritivo": "Furto em outros edifícios com arrombamento, escalamento ou chaves falsas"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 37,
+      "descritivo": "Furto por carteirista"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 217,
+      "descritivo": "Furto de oportunidade/objectos não guardados"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 39,
+      "descritivo": "Outros furtos"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 211,
+      "descritivo": "Roubo por esticão"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 40,
+      "descritivo": "Roubo na via pública (excepto por esticão)"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 200,
+      "descritivo": "Roubo a residência"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 201,
+      "descritivo": "Roubo de viatura"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 41,
+      "descritivo": "Roubo a banco ou outro estabelecimento de crédito"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 42,
+      "descritivo": "Roubo a tesouraria ou estação de correios"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 203,
+      "descritivo": "Roubo a farmácias"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 204,
+      "descritivo": "Roubo a ourivesarias"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 43,
+      "descritivo": "Roubo a posto de abastecimento de combustível"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 202,
+      "descritivo": "Roubo a outros edifícios comerciais ou industriais"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 212,
+      "descritivo": "Roubo em estabelecimento de ensino"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 205,
+      "descritivo": "Roubo em transportes públicos"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 206,
+      "descritivo": "Roubo a transportes de valores"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 45,
+      "descritivo": "Outros roubos"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 46,
+      "descritivo": "Dano contra o património cultural"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 233,
+      "descritivo": "Dano em veículo motorizado"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 234,
+      "descritivo": "Dano em residência particular"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 47,
+      "descritivo": "Outro dano"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 235,
+      "descritivo": "Abuso de confiança em aluguer de veículo"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 236,
+      "descritivo": "Outros abusos de confiança"
+    },
+    {
+      "subcategoria": 8,
+      "codigo": 49,
+      "descritivo": "Outros crimes contra a propriedade"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 50,
+      "descritivo": "Burla com fraude bancária"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 51,
+      "descritivo": "Burla relativa a seguros"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 52,
+      "descritivo": "Burla para obtenção de alimentos/bebidas/serviços"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 237,
+      "descritivo": "Burla na aquisição ou aluguer de bens móveis"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 238,
+      "descritivo": "Burla na aquisição ou arrendamento de bens imóveis"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 239,
+      "descritivo": "Burla por falso familiar ou conhecido"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 240,
+      "descritivo": "Burla por falso funcionário"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 241,
+      "descritivo": "Burla informática/comunicações por obtenção ilegitima de dados do utilizador"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 242,
+      "descritivo": "Burla informática/comunicações com uso de aplicação para transferência imediata de dinheiro"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 243,
+      "descritivo": "Burla informática/comunicações em investimentos em criptoativos"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 244,
+      "descritivo": "Outras burlas informáticas/comunicações"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 54,
+      "descritivo": "Burla relativa a trabalho ou emprego"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 55,
+      "descritivo": "Outras burlas"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 245,
+      "descritivo": "Extorsão sexual"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 246,
+      "descritivo": "Outras extorsões"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 57,
+      "descritivo": "Abuso de cartão de garantia ou de cartão, dispositivo ou dados de pagamento"
+    },
+    {
+      "subcategoria": 9,
+      "codigo": 58,
+      "descritivo": "Outros crimes contra o património em geral"
+    },
+    {
+      "subcategoria": 10,
+      "codigo": 59,
+      "descritivo": "Insolvência dolosa e negligente"
+    },
+    {
+      "subcategoria": 10,
+      "codigo": 60,
+      "descritivo": "Receptação e auxílio material"
+    },
+    {
+      "subcategoria": 10,
+      "codigo": 61,
+      "descritivo": "Outros crimes contra direitos patrimoniais"
+    },
+    {
+      "subcategoria": 11,
+      "codigo": 62,
+      "descritivo": "Outros crimes contra o património"
+    },
+    {
+      "subcategoria": 12,
+      "codigo": 63,
+      "descritivo": "Discriminação e incitamento ao ódio e à violência"
+    },
+    {
+      "subcategoria": 12,
+      "codigo": 64,
+      "descritivo": "Tortura e outros tratamentos cruéis, degradantes ou desumanos"
+    },
+    {
+      "subcategoria": 12,
+      "codigo": 65,
+      "descritivo": "Outros crimes contra a identidade cultural e integridade pessoal (e crimes contra a paz/até 2004)"
+    },
+    {
+      "subcategoria": 13,
+      "codigo": 66,
+      "descritivo": "Violação da obrigação de alimentos"
+    },
+    {
+      "subcategoria": 13,
+      "codigo": 67,
+      "descritivo": "Subtracção de menores"
+    },
+    {
+      "subcategoria": 13,
+      "codigo": 68,
+      "descritivo": "Outros crimes contra a família"
+    },
+    {
+      "subcategoria": 14,
+      "codigo": 69,
+      "descritivo": "Contrafacção/falsificação de moeda e passagem de moeda falsa"
+    },
+    {
+      "subcategoria": 14,
+      "codigo": 70,
+      "descritivo": "Contrafacção/falsificação de título de crédito ou valores selados"
+    },
+    {
+      "subcategoria": 14,
+      "codigo": 71,
+      "descritivo": "Falsificação de documentos, cunhos, marcas, chancelas, pesos e medidas"
+    },
+    {
+      "subcategoria": 14,
+      "codigo": 72,
+      "descritivo": "Outros crimes de falsificação"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 73,
+      "descritivo": "Incêndio/fogo posto em edifício, construção ou meio de transporte"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 74,
+      "descritivo": "Incêndio/fogo posto floresta, mata, arvoredo ou seara"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 75,
+      "descritivo": "Dano contra a natureza"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 76,
+      "descritivo": "Poluição"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 77,
+      "descritivo": "Corrupção de substâncias alimentares ou medicinais"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 78,
+      "descritivo": "Perigo relativo a animais"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 79,
+      "descritivo": "Detenção ou tráfico de armas proibidas"
+    },
+    {
+      "subcategoria": 15,
+      "codigo": 80,
+      "descritivo": "Outros crimes de perigo comum"
+    },
+    {
+      "subcategoria": 16,
+      "codigo": 81,
+      "descritivo": "Pirataria aérea/outros crimes contra a segurança da aviação civil"
+    },
+    {
+      "subcategoria": 16,
+      "codigo": 82,
+      "descritivo": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l"
+    },
+    {
+      "subcategoria": 16,
+      "codigo": 83,
+      "descritivo": "Condução perigosa de veículo rodoviário"
+    },
+    {
+      "subcategoria": 16,
+      "codigo": 84,
+      "descritivo": "Outros crimes contra a segurança das comunicações"
+    },
+    {
+      "subcategoria": 17,
+      "codigo": 85,
+      "descritivo": "Embriaguez e intoxicação"
+    },
+    {
+      "subcategoria": 17,
+      "codigo": 86,
+      "descritivo": "Utilização de menor na mendicidade"
+    },
+    {
+      "subcategoria": 18,
+      "codigo": 87,
+      "descritivo": "Motim, instigação e apologia pública do crime"
+    },
+    {
+      "subcategoria": 18,
+      "codigo": 88,
+      "descritivo": "Associação criminosa"
+    },
+    {
+      "subcategoria": 18,
+      "codigo": 89,
+      "descritivo": "Outros crimes contra a paz pública"
+    },
+    {
+      "subcategoria": 19,
+      "codigo": 90,
+      "descritivo": "Outros crimes contra a vida em sociedade"
+    },
+    {
+      "subcategoria": 20,
+      "codigo": 91,
+      "descritivo": "Crimes contra a soberania nacional"
+    },
+    {
+      "subcategoria": 21,
+      "codigo": 92,
+      "descritivo": "Tráfico de influência"
+    },
+    {
+      "subcategoria": 21,
+      "codigo": 93,
+      "descritivo": "Outros crimes contra a realização do Estado de Direito"
+    },
+    {
+      "subcategoria": 22,
+      "codigo": 94,
+      "descritivo": "Crimes eleitorais"
+    },
+    {
+      "subcategoria": 23,
+      "codigo": 95,
+      "descritivo": "Resistência e coacção sobre funcionário"
+    },
+    {
+      "subcategoria": 23,
+      "codigo": 96,
+      "descritivo": "Desobediência"
+    },
+    {
+      "subcategoria": 23,
+      "codigo": 97,
+      "descritivo": "Tirada, evasão e motim de presos"
+    },
+    {
+      "subcategoria": 23,
+      "codigo": 98,
+      "descritivo": "Violação de providências públicas"
+    },
+    {
+      "subcategoria": 23,
+      "codigo": 99,
+      "descritivo": "Usurpação de funções"
+    },
+    {
+      "subcategoria": 23,
+      "codigo": 100,
+      "descritivo": "Outros crimes contra a autoridade pública"
+    },
+    {
+      "subcategoria": 24,
+      "codigo": 101,
+      "descritivo": "Falsidade de depoimento, declaração, testemunho, perícia, interpretação ou tradução"
+    },
+    {
+      "subcategoria": 24,
+      "codigo": 102,
+      "descritivo": "Branqueamento de vantagens de proveniência ilícita"
+    },
+    {
+      "subcategoria": 24,
+      "codigo": 103,
+      "descritivo": "Detenção/prisão ilegal"
+    },
+    {
+      "subcategoria": 24,
+      "codigo": 104,
+      "descritivo": "Violação de segredo de justiça"
+    },
+    {
+      "subcategoria": 24,
+      "codigo": 105,
+      "descritivo": "Outros crimes contra a realização da justiça"
+    },
+    {
+      "subcategoria": 25,
+      "codigo": 106,
+      "descritivo": "Corrupção"
+    },
+    {
+      "subcategoria": 25,
+      "codigo": 107,
+      "descritivo": "Peculato"
+    },
+    {
+      "subcategoria": 25,
+      "codigo": 108,
+      "descritivo": "Abuso de autoridade"
+    },
+    {
+      "subcategoria": 25,
+      "codigo": 109,
+      "descritivo": "Outros crimes cometidos no exercício de funções públicas"
+    },
+    {
+      "subcategoria": 26,
+      "codigo": 110,
+      "descritivo": "Outros crimes contra o Estado"
+    },
+    {
+      "subcategoria": 58,
+      "codigo": 227,
+      "descritivo": "Morte e maus tratos de animal de companhia"
+    },
+    {
+      "subcategoria": 58,
+      "codigo": 228,
+      "descritivo": "Abandono de animais de companhia"
+    },
+    {
+      "subcategoria": 54,
+      "codigo": 186,
+      "descritivo": "Infidelidade no serviço militar"
+    },
+    {
+      "subcategoria": 54,
+      "codigo": 187,
+      "descritivo": "Deserção"
+    },
+    {
+      "subcategoria": 54,
+      "codigo": 188,
+      "descritivo": "Insubordinação"
+    },
+    {
+      "subcategoria": 54,
+      "codigo": 189,
+      "descritivo": "Abuso de autoridade"
+    },
+    {
+      "subcategoria": 54,
+      "codigo": 190,
+      "descritivo": "Outros crimes estritamente militares"
+    },
+    {
+      "subcategoria": 27,
+      "codigo": 111,
+      "descritivo": "Tráfico de estupefacientes (inclui precursores)"
+    },
+    {
+      "subcategoria": 27,
+      "codigo": 112,
+      "descritivo": "Consumo/Cultivo para consumo de estupefacientes"
+    },
+    {
+      "subcategoria": 27,
+      "codigo": 113,
+      "descritivo": "Outros crimes respeitantes a estupefacientes"
+    },
+    {
+      "subcategoria": 28,
+      "codigo": 114,
+      "descritivo": "Crimes de violação do direito internacional humanitário"
+    },
+    {
+      "subcategoria": 29,
+      "codigo": 115,
+      "descritivo": "Organizações terroristas e terrorismo nacional"
+    },
+    {
+      "subcategoria": 29,
+      "codigo": 116,
+      "descritivo": "Outras organizações terroristas e terrorismo internacional"
+    },
+    {
+      "subcategoria": 30,
+      "codigo": 117,
+      "descritivo": "Auxílio à imigração ilegal"
+    },
+    {
+      "subcategoria": 30,
+      "codigo": 207,
+      "descritivo": "Associação de auxílio à imigração ilegal"
+    },
+    {
+      "subcategoria": 30,
+      "codigo": 208,
+      "descritivo": "Angariação de mão-de-obra ilegal"
+    },
+    {
+      "subcategoria": 30,
+      "codigo": 209,
+      "descritivo": "Casamento de conveniência"
+    },
+    {
+      "subcategoria": 30,
+      "codigo": 210,
+      "descritivo": "Violação da medida de interdição de entrada"
+    },
+    {
+      "subcategoria": 30,
+      "codigo": 118,
+      "descritivo": "Outros crimes relacionados com a imigração ilegal"
+    },
+    {
+      "subcategoria": 31,
+      "codigo": 119,
+      "descritivo": "Abuso de informação"
+    },
+    {
+      "subcategoria": 31,
+      "codigo": 120,
+      "descritivo": "Manipulação do mercado"
+    },
+    {
+      "subcategoria": 31,
+      "codigo": 121,
+      "descritivo": "Outros crimes cometidos no exercício de actividades comercial ou financeira"
+    },
+    {
+      "subcategoria": 32,
+      "codigo": 122,
+      "descritivo": "Crimes relativos à imprensa (excepto contra a honra)"
+    },
+    {
+      "subcategoria": 33,
+      "codigo": 123,
+      "descritivo": "Crimes contra os direitos de autor"
+    },
+    {
+      "subcategoria": 33,
+      "codigo": 124,
+      "descritivo": "Crimes contra a propriedade industrial"
+    },
+    {
+      "subcategoria": 34,
+      "codigo": 125,
+      "descritivo": "Emissão de cheque sem provisão"
+    },
+    {
+      "subcategoria": 35,
+      "codigo": 126,
+      "descritivo": "Burla tributária"
+    },
+    {
+      "subcategoria": 35,
+      "codigo": 127,
+      "descritivo": "Frustração de créditos"
+    },
+    {
+      "subcategoria": 35,
+      "codigo": 128,
+      "descritivo": "Violação de segredo"
+    },
+    {
+      "subcategoria": 35,
+      "codigo": 129,
+      "descritivo": "Outros crimes tributários comuns"
+    },
+    {
+      "subcategoria": 36,
+      "codigo": 130,
+      "descritivo": "Contrabando"
+    },
+    {
+      "subcategoria": 36,
+      "codigo": 131,
+      "descritivo": "Fraude fiscal aduaneira"
+    },
+    {
+      "subcategoria": 36,
+      "codigo": 132,
+      "descritivo": "Quebra de marcas e selos"
+    },
+    {
+      "subcategoria": 36,
+      "codigo": 133,
+      "descritivo": "Receptação e auxílio material"
+    },
+    {
+      "subcategoria": 36,
+      "codigo": 134,
+      "descritivo": "Outros crimes aduaneiros ou n.e."
+    },
+    {
+      "subcategoria": 37,
+      "codigo": 135,
+      "descritivo": "Fraude fiscal"
+    },
+    {
+      "subcategoria": 37,
+      "codigo": 136,
+      "descritivo": "Abuso de confiança fiscal"
+    },
+    {
+      "subcategoria": 38,
+      "codigo": 137,
+      "descritivo": "Fraude contra a segurança social"
+    },
+    {
+      "subcategoria": 38,
+      "codigo": 138,
+      "descritivo": "Abuso de confiança contra a segurança social"
+    },
+    {
+      "subcategoria": 39,
+      "codigo": 139,
+      "descritivo": "Abate clandestino e aquisição de animais assim abatidos para consumo público"
+    },
+    {
+      "subcategoria": 39,
+      "codigo": 140,
+      "descritivo": "Outros crimes contra a saúde/crime contra a saúde n.e."
+    },
+    {
+      "subcategoria": 40,
+      "codigo": 141,
+      "descritivo": "Crimes contra a genuinidade, qualidade ou composição de géneros alimentícios"
+    },
+    {
+      "subcategoria": 40,
+      "codigo": 142,
+      "descritivo": "Fraude obtenção de subsídios, subvenções, créditos e desvio na sua utilização"
+    },
+    {
+      "subcategoria": 40,
+      "codigo": 143,
+      "descritivo": "Especulação"
+    },
+    {
+      "subcategoria": 40,
+      "codigo": 144,
+      "descritivo": "Outros crimes contra a economia/crimes contra a economia n.e."
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 145,
+      "descritivo": "Exploração ilícita de jogo"
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 146,
+      "descritivo": "Prática ilícita de jogo/presença em local de jogo ilícito"
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 147,
+      "descritivo": "Coacção à prática de jogo"
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 148,
+      "descritivo": "Jogo fraudulento"
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 149,
+      "descritivo": "Usura para jogo"
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 150,
+      "descritivo": "Material de jogo sem autorização"
+    },
+    {
+      "subcategoria": 41,
+      "codigo": 151,
+      "descritivo": "Crimes de jogo n.e."
+    },
+    {
+      "subcategoria": 42,
+      "codigo": 152,
+      "descritivo": "Crimes relativos à caça e pesca"
+    },
+    {
+      "subcategoria": 43,
+      "codigo": 153,
+      "descritivo": "Reprodução ilegítima de programa protegido"
+    },
+    {
+      "subcategoria": 43,
+      "codigo": 157,
+      "descritivo": "Acesso indevido ou ilegítimo/intercepção ilegítima"
+    },
+    {
+      "subcategoria": 43,
+      "codigo": 158,
+      "descritivo": "Viciação ou destruição de dados/dano relativo a dados/programas"
+    },
+    {
+      "subcategoria": 43,
+      "codigo": 159,
+      "descritivo": "Falsidade informática"
+    },
+    {
+      "subcategoria": 43,
+      "codigo": 160,
+      "descritivo": "Sabotagem informática"
+    },
+    {
+      "subcategoria": 43,
+      "codigo": 161,
+      "descritivo": "Outros crimes informáticos/crimes informáticos n.e."
+    },
+    {
+      "subcategoria": 44,
+      "codigo": 162,
+      "descritivo": "Crimes relativos ao serviço militar"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 163,
+      "descritivo": "Deserção e insubordinação (marítimos)"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 164,
+      "descritivo": "Embarque clandestino (marítimos)"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 165,
+      "descritivo": "Introdução de bebidas alcoólicas e substâncias perigosas (marítimos)"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 166,
+      "descritivo": "Embarque/desembarque ilícitos de outra mercadoria (marítimos)"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 167,
+      "descritivo": "Atentado contra a segurança da navegação (marítimos)"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 168,
+      "descritivo": "Abandono do navio (marítimos)"
+    },
+    {
+      "subcategoria": 45,
+      "codigo": 169,
+      "descritivo": "Recusa de socorros a náufragos (marítimos)"
+    },
+    {
+      "subcategoria": 57,
+      "codigo": 213,
+      "descritivo": "Dano qualificado no âmbito de espectáculo desportivo"
+    },
+    {
+      "subcategoria": 57,
+      "codigo": 214,
+      "descritivo": "Participação em rixa e ofensas à integridade física em grupo aquando de espectáculos desportivos"
+    },
+    {
+      "subcategoria": 57,
+      "codigo": 215,
+      "descritivo": "Arremesso de objectos e invasão da área do espectáculo desportivo"
+    },
+    {
+      "subcategoria": 57,
+      "codigo": 216,
+      "descritivo": "Outros crimes relativos ao desporto"
+    },
+    {
+      "subcategoria": 46,
+      "codigo": 171,
+      "descritivo": "Condução sem habilitação legal"
+    },
+    {
+      "subcategoria": 47,
+      "codigo": 172,
+      "descritivo": "Outros crimes"
+    }
+  ]
+}

@@ -1,0 +1,800 @@
+{
+  "meta": {
+    "lei": "Lei n.º 51/2023, de 28 de agosto",
+    "designacao": "Lei de Política Criminal (biénio 2023-2025)",
+    "biennium": "2023-2025",
+    "vigente_desde": "2023-08-29",
+    "vigente_ate": null,
+    "is_active": true,
+    "fonte_tabela": "Tabela de Crimes Registados 1.7 (2024)",
+    "eixos": {
+      "INVESTIGACAO": "Art. 5.º — eixo OPERATIVO: governa Occurrence.priority (PRIORITARIA/NORMAL)",
+      "PREVENCAO": "Art. 4.º — eixo INFORMATIVO: valor analítico, não governa a prioridade operativa"
+    },
+    "n_investigacao": 46,
+    "n_prevencao": 51,
+    "alineas_contextuais_nao_mapeadas": [
+      "4g",
+      "5f"
+    ],
+    "url_lei": "https://diariodarepublica.pt/dr/detalhe/lei/51-2023-218776599"
+  },
+  "associacoes": [
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 1,
+      "descritivo": "Homicidio voluntário consumado",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 2,
+      "descritivo": "Homicídio por negligência em acidente de viação",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 6,
+      "descritivo": "Ofensa à integridade física voluntária grave",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 7,
+      "descritivo": "Ofensa à integridade física voluntária simples",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 8,
+      "descritivo": "Ofensa à integridade física por negligência em acidente de viação",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 14,
+      "descritivo": "Outros crimes contra a integridade física",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 18,
+      "descritivo": "Violação",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 20,
+      "descritivo": "Outros crimes contra a liberdade e a autodeterminação sexual",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 40,
+      "descritivo": "Roubo na via pública (excepto por esticão)",
+      "alineas": [
+        "5b"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 74,
+      "descritivo": "Incêndio/fogo posto floresta, mata, arvoredo ou seara",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 75,
+      "descritivo": "Dano contra a natureza",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 76,
+      "descritivo": "Poluição",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 79,
+      "descritivo": "Detenção ou tráfico de armas proibidas",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 82,
+      "descritivo": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 83,
+      "descritivo": "Condução perigosa de veículo rodoviário",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 88,
+      "descritivo": "Associação criminosa",
+      "alineas": [
+        "5c"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 92,
+      "descritivo": "Tráfico de influência",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 102,
+      "descritivo": "Branqueamento de vantagens de proveniência ilícita",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 106,
+      "descritivo": "Corrupção",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 107,
+      "descritivo": "Peculato",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 109,
+      "descritivo": "Outros crimes cometidos no exercício de funções públicas",
+      "alineas": [
+        "5d"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 111,
+      "descritivo": "Tráfico de estupefacientes (inclui precursores)",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 115,
+      "descritivo": "Organizações terroristas e terrorismo nacional",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 116,
+      "descritivo": "Outras organizações terroristas e terrorismo internacional",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 117,
+      "descritivo": "Auxílio à imigração ilegal",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 135,
+      "descritivo": "Fraude fiscal",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 136,
+      "descritivo": "Abuso de confiança fiscal",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 137,
+      "descritivo": "Fraude contra a segurança social",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 138,
+      "descritivo": "Abuso de confiança contra a segurança social",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 139,
+      "descritivo": "Abate clandestino e aquisição de animais assim abatidos para consumo público",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 140,
+      "descritivo": "Outros crimes contra a saúde/crime contra a saúde n.e.",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 142,
+      "descritivo": "Fraude obtenção de subsídios, subvenções, créditos e desvio na sua utilização",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 153,
+      "descritivo": "Reprodução ilegítima de programa protegido",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 157,
+      "descritivo": "Acesso indevido ou ilegítimo/intercepção ilegítima",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 158,
+      "descritivo": "Viciação ou destruição de dados/dano relativo a dados/programas",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 159,
+      "descritivo": "Falsidade informática",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 160,
+      "descritivo": "Sabotagem informática",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 161,
+      "descritivo": "Outros crimes informáticos/crimes informáticos n.e.",
+      "alineas": [
+        "5e"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 194,
+      "descritivo": "Violência doméstica contra cônjuge ou análogos",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 195,
+      "descritivo": "Violência doméstica contra menores",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 196,
+      "descritivo": "Outros crimes de violência doméstica",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 197,
+      "descritivo": "Tráfico de pessoas",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 198,
+      "descritivo": "Abuso sexual de crianças, adolescentes e menores dependentes ou em situação vulnerável",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 199,
+      "descritivo": "Lenocínio e pornografia de menores",
+      "alineas": [
+        "5a"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 200,
+      "descritivo": "Roubo a residência",
+      "alineas": [
+        "5b"
+      ]
+    },
+    {
+      "eixo": "INVESTIGACAO",
+      "codigo": 246,
+      "descritivo": "Outras extorsões",
+      "alineas": [
+        "5b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 1,
+      "descritivo": "Homicidio voluntário consumado",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 6,
+      "descritivo": "Ofensa à integridade física voluntária grave",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 7,
+      "descritivo": "Ofensa à integridade física voluntária simples",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 13,
+      "descritivo": "Violação de regras de segurança",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 18,
+      "descritivo": "Violação",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 20,
+      "descritivo": "Outros crimes contra a liberdade e a autodeterminação sexual",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 33,
+      "descritivo": "Furto em residência com arrombamento, escalamento ou chaves falsas",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 34,
+      "descritivo": "Furto em edifício comercial ou industrial com arrombamento, escalamento ou chaves falsas",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 50,
+      "descritivo": "Burla com fraude bancária",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 57,
+      "descritivo": "Abuso de cartão de garantia ou de cartão, dispositivo ou dados de pagamento",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 63,
+      "descritivo": "Discriminação e incitamento ao ódio e à violência",
+      "alineas": [
+        "4c"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 74,
+      "descritivo": "Incêndio/fogo posto floresta, mata, arvoredo ou seara",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 75,
+      "descritivo": "Dano contra a natureza",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 76,
+      "descritivo": "Poluição",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 79,
+      "descritivo": "Detenção ou tráfico de armas proibidas",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 82,
+      "descritivo": "Condução de veículo com taxa de álcool igual/superior a 1,2g/l",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 83,
+      "descritivo": "Condução perigosa de veículo rodoviário",
+      "alineas": [
+        "4d"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 92,
+      "descritivo": "Tráfico de influência",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 102,
+      "descritivo": "Branqueamento de vantagens de proveniência ilícita",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 106,
+      "descritivo": "Corrupção",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 107,
+      "descritivo": "Peculato",
+      "alineas": [
+        "4e"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 115,
+      "descritivo": "Organizações terroristas e terrorismo nacional",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 116,
+      "descritivo": "Outras organizações terroristas e terrorismo internacional",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 117,
+      "descritivo": "Auxílio à imigração ilegal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 135,
+      "descritivo": "Fraude fiscal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 136,
+      "descritivo": "Abuso de confiança fiscal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 137,
+      "descritivo": "Fraude contra a segurança social",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 138,
+      "descritivo": "Abuso de confiança contra a segurança social",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 139,
+      "descritivo": "Abate clandestino e aquisição de animais assim abatidos para consumo público",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 140,
+      "descritivo": "Outros crimes contra a saúde/crime contra a saúde n.e.",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 153,
+      "descritivo": "Reprodução ilegítima de programa protegido",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 157,
+      "descritivo": "Acesso indevido ou ilegítimo/intercepção ilegítima",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 158,
+      "descritivo": "Viciação ou destruição de dados/dano relativo a dados/programas",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 159,
+      "descritivo": "Falsidade informática",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 160,
+      "descritivo": "Sabotagem informática",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 161,
+      "descritivo": "Outros crimes informáticos/crimes informáticos n.e.",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 171,
+      "descritivo": "Condução sem habilitação legal",
+      "alineas": [
+        "4f"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 194,
+      "descritivo": "Violência doméstica contra cônjuge ou análogos",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 195,
+      "descritivo": "Violência doméstica contra menores",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 196,
+      "descritivo": "Outros crimes de violência doméstica",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 198,
+      "descritivo": "Abuso sexual de crianças, adolescentes e menores dependentes ou em situação vulnerável",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 199,
+      "descritivo": "Lenocínio e pornografia de menores",
+      "alineas": [
+        "4a"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 200,
+      "descritivo": "Roubo a residência",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 202,
+      "descritivo": "Roubo a outros edifícios comerciais ou industriais",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 229,
+      "descritivo": "Furto de combustível em veículo motorizado",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 230,
+      "descritivo": "Furto de acessórios/peças em veículo motorizado",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 231,
+      "descritivo": "Outros furtos em veículo motorizado",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 241,
+      "descritivo": "Burla informática/comunicações por obtenção ilegitima de dados do utilizador",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 242,
+      "descritivo": "Burla informática/comunicações com uso de aplicação para transferência imediata de dinheiro",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 243,
+      "descritivo": "Burla informática/comunicações em investimentos em criptoativos",
+      "alineas": [
+        "4b"
+      ]
+    },
+    {
+      "eixo": "PREVENCAO",
+      "codigo": 244,
+      "descritivo": "Outras burlas informáticas/comunicações",
+      "alineas": [
+        "4b"
+      ]
+    }
+  ]
+}

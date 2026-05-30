@@ -22,16 +22,16 @@ Esta lacuna tem três consequências concretas:
 
 ### Enquadramento estatístico e legal (verificado)
 
-A **Tabela de Crimes Registados** é aprovada pelo Conselho Superior de Estatística (CSE/INE) no âmbito do Sistema Estatístico Nacional; a sua gestão operacional cabe à DGPJ via SIEJ (Modelo 262 — "Mapa para Notação de Crimes"). Tem estrutura de **3 níveis**: Nível 1 — Categorias (6: `1` Contra as pessoas, `2` Contra o património, `3` Contra a identidade cultural e integridade pessoal, `4` Contra a vida em sociedade, `5` Contra o Estado, `6` Legislação avulsa); Nível 2 — Subcategorias; Nível 3 — Tipos (com código oficial). Fixo como fonte do seed a **versão de 2024** (DGPJ/SIEJ Modelo 262 + INE/CSE), a versão canónica em vigor.
+A **Tabela de Crimes Registados** é aprovada pelo Conselho Superior de Estatística (CSE/INE) no âmbito do Sistema Estatístico Nacional; a sua gestão operacional cabe à DGPJ via SIEJ (Modelo 262 — "Mapa para Notação de Crimes"). Tem estrutura de **3 níveis**: Nível 1 — Categorias; Nível 2 — Subcategorias; Nível 3 — Tipos (com código oficial). Fixo como fonte do seed a **Tabela de Crimes Registados 1.7 (2024)** — a versão canónica em vigor —, obtida do portal SIEJ e arquivada. Tem **7 categorias N1** (`1` Crimes contra as pessoas, `2` Contra o património, `3` Contra a identidade cultural e integridade pessoal, `4` Contra a vida em sociedade, `5` Contra o Estado, `10` Crimes contra animais de companhia, `6` Legislação avulsa), **50 subcategorias N2** e **219 tipos N3**. Os códigos N1 **não** formam um intervalo contíguo: a categoria `10` (crimes contra animais de companhia) foi aditada ao Código Penal e à tabela depois das seis originais, pelo que o conjunto é `{1, 2, 3, 4, 5, 6, 10}` — o modelo não pode pressupor `1-6`.
 
 A **Lei n.º 51/2023, de 28 de agosto** (DR n.º 166/2023, Série I) é a Lei de Política Criminal **em vigor** (biénio 2023-2025). Distingue dois eixos: o **Art. 4.º** (crimes de prevenção prioritária) e o **Art. 5.º** (crimes de investigação prioritária). A sucessora (biénio 2025-2027) foi aprovada na generalidade em 2026-03-20 mas ainda não está promulgada; modelo-a como versão futura pré-carregável, activável quando publicada, sem código novo.
 
 ## Decision
 
 1. **Modelar a taxonomia como 3 tabelas de referência** (dados de lookup, **não** prova), uma por nível da Tabela de Crimes Registados:
-   - `CrimeCategoria` (Nível 1, 6 registos): `codigo` (1-6), `nome`.
-   - `CrimeSubcategoria` (Nível 2): FK→`CrimeCategoria`, `codigo`, `nome`.
-   - `CrimeTipo` (Nível 3): FK→`CrimeSubcategoria`, `codigo` (código oficial, p.ex. `1` homicídio, `53` burla informática, `57` extorsão), `descritivo`, mais flags derivadas.
+   - `CrimeCategoria` (Nível 1, 7 registos): `codigo` (∈ `{1, 2, 3, 4, 5, 6, 10}`, não contíguo), `nome`.
+   - `CrimeSubcategoria` (Nível 2, 50 registos): FK→`CrimeCategoria`, `codigo` (oficial, único no esquema), `nome`.
+   - `CrimeTipo` (Nível 3, 219 registos): FK→`CrimeSubcategoria`, `codigo` (código oficial N3, p.ex. `1` homicídio voluntário, `241`-`244` burla informática/comunicações, `246` extorsão), `descritivo` (verbatim da fonte), mais flags derivadas.
 
    São **dados de referência**: editáveis/versionáveis no admin, **não** abrangidos pelos invariantes de imutabilidade da prova (não são `Evidence`/`ChainOfCustody`/`AuditLog`/`Occurrence`). Não levam triggers PG de imutabilidade.
 
@@ -56,7 +56,7 @@ A **Lei n.º 51/2023, de 28 de agosto** (DR n.º 166/2023, Série I) é a Lei de
    - o **hero** mostra um **badge** de crime prioritário.
    O alerta é uma **leitura** do estado (feed + badge), não uma escrita adicional sobre a prova — não toca os invariantes de imutabilidade.
 
-8. **Mapeamento curado lei↔tabela como artefacto de dados versionado.** As frases da lei (Art. 4.º e Art. 5.º) traduzem-se para códigos N3/N2 da Tabela 2024 num mapa curado e revisto (ex.: "homicídio" → tipo `1`; "violência doméstica" → tipos `194`/`195`/`196`; "burla cometida através de meio informático" → tipo `53`; "extorsão" → tipo `57`; "cibercriminalidade" → subcategoria da legislação avulsa). Este mapa é a fonte de verdade do seed da `PoliticaCriminalPrioridade` e produz-se num curadoria com revisão cruzada (a coerência semântica lei↔código é o ponto de falha mais provável).
+8. **Mapeamento curado lei↔tabela como artefacto de dados versionado.** As frases da lei (Art. 4.º e Art. 5.º) traduzem-se para códigos N3/N2 da Tabela 1.7 (2024) num mapa curado e revisto (ex.: "homicídio" → tipo `1`; "violência doméstica" → tipos `194`/`195`/`196`; "burla cometida através de meio informático ou comunicações" → tipos `241`-`244`; "extorsão" → tipo `246` (e `245` extorsão sexual); "cibercriminalidade" → subcategoria `43` — crimes informáticos). Este mapa é a fonte de verdade do seed da `PoliticaCriminalPrioridade` e materializa-se em `core/data/mapa_politica_criminal.json`, produzido por um curadoria com revisão cruzada (a coerência semântica lei↔código é o ponto de falha mais provável).
 
 ## Alternatives Considered
 
@@ -99,7 +99,7 @@ A **Lei n.º 51/2023, de 28 de agosto** (DR n.º 166/2023, Série I) é a Lei de
 
 ### Modelos (dados de referência — `core/models.py`)
 
-- `CrimeCategoria`: `codigo` (`PositiveSmallIntegerField`, unique, 1-6), `nome` (`CharField`). 6 registos fixos.
+- `CrimeCategoria`: `codigo` (`PositiveSmallIntegerField`, unique; valores `{1, 2, 3, 4, 5, 6, 10}`, **não** contíguos), `nome` (`CharField`). 7 registos fixos.
 - `CrimeSubcategoria`: `categoria` (FK→`CrimeCategoria`, `PROTECT`), `codigo` (`PositiveSmallIntegerField`), `nome`. `unique_together = ('categoria', 'codigo')`.
 - `CrimeTipo`: `subcategoria` (FK→`CrimeSubcategoria`, `PROTECT`), `codigo` (`PositiveIntegerField`, unique — o código oficial N3), `descritivo` (`CharField`), `is_active` (bool, para tipos retirados em versões futuras da tabela). `ordering = ['codigo']`.
 - `PoliticaCriminalPrioridade`: `lei` (`CharField`, ex.: `'Lei 51/2023'`), `biennium` (`CharField`, ex.: `'2023-2025'`), `vigente_desde` (`DateField`), `vigente_ate` (`DateField`, null), `is_active` (bool). Relação aos tipos abrangidos via tabela intermédia explícita `PrioridadeCrimeTipo` com `crime_tipo` (FK→`CrimeTipo`) + `eixo` (`TextChoices`: `INVESTIGACAO`/`PREVENCAO`). Garanto, por constraint/validação, **uma só** versão `is_active=True`.
@@ -153,5 +153,5 @@ A **Lei n.º 51/2023, de 28 de agosto** (DR n.º 166/2023, Série I) é a Lei de
 - `core/migrations/0017_alter_auditlog_options_auditlog_sequence.py` — cabeça actual da migration chain.
 - Lei n.º 51/2023, de 28 de agosto — Lei de Política Criminal 2023-2025 (DR n.º 166/2023, Série I); Art. 4.º (crimes de prevenção prioritária) e Art. 5.º (crimes de investigação prioritária).
 - Lei n.º 17/2006, de 23 de maio — Lei-Quadro da Política Criminal (habilita a Lei 51/2023).
-- Tabela de Crimes Registados — Conselho Superior de Estatística (CSE/INE) / DGPJ-SIEJ, Modelo 262 ("Mapa para Notação de Crimes"), estrutura de 3 níveis. Versão de seed: 2024. <https://estatisticas.justica.gov.pt/sites/siej/pt-pt/Documents/DM_Criminalidade_Registada.pdf>
+- Tabela de Crimes Registados **1.7 (2024)** — Conselho Superior de Estatística (CSE/INE) / DGPJ-SIEJ, Modelo 262 ("Mapa para Notação de Crimes"), estrutura de 3 níveis (7 N1 / 50 N2 / 219 N3). Fonte do seed (`core/data/tabela_crimes_2024.json`). Oficial: <https://estatisticas.justica.gov.pt/sites/siej/pt-pt/Documents/Tabela_Crimes_Registados_2024.pdf> · arquivo: <https://web.archive.org/web/20250401172838/https://estatisticas.justica.gov.pt/sites/siej/pt-pt/Documents/Tabela_Crimes_Registados_2024.pdf>
 - DGPJ — Estatísticas sobre crimes registados: <https://dgpj.justica.gov.pt/>
