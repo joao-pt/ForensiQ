@@ -209,9 +209,13 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     - O campo 'agent' é preenchido automaticamente.
     """
 
-    queryset = Occurrence.objects.select_related('agent').all()
+    queryset = Occurrence.objects.select_related('agent', 'crime_type').all()
     serializer_class = OccurrenceSerializer
     permission_classes = [IsAuthenticated, IsAgent, IsOwnerOrReadOnly]
+    # POST-only (ADR-0014): a Occurrence é imutável na BD (triggers 0013); expor
+    # PUT/PATCH/DELETE oferecia um caminho de escrita que a BD recusa. GET para
+    # consulta + acções @action (pdf). Sem update/destroy.
+    http_method_names = ['get', 'post', 'head', 'options']
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = OccurrenceFilter
     # Campos pesquisáveis via ?search= — NUIPC/número, descrição livre,
@@ -938,8 +942,7 @@ class EvidenceIMEILookupView(APIView):
             return Response(
                 {
                     'detail': (
-                        'Resposta parcial de imeidb.xyz (schema inesperado). '
-                        'Preenche manualmente.'
+                        'Resposta parcial de imeidb.xyz (schema inesperado). Preenche manualmente.'
                     ),
                     'cached': False,
                 },

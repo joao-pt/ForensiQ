@@ -29,18 +29,19 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from core.models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
+
+# =========================================================================
+# 1. IMEI LOOKUP SERVICE
+# =========================================================================
 from core.tests_factories import (
     ChainOfCustodyFactory,
+    CrimeTipoFactory,
     EvidenceMobileFactory,
     ExpertFactory,
     OccurrenceFactory,
     UserFactory,
 )
 
-
-# =========================================================================
-# 1. IMEI LOOKUP SERVICE
-# =========================================================================
 
 class IMEILookupNoTokenTest(TestCase):
     """Testes para ``lookup_imei`` quando o token não está configurado."""
@@ -61,6 +62,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_timeout_raises_lookup_error(self, mock_client_cls):
         import httpx
+
         from core.services.imei_lookup import LookupError, lookup_imei
 
         mock_client = MagicMock()
@@ -77,6 +79,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_network_error_raises_lookup_error(self, mock_client_cls):
         import httpx
+
         from core.services.imei_lookup import LookupError, lookup_imei
 
         mock_client = MagicMock()
@@ -376,6 +379,7 @@ class IMEILookupHelpersTest(TestCase):
 # 2. VIN LOOKUP SERVICE
 # =========================================================================
 
+
 class VINLookupTest(TestCase):
     """Testes para ``build_vindecoder_url``."""
 
@@ -401,6 +405,7 @@ class VINLookupTest(TestCase):
 # =========================================================================
 # 3. AUDITORIA — get_client_ip e log_access
 # =========================================================================
+
 
 class GetClientIPTest(TestCase):
     """Testes para ``audit.get_client_ip``."""
@@ -564,6 +569,7 @@ class LogAccessTest(TestCase):
 # 4. EXCEPTION HANDLER
 # =========================================================================
 
+
 class ExceptionHandlerTest(TestCase):
     """Testes para ``forensiq_exception_handler``."""
 
@@ -621,6 +627,7 @@ class ExceptionHandlerTest(TestCase):
 # =========================================================================
 # 5. AUTH COOKIES — JWTCookieAuthentication
 # =========================================================================
+
 
 class AuthCookieHelpersTest(TestCase):
     """Testes para funções auxiliares de cookies em ``auth.py``."""
@@ -707,6 +714,7 @@ class AuthCookieHelpersTest(TestCase):
 # 6. AUTH VIEWS — Login, Refresh, Logout via API
 # =========================================================================
 
+
 class CookieLoginViewTest(APITestCase):
     """Testes para POST /api/auth/login/."""
 
@@ -715,10 +723,13 @@ class CookieLoginViewTest(APITestCase):
         self.url = reverse('auth_login')
 
     def test_login_success_sets_cookies(self):
-        response = self.client.post(self.url, {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        response = self.client.post(
+            self.url,
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('user', response.data)
@@ -727,10 +738,13 @@ class CookieLoginViewTest(APITestCase):
         self.assertIn('fq_refresh', response.cookies)
 
     def test_login_wrong_password_rejected(self):
-        response = self.client.post(self.url, {
-            'username': self.user.username,
-            'password': 'WrongPass!',
-        })
+        response = self.client.post(
+            self.url,
+            {
+                'username': self.user.username,
+                'password': 'WrongPass!',
+            },
+        )
 
         # DRF devolve 403 (não 401) quando authentication_classes=[]
         # porque não há WWW-Authenticate header. Ambos são válidos para
@@ -760,10 +774,13 @@ class CookieRefreshViewTest(APITestCase):
 
     def test_refresh_with_valid_cookie_succeeds(self):
         # Login primeiro
-        login_resp = self.client.post(self.login_url, {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            self.login_url,
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(login_resp.status_code, 200)
 
         # O cookie refresh deve estar na resposta
@@ -788,10 +805,13 @@ class CookieLogoutViewTest(APITestCase):
 
     def test_logout_clears_cookies(self):
         # Login
-        login_resp = self.client.post(self.login_url, {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            self.login_url,
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         # Set cookies for subsequent requests
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
@@ -806,6 +826,7 @@ class CookieLogoutViewTest(APITestCase):
 # 7. FILTERS — OccurrenceFilter, EvidenceFilter, CustodyFilter
 # =========================================================================
 
+
 class OccurrenceFilterTest(APITestCase):
     """Testes para OccurrenceFilter (date_after, date_before, has_gps)."""
 
@@ -813,10 +834,13 @@ class OccurrenceFilterTest(APITestCase):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
         # Login via cookie
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
@@ -824,6 +848,7 @@ class OccurrenceFilterTest(APITestCase):
 
         # Ocorrência com GPS
         self.occ_with_gps = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-FILTER-001',
             description='Com GPS',
             date_time=timezone.now() - timedelta(days=5),
@@ -834,6 +859,7 @@ class OccurrenceFilterTest(APITestCase):
         )
         # Ocorrência sem GPS
         self.occ_no_gps = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-FILTER-002',
             description='Sem GPS',
             date_time=timezone.now() - timedelta(days=10),
@@ -875,16 +901,20 @@ class EvidenceFilterTest(APITestCase):
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
                 self.client.cookies[name] = cookie.value
 
         self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-EVFILTER-001',
             description='Teste filtros',
             date_time=timezone.now(),
@@ -931,16 +961,20 @@ class CustodyFilterTest(APITestCase):
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
                 self.client.cookies[name] = cookie.value
 
         self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-CUSTFILT-001',
             description='Teste custódia',
             date_time=timezone.now(),
@@ -957,11 +991,14 @@ class CustodyFilterTest(APITestCase):
             agent=self.user,
         )
         # Criar registo de custódia via API
-        self.client.post(reverse('core:custody-list'), {
-            'evidence': self.ev.pk,
-            'new_state': 'APREENDIDA',
-            'observations': 'Apreensão teste filtro',
-        })
+        self.client.post(
+            reverse('core:custody-list'),
+            {
+                'evidence': self.ev.pk,
+                'new_state': 'APREENDIDA',
+                'observations': 'Apreensão teste filtro',
+            },
+        )
 
     def test_filter_by_new_state(self):
         url = reverse('core:custody-list') + '?new_state=APREENDIDA'
@@ -975,16 +1012,20 @@ class CustodyFilterTest(APITestCase):
 # 8. PAGINATION — BoundedPageNumberPagination
 # =========================================================================
 
+
 class PaginationEdgeCasesTest(APITestCase):
     """Testes para paginação com valores extremos."""
 
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
@@ -1011,6 +1052,7 @@ class PaginationEdgeCasesTest(APITestCase):
 # 9. FRONTEND VIEWS — autenticação e redireccionamentos
 # =========================================================================
 
+
 class FrontendRedirectsTest(TestCase):
     """Testes para redireccionamentos do frontend (singular → plural)."""
 
@@ -1030,6 +1072,7 @@ class FrontendRedirectsTest(TestCase):
 # =========================================================================
 # 10. AUDITLOG IMMUTABILITY
 # =========================================================================
+
 
 class AuditLogImmutabilityTest(TestCase):
     """Testes para imutabilidade do AuditLog."""

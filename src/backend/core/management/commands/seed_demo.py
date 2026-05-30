@@ -50,6 +50,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, transaction
 from django.utils import timezone
@@ -58,6 +59,7 @@ from PIL import Image, ImageDraw, ImageFont
 from core.models import (
     AuditLog,
     ChainOfCustody,
+    CrimeTipo,
     DigitalDevice,
     Evidence,
     Occurrence,
@@ -69,15 +71,15 @@ User = get_user_model()
 # Paleta de cores por tipo de evidência — coerente com a UI (badges).
 # Os hex são usados como fundo das placeholders para distinção visual.
 _TYPE_PALETTE = {
-    Evidence.EvidenceType.MOBILE_DEVICE:     ('#1E3A8A', 'Telemóvel'),
-    Evidence.EvidenceType.COMPUTER:          ('#166534', 'Computador'),
-    Evidence.EvidenceType.STORAGE_MEDIA:     ('#5B21B6', 'Armazenamento'),
-    Evidence.EvidenceType.DRONE:             ('#C2410C', 'Drone'),
-    Evidence.EvidenceType.VEHICLE:           ('#991B1B', 'Viatura'),
+    Evidence.EvidenceType.MOBILE_DEVICE: ('#1E3A8A', 'Telemóvel'),
+    Evidence.EvidenceType.COMPUTER: ('#166534', 'Computador'),
+    Evidence.EvidenceType.STORAGE_MEDIA: ('#5B21B6', 'Armazenamento'),
+    Evidence.EvidenceType.DRONE: ('#C2410C', 'Drone'),
+    Evidence.EvidenceType.VEHICLE: ('#991B1B', 'Viatura'),
     Evidence.EvidenceType.VEHICLE_COMPONENT: ('#374151', 'Componente'),
-    Evidence.EvidenceType.SIM_CARD:          ('#0E7490', 'SIM'),
-    Evidence.EvidenceType.MEMORY_CARD:       ('#0F766E', 'Cartão SD'),
-    Evidence.EvidenceType.GPS_TRACKER:       ('#A16207', 'GPS Tracker'),
+    Evidence.EvidenceType.SIM_CARD: ('#0E7490', 'SIM'),
+    Evidence.EvidenceType.MEMORY_CARD: ('#0F766E', 'Cartão SD'),
+    Evidence.EvidenceType.GPS_TRACKER: ('#A16207', 'GPS Tracker'),
 }
 
 
@@ -91,12 +93,14 @@ def _load_font(size: int):
     for candidate in (
         '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
         '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-        'DejaVuSans-Bold.ttf', 'DejaVuSans.ttf',
-        'C:/Windows/Fonts/arialbd.ttf', 'C:/Windows/Fonts/arial.ttf',
+        'DejaVuSans-Bold.ttf',
+        'DejaVuSans.ttf',
+        'C:/Windows/Fonts/arialbd.ttf',
+        'C:/Windows/Fonts/arial.ttf',
     ):
         try:
             return ImageFont.truetype(candidate, size)
-        except (OSError, IOError):
+        except OSError:
             continue
     return ImageFont.load_default()
 
@@ -104,7 +108,8 @@ def _load_font(size: int):
 def _make_placeholder_photo(evidence_type: str, label: str, sub: str) -> ContentFile:
     """Gera uma fotografia JPEG simulada (1024x768) para o item demo."""
     color_hex, type_label = _TYPE_PALETTE.get(
-        evidence_type, ('#1F2937', 'Item de prova'),
+        evidence_type,
+        ('#1F2937', 'Item de prova'),
     )
     bg = _hex_to_rgb(color_hex)
     img = Image.new('RGB', (1024, 768), color=bg)
@@ -114,9 +119,9 @@ def _make_placeholder_photo(evidence_type: str, label: str, sub: str) -> Content
     f_xl = _load_font(64)
     f_lg = _load_font(36)
     f_md = _load_font(24)
-    draw.text((48, 48),  type_label.upper(), font=f_md, fill=(255, 255, 255, 200))
-    draw.text((48, 96),  label,              font=f_xl, fill='white')
-    draw.text((48, 200), sub[:80],           font=f_lg, fill=(255, 255, 255, 220))
+    draw.text((48, 48), type_label.upper(), font=f_md, fill=(255, 255, 255, 200))
+    draw.text((48, 96), label, font=f_xl, fill='white')
+    draw.text((48, 200), sub[:80], font=f_lg, fill=(255, 255, 255, 220))
     draw.text((48, 700), 'ForensiQ — DEMO (placeholder)', font=f_md, fill=(255, 255, 255, 180))
     buf = BytesIO()
     img.save(buf, format='JPEG', quality=80, optimize=True)
@@ -131,19 +136,23 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            '--reset', action='store_true',
+            '--reset',
+            action='store_true',
             help='Apaga TODOS os dados core_* antes de criar. Operação destrutiva.',
         )
         parser.add_argument(
-            '--users-only', action='store_true',
+            '--users-only',
+            action='store_true',
             help='Cria/actualiza só os utilizadores demo, sem mexer em ocorrências.',
         )
         parser.add_argument(
-            '--wipe-media', action='store_true',
+            '--wipe-media',
+            action='store_true',
             help='Com --reset, apaga também MEDIA_ROOT/evidencias/.',
         )
         parser.add_argument(
-            '--no-input', action='store_true',
+            '--no-input',
+            action='store_true',
             help='Modo não-interactivo; exige todas as flags --agent-* e --expert-*.',
         )
         parser.add_argument('--agent-username', help='Username para o perfil AGENT.')
@@ -172,41 +181,51 @@ class Command(BaseCommand):
 
         # Recolha de credenciais (prompts ou flags).
         agent_username = self._get_credential(
-            options.get('agent_username'), 'agent-username',
-            'Username para o utilizador AGENT', secret=False,
+            options.get('agent_username'),
+            'agent-username',
+            'Username para o utilizador AGENT',
+            secret=False,
         )
         agent_password = self._get_credential(
-            options.get('agent_password'), 'agent-password',
-            'Password para o utilizador AGENT', secret=True,
+            options.get('agent_password'),
+            'agent-password',
+            'Password para o utilizador AGENT',
+            secret=True,
         )
         expert_username = self._get_credential(
-            options.get('expert_username'), 'expert-username',
-            'Username para o utilizador EXPERT', secret=False,
+            options.get('expert_username'),
+            'expert-username',
+            'Username para o utilizador EXPERT',
+            secret=False,
         )
         expert_password = self._get_credential(
-            options.get('expert_password'), 'expert-password',
-            'Password para o utilizador EXPERT', secret=True,
+            options.get('expert_password'),
+            'expert-password',
+            'Password para o utilizador EXPERT',
+            secret=True,
         )
 
         if agent_username == expert_username:
-            raise CommandError(
-                'Username do AGENT e do EXPERT têm de ser distintos.'
-            )
+            raise CommandError('Username do AGENT e do EXPERT têm de ser distintos.')
 
         if reset:
             self._reset_database(wipe_media=options['wipe_media'])
 
         agent = self._upsert_user(
-            username=agent_username, password=agent_password,
+            username=agent_username,
+            password=agent_password,
             profile=User.Profile.AGENT,
-            first_name='Agente', last_name='Demo',
+            first_name='Agente',
+            last_name='Demo',
             email=f'{agent_username}@forensiq.demo',
             badge_number='AGENT-DEMO',
         )
         expert = self._upsert_user(
-            username=expert_username, password=expert_password,
+            username=expert_username,
+            password=expert_password,
             profile=User.Profile.EXPERT,
-            first_name='Perito', last_name='Demo',
+            first_name='Perito',
+            last_name='Demo',
             email=f'{expert_username}@forensiq.demo',
             badge_number='EXPERT-DEMO',
         )
@@ -225,9 +244,7 @@ class Command(BaseCommand):
         if value:
             return value.strip()
         if self._no_input:
-            raise CommandError(
-                f'--no-input exige que forneças --{flag_name} via argumento.'
-            )
+            raise CommandError(f'--no-input exige que forneças --{flag_name} via argumento.')
         prompter = getpass.getpass if secret else input
         result = prompter(f'{prompt_label}: ').strip()
         if not result:
@@ -251,14 +268,16 @@ class Command(BaseCommand):
         try:
             validate_password(password, user=user)
         except ValidationError as exc:
-            self.stdout.write(self.style.WARNING(
-                f"AVISO: password de '{username}' não cumpre os validators:"
-            ))
+            self.stdout.write(
+                self.style.WARNING(f"AVISO: password de '{username}' não cumpre os validators:")
+            )
             for msg in exc.messages:
                 self.stdout.write(self.style.WARNING(f'   • {msg}'))
-            self.stdout.write(self.style.WARNING(
-                '   (Aceite na mesma — assume-se uso em demo, não em produção real.)'
-            ))
+            self.stdout.write(
+                self.style.WARNING(
+                    '   (Aceite na mesma — assume-se uso em demo, não em produção real.)'
+                )
+            )
         user.set_password(password)
         user.save(update_fields=['password'])
         verb = 'criado' if created else 'actualizado'
@@ -273,7 +292,7 @@ class Command(BaseCommand):
         # esses triggers, pelo que serve para o caso de seed/demo.
         if connection.vendor == 'postgresql':
             with connection.cursor() as cursor:
-                cursor.execute('''
+                cursor.execute("""
                     TRUNCATE TABLE
                         core_chainofcustody,
                         core_digitaldevice,
@@ -282,7 +301,7 @@ class Command(BaseCommand):
                         core_auditlog,
                         core_user
                     RESTART IDENTITY CASCADE
-                ''')
+                """)
         else:
             # SQLite (testes) — sem triggers, basta o queryset delete.
             ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
@@ -296,9 +315,7 @@ class Command(BaseCommand):
             media_root = Path(settings.MEDIA_ROOT)
             evidencias_dir = media_root / 'evidencias'
             if evidencias_dir.exists():
-                self.stdout.write(self.style.WARNING(
-                    f'A apagar fotos em {evidencias_dir}...'
-                ))
+                self.stdout.write(self.style.WARNING(f'A apagar fotos em {evidencias_dir}...'))
                 shutil.rmtree(evidencias_dir)
                 evidencias_dir.mkdir(parents=True, exist_ok=True)
 
@@ -310,12 +327,18 @@ class Command(BaseCommand):
         """Cria 5 ocorrências realistas com itens e cadeia de custódia."""
         self.stdout.write('A criar ocorrências e itens...')
 
+        # Dados de referência (taxonomia de crimes + política criminal) — o
+        # reset truncou-os; re-semeia, pois a Occurrence exige crime_type
+        # (ADR-0014). Idempotente.
+        call_command('seed_crime_taxonomy')
+
         now = timezone.now()
         cases = []
 
         # Caso 1 — assalto à mão armada com telemóvel apreendido.
         c1 = Occurrence.objects.create(
             number='NUIPC.812/2026.LISBOA',
+            crime_type=CrimeTipo.objects.get(codigo=40),  # Roubo na via pública (prioritário)
             description=(
                 'Assalto à mão armada na Av. da Liberdade. Suspeito '
                 'detido na fuga, telemóvel apreendido para análise de '
@@ -328,10 +351,12 @@ class Command(BaseCommand):
             agent=agent,
         )
         e1a = Evidence.objects.create(
-            occurrence=c1, type=Evidence.EvidenceType.MOBILE_DEVICE,
+            occurrence=c1,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='iPhone 15 Pro Max, ecrã ligeiramente fissurado.',
             timestamp_seizure=now - timedelta(days=12, hours=3),
-            gps_lat=Decimal('38.7197'), gps_lng=Decimal('-9.1467'),
+            gps_lat=Decimal('38.7197'),
+            gps_lng=Decimal('-9.1467'),
             serial_number='F2LXV3PJ9K',
             agent=agent,
             type_specific_data={'imei': '353918023456789'},
@@ -342,11 +367,13 @@ class Command(BaseCommand):
             ),
         )
         e1b = Evidence.objects.create(
-            occurrence=c1, type=Evidence.EvidenceType.SIM_CARD,
+            occurrence=c1,
+            type=Evidence.EvidenceType.SIM_CARD,
             description='Cartão SIM (operadora MEO) extraído do telemóvel.',
             parent_evidence=e1a,
             timestamp_seizure=now - timedelta(days=12, hours=3),
-            gps_lat=None, gps_lng=None,
+            gps_lat=None,
+            gps_lng=None,
             serial_number='8935101234567890123',
             agent=agent,
             type_specific_data={'imsi': '268010012345678'},
@@ -356,14 +383,21 @@ class Command(BaseCommand):
                 'SIM MEO — sub-componente do iPhone.',
             ),
         )
-        cases.append((c1, [e1a, e1b], [
-            ChainOfCustody.CustodyState.APREENDIDA,
-            ChainOfCustody.CustodyState.EM_TRANSPORTE,
-        ]))
+        cases.append(
+            (
+                c1,
+                [e1a, e1b],
+                [
+                    ChainOfCustody.CustodyState.APREENDIDA,
+                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                ],
+            )
+        )
 
         # Caso 2 — cyberbullying, computador + smartphone.
         c2 = Occurrence.objects.create(
             number='NUIPC.0345/2026.PORTO',
+            crime_type=CrimeTipo.objects.get(codigo=16),  # Ameaça e coacção
             description=(
                 'Cyberbullying e ameaças via redes sociais. Computador '
                 'portátil e smartphone do suspeito apreendidos com '
@@ -376,10 +410,12 @@ class Command(BaseCommand):
             agent=agent,
         )
         e2a = Evidence.objects.create(
-            occurrence=c2, type=Evidence.EvidenceType.COMPUTER,
+            occurrence=c2,
+            type=Evidence.EvidenceType.COMPUTER,
             description='MacBook Pro 14" 2023, com adesivo "Skull" tampa.',
             timestamp_seizure=now - timedelta(days=9, hours=1),
-            gps_lat=Decimal('41.1496'), gps_lng=Decimal('-8.6109'),
+            gps_lat=Decimal('41.1496'),
+            gps_lng=Decimal('-8.6109'),
             serial_number='C02ABCDEFGHJ',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -389,10 +425,12 @@ class Command(BaseCommand):
             ),
         )
         e2b = Evidence.objects.create(
-            occurrence=c2, type=Evidence.EvidenceType.MOBILE_DEVICE,
+            occurrence=c2,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
             description='Samsung Galaxy S23, capa preta de silicone.',
             timestamp_seizure=now - timedelta(days=9, hours=1),
-            gps_lat=Decimal('41.1496'), gps_lng=Decimal('-8.6109'),
+            gps_lat=Decimal('41.1496'),
+            gps_lng=Decimal('-8.6109'),
             serial_number='RZ8M407JKLM',
             agent=agent,
             type_specific_data={'imei': '358412345987650'},
@@ -403,11 +441,13 @@ class Command(BaseCommand):
             ),
         )
         e2c = Evidence.objects.create(
-            occurrence=c2, type=Evidence.EvidenceType.SIM_CARD,
+            occurrence=c2,
+            type=Evidence.EvidenceType.SIM_CARD,
             description='Cartão SIM (operadora NOS) extraído do Samsung.',
             parent_evidence=e2b,
             timestamp_seizure=now - timedelta(days=9, hours=1),
-            gps_lat=None, gps_lng=None,
+            gps_lat=None,
+            gps_lng=None,
             serial_number='8935106789012345678',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -416,16 +456,23 @@ class Command(BaseCommand):
                 'SIM NOS — sub-componente do Samsung.',
             ),
         )
-        cases.append((c2, [e2a, e2b, e2c], [
-            ChainOfCustody.CustodyState.APREENDIDA,
-            ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-            ChainOfCustody.CustodyState.EM_PERICIA,
-        ]))
+        cases.append(
+            (
+                c2,
+                [e2a, e2b, e2c],
+                [
+                    ChainOfCustody.CustodyState.APREENDIDA,
+                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                    ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                    ChainOfCustody.CustodyState.EM_PERICIA,
+                ],
+            )
+        )
 
         # Caso 3 — burla informática, drive externa (concluído).
         c3 = Occurrence.objects.create(
             number='NUIPC.1102/2026.COIMBRA',
+            crime_type=CrimeTipo.objects.get(codigo=241),  # Burla informática/comunicações
             description=(
                 'Burla informática com phishing bancário. Disco externo '
                 'usado para armazenar credenciais comprometidas.'
@@ -437,10 +484,12 @@ class Command(BaseCommand):
             agent=agent,
         )
         e3 = Evidence.objects.create(
-            occurrence=c3, type=Evidence.EvidenceType.STORAGE_MEDIA,
+            occurrence=c3,
+            type=Evidence.EvidenceType.STORAGE_MEDIA,
             description='Disco externo Seagate Backup Plus 2 TB, USB 3.0.',
             timestamp_seizure=now - timedelta(days=23, hours=5),
-            gps_lat=None, gps_lng=None,
+            gps_lat=None,
+            gps_lng=None,
             serial_number='NA8ABCDXYZ',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -449,17 +498,24 @@ class Command(BaseCommand):
                 'Disco externo Seagate 2TB — burla bancária.',
             ),
         )
-        cases.append((c3, [e3], [
-            ChainOfCustody.CustodyState.APREENDIDA,
-            ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-            ChainOfCustody.CustodyState.EM_PERICIA,
-            ChainOfCustody.CustodyState.CONCLUIDA,
-        ]))
+        cases.append(
+            (
+                c3,
+                [e3],
+                [
+                    ChainOfCustody.CustodyState.APREENDIDA,
+                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                    ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                    ChainOfCustody.CustodyState.EM_PERICIA,
+                    ChainOfCustody.CustodyState.CONCLUIDA,
+                ],
+            )
+        )
 
         # Caso 4 — drone derrubado em zona reservada.
         c4 = Occurrence.objects.create(
             number='NUIPC.205/2026.BRAGA',
+            crime_type=CrimeTipo.objects.get(codigo=172),  # Outros crimes
             description=(
                 'Voo de drone não autorizado sobre instalação militar. '
                 'Drone derrubado por contra-medida e cartão SD recuperado.'
@@ -471,10 +527,12 @@ class Command(BaseCommand):
             agent=agent,
         )
         e4a = Evidence.objects.create(
-            occurrence=c4, type=Evidence.EvidenceType.DRONE,
+            occurrence=c4,
+            type=Evidence.EvidenceType.DRONE,
             description='DJI Mavic 3 Pro, danos no propulsor frontal direito.',
             timestamp_seizure=now - timedelta(days=4),
-            gps_lat=Decimal('41.5454'), gps_lng=Decimal('-8.4265'),
+            gps_lat=Decimal('41.5454'),
+            gps_lng=Decimal('-8.4265'),
             serial_number='1581F5A0B0C0D',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -484,11 +542,13 @@ class Command(BaseCommand):
             ),
         )
         e4b = Evidence.objects.create(
-            occurrence=c4, type=Evidence.EvidenceType.MEMORY_CARD,
+            occurrence=c4,
+            type=Evidence.EvidenceType.MEMORY_CARD,
             description='Cartão microSD 256 GB Sandisk Extreme.',
             parent_evidence=e4a,
             timestamp_seizure=now - timedelta(days=4),
-            gps_lat=None, gps_lng=None,
+            gps_lat=None,
+            gps_lng=None,
             serial_number='SDC0010203',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -497,15 +557,22 @@ class Command(BaseCommand):
                 'microSD 256 GB recuperado do drone.',
             ),
         )
-        cases.append((c4, [e4a, e4b], [
-            ChainOfCustody.CustodyState.APREENDIDA,
-            ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-        ]))
+        cases.append(
+            (
+                c4,
+                [e4a, e4b],
+                [
+                    ChainOfCustody.CustodyState.APREENDIDA,
+                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                    ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
+                ],
+            )
+        )
 
         # Caso 5 — viatura com componentes electrónicos.
         c5 = Occurrence.objects.create(
             number='NUIPC.1789/2026.FARO',
+            crime_type=CrimeTipo.objects.get(codigo=31),  # Furto de veículo motorizado
             description=(
                 'Veículo recuperado após furto. Apreendidos a unidade '
                 'central infotainment e o tracker GPS encontrado no '
@@ -518,10 +585,12 @@ class Command(BaseCommand):
             agent=agent,
         )
         e5a = Evidence.objects.create(
-            occurrence=c5, type=Evidence.EvidenceType.VEHICLE,
+            occurrence=c5,
+            type=Evidence.EvidenceType.VEHICLE,
             description='Audi A4 Avant 2021, matrícula PT 12-AB-34.',
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=Decimal('37.0194'), gps_lng=Decimal('-7.9304'),
+            gps_lat=Decimal('37.0194'),
+            gps_lng=Decimal('-7.9304'),
             serial_number='WAUZZZ8E5BA123456',
             agent=agent,
             type_specific_data={'vin': '1HGBH41JXMN109186'},
@@ -532,12 +601,14 @@ class Command(BaseCommand):
             ),
         )
         e5b = Evidence.objects.create(
-            occurrence=c5, type=Evidence.EvidenceType.VEHICLE_COMPONENT,
+            occurrence=c5,
+            type=Evidence.EvidenceType.VEHICLE_COMPONENT,
             description='Unidade infotainment MMI Plus 8.4", número de '
-                        'fábrica visível no chassis traseiro.',
+            'fábrica visível no chassis traseiro.',
             parent_evidence=e5a,
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=None, gps_lng=None,
+            gps_lat=None,
+            gps_lng=None,
             serial_number='4M0035043G',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -547,11 +618,13 @@ class Command(BaseCommand):
             ),
         )
         e5c = Evidence.objects.create(
-            occurrence=c5, type=Evidence.EvidenceType.GPS_TRACKER,
+            occurrence=c5,
+            type=Evidence.EvidenceType.GPS_TRACKER,
             description='Localizador GPS magnético, Concox JM-VL01.',
             parent_evidence=e5a,
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=Decimal('37.0194'), gps_lng=Decimal('-7.9304'),
+            gps_lat=Decimal('37.0194'),
+            gps_lng=Decimal('-7.9304'),
             serial_number='862785043210123',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -561,11 +634,13 @@ class Command(BaseCommand):
             ),
         )
         e5d = Evidence.objects.create(
-            occurrence=c5, type=Evidence.EvidenceType.SIM_CARD,
+            occurrence=c5,
+            type=Evidence.EvidenceType.SIM_CARD,
             description='Cartão SIM Vodafone M2M usado pelo localizador GPS.',
             parent_evidence=e5c,
             timestamp_seizure=now - timedelta(days=2),
-            gps_lat=None, gps_lng=None,
+            gps_lat=None,
+            gps_lng=None,
             serial_number='8935107654321098765',
             agent=agent,
             photo=_make_placeholder_photo(
@@ -574,10 +649,16 @@ class Command(BaseCommand):
                 'SIM Vodafone — sub-componente do GPS tracker.',
             ),
         )
-        cases.append((c5, [e5a, e5b, e5c, e5d], [
-            ChainOfCustody.CustodyState.APREENDIDA,
-            ChainOfCustody.CustodyState.EM_TRANSPORTE,
-        ]))
+        cases.append(
+            (
+                c5,
+                [e5a, e5b, e5c, e5d],
+                [
+                    ChainOfCustody.CustodyState.APREENDIDA,
+                    ChainOfCustody.CustodyState.EM_TRANSPORTE,
+                ],
+            )
+        )
 
         # Cadeia de custódia — progredir cada item até ao estado alvo.
         # ChainOfCustody.timestamp é sempre fixado em save() via
@@ -614,14 +695,14 @@ class Command(BaseCommand):
         if cases_created and cases:
             num_items = sum(len(es) for _, es, _ in cases)
             num_custody = ChainOfCustody.objects.count()
-            self.stdout.write(self.style.SUCCESS(
-                f'{len(cases)} ocorrências, {num_items} itens, '
-                f'{num_custody} transições de custódia.'
-            ))
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f'{len(cases)} ocorrências, {num_items} itens, '
+                    f'{num_custody} transições de custódia.'
+                )
+            )
         self.stdout.write('')
-        self.stdout.write(self.style.WARNING(
-            'Para superuser administrativo: `python manage.py createsuperuser`.'
-        ))
-        self.stdout.write(self.style.WARNING(
-            'Rotacionar passwords após cessar o uso desta demo.'
-        ))
+        self.stdout.write(
+            self.style.WARNING('Para superuser administrativo: `python manage.py createsuperuser`.')
+        )
+        self.stdout.write(self.style.WARNING('Rotacionar passwords após cessar o uso desta demo.'))

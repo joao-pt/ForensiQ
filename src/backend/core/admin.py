@@ -6,9 +6,14 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from .models import (
     AuditLog,
     ChainOfCustody,
+    CrimeCategoria,
+    CrimeSubcategoria,
+    CrimeTipo,
     DigitalDevice,
     Evidence,
     Occurrence,
+    PoliticaCriminalPrioridade,
+    PrioridadeCrimeTipo,
     User,
 )
 
@@ -28,10 +33,68 @@ class UserAdmin(BaseUserAdmin):
 
 @admin.register(Occurrence)
 class OccurrenceAdmin(admin.ModelAdmin):
-    list_display = ('number', 'description', 'date_time', 'agent', 'created_at')
-    list_filter = ('date_time',)
-    search_fields = ('number', 'description', 'address')
-    raw_id_fields = ('agent',)
+    list_display = (
+        'number',
+        'crime_type',
+        'priority',
+        'priority_source',
+        'date_time',
+        'agent',
+        'created_at',
+    )
+    list_filter = ('priority', 'priority_source', 'date_time')
+    search_fields = ('number', 'description', 'address', 'crime_type__descritivo')
+    raw_id_fields = ('agent', 'crime_type')
+
+
+# ---------------------------------------------------------------------------
+# Taxonomia de crimes + Política Criminal (dados de referência — ADR-0014).
+# Editáveis no admin (não são prova; sem invariantes de imutabilidade).
+# ---------------------------------------------------------------------------
+
+
+@admin.register(CrimeCategoria)
+class CrimeCategoriaAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nome')
+    search_fields = ('codigo', 'nome')
+    ordering = ('codigo',)
+
+
+@admin.register(CrimeSubcategoria)
+class CrimeSubcategoriaAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'nome', 'categoria')
+    list_filter = ('categoria',)
+    search_fields = ('codigo', 'nome')
+    ordering = ('codigo',)
+
+
+@admin.register(CrimeTipo)
+class CrimeTipoAdmin(admin.ModelAdmin):
+    list_display = ('codigo', 'descritivo', 'subcategoria', 'is_active')
+    list_filter = ('is_active', 'subcategoria__categoria')
+    search_fields = ('codigo', 'descritivo')
+    ordering = ('codigo',)
+
+
+class PrioridadeCrimeTipoInline(admin.TabularInline):
+    model = PrioridadeCrimeTipo
+    extra = 0
+    raw_id_fields = ('crime_tipo',)
+
+
+@admin.register(PoliticaCriminalPrioridade)
+class PoliticaCriminalPrioridadeAdmin(admin.ModelAdmin):
+    list_display = ('lei', 'biennium', 'is_active', 'vigente_desde', 'vigente_ate')
+    list_filter = ('is_active',)
+    search_fields = ('lei', 'biennium')
+    inlines = [PrioridadeCrimeTipoInline]
+
+
+@admin.register(PrioridadeCrimeTipo)
+class PrioridadeCrimeTipoAdmin(admin.ModelAdmin):
+    list_display = ('politica', 'crime_tipo', 'eixo')
+    list_filter = ('eixo', 'politica')
+    raw_id_fields = ('crime_tipo',)
 
 
 @admin.register(Evidence)
@@ -53,7 +116,16 @@ class EvidenceAdmin(admin.ModelAdmin):
 
 @admin.register(DigitalDevice)
 class DigitalDeviceAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'type', 'brand', 'commercial_name', 'model', 'condition', 'imei', 'evidence')
+    list_display = (
+        'pk',
+        'type',
+        'brand',
+        'commercial_name',
+        'model',
+        'condition',
+        'imei',
+        'evidence',
+    )
     list_filter = ('type', 'condition')
     search_fields = ('brand', 'commercial_name', 'model', 'imei', 'serial_number')
     raw_id_fields = ('evidence',)
@@ -79,6 +151,7 @@ class ChainOfCustodyAdmin(admin.ModelAdmin):
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
     """Registo de auditoria — read-only para todos os perfis."""
+
     list_display = ('timestamp', 'user', 'action', 'resource_type', 'resource_id', 'ip_address')
     list_filter = ('action', 'resource_type', 'timestamp')
     search_fields = ('user__username', 'ip_address', 'correlation_id')

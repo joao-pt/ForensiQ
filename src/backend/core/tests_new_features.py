@@ -26,6 +26,9 @@ from .tests_api import BaseAPITestCase
 User = get_user_model()
 
 
+from core.tests_factories import CrimeTipoFactory
+
+
 def _png_upload(name='photo.png', size=(2, 2)):
     """Devolve um SimpleUploadedFile com PNG válido (Pillow.verify passa)."""
     buf = io.BytesIO()
@@ -37,12 +40,14 @@ def _png_upload(name='photo.png', size=(2, 2)):
 # D — EVIDENCE_LEAF_TYPES rejeita filhos
 # ---------------------------------------------------------------------------
 
+
 class LeafTypeValidationTest(BaseAPITestCase):
     """Tipos terminais (SIM, MEMORY, RFID, DIGITAL_FILE) não aceitam filhos."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='LEAF-2026-001',
             description='Caso para teste de tipos LEAF',
             agent=self.agent,
@@ -95,12 +100,14 @@ class LeafTypeValidationTest(BaseAPITestCase):
 # G — Manager with_current_state + filtro ?state=
 # ---------------------------------------------------------------------------
 
+
 class CurrentStateAndFilterTest(BaseAPITestCase):
     """Manager anota o estado actual e os ViewSets respeitam ?state=."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='STATE-2026-001',
             description='Caso filtro state',
             agent=self.agent,
@@ -119,8 +126,10 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
         )
         # Avança ev_in_analysis até EM_PERICIA
         for state in [
-            'APREENDIDA', 'EM_TRANSPORTE',
-            'RECEBIDA_LABORATORIO', 'EM_PERICIA',
+            'APREENDIDA',
+            'EM_TRANSPORTE',
+            'RECEBIDA_LABORATORIO',
+            'EM_PERICIA',
         ]:
             ChainOfCustody.objects.create(
                 evidence=self.ev_in_analysis,
@@ -156,6 +165,7 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
     def test_occurrences_filter_by_state(self):
         # Outra ocorrência sem evidências em perícia
         other_occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='STATE-2026-002',
             description='Outra ocorrência',
             agent=self.agent,
@@ -178,12 +188,14 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
 # E — Endpoint POST /api/custody/cascade/
 # ---------------------------------------------------------------------------
 
+
 class CascadeCustodyTest(BaseAPITestCase):
     """Cascade aplica a transição a múltiplas evidências em transação atómica."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='CASCADE-2026-001',
             description='Caso cascade',
             agent=self.agent,
@@ -211,7 +223,9 @@ class CascadeCustodyTest(BaseAPITestCase):
         # Estado inicial APREENDIDA para todos
         for ev in [self.parent, self.sim, self.sd]:
             ChainOfCustody.objects.create(
-                evidence=ev, new_state='APREENDIDA', agent=self.agent,
+                evidence=ev,
+                new_state='APREENDIDA',
+                agent=self.agent,
             )
 
     def test_cascade_creates_chain_for_all_evidences(self):
@@ -257,14 +271,14 @@ class CascadeCustodyTest(BaseAPITestCase):
     def test_cascade_rolls_back_on_invalid_transition(self):
         """Se a transição é inválida para uma evidência, todas revertem."""
         # Avança o SIM para CONCLUIDA (impossível voltar a EM_TRANSPORTE)
-        for state in ['EM_TRANSPORTE', 'RECEBIDA_LABORATORIO',
-                      'EM_PERICIA', 'CONCLUIDA']:
+        for state in ['EM_TRANSPORTE', 'RECEBIDA_LABORATORIO', 'EM_PERICIA', 'CONCLUIDA']:
             ChainOfCustody.objects.create(
-                evidence=self.sim, new_state=state, agent=self.agent,
+                evidence=self.sim,
+                new_state=state,
+                agent=self.agent,
             )
         sequences_before = {
-            ev.id: ev.custody_chain.count()
-            for ev in [self.parent, self.sim, self.sd]
+            ev.id: ev.custody_chain.count() for ev in [self.parent, self.sim, self.sd]
         }
 
         self.client.force_authenticate(self.agent)
@@ -315,12 +329,14 @@ class CascadeCustodyTest(BaseAPITestCase):
 # J — MediaServeView
 # ---------------------------------------------------------------------------
 
+
 class MediaServeTest(BaseAPITestCase):
     """Foto de evidência só servida com auth + ownership; audita acesso."""
 
     def setUp(self):
         super().setUp()
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='MEDIA-2026-001',
             description='Caso media',
             agent=self.agent,

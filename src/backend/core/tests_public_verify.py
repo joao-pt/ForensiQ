@@ -27,6 +27,9 @@ from core.qr_verify import short_hash_for
 User = get_user_model()
 
 
+from core.tests_factories import CrimeTipoFactory
+
+
 def _make_user(username, profile='AGENT', password='TestPass123!'):
     return User.objects.create_user(
         username=username,
@@ -38,6 +41,7 @@ def _make_user(username, profile='AGENT', password='TestPass123!'):
 
 def _make_occurrence(agent, number='OCC-PV-001'):
     return Occurrence.objects.create(
+        crime_type=CrimeTipoFactory(),
         number=number,
         description='Cena de crime sensível — não deve aparecer na vista pública',
         date_time=timezone.now(),

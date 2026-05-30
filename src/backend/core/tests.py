@@ -21,6 +21,8 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
+from core.tests_factories import CrimeTipoFactory
+
 from .models import (
     ChainOfCustody,
     DigitalDevice,
@@ -59,7 +61,8 @@ class OccurrenceModelTest(TestCase):
 
     def setUp(self):
         self.agent = User.objects.create_user(
-            username='agente01', password='test12345',
+            username='agente01',
+            password='test12345',
         )
 
     def test_create_occurrence(self):
@@ -68,6 +71,7 @@ class OccurrenceModelTest(TestCase):
         # "38.7223340" tem 9 dígitos = 2 inteiros + 7 decimais → ok.
         # "-9.1393366" tem 8 dígitos = 1 inteiro + 7 decimais → ok.
         occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-001',
             description='Furto de telemóvel na via pública.',
             agent=self.agent,
@@ -85,9 +89,11 @@ class EvidenceModelTest(TestCase):
 
     def setUp(self):
         self.agent = User.objects.create_user(
-            username='agente01', password='test12345',
+            username='agente01',
+            password='test12345',
         )
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-001',
             description='Furto de telemóvel.',
             agent=self.agent,
@@ -147,9 +153,11 @@ class DigitalDeviceModelTest(TestCase):
 
     def setUp(self):
         self.agent = User.objects.create_user(
-            username='agente01', password='test12345',
+            username='agente01',
+            password='test12345',
         )
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-002',
             description='Apreensão de portátil.',
             agent=self.agent,
@@ -179,13 +187,16 @@ class ChainOfCustodyModelTest(TestCase):
 
     def setUp(self):
         self.agent = User.objects.create_user(
-            username='agente01', password='test12345',
+            username='agente01',
+            password='test12345',
         )
         self.expert = User.objects.create_user(
-            username='perito01', password='test12345',
+            username='perito01',
+            password='test12345',
             profile=User.Profile.EXPERT,
         )
         self.occurrence = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-2026-003',
             description='Apreensão.',
             agent=self.agent,
@@ -225,9 +236,7 @@ class ChainOfCustodyModelTest(TestCase):
             agent=self.agent,
         ).save()
 
-        self.assertEqual(
-            ChainOfCustody.objects.filter(evidence=self.evidence).count(), 2
-        )
+        self.assertEqual(ChainOfCustody.objects.filter(evidence=self.evidence).count(), 2)
 
     def test_invalid_transition_raises_error(self):
         """Transição inválida deve levantar ValidationError."""
