@@ -132,7 +132,7 @@ footer técnico com métricas hardcoded/ausentes. Bug já presente: o do hero ge
 |------|--------|------|-----|---------|-------|
 | **T01** | GPS na custódia + hash versionado + arredondamento por papel (ADR-0013) | 2-backend | P1 | L | **ALTO** |
 | **T02** | Normalizar longitude para `gps_lng` (rename migration + JS) | 2-backend | P1 | M | Baixo-Médio |
-| **T03** | `Occurrence.priority` (P1-P4) + serializer + `evidences_count` | 2-backend | P1 | M | Baixo |
+| **T03** | `Occurrence`: `crime_type` + `priority` binária (lei) + `evidences_count` | 2-backend | P1 | M | Baixo |
 | **T04** | Remover export CSV por completo | ambas | P1 | M | Baixo |
 | **T05** | Deprecar/remover `DigitalDevice`, consolidar em "evidência" | ambas | P1 | L | Médio |
 | **T06** | Endpoint read-only de feed de actividade sobre `AuditLog` | 2-backend | P1 | M | Médio |
@@ -148,6 +148,7 @@ footer técnico com métricas hardcoded/ausentes. Bug já presente: o do hero ge
 | **T16** | Consolidar testes duplicados + `AuditLogFactory` + teste de triggers PG + CSRF cookie | 2-backend | P3 | M | Baixo |
 | **T17** | Coerência de contrato API (shapes de erro, snapshot lookup, auditar Occurrence) | 2-backend | P3 | L | Baixo |
 | **T18** | *(novo — §7)* Coerência API/BD da `Occurrence` (imutável em PG vs ViewSet mutável) + Intake | ambas | **P1** | M | **Médio-Alto** |
+| **T19** | *(novo — 2026-05-30)* Taxonomia oficial de crimes + prioridade por Política Criminal + alertas | ambas | **P1** | L | Médio |
 
 ### Detalhe dos temas
 
@@ -158,9 +159,9 @@ Lacuna estrutural #1: o mini-mapa "Cadeia" (polyline + pins por estado + tooltip
 **T02 — Normalizar longitude para `gps_lng`.** `[P1 · fase-2-backend · M · baixo-médio]`
 Pré-requisito de T01 e do fix do hero. `Occurrence`/`Evidence` usam `gps_lon` (confirmado `serializers.py:139`); a spec/mockup usam `gps_lng`. **Decisão D2: normalizar tudo para `gps_lng`** (convenção única em todo o schema). Migration de rename `gps_lon`→`gps_lng` em `Occurrence` e `Evidence`; actualizar `filters.py`, serializers, `pdf_export._fmt_gps`, `config.js`, `dashboard_geo_hero.js` e restantes pages. O rename **não** altera o `integrity_hash` da `Evidence` (usa o valor, não o nome). A `ChainOfCustody` nova nasce já com `gps_lng`. *Findings:* `coc-gps-nome-lng-vs-lon`, `gps-lon-vs-lng-nomenclatura`, `gap-gps-lon-vs-lng-naming`. → §6 D2.
 
-**T03 — `Occurrence.priority` + serializer + contagem.** `[P1 · fase-2-backend · M · baixo]`
-Lacuna estrutural #2: colorbar do hero, cor dos pins e coluna "Pri." são decorativas porque não existe `Occurrence.priority`. Adição pura (IntegerChoices + migration + serializer). Aproveitar para anotar `evidences_count` no queryset. *Findings:* `gap-occurrence-priority`, `gap-occurrence-priority-serializer`, `gap-table-priority-feed-source`.
-⚠️ **Ver T18/§7:** a `Occurrence` é imutável em PG (0013), logo `priority` só pode ser definida **na criação** (POST). Decidir semântica P1=maior (mockup).
+**T03 — `Occurrence`: `crime_type` + `priority` binária + contagem.** `[P1 · fase-2-backend · M · baixo]`
+Lacuna estrutural #2. **Decisão 2026-05-30 (ver T19):** a `priority` deixa de ser P1-P4 arbitrária e passa a **binária `prioritária`/`normal` derivada da Lei de Política Criminal** a partir do `crime_type` (FK à taxonomia oficial), com override manual. Adicionar `crime_type` FK + `priority` (2 valores) + `priority_source` (lei/manual) + serializer; anotar `evidences_count` no queryset. *Findings:* `gap-occurrence-priority`, `gap-occurrence-priority-serializer`, `gap-table-priority-feed-source`.
+⚠️ **Ver T18/§7:** a `Occurrence` é imutável em PG (0013), logo `crime_type` e `priority` só podem ser definidos **na criação** (POST).
 
 **T04 — Remover export CSV por completo.** `[P1 · ambas · M · baixo]`
 Decisão fechada (mockup V20 sem CSV). Remover 3 `@action export_csv` (`views.py:280/539/707`), helpers `_CsvEcho`/`_csv_streaming_response`/`_check_csv_size`/`_csv_filename` + `CSV_EXPORT_MAX_ROWS` + imports, scope `csv_export`, `refreshExportLink` em 3 page-scripts + botões em 3 templates, `CsvExportTest` (8 testes), menções no README. *Findings:* `csv-remocao-auditlog-choice`, `api-csv-export-{occurrence,evidence,custody}-morto`, `api-csv-helpers-orfaos`, `api-csv-scope-orfao`, `api-csv-config-js-ausente`, `csv-export-a-remover-services`, `csv-throttle-scope-a-remover`, `csv-frontend-morto`, `tpl-csv-export-morto`, `csv-tests-a-remover`, `readme-csv-export-anunciado`, `gap-csv-removal-impact`.
@@ -214,13 +215,23 @@ Dois itens que os 9 agentes não conectaram e a verificação directa expôs:
 - **`Occurrence` imutável em PG (0013) mas `OccurrenceViewSet` sem `http_method_names`** → a API expõe PUT/PATCH/DELETE que o trigger da BD recusa. Em produção dá 500; **em SQLite de teste passa silenciosamente a mutar prova**. Decidir tornar o ViewSet POST-only (coerente com os outros 3 e com a BD) — ver §6. *Findings:* `api-occurrence-mutavel-sem-audit` (elevado de info→**high**), `invariante-occurrence-imutavel-nao-documentado`, `api-occurrence-mutavel-sem-audit`.
 - **Fluxo de Intake omitido pelo inventário** — `occurrence_intake_view` (`frontend_views.py:192-270`) é feature EXPERT real (ADR-0012 Vaga 2): checklist de recepção que submete para `/api/custody/cascade/` (que **fica**). Verificado: é v1, autenticada, par natural do PDF/QR. Precisa de re-skin v2 na Fase 3 (`occurrence_intake.html` + `403_intake.html`); não depende de endpoints removidos. Classificar explicitamente em ambas as fases.
 
+**T19 — *(novo, 2026-05-30)* Taxonomia oficial de crimes + prioridade por Política Criminal + alertas.** `[P1 · ambas · L · médio]`
+Torna a `priority` **semântica** (ancorada na lei) e acelera/normaliza a entrada de dados. Decisões do dono (2026-05-30):
+- **Taxonomia = dados de referência (3 tabelas):** `CrimeCategoria` (N1, 6) → `CrimeSubcategoria` (N2) → `CrimeTipo` (N3, código oficial), semeadas da **Tabela de Crimes Registados 2024** (DGPJ/SIEJ Modelo 262 + INE/CSE; a de 2008 está desactualizada). Não é prova → é lookup admin-editável/versionável. Selector em cascata na criação; estatística por categoria alinhada com o INE.
+- **`Occurrence.crime_type` FK→`CrimeTipo`** (obrigatório, definido na criação — coerente com a imutabilidade T18).
+- **Prioridade binária `prioritária`/`normal`** (decisão: fiel à lei, **não** P1-P4), **derivada** de config versionada por biénio (`PoliticaCriminalPrioridade`) semeada da **Lei 51/2023**. Eixo operativo = **Art. 5.º (investigação prioritária)**; Art. 4.º (prevenção) guardado como flag informativa. **Override manual** pelo agente (`priority_source`: lei/manual). Nova lei = nova versão de config, zero código (a Lei 2025-2027 está só aprovada na generalidade em 2026-03-20, ainda não promulgada — modelar como versão futura).
+- **Alertas na consola:** criar ocorrência com crime prioritário → evento no feed (liga a T06) + badge no hero.
+- **Mapeamento curado** lei↔tabela (frases da lei → códigos N3/N2; ex.: "homicídio"→1, "violência doméstica"→194/195/196, "burla informática"→53, "cibercriminalidade"→subcat. 43) — trabalho bounded, candidato a workflow de mapeamento + verificação adversarial.
+
+**Implicação Fase 3 (`art-direction.md`):** a colorbar/legenda do hero deixa de ser P1-P4 e passa a **2 estados (prioritária/normal)** — actualizar `art-direction.md` §Hero e o `geo-hero`. *Estende:* T03 (priority), T06 (feed/alertas). *Findings relacionados:* `gap-occurrence-priority`, `gap-occurrence-priority-serializer`, `gap-table-priority-feed-source`. *Depende de:* obter a Tabela 2024 (1.ª tarefa de dados da Fase 2).
+
 ---
 
 ## 4. Blockers da v2 (têm de ser feitos na Fase 2)
 
 1. **GPS na `ChainOfCustody`** (modelo + serializer + write) — sem isto o mini-mapa "Cadeia", a polyline e os tooltips ±Nm não têm fonte. (T01)
 2. **Entrada do GPS no `compute_record_hash` de forma versionada**, fixada no ADR-0013 **antes** de produção — decisão forense irreversível. (T01)
-3. **`Occurrence.priority`** + serializer — sem isto a colorbar e a cor dos pins são decorativas. (T03)
+3. **`Occurrence.crime_type` + `priority` binária (da Política Criminal)** + serializer — sem isto a colorbar/legenda e a cor dos pins são decorativas; é também a base dos alertas de crime prioritário. (T03/T19)
 4. **Endpoint read-only de feed sobre `AuditLog`** — o feed do dashboard é 100% estático no mockup. (T06)
 5. **CSP autorizar CartoDB** — em produção o mapa-herói falha silenciosamente. (T08)
 6. **Fix do contrato `gps_lat/gps_lon`** no hero — a peça mais visível não funciona hoje. (T09)
@@ -284,7 +295,17 @@ Refinado pela verificação (§7): `seed_demo` usa **TRUNCATE** (não dispara `B
 **D8 — *(novo)* A `Occurrence` deve ser POST-only na API (coerente com a BD imutável)?** ✅ **DECIDIDO (2026-05-30): (a) tornar POST-only.**
 A BD bloqueia qualquer UPDATE/DELETE de `Occurrence` (0013), mas `OccurrenceViewSet` não restringe métodos.
 Opções: (a) **tornar POST-only** (`http_method_names = ['get','post','head','options']`, como os outros 3) — coerente com a BD; `priority` define-se só na criação; (b) manter mutável e remover o trigger 0013 (enfraquece a imutabilidade — **não recomendado**); (c) permitir edição de um subconjunto de campos não-forenses (exige relaxar o trigger por coluna — complexo).
-**Decisão: (a).** É a única opção coerente com a imutabilidade já em vigor na BD e fecha a janela de mutação silenciosa em testes SQLite. Acção em T18: adicionar `http_method_names` ao `OccurrenceViewSet` + teste que confirme 405 em PUT/PATCH/DELETE. Confirmar que nenhuma funcionalidade legítima edita `Occurrence` hoje (`priority` passa a ser campo de criação).
+**Decisão: (a).** É a única opção coerente com a imutabilidade já em vigor na BD e fecha a janela de mutação silenciosa em testes SQLite. Acção em T18: adicionar `http_method_names` ao `OccurrenceViewSet` + teste que confirme 405 em PUT/PATCH/DELETE. Confirmar que nenhuma funcionalidade legítima edita `Occurrence` hoje (`crime_type`/`priority` passam a ser campos de criação).
+
+### Decisões de produto adicionais (2026-05-30, parte 2 — taxonomia & prioridade, ver T19)
+
+**D9 — Taxonomia de crimes:** ✅ obter a **Tabela de Crimes Registados 2024** (DGPJ/SIEJ Modelo 262 + INE/CSE) e modelar em **3 tabelas de referência** (`CrimeCategoria`→`CrimeSubcategoria`→`CrimeTipo`, com código oficial). A de 2008 fica como referência histórica.
+
+**D10 — Escala de prioridade:** ✅ **binária** `prioritária`/`normal`, fiel à Lei de Política Criminal (**não** P1-P4), derivada de config versionada por biénio + override manual. **Eixo operativo = Art. 5.º (investigação prioritária)**; Art. 4.º (prevenção) como flag informativa. **Implica:** colorbar/legenda do hero a 2 estados — actualizar `art-direction.md` na Fase 3.
+
+**D11 — `crime_type` + alertas:** ✅ `Occurrence.crime_type` FK obrigatória à taxonomia, definida na criação (coerente com a imutabilidade T18). Ao registar crime prioritário → alerta na consola (feed T06 + badge no hero). Mapeamento curado lei↔tabela a produzir (workflow de mapeamento + verificação).
+
+> Lei sucessora: a **Lei de Política Criminal 2025-2027** foi aprovada na generalidade (2026-03-20) mas **não está promulgada** — a config de prioridade fica semeada com a 51/2023 e pronta a receber a 2025-2027 quando publicada (sem código novo).
 
 ---
 
