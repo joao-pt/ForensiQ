@@ -33,36 +33,20 @@ import factory
 from django.utils import timezone
 
 from core.models import (
+    AuditLog,
     ChainOfCustody,
-    DigitalDevice,
+    CrimeCategoria,
+    CrimeSubcategoria,
+    CrimeTipo,
     Evidence,
     Occurrence,
     User,
 )
 
-
-def _luhn_complete(prefix14: str) -> str:
-    """Anexa o check digit de Luhn a um prefixo de 14 dígitos para produzir
-    um IMEI válido. Usado pelas factories para que dispositivos criados em
-    testes passem o validador de `DigitalDevice.imei` (que exige checksum
-    via `_digital_device_imei_validator`).
-    """
-    total = 0
-    for i, ch in enumerate(reversed(prefix14)):
-        digit = int(ch)
-        # No número final (15 dígitos), prefix14[i] (i a partir do fim) ocupa
-        # a posição rev = i+1; posições ímpares são duplicadas.
-        if (i + 1) % 2 == 1:
-            digit *= 2
-            if digit > 9:
-                digit -= 9
-        total += digit
-    check = (10 - (total % 10)) % 10
-    return f'{prefix14}{check}'
-
 # ---------------------------------------------------------------------------
 # Utilizadores
 # ---------------------------------------------------------------------------
+
 
 class UserFactory(factory.django.DjangoModelFactory):
     """Agente (first responder) autenticado. Uso: ``UserFactory.create()``."""
@@ -103,8 +87,50 @@ PeritoFactory = ExpertFactory
 
 
 # ---------------------------------------------------------------------------
+# Taxonomia de crimes (dados de referência — ADR-0014)
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoriaFactory(factory.django.DjangoModelFactory):
+    """Categoria N1 (default: 1 — Crimes contra as pessoas)."""
+
+    class Meta:
+        model = CrimeCategoria
+        django_get_or_create = ('codigo',)
+
+    codigo = 1
+    nome = 'Código Penal - Crimes contra as pessoas'
+
+
+class CrimeSubcategoriaFactory(factory.django.DjangoModelFactory):
+    """Subcategoria N2 (default: 1 — Crimes contra a vida)."""
+
+    class Meta:
+        model = CrimeSubcategoria
+        django_get_or_create = ('codigo',)
+
+    codigo = 1
+    nome = 'Crimes contra a vida'
+    categoria = factory.SubFactory(CrimeCategoriaFactory)
+
+
+class CrimeTipoFactory(factory.django.DjangoModelFactory):
+    """Tipo N3 (default: 1 — Homicídio voluntário consumado)."""
+
+    class Meta:
+        model = CrimeTipo
+        django_get_or_create = ('codigo',)
+
+    codigo = 1
+    descritivo = 'Homicidio voluntário consumado'
+    subcategoria = factory.SubFactory(CrimeSubcategoriaFactory)
+    is_active = True
+
+
+# ---------------------------------------------------------------------------
 # Ocorrência
 # ---------------------------------------------------------------------------
+
 
 class OccurrenceFactory(factory.django.DjangoModelFactory):
     """Ocorrência com coordenadas GPS em Lisboa (Marquês de Pombal)."""
@@ -115,18 +141,22 @@ class OccurrenceFactory(factory.django.DjangoModelFactory):
 
     number = factory.Sequence(lambda n: f'NUIPC-2026-{n:06d}')
     description = factory.Faker(
-        'sentence', nb_words=12, locale='pt_PT',
+        'sentence',
+        nb_words=12,
+        locale='pt_PT',
     )
     date_time = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
-    gps_lon = Decimal('-9.1393366')
+    gps_lng = Decimal('-9.1393366')
     address = 'Marquês de Pombal, Lisboa'
     agent = factory.SubFactory(UserFactory)
+    crime_type = factory.SubFactory(CrimeTipoFactory)
 
 
 # ---------------------------------------------------------------------------
 # Evidências — taxonomia digital-first (ADR-0010)
 # ---------------------------------------------------------------------------
+
 
 class EvidenceMobileFactory(factory.django.DjangoModelFactory):
     """Evidência do tipo ``MOBILE_DEVICE`` (telemóvel/smartphone)."""
@@ -137,12 +167,14 @@ class EvidenceMobileFactory(factory.django.DjangoModelFactory):
     occurrence = factory.SubFactory(OccurrenceFactory)
     type = Evidence.EvidenceType.MOBILE_DEVICE
     description = factory.Faker(
-        'sentence', nb_words=10, locale='pt_PT',
+        'sentence',
+        nb_words=10,
+        locale='pt_PT',
     )
     serial_number = factory.Sequence(lambda n: f'IMEI-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
-    gps_lon = Decimal('-9.1393366')
+    gps_lng = Decimal('-9.1393366')
     agent = factory.SubFactory(UserFactory)
 
 
@@ -156,7 +188,9 @@ class EvidenceVehicleFactory(factory.django.DjangoModelFactory):
     occurrence = factory.SubFactory(OccurrenceFactory)
     type = Evidence.EvidenceType.VEHICLE
     description = factory.Faker(
-        'sentence', nb_words=10, locale='pt_PT',
+        'sentence',
+        nb_words=10,
+        locale='pt_PT',
     )
     # Número de série genérico do container-veículo. NOTA: o campo
     # ``serial_number`` é uma string livre; o VIN (ISO 3779, 17 chars,
@@ -165,7 +199,7 @@ class EvidenceVehicleFactory(factory.django.DjangoModelFactory):
     serial_number = factory.Sequence(lambda n: f'VEH-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
     gps_lat = Decimal('38.7223340')
-    gps_lon = Decimal('-9.1393366')
+    gps_lng = Decimal('-9.1393366')
     agent = factory.SubFactory(UserFactory)
 
 
@@ -186,65 +220,73 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
     occurrence = factory.SubFactory(OccurrenceFactory)
     type = Evidence.EvidenceType.SIM_CARD
     description = factory.Faker(
-        'sentence', nb_words=8, locale='pt_PT',
+        'sentence',
+        nb_words=8,
+        locale='pt_PT',
     )
     serial_number = factory.Sequence(lambda n: f'ICCID-{n:019d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
     # SIM cards não costumam ter GPS próprio — herdam do pai.
     gps_lat = None
-    gps_lon = None
+    gps_lng = None
     agent = factory.SubFactory(UserFactory)
-
-
-# ---------------------------------------------------------------------------
-# Dispositivo digital
-# ---------------------------------------------------------------------------
-
-class DigitalDeviceFactory(factory.django.DjangoModelFactory):
-    """Dispositivo digital associado a uma evidência (``MOBILE_DEVICE``)."""
-
-    class Meta:
-        model = DigitalDevice
-
-    evidence = factory.SubFactory(EvidenceMobileFactory)
-    type = DigitalDevice.DeviceType.SMARTPHONE
-    brand = factory.Faker(
-        'random_element', elements=('Samsung', 'Apple', 'Xiaomi', 'Google'),
-    )
-    model = factory.Sequence(lambda n: f'Model-{n:04d}')
-    condition = DigitalDevice.DeviceCondition.FUNCTIONAL
-    serial_number = factory.Sequence(lambda n: f'DEV-SN-{n:010d}')
-    # IMEI sequencial com check digit de Luhn calculado — o modelo exige
-    # checksum válido via `_digital_device_imei_validator`. Testes que
-    # queiram IMEIs inválidos devem passar explicitamente um valor.
-    imei = factory.Sequence(lambda n: _luhn_complete(f'{n:014d}'))
 
 
 # ---------------------------------------------------------------------------
 # Cadeia de custódia
 # ---------------------------------------------------------------------------
 
+
 class ChainOfCustodyFactory(factory.django.DjangoModelFactory):
-    """Primeira transição '' → APREENDIDA (máquina de estados)."""
+    """Primeiro evento do ledger: APREENSAO pelo OPC (ADR-0015)."""
 
     class Meta:
         model = ChainOfCustody
 
     evidence = factory.SubFactory(EvidenceMobileFactory)
-    previous_state = ''
-    new_state = ChainOfCustody.CustodyState.APREENDIDA
+    event_type = ChainOfCustody.EventType.APREENSAO
+    custodian_type = ChainOfCustody.CustodianType.OPC
     agent = factory.SubFactory(UserFactory)
     observations = 'Apreensão inicial no local (factory).'
+
+
+# ---------------------------------------------------------------------------
+# Auditoria
+# ---------------------------------------------------------------------------
+
+
+class AuditLogFactory(factory.django.DjangoModelFactory):
+    """Registo de auditoria (append-only, ISO/IEC 27037).
+
+    ``timestamp`` (``auto_now_add``) e ``sequence`` (atribuído no ``save()``
+    do modelo como ``max(sequence)+1``) são deixados ao modelo — não os
+    definimos na factory para não colidir com a invariante de sequência
+    global monótona.
+    """
+
+    class Meta:
+        model = AuditLog
+
+    user = factory.SubFactory(UserFactory)
+    action = AuditLog.Action.VIEW
+    resource_type = AuditLog.ResourceType.EVIDENCE
+    resource_id = factory.Sequence(lambda n: n + 1)
+    ip_address = '127.0.0.1'
+    correlation_id = factory.Sequence(lambda n: f'test-corr-{n:08d}')
+    details = factory.LazyFunction(dict)
 
 
 __all__ = [
     'UserFactory',
     'ExpertFactory',
     'PeritoFactory',
+    'CrimeCategoriaFactory',
+    'CrimeSubcategoriaFactory',
+    'CrimeTipoFactory',
     'OccurrenceFactory',
     'EvidenceMobileFactory',
     'EvidenceVehicleFactory',
     'EvidenceSimCardFactory',
-    'DigitalDeviceFactory',
     'ChainOfCustodyFactory',
+    'AuditLogFactory',
 ]

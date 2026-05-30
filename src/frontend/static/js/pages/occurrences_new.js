@@ -95,7 +95,7 @@ function captureGPS() {
             var lat = pos.coords.latitude.toFixed(7);
             var lon = pos.coords.longitude.toFixed(7);
             document.getElementById('gps_lat').value = lat;
-            document.getElementById('gps_lon').value = lon;
+            document.getElementById('gps_lng').value = lon;
             btn.disabled = false;
             btn.textContent = '\uD83D\uDCCD Atualizar localização';
             showGpsStatus('\u2705 GPS capturado (\u00B1' + Math.round(pos.coords.accuracy) + 'm)', 'success');
@@ -146,7 +146,7 @@ function buildSummary() {
     setText('sum-datetime', document.getElementById('date_time').value || '\u2014');
 
     var lat = document.getElementById('gps_lat').value;
-    var lon = document.getElementById('gps_lon').value;
+    var lon = document.getElementById('gps_lng').value;
     setText('sum-gps', lat && lon ? lat + ', ' + lon : 'Não capturado');
 
     var address = document.getElementById('address').value.trim();
@@ -181,9 +181,9 @@ async function handleSubmit() {
         };
 
         var lat = form.gps_lat.value;
-        var lon = form.gps_lon.value;
+        var lon = form.gps_lng.value;
         if (lat) data.gps_lat = parseFloat(lat);
-        if (lon) data.gps_lon = parseFloat(lon);
+        if (lon) data.gps_lng = parseFloat(lon);
 
         var result = await API.post(CONFIG.ENDPOINTS.OCCURRENCES, data);
         Toast.show('Ocorrência registada com sucesso!', 'success');

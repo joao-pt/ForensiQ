@@ -23,20 +23,6 @@ const STATE_LABELS = {
     DESTRUIDA:            'Destruída',
 };
 
-const CONDITION_LABELS = {
-    FUNCTIONAL: 'Funcional', DAMAGED: 'Danificado', LOCKED: 'Bloqueado',
-    OFF: 'Desligado',        UNKNOWN: 'Desconhecido',
-};
-
-// Mapa legado (DigitalDevice) → ícone. Mantido porque DigitalDevice coexiste
-// com Evidence.sub_components enquanto não for consolidado.
-const LEGACY_DEVICE_ICON = {
-    SMARTPHONE: 'smartphone', TABLET: 'smartphone', LAPTOP: 'laptop',
-    DESKTOP: 'laptop',        USB_DRIVE: 'hard-drive', HARD_DRIVE: 'disc',
-    SIM_CARD: 'sim-card',     SD_CARD: 'sd-card', CAMERA: 'cctv',
-    DRONE: 'drone',           OTHER: 'box',
-};
-
 let map = null;
 
 // Caches partilhados pelo cardRenderer da DataTable — preenchidos no
@@ -44,7 +30,6 @@ let map = null;
 // usamos const + Object.freeze: o conteúdo é mutado quando os dados
 // chegam.
 let custodyByEvidence = {};
-let devicesByEvidence = {};
 let evidenceTable = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -76,17 +61,11 @@ async function loadOccurrenceHub() {
         const evidences = evidenceData.results || [];
         const evidenceIds = evidences.map((e) => e.id);
 
-        const [custodyMap, devicesMap] = await Promise.all([
-            loadCustodyForEvidences(evidenceIds),
-            loadDevicesForEvidences(evidenceIds),
-        ]);
-        custodyByEvidence = custodyMap;
-        devicesByEvidence = devicesMap;
+        custodyByEvidence = await loadCustodyForEvidences(evidenceIds);
 
         document.getElementById('evidence-count').textContent = evidences.length;
         mountEvidenceTable();
         renderCustodySummary(evidences, custodyByEvidence);
-        renderDevices(evidences, devicesByEvidence);
         renderMap(occurrence, evidences);
     } catch (err) {
         console.error('Erro ao carregar ocorrência:', err);
@@ -114,23 +93,6 @@ async function loadCustodyForEvidences(evidenceIds) {
                 `${CONFIG.ENDPOINTS.CUSTODY}evidence/${id}/timeline/`,
             );
             result[id] = Array.isArray(data) ? data : (data.results || []);
-        } catch {
-            result[id] = [];
-        }
-    }));
-    return result;
-}
-
-async function loadDevicesForEvidences(evidenceIds) {
-    const result = {};
-    if (evidenceIds.length === 0) return result;
-    await Promise.all(evidenceIds.map(async (id) => {
-        try {
-            const data = await API.get(CONFIG.ENDPOINTS.DEVICES, {
-                evidence: id,
-                page_size: 100,
-            });
-            result[id] = data.results || [];
         } catch {
             result[id] = [];
         }
@@ -173,9 +135,9 @@ function renderCaseHeader(occ) {
         addressRow.hidden = false;
         hasAnyLocation = true;
     }
-    if (occ.gps_lat && occ.gps_lon) {
+    if (occ.gps_lat && occ.gps_lng) {
         document.getElementById('case-gps').textContent =
-            `${parseFloat(occ.gps_lat).toFixed(5)}, ${parseFloat(occ.gps_lon).toFixed(5)}`;
+            `${parseFloat(occ.gps_lat).toFixed(5)}, ${parseFloat(occ.gps_lng).toFixed(5)}`;
         gpsRow.hidden = false;
         hasAnyLocation = true;
     }
@@ -222,8 +184,8 @@ function buildMapPopup(title, subtitle) {
 }
 
 function renderMap(occ, evidences) {
-    const hasOccGps = occ.gps_lat && occ.gps_lon;
-    const evidencesWithGps = evidences.filter((e) => e.gps_lat && e.gps_lon);
+    const hasOccGps = occ.gps_lat && occ.gps_lng;
+    const evidencesWithGps = evidences.filter((e) => e.gps_lat && e.gps_lng);
 
     // Sem GPS: mapa fica escondido; a mensagem "Sem morada/coordenadas"
     // aparece em case-location-empty (renderCaseHeader).
@@ -244,7 +206,7 @@ function renderMap(occ, evidences) {
 
     if (hasOccGps) {
         const m = L.marker(
-            [parseFloat(occ.gps_lat), parseFloat(occ.gps_lon)],
+            [parseFloat(occ.gps_lat), parseFloat(occ.gps_lng)],
             { icon: mapMarkerIcon({ variant: 'case' }) },
         ).addTo(map);
         m.bindPopup(buildMapPopup(occ.number, occ.address || 'Local da ocorrência'));
@@ -254,11 +216,11 @@ function renderMap(occ, evidences) {
     evidencesWithGps.forEach((ev) => {
         const isDistinct = !hasOccGps
             || Math.abs(parseFloat(ev.gps_lat) - parseFloat(occ.gps_lat)) > 0.0001
-            || Math.abs(parseFloat(ev.gps_lon) - parseFloat(occ.gps_lon)) > 0.0001;
+            || Math.abs(parseFloat(ev.gps_lng) - parseFloat(occ.gps_lng)) > 0.0001;
         if (!isDistinct) return;
 
         const m = L.marker(
-            [parseFloat(ev.gps_lat), parseFloat(ev.gps_lon)],
+            [parseFloat(ev.gps_lat), parseFloat(ev.gps_lng)],
             { icon: mapMarkerIcon({ variant: 'evidence' }) },
         ).addTo(map);
         const popupTitle = ev.code
@@ -297,7 +259,7 @@ function makeBadge(cls, text, iconName) {
     return s;
 }
 
-function buildEvidenceCard(ev, custodyRecords, devices) {
+function buildEvidenceCard(ev, custodyRecords) {
     const lastCustody = custodyRecords.length > 0
         ? custodyRecords[custodyRecords.length - 1]
         : null;
@@ -363,9 +325,6 @@ function buildEvidenceCard(ev, custodyRecords, devices) {
     badges.appendChild(dateSpan);
     if (ev.gps_lat) badges.appendChild(makeBadge('success', 'GPS', 'map-pin'));
     if (ev.photo) badges.appendChild(makeBadge('success', 'Foto', 'shield'));
-    if (devices.length > 0) {
-        badges.appendChild(makeBadge('primary', String(devices.length), 'laptop'));
-    }
     if (subCount > 0) {
         badges.appendChild(makeBadge('primary', `${subCount} sub`, 'link'));
     }
@@ -400,33 +359,6 @@ function buildEvidenceCard(ev, custodyRecords, devices) {
     actions.appendChild(pdfBtn);
     footer.appendChild(actions);
     card.appendChild(footer);
-
-    // Chips de dispositivos legados (DigitalDevice)
-    if (devices.length > 0) {
-        const chipWrap = document.createElement('div');
-        chipWrap.className = 'device-chip-row';
-        devices.slice(0, 3).forEach((d) => {
-            const chip = document.createElement('span');
-            chip.className = 'device-chip';
-            const chipIcon = Icons.element(
-                LEGACY_DEVICE_ICON[d.type] || 'box',
-                { size: 14 },
-            );
-            if (chipIcon) chip.appendChild(chipIcon);
-            const label = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
-            const labelEl = document.createElement('span');
-            labelEl.textContent = ` ${label}`;
-            chip.appendChild(labelEl);
-            chipWrap.appendChild(chip);
-        });
-        if (devices.length > 3) {
-            const more = document.createElement('span');
-            more.className = 'device-chip';
-            more.textContent = `+${devices.length - 3}`;
-            chipWrap.appendChild(more);
-        }
-        card.appendChild(chipWrap);
-    }
 
     // Hash (integridade)
     const hashWrap = document.createElement('div');
@@ -544,7 +476,6 @@ function mountEvidenceTable() {
         cardRenderer: (row) => buildEvidenceCard(
             row,
             custodyByEvidence[row.id] || [],
-            devicesByEvidence[row.id] || [],
         ),
         extraParams: () => ({ occurrence: occurrenceId }),
         onCount: (n) => {
@@ -595,7 +526,7 @@ function cascadeTransitionPrompt(ids, controller) {
 
 // Mantemos a função antiga (nunca chamada agora) caso volte a ser útil.
 // eslint-disable-next-line no-unused-vars
-function renderEvidences(evidences, custodyMap, devicesMap) {
+function renderEvidences(evidences, custodyMap) {
     const container = document.getElementById('evidence-container');
     document.getElementById('evidence-count').textContent = evidences.length;
 
@@ -629,11 +560,10 @@ function renderEvidences(evidences, custodyMap, devicesMap) {
     container.replaceChildren();
     rootEvidences.forEach((ev) => {
         const custody = custodyMap[ev.id] || [];
-        const devices = devicesMap[ev.id] || [];
 
         const group = document.createElement('div');
         group.className = 'evidence-group';
-        group.appendChild(buildEvidenceCard(ev, custody, devices));
+        group.appendChild(buildEvidenceCard(ev, custody));
 
         const children = childrenByParent[ev.id] || [];
         if (children.length > 0) {
@@ -702,79 +632,6 @@ function renderCustodySummary(evidences, custodyMap) {
             buildStat(withoutCustody, 'Sem custódia', 'var(--text-muted)'),
         );
     }
-}
-
-function buildDeviceCard(d) {
-    const iconName = LEGACY_DEVICE_ICON[d.type] || 'box';
-    const name = [d.brand, d.model].filter(Boolean).join(' ') || d.type;
-    const condition = CONDITION_LABELS[d.condition] || d.condition;
-    const conditionColor = d.condition === 'FUNCTIONAL' ? 'success'
-        : d.condition === 'DAMAGED' ? 'danger'
-        : d.condition === 'LOCKED' ? 'warning'
-        : 'neutral';
-
-    const card = document.createElement('div');
-    card.className = 'evidence-card';
-    card.style.cursor = 'pointer';
-    card.addEventListener('click', () => {
-        window.location.href = `/evidences/${d.evidenceId}/`;
-    });
-
-    const header = document.createElement('div');
-    header.className = 'evidence-card-header';
-    const title = document.createElement('span');
-    title.className = 'evidence-card-title';
-    const ic = Icons.element(iconName, { size: 16 });
-    if (ic) title.appendChild(ic);
-    const titleLabel = document.createElement('span');
-    titleLabel.textContent = ` ${name}`;
-    title.appendChild(titleLabel);
-    header.appendChild(title);
-    header.appendChild(makeBadge(conditionColor, condition));
-    card.appendChild(header);
-
-    const body = document.createElement('div');
-    body.className = 'evidence-card-body';
-    const parentLabel = d.evidenceCode
-        ? `Item ${d.evidenceCode}`
-        : (d.evidenceDesc || 'Item');
-    const parts = [parentLabel];
-    if (d.serial_number) parts.push(`S/N ${d.serial_number}`);
-    if (d.imei) parts.push(`IMEI ${d.imei}`);
-    body.textContent = parts.join(' · ');
-    card.appendChild(body);
-
-    if (d.notes) {
-        const notes = document.createElement('div');
-        notes.className = 'device-notes';
-        notes.textContent = d.notes;
-        card.appendChild(notes);
-    }
-    return card;
-}
-
-function renderDevices(evidences, devicesMap) {
-    const allDevices = [];
-    evidences.forEach((ev) => {
-        (devicesMap[ev.id] || []).forEach((d) => {
-            allDevices.push({
-                ...d,
-                evidenceId: ev.id,
-                evidenceCode: ev.code,
-                evidenceDesc: ev.description,
-            });
-        });
-    });
-
-    if (allDevices.length === 0) return;
-
-    const section = document.getElementById('devices-section');
-    const container = document.getElementById('devices-container');
-    section.hidden = false;
-    document.getElementById('device-count').textContent = allDevices.length;
-
-    container.replaceChildren();
-    allDevices.forEach((d) => container.appendChild(buildDeviceCard(d)));
 }
 
 // ---------------------------------------------------------------------------

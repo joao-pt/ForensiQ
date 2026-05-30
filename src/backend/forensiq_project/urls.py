@@ -26,6 +26,7 @@ from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
 )
+from rest_framework.throttling import ScopedRateThrottle
 
 from core.auth_views import (
     CookieLoginView,
@@ -46,8 +47,8 @@ from core.frontend_views import (
     login_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
-    occurrence_singular_redirect,
     occurrence_intake_view,
+    occurrence_singular_redirect,
     occurrences_new_view,
     occurrences_view,
     public_verify_view,
@@ -56,6 +57,21 @@ from core.frontend_views import (
     stats_view,
 )
 from core.views import MediaServeView
+
+
+class ThrottledSchemaView(SpectacularAPIView):
+    """Vista de schema OpenAPI com rate-limit (scope ``schema``).
+
+    O ``SpectacularAPIView`` é público (sem auth) e gera o schema a partir
+    da introspecção de todas as rotas — uma operação não trivial. Aplicamos
+    o ``ScopedRateThrottle`` com o scope ``schema`` (30/min, definido em
+    settings) para que a superfície pública tenha freio, em coerência com os
+    restantes endpoints com throttle por scope.
+    """
+
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'schema'
+
 
 urlpatterns = [
     # Django Admin (hidden behind environment variable prefix)
@@ -70,7 +86,7 @@ urlpatterns = [
     path('api/', include('core.urls')),
 
     # OpenAPI / Swagger
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/schema/', ThrottledSchemaView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 
     # -----------------------------------------------------------------

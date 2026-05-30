@@ -63,7 +63,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: aquasecurity/trivy-action@master
+      # Pinado ao SHA imutável da tag v0.36.0 (em vez da branch móvel @master)
+      # — reprodutibilidade + mitigação de supply-chain (ISO/IEC 27002 8.28).
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0
         with:
           scan-type: 'fs'
           severity: 'CRITICAL,HIGH'

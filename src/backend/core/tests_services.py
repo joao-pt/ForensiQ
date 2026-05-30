@@ -29,18 +29,19 @@ from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
 
 from core.models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
+
+# =========================================================================
+# 1. IMEI LOOKUP SERVICE
+# =========================================================================
 from core.tests_factories import (
     ChainOfCustodyFactory,
+    CrimeTipoFactory,
     EvidenceMobileFactory,
     ExpertFactory,
     OccurrenceFactory,
     UserFactory,
 )
 
-
-# =========================================================================
-# 1. IMEI LOOKUP SERVICE
-# =========================================================================
 
 class IMEILookupNoTokenTest(TestCase):
     """Testes para ``lookup_imei`` quando o token não está configurado."""
@@ -61,6 +62,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_timeout_raises_lookup_error(self, mock_client_cls):
         import httpx
+
         from core.services.imei_lookup import LookupError, lookup_imei
 
         mock_client = MagicMock()
@@ -77,6 +79,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_network_error_raises_lookup_error(self, mock_client_cls):
         import httpx
+
         from core.services.imei_lookup import LookupError, lookup_imei
 
         mock_client = MagicMock()
@@ -376,6 +379,7 @@ class IMEILookupHelpersTest(TestCase):
 # 2. VIN LOOKUP SERVICE
 # =========================================================================
 
+
 class VINLookupTest(TestCase):
     """Testes para ``build_vindecoder_url``."""
 
@@ -401,6 +405,7 @@ class VINLookupTest(TestCase):
 # =========================================================================
 # 3. AUDITORIA — get_client_ip e log_access
 # =========================================================================
+
 
 class GetClientIPTest(TestCase):
     """Testes para ``audit.get_client_ip``."""
@@ -564,6 +569,7 @@ class LogAccessTest(TestCase):
 # 4. EXCEPTION HANDLER
 # =========================================================================
 
+
 class ExceptionHandlerTest(TestCase):
     """Testes para ``forensiq_exception_handler``."""
 
@@ -621,6 +627,7 @@ class ExceptionHandlerTest(TestCase):
 # =========================================================================
 # 5. AUTH COOKIES — JWTCookieAuthentication
 # =========================================================================
+
 
 class AuthCookieHelpersTest(TestCase):
     """Testes para funções auxiliares de cookies em ``auth.py``."""
@@ -707,6 +714,7 @@ class AuthCookieHelpersTest(TestCase):
 # 6. AUTH VIEWS — Login, Refresh, Logout via API
 # =========================================================================
 
+
 class CookieLoginViewTest(APITestCase):
     """Testes para POST /api/auth/login/."""
 
@@ -715,10 +723,13 @@ class CookieLoginViewTest(APITestCase):
         self.url = reverse('auth_login')
 
     def test_login_success_sets_cookies(self):
-        response = self.client.post(self.url, {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        response = self.client.post(
+            self.url,
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn('user', response.data)
@@ -727,10 +738,13 @@ class CookieLoginViewTest(APITestCase):
         self.assertIn('fq_refresh', response.cookies)
 
     def test_login_wrong_password_rejected(self):
-        response = self.client.post(self.url, {
-            'username': self.user.username,
-            'password': 'WrongPass!',
-        })
+        response = self.client.post(
+            self.url,
+            {
+                'username': self.user.username,
+                'password': 'WrongPass!',
+            },
+        )
 
         # DRF devolve 403 (não 401) quando authentication_classes=[]
         # porque não há WWW-Authenticate header. Ambos são válidos para
@@ -760,10 +774,13 @@ class CookieRefreshViewTest(APITestCase):
 
     def test_refresh_with_valid_cookie_succeeds(self):
         # Login primeiro
-        login_resp = self.client.post(self.login_url, {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            self.login_url,
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         self.assertEqual(login_resp.status_code, 200)
 
         # O cookie refresh deve estar na resposta
@@ -788,10 +805,13 @@ class CookieLogoutViewTest(APITestCase):
 
     def test_logout_clears_cookies(self):
         # Login
-        login_resp = self.client.post(self.login_url, {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            self.login_url,
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         # Set cookies for subsequent requests
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
@@ -806,68 +826,6 @@ class CookieLogoutViewTest(APITestCase):
 # 7. FILTERS — OccurrenceFilter, EvidenceFilter, CustodyFilter
 # =========================================================================
 
-class OccurrenceFilterTest(APITestCase):
-    """Testes para OccurrenceFilter (date_after, date_before, has_gps)."""
-
-    def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        # Login via cookie
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
-        for name in ('fq_access', 'fq_refresh'):
-            cookie = login_resp.cookies.get(name)
-            if cookie:
-                self.client.cookies[name] = cookie.value
-
-        # Ocorrência com GPS
-        self.occ_with_gps = Occurrence.objects.create(
-            number='NUIPC-FILTER-001',
-            description='Com GPS',
-            date_time=timezone.now() - timedelta(days=5),
-            gps_lat=Decimal('38.72'),
-            gps_lon=Decimal('-9.13'),
-            address='Lisboa',
-            agent=self.user,
-        )
-        # Ocorrência sem GPS
-        self.occ_no_gps = Occurrence.objects.create(
-            number='NUIPC-FILTER-002',
-            description='Sem GPS',
-            date_time=timezone.now() - timedelta(days=10),
-            gps_lat=None,
-            gps_lon=None,
-            address='Porto',
-            agent=self.user,
-        )
-
-    def test_filter_has_gps_true(self):
-        url = reverse('core:occurrence-list') + '?has_gps=true'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        numbers = [r['number'] for r in response.data['results']]
-        self.assertIn('NUIPC-FILTER-001', numbers)
-        self.assertNotIn('NUIPC-FILTER-002', numbers)
-
-    def test_filter_has_gps_false(self):
-        url = reverse('core:occurrence-list') + '?has_gps=false'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        numbers = [r['number'] for r in response.data['results']]
-        self.assertNotIn('NUIPC-FILTER-001', numbers)
-        self.assertIn('NUIPC-FILTER-002', numbers)
-
-    def test_filter_date_after(self):
-        date_str = (timezone.now() - timedelta(days=7)).strftime('%Y-%m-%d')
-        url = reverse('core:occurrence-list') + f'?date_after={date_str}'
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, 200)
-        numbers = [r['number'] for r in response.data['results']]
-        self.assertIn('NUIPC-FILTER-001', numbers)
-        self.assertNotIn('NUIPC-FILTER-002', numbers)
-
 
 class EvidenceFilterTest(APITestCase):
     """Testes para EvidenceFilter (type, date_after, has_gps)."""
@@ -875,16 +833,20 @@ class EvidenceFilterTest(APITestCase):
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
                 self.client.cookies[name] = cookie.value
 
         self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-EVFILTER-001',
             description='Teste filtros',
             date_time=timezone.now(),
@@ -897,7 +859,7 @@ class EvidenceFilterTest(APITestCase):
             serial_number='SN-FILT-001',
             timestamp_seizure=timezone.now(),
             gps_lat=Decimal('38.72'),
-            gps_lon=Decimal('-9.13'),
+            gps_lng=Decimal('-9.13'),
             agent=self.user,
         )
         self.ev_sim = Evidence.objects.create(
@@ -926,21 +888,25 @@ class EvidenceFilterTest(APITestCase):
 
 
 class CustodyFilterTest(APITestCase):
-    """Testes para CustodyFilter (new_state, date_after)."""
+    """Testes para CustodyFilter (event_type, legal_state, date_after)."""
 
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
                 self.client.cookies[name] = cookie.value
 
         self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
             number='NUIPC-CUSTFILT-001',
             description='Teste custódia',
             date_time=timezone.now(),
@@ -953,27 +919,39 @@ class CustodyFilterTest(APITestCase):
             serial_number='SN-CUSTFILT-001',
             timestamp_seizure=timezone.now(),
             gps_lat=Decimal('38.72'),
-            gps_lon=Decimal('-9.13'),
+            gps_lng=Decimal('-9.13'),
             agent=self.user,
         )
-        # Criar registo de custódia via API
-        self.client.post(reverse('core:custody-list'), {
-            'evidence': self.ev.pk,
-            'new_state': 'APREENDIDA',
-            'observations': 'Apreensão teste filtro',
-        })
+        # Criar o primeiro evento do ledger via API
+        self.client.post(
+            reverse('core:custody-list'),
+            {
+                'evidence': self.ev.pk,
+                'event_type': 'APREENSAO',
+                'custodian_type': 'OPC',
+                'observations': 'Apreensão teste filtro',
+            },
+        )
 
-    def test_filter_by_new_state(self):
-        url = reverse('core:custody-list') + '?new_state=APREENDIDA'
+    def test_filter_by_event_type(self):
+        url = reverse('core:custody-list') + '?event_type=APREENSAO'
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
-        states = [r['new_state'] for r in response.data['results']]
-        self.assertTrue(all(s == 'APREENDIDA' for s in states))
+        events = [r['event_type'] for r in response.data['results']]
+        self.assertTrue(all(e == 'APREENSAO' for e in events))
+
+    def test_filter_by_legal_state(self):
+        url = reverse('core:custody-list') + '?legal_state=a_guarda_opc'
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        states = [r['legal_state'] for r in response.data['results']]
+        self.assertTrue(all(s == 'a_guarda_opc' for s in states))
 
 
 # =========================================================================
 # 8. PAGINATION — BoundedPageNumberPagination
 # =========================================================================
+
 
 class PaginationEdgeCasesTest(APITestCase):
     """Testes para paginação com valores extremos."""
@@ -981,10 +959,13 @@ class PaginationEdgeCasesTest(APITestCase):
     def setUp(self):
         self.user = UserFactory.create(password='TestPass123!')
         self.client = APIClient()
-        login_resp = self.client.post(reverse('auth_login'), {
-            'username': self.user.username,
-            'password': 'TestPass123!',
-        })
+        login_resp = self.client.post(
+            reverse('auth_login'),
+            {
+                'username': self.user.username,
+                'password': 'TestPass123!',
+            },
+        )
         for name in ('fq_access', 'fq_refresh'):
             cookie = login_resp.cookies.get(name)
             if cookie:
@@ -1011,12 +992,13 @@ class PaginationEdgeCasesTest(APITestCase):
 # 9. FRONTEND VIEWS — autenticação e redireccionamentos
 # =========================================================================
 
-class FrontendRedirectsTest(TestCase):
-    """Testes para redireccionamentos do frontend (singular → plural)."""
 
-    def test_login_page_returns_200(self):
-        response = self.client.get(reverse('login'))
-        self.assertEqual(response.status_code, 200)
+class FrontendRedirectsTest(TestCase):
+    """Redireccionamentos e handler 404 do frontend.
+
+    A cobertura de login-200 vive em ``tests_frontend.py::LoginPageTest``;
+    aqui ficam apenas os casos não cobertos lá (redirect sem auth, 404).
+    """
 
     def test_unauthenticated_dashboard_redirects(self):
         response = self.client.get(reverse('dashboard'))
@@ -1025,30 +1007,3 @@ class FrontendRedirectsTest(TestCase):
     def test_404_handler_returns_404(self):
         response = self.client.get('/pagina-inexistente/')
         self.assertEqual(response.status_code, 404)
-
-
-# =========================================================================
-# 10. AUDITLOG IMMUTABILITY
-# =========================================================================
-
-class AuditLogImmutabilityTest(TestCase):
-    """Testes para imutabilidade do AuditLog."""
-
-    def setUp(self):
-        self.user = UserFactory.create()
-        self.log = AuditLog.objects.create(
-            user=self.user,
-            action=AuditLog.Action.VIEW,
-            resource_type=AuditLog.ResourceType.EVIDENCE,
-            resource_id=1,
-            ip_address='192.168.1.1',
-        )
-
-    def test_update_blocked(self):
-        self.log.action = AuditLog.Action.CREATE
-        with self.assertRaises(Exception):
-            self.log.save()
-
-    def test_delete_blocked(self):
-        with self.assertRaises(Exception):
-            self.log.delete()

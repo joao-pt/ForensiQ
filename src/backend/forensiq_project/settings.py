@@ -11,6 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Deteção de modo de teste — activa automaticamente quando
@@ -92,6 +93,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'core.context_processors.app_metadata',
             ],
         },
     },
@@ -142,7 +144,6 @@ REST_FRAMEWORK = {
         'auth': '5/minute',
         'evidence_upload': '20/minute',
         'pdf_export': '30/minute',
-        'csv_export': '10/minute',
         'schema': '30/minute',
         'reverse_geocode': '10/minute',
         # 5/min é deliberadamente apertado: cada chamada consome saldo
@@ -152,6 +153,9 @@ REST_FRAMEWORK = {
         # Endpoint público de verificação (`/v/<short-hash>/`) sem auth
         # — ADR-0012. Rate algo apertado por ser superfície pública.
         'verify_public': '30/minute',
+        # Healthcheck público (`/api/health/`): folgado para nunca travar
+        # probes legítimos, mas limita varredura/amplificação anónima da BD.
+        'healthcheck': '120/minute',
     },
 }
 
@@ -170,7 +174,6 @@ if TESTING:
         'auth': '10000/minute',
         'evidence_upload': '10000/minute',
         'pdf_export': '10000/minute',
-        'csv_export': '10000/minute',
         'schema': '10000/minute',
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',
@@ -178,6 +181,19 @@ if TESTING:
     }
 
 # --- SimpleJWT ---
+# Chave de assinatura: em produção EXIGE uma chave dedicada (JWT_SIGNING_KEY),
+# para desacoplar a assinatura de tokens do SECRET_KEY — rodar ou expor um não
+# compromete o outro. Falha fechado se faltar em produção; só cai para o
+# SECRET_KEY em desenvolvimento/testes (DEBUG ou modo de teste).
+_jwt_signing_key = os.environ.get('JWT_SIGNING_KEY')
+if not _jwt_signing_key:
+    if not DEBUG and not TESTING:
+        raise ImproperlyConfigured(
+            'JWT_SIGNING_KEY é obrigatória em produção (DEBUG=False): não usar '
+            'o SECRET_KEY para assinar tokens JWT.'
+        )
+    _jwt_signing_key = SECRET_KEY
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(
         minutes=int(os.environ.get('JWT_ACCESS_TOKEN_LIFETIME_MINUTES', 60))
@@ -188,7 +204,7 @@ SIMPLE_JWT = {
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
     'AUTH_HEADER_TYPES': ('Bearer',),
-    'SIGNING_KEY': os.environ.get('JWT_SIGNING_KEY', SECRET_KEY),
+    'SIGNING_KEY': _jwt_signing_key,
 }
 
 # --- Retenção de AuditLog (RGPD Art. 5(1)(e) — princípio da limitação da
@@ -212,7 +228,9 @@ QR_VERIFY_SECRET = os.environ.get('QR_VERIFY_SECRET', SECRET_KEY)
 QR_VERIFY_HASH_LEN = 12
 # URL pública base usada na composição de QR codes no PDF. Em produção:
 # `https://forensiq.pt`. Em dev: `http://localhost:8000` por default.
-SITE_URL = os.environ.get('SITE_URL', 'https://forensiq.pt' if not DEBUG else 'http://localhost:8000')
+SITE_URL = os.environ.get(
+    'SITE_URL', 'https://forensiq.pt' if not DEBUG else 'http://localhost:8000'
+)
 
 # --- IMEIDB (consulta externa de IMEI / TAC, ver Wave 2c) ---
 # Token de API obtido em https://imeidb.xyz (free tier). Em produção,
@@ -224,10 +242,10 @@ IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
 
 # --- drf-spectacular (Swagger / OpenAPI) ---
 # SWAGGER_UI_DIST/FAVICON_HREF: por defeito o drf-spectacular carrega assets
-# de cdn.jsdelivr.net, que não está na allowlist do CSP (cdnjs.cloudflare.com
-# apenas). Apontamos para o pacote sidecar `drf-spectacular-sidecar` que
-# serve os mesmos ficheiros via STATIC_URL — fica dentro de 'self' no CSP
-# e elimina dependência externa em produção.
+# de cdn.jsdelivr.net, que não está na allowlist do CSP. Apontamos para o
+# pacote sidecar `drf-spectacular-sidecar` que serve os mesmos ficheiros via
+# STATIC_URL — fica dentro de 'self' no CSP e elimina dependência externa em
+# produção.
 SPECTACULAR_SETTINGS = {
     'TITLE': 'ForensiQ API',
     'DESCRIPTION': (

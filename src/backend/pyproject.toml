@@ -122,12 +122,13 @@ omit = [
 ]
 
 [tool.coverage.report]
-# NOTA: ``fail_under = 85`` é um target aspiracional. A cobertura
-# actual (Wave 2e) ronda os ~68 %. O CI ainda NÃO enforça este
-# limiar via ``--fail-under`` (ver ``.github/workflows/ci.yml``);
-# uma wave dedicada de cobertura vai aproximar o valor real antes
-# de o enforcar. Baixar este número agora só mascarava o gap.
-fail_under = 85
+# Gate ÚNICO e enforçado (T13). A cobertura real ronda os ~84 %
+# (após a limpeza da Fase 2 — remoção de CSV/DigitalDevice e nova
+# taxonomia/custódia bem testadas). O limiar fica em 80 % para dar
+# margem a flutuações sem mascarar regressões: o ``coverage report``
+# do CI (``.github/workflows/ci.yml``) lê este valor e FALHA o build
+# se a cobertura descer abaixo dele.
+fail_under = 80
 show_missing = true
 skip_covered = false
 skip_empty = true

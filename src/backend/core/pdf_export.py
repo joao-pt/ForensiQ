@@ -335,10 +335,18 @@ def _fmt_datetime(dt):
     return str(dt)
 
 
-def _fmt_gps(lat, lon):
-    if lat is None or lon is None:
+def _fmt_gps(lat, lng):
+    """Formata um par GPS com hemisfério correcto (N/S, E/W).
+
+    Portugal continental tem longitude W; imprimir sempre °E (bug
+    pré-existente assinalado no ADR-0013) dava a coordenada errada.
+    """
+    if lat is None or lng is None:
         return 'Não disponível'
-    return f'{float(lat):.6f}°N, {float(lon):.6f}°E'
+    lat_f, lng_f = float(lat), float(lng)
+    ns = 'N' if lat_f >= 0 else 'S'
+    ew = 'E' if lng_f >= 0 else 'W'
+    return f'{abs(lat_f):.6f}°{ns}, {abs(lng_f):.6f}°{ew}'
 
 
 def _fmt_agent(user):
@@ -373,7 +381,7 @@ def _label_value_rows(pairs, styles, col_widths=(5 * cm, 12 * cm)):
 
 
 def _custody_table(custody_records, styles):
-    """Tabela de transições. Devolve lista de flowables."""
+    """Tabela do ledger de eventos da custódia. Devolve lista de flowables."""
     if not custody_records:
         return [
             Paragraph(
@@ -386,26 +394,32 @@ def _custody_table(custody_records, styles):
     table_data = [
         [
             Paragraph('#', styles['label']),
-            Paragraph('Transição', styles['label']),
+            Paragraph('Evento', styles['label']),
+            Paragraph('Custódio', styles['label']),
+            Paragraph('Local', styles['label']),
             Paragraph('Data/Hora', styles['label']),
             Paragraph('Agente', styles['label']),
-            Paragraph('Observações', styles['label']),
         ]
     ]
     for idx, rec in enumerate(custody_records, start=1):
-        prev = _sanitize(rec.get_previous_state_display()) if rec.previous_state else '(início)'
-        new = _sanitize(rec.get_new_state_display())
+        evento = _sanitize(rec.get_event_type_display()) if rec.event_type else '—'
+        custodio = _sanitize(rec.get_custodian_type_display()) if rec.custodian_type else '—'
+        local_parts = [
+            p for p in (rec.location_name, rec.storage_location) if p
+        ]
+        local = _sanitize(' · '.join(local_parts)) if local_parts else '—'
         table_data.append(
             [
                 Paragraph(str(idx), styles['value']),
-                Paragraph(f'{prev} → {new}', styles['value']),
+                Paragraph(evento, styles['value']),
+                Paragraph(custodio, styles['value']),
+                Paragraph(local, styles['label']),
                 Paragraph(_fmt_datetime(rec.timestamp), styles['label']),
                 Paragraph(_fmt_agent(rec.agent), styles['value']),
-                Paragraph(_sanitize(rec.observations) or '—', styles['label']),
             ]
         )
 
-    col_w = [0.8 * cm, 5.5 * cm, 3.8 * cm, 3.2 * cm, 3.5 * cm]
+    col_w = [0.7 * cm, 3.6 * cm, 3.0 * cm, 3.5 * cm, 3.2 * cm, 2.8 * cm]
     t = Table(table_data, colWidths=col_w, repeatRows=1)
     t.setStyle(
         TableStyle(
@@ -513,7 +527,7 @@ def _render_item_identification(evidence, styles):
         ('Tipo:', _sanitize(evidence.get_type_display())),
         ('Nº de série:', _sanitize(evidence.serial_number) or '—'),
         ('Data / Hora de apreensão:', _fmt_datetime(evidence.timestamp_seizure)),
-        ('Localização GPS:', _fmt_gps(evidence.gps_lat, evidence.gps_lon)),
+        ('Localização GPS:', _fmt_gps(evidence.gps_lat, evidence.gps_lng)),
         ('Agente que apreendeu:', _fmt_agent(evidence.agent)),
         ('Descrição:', _sanitize(evidence.description)),
     ]
@@ -548,7 +562,7 @@ def _render_item_identification(evidence, styles):
 
 
 def _render_sub_components(evidence, styles):
-    """Sub-componentes integrantes (Evidence.sub_components) + DigitalDevice legado.
+    """Sub-componentes integrantes (Evidence.sub_components).
 
     ISO/IEC 27037: o SIM/SD inserido num telemóvel acompanha o dispositivo
     e deve constar do mesmo relatório; a secção documenta essa inseparabilidade.
@@ -556,9 +570,8 @@ def _render_sub_components(evidence, styles):
     # `all()` reaproveita o prefetch_related aplicado pelas views (N12).
     # Ordenação por id em memória — lista curta.
     sub_components = sorted(evidence.sub_components.all(), key=lambda e: e.id)
-    legacy_devices = list(evidence.digital_devices.all())
 
-    if not sub_components and not legacy_devices:
+    if not sub_components:
         return []
 
     flow = []
@@ -603,34 +616,6 @@ def _render_sub_components(evidence, styles):
         block.append(Paragraph('Hash SHA-256:', styles['label']))
         block.append(Paragraph(sub.integrity_hash or '—', styles['hash']))
         flow.append(KeepTogether(block))
-
-    # DigitalDevice legado (mantemos por compatibilidade com registos anteriores
-    # à Wave 2a; podem ser consolidados numa migração futura).
-    if legacy_devices:
-        start = len(sub_components) + 1
-        for j, dev in enumerate(legacy_devices, start=start):
-            block = [
-                Paragraph(
-                    f'3.{j}. {_sanitize(dev.get_type_display())} (dispositivo legado)',
-                    styles['subsection'],
-                ),
-            ]
-            block.extend(
-                _label_value_rows(
-                    [
-                        ('Marca:', _sanitize(dev.brand) or '—'),
-                        ('Nome comercial:', _sanitize(dev.commercial_name) or '—'),
-                        ('Modelo (SKU):', _sanitize(dev.model) or '—'),
-                        ('Estado:', _sanitize(dev.get_condition_display())),
-                        ('IMEI:', _sanitize(dev.imei) or '—'),
-                        ('Nº de série:', _sanitize(dev.serial_number) or '—'),
-                        ('Observações:', _sanitize(dev.notes) or '—'),
-                    ],
-                    styles,
-                    col_widths=(4 * cm, 13 * cm),
-                )
-            )
-            flow.append(KeepTogether(block))
 
     return flow
 
@@ -688,7 +673,7 @@ def generate_evidence_pdf(evidence):
             ('NUIPC / Número:', occ.number or '—'),
             ('Código interno:', occ.code or '—'),
             ('Data / Hora:', _fmt_datetime(occ.date_time)),
-            ('Localização GPS:', _fmt_gps(occ.gps_lat, occ.gps_lon)),
+            ('Localização GPS:', _fmt_gps(occ.gps_lat, occ.gps_lng)),
             ('Morada aproximada:', _sanitize(occ.address) or '—'),
             ('Agente responsável:', _fmt_agent(occ.agent)),
             ('Descrição:', _sanitize(occ.description)),
@@ -699,7 +684,7 @@ def generate_evidence_pdf(evidence):
     # 2. Identificação do item
     story += _render_item_identification(evidence, styles)
 
-    # 3. Componentes integrantes (sub_components + DigitalDevice legado)
+    # 3. Componentes integrantes (sub_components)
     sub_flow = _render_sub_components(evidence, styles)
     story += sub_flow
     has_sub_section = bool(sub_flow)
@@ -737,26 +722,39 @@ def generate_evidence_pdf(evidence):
 # ---------------------------------------------------------------------------
 
 
-def _current_custody_state(evidence):
-    """Devolve (label sanitizado, record) do estado actual de custódia.
+# Rótulos humanos do estado legal derivado (ADR-0015) para o PDF.
+_LEGAL_STATE_LABELS = {
+    'a_guarda_opc': 'À guarda do OPC',
+    'validada': 'Validada',
+    'em_pericia': 'Em perícia',
+    'pericia_concluida': 'Perícia concluída',
+    'encaminhada': 'Encaminhada',
+    'restituida': 'Restituída',
+    'perdida_favor_estado': 'Perdida a favor do Estado',
+    'destruida': 'Destruída',
+}
 
-    O label é sanitizado à partida porque vai sempre alimentar
+
+def _current_custody_state(evidence):
+    """Devolve (label sanitizado do estado legal derivado, último record).
+
+    O estado legal é DERIVADO da sequência de eventos (ADR-0015), não uma
+    coluna. O label é sanitizado à partida porque vai sempre alimentar
     ``Paragraph()`` no PDF (auditoria 2026-05-18 §3 N3).
 
     Lê via ``all()`` para reaproveitar o prefetch ordenado por
-    ``-sequence`` aplicado pelas views (audit 2026-05-18 §3 N12).
-    Cair em ``order_by('-sequence').first()`` invalidaria o cache
-    e dispararia uma query extra por evidência.
+    ``sequence`` aplicado pelas views (audit 2026-05-18 §3 N12). Para
+    robustez contra ausência de prefetch, ordena em memória (lista curta).
     """
+    from core.models import derive_legal_state
+
     records = list(evidence.custody_chain.all())
     if not records:
         return ('—', None)
-    # O prefetch ordena por -sequence; sem prefetch, ainda assim
-    # `Meta.ordering` do ChainOfCustody pode aplicar-se. Para
-    # robustez contra ausência de prefetch, ordenamos em memória
-    # (lista curta — operação trivial).
-    last = max(records, key=lambda r: r.sequence)
-    return (_sanitize(last.get_new_state_display()), last)
+    records.sort(key=lambda r: r.sequence)
+    last = records[-1]
+    estado = derive_legal_state(records)
+    return (_sanitize(_LEGAL_STATE_LABELS.get(estado, estado)), last)
 
 
 def generate_occurrence_pdf(occurrence):
@@ -805,7 +803,7 @@ def generate_occurrence_pdf(occurrence):
             ('NUIPC / Número:', occurrence.number or '—'),
             ('Código interno:', occurrence.code or '—'),
             ('Data / Hora:', _fmt_datetime(occurrence.date_time)),
-            ('Localização GPS:', _fmt_gps(occurrence.gps_lat, occurrence.gps_lon)),
+            ('Localização GPS:', _fmt_gps(occurrence.gps_lat, occurrence.gps_lng)),
             ('Morada aproximada:', _sanitize(occurrence.address) or '—'),
             ('Agente responsável:', _fmt_agent(occurrence.agent)),
             ('Descrição:', _sanitize(occurrence.description)),
@@ -903,42 +901,7 @@ def generate_occurrence_pdf(occurrence):
         story.append(t)
         story.append(Spacer(1, 0.4 * cm))
 
-    # 3. Dispositivos digitais legados agregados
-    legacy = []
-    for e in evidences:
-        for d in e.digital_devices.all():
-            legacy.append((e, d))
-    if legacy:
-        story.append(
-            Paragraph(
-                f'3. Dispositivos Digitais Associados ({len(legacy)})',
-                styles['section'],
-            )
-        )
-        story.append(Spacer(1, 0.2 * cm))
-        for ev_owner, dev in legacy:
-            owner_label = ev_owner.code or f'#{ev_owner.pk}'
-            # Identidade do dispositivo: prefere "Marca Nome (SKU)";
-            # cai para "Marca Modelo" quando não há nome comercial.
-            brand = _sanitize(dev.brand) or '—'
-            commercial = _sanitize(dev.commercial_name)
-            sku = _sanitize(dev.model)
-            if commercial and sku:
-                identity = f'{brand} {commercial} ({sku})'
-            elif commercial:
-                identity = f'{brand} {commercial}'
-            elif sku:
-                identity = f'{brand} {sku}'
-            else:
-                identity = brand
-            story.append(
-                Paragraph(
-                    f'Item {owner_label} · {_sanitize(dev.get_type_display())} · {identity}',
-                    styles['value'],
-                )
-            )
-
-    # 4. Declaração
+    # 3. Declaração
     story += _integrity_declaration(styles, gen_ts)
 
     try:

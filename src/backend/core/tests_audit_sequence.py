@@ -106,7 +106,7 @@ class AuditLogSequenceWithSpecialActionsTest(TestCase):
 
 class AuditLogImmutabilityTest(TestCase):
     """Mesmo com o campo `sequence` novo, o AuditLog continua append-only:
-    re-save de uma instância já gravada levanta ValidationError.
+    re-save de uma instância já gravada e ``delete()`` levantam ValidationError.
     """
 
     def test_update_nao_permitido(self):
@@ -116,3 +116,34 @@ class AuditLogImmutabilityTest(TestCase):
         log.sequence = 999
         with self.assertRaises(ValidationError):
             log.save()
+
+    def test_delete_nao_permitido(self):
+        from django.core.exceptions import ValidationError
+
+        log = _create_log()
+        with self.assertRaises(ValidationError):
+            log.delete()
+
+
+class AuditLogFactoryTest(TestCase):
+    """Valida a ``AuditLogFactory``: produz um registo persistido, com a
+    ``sequence`` global atribuída pelo ``save()`` do modelo e ``details``
+    por omissão a vazio.
+    """
+
+    def test_factory_cria_registo_persistido_com_sequence(self):
+        from core.tests_factories import AuditLogFactory
+
+        log = AuditLogFactory()
+        self.assertIsNotNone(log.pk)
+        self.assertGreater(log.sequence, 0)
+        self.assertEqual(log.details, {})
+        self.assertEqual(log.resource_type, AuditLog.ResourceType.EVIDENCE)
+        self.assertIsNotNone(log.user)
+
+    def test_factory_atribui_sequences_distintas(self):
+        from core.tests_factories import AuditLogFactory
+
+        a = AuditLogFactory()
+        b = AuditLogFactory()
+        self.assertNotEqual(a.sequence, b.sequence)

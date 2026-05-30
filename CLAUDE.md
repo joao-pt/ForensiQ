@@ -33,8 +33,9 @@ python manage.py test core --settings=forensiq_project.test_settings  # via Djan
 python -m pytest core/tests_api.py::EvidenceAPITest::test_create_evidence -q
 python manage.py test core.tests_api.EvidenceAPITest.test_create_evidence --settings=forensiq_project.test_settings
 
-# Coverage (CI threshold target ≥75%; pyproject `fail_under=85` is aspirational, not enforced)
-coverage run --source='core' manage.py test core --settings=forensiq_project.test_settings
+# Coverage — gate único enforçado em CI: pyproject `fail_under=80` (real ~84%).
+# `coverage report` falha o build se descer abaixo de 80% (T13).
+coverage run --source='core,forensiq_project' manage.py test core --settings=forensiq_project.test_settings
 coverage report --show-missing
 
 # Lint / format (configured in pyproject.toml — line length 100, single quotes)

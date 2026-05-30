@@ -7,6 +7,7 @@ Inclui:
 """
 
 import logging
+import re
 import secrets
 import uuid
 from contextvars import ContextVar
@@ -18,6 +19,24 @@ _correlation_id: ContextVar[str] = ContextVar('correlation_id', default='')
 
 # Logger do módulo
 logger = logging.getLogger(__name__)
+
+# Formato aceite para o `X-Correlation-ID` fornecido pelo cliente: apenas
+# caracteres alfanuméricos e hífen, comprimento máximo 64. Cobre UUIDs
+# (com ou sem hífens) e identificadores curtos de tracing, mas rejeita
+# qualquer payload arbitrário — o valor é ecoado no response header e
+# escrito nos logs, logo não pode aceitar input não validado do cliente
+# (mitigação de log/header injection — finding `correlation-id-aceita-input-cliente`).
+_CORRELATION_ID_RE = re.compile(r'^[A-Za-z0-9-]{1,64}$')
+
+
+def _sanitize_correlation_id(value: str | None) -> str | None:
+    """Devolve o correlation_id do cliente se válido; caso contrário ``None``.
+
+    ``None`` sinaliza ao chamador que deve gerar um novo UUID.
+    """
+    if value and _CORRELATION_ID_RE.match(value):
+        return value
+    return None
 
 
 def get_correlation_id() -> str:
@@ -41,9 +60,11 @@ class CorrelationIDMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        # Tenta usar correlation_id do cliente (se fornecido)
-        # Caso contrário, gera um novo UUID
-        correlation_id = request.headers.get('X-Correlation-ID')
+        # Tenta usar correlation_id do cliente (se fornecido E com formato
+        # válido). Um header malformado/arbitrário é ignorado e substituído
+        # por um UUID novo — o valor é ecoado no response e nos logs, pelo
+        # que não pode ser input não validado do cliente.
+        correlation_id = _sanitize_correlation_id(request.headers.get('X-Correlation-ID'))
         if not correlation_id:
             correlation_id = str(uuid.uuid4())
 
@@ -71,17 +92,16 @@ class ContentSecurityPolicyMiddleware:
 
     Política CSP (hardened, sem unsafe-inline/unsafe-eval em script-src nem style-src):
     - default-src 'self': bloqueia todos os recursos externos por defeito
-    - script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com:
-      scripts só correm do próprio domínio, CDN Cloudflare (Leaflet) ou
-      quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
-      'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79).
-    - style-src 'self' 'nonce-{nonce}' ...: scripts inline (Leaflet etc.)
-      foram migrados para classes/CSSStyleDeclaration. Restantes <style>
+    - script-src 'self' 'nonce-{nonce}': scripts só correm do próprio domínio
+      ou quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
+      'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79). O Leaflet é
+      self-hosted (sem CDN externo; cdnjs removido no T08).
+    - style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com: <style>
       blocks (Leaflet runtime injecta um) precisam de nonce; o setter
       element.style.X = ... do DOM API não é controlado pelo style-src.
-    - connect-src: AJAX ao próprio domínio e geocoding OSM
+    - connect-src: AJAX ao próprio domínio e geocoding OSM (Nominatim)
     - img-src: imagens do domínio, data URIs e tiles OSM
-    - font-src: fontes do domínio e CDNs usadas
+    - font-src: fontes do domínio e Google Fonts (IBM Plex)
     - base-uri 'self': bloqueia <base> injection
     - frame-ancestors 'none': anti-clickjacking (CWE-1021)
     - form-action 'self': restringe destino de formulários
@@ -118,11 +138,14 @@ class ContentSecurityPolicyMiddleware:
         """
         directives = [
             "default-src 'self'",
-            f"script-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com",
-            f"style-src 'self' 'nonce-{nonce}' https://cdnjs.cloudflare.com https://fonts.googleapis.com",
+            # cdnjs.cloudflare.com removido (T08): o Leaflet passou a self-hosted
+            # (drift do ADR-0007 alt. A2) e a swagger usa drf-spectacular-sidecar
+            # local — nenhum asset vivo vem de cdnjs. Fontes IBM Plex via Google Fonts.
+            f"script-src 'self' 'nonce-{nonce}'",
+            f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com",
             "connect-src 'self' https://nominatim.openstreetmap.org",
-            "img-src 'self' data: https://*.tile.openstreetmap.org https://cdnjs.cloudflare.com",
-            "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com",
+            "img-src 'self' data: https://*.tile.openstreetmap.org",
+            "font-src 'self' https://fonts.gstatic.com",
             "object-src 'none'",
             "frame-src 'none'",
             "base-uri 'self'",
@@ -145,6 +168,13 @@ class ContentSecurityPolicyMiddleware:
             report_only = settings.DEBUG
             policy = self._build_policy(nonce, report_only=report_only)
             if report_only:
+                # Report-Only só em DEBUG e SEM `report-uri`/`report-to` por
+                # decisão (finding `csp-report-only-sem-report-uri`): em
+                # desenvolvimento as violações já aparecem na consola do
+                # browser (DevTools), pelo que um colector server-side traria
+                # apenas um endpoint POST não autenticado — superfície que não
+                # se justifica num modo que nunca corre em produção (onde a
+                # policy é sempre *enforced*, não Report-Only).
                 response['Content-Security-Policy-Report-Only'] = policy
             else:
                 response['Content-Security-Policy'] = policy

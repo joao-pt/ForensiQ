@@ -955,7 +955,7 @@ function captureGPS() {
     navigator.geolocation.getCurrentPosition(
         function (pos) {
             document.getElementById('gps_lat').value = pos.coords.latitude.toFixed(7);
-            document.getElementById('gps_lon').value = pos.coords.longitude.toFixed(7);
+            document.getElementById('gps_lng').value = pos.coords.longitude.toFixed(7);
             btn.disabled = false;
             setGpsButtonLabel(btn, 'Atualizar localização');
             showGpsStatus('GPS capturado (±' + Math.round(pos.coords.accuracy) + 'm)', 'success');
@@ -1029,7 +1029,7 @@ function buildSummary() {
     }
 
     var lat = document.getElementById('gps_lat').value;
-    var lon = document.getElementById('gps_lon').value;
+    var lon = document.getElementById('gps_lng').value;
     setText('sum-gps', lat && lon ? lat + ', ' + lon : 'Não capturado');
 
     // Detalhes type-specific
@@ -1126,9 +1126,9 @@ async function handleSubmit() {
         }
 
         var lat = form.gps_lat.value;
-        var lon = form.gps_lon.value;
+        var lon = form.gps_lng.value;
         if (lat) formData.append('gps_lat', lat);
-        if (lon) formData.append('gps_lon', lon);
+        if (lon) formData.append('gps_lng', lon);
         if (selectedPhoto) formData.append('photo', selectedPhoto);
 
         var res = await fetch(CONFIG.ENDPOINTS.EVIDENCES, {

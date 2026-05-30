@@ -88,12 +88,17 @@ class DashboardPageTest(AuthenticatedFrontendTestCase):
     def test_dashboard_contains_stats(self):
         """A página do dashboard deve conter a hero section da cadeia de custódia.
 
-        Substituiu a antiga grelha ``stats-grid``: o cartão único
-        ``custody-flow`` é agora o ponto focal do painel.
+        Refactor v2: ``custody-flow`` (v1) foi substituído pela
+        ``geo-hero`` — hero de 3 colunas que combina o estado da cadeia
+        (coluna esquerda) com a distribuição territorial em Portugal
+        (mapa + insets Madeira/Açores). Ver
+        ``docs/refactor/art-direction.md`` §Hero.
         """
         response = self.client.get(reverse('dashboard'))
         content = response.content.decode('utf-8')
-        self.assertIn('id="custody-flow"', content)
+        self.assertIn('id="geo-hero"', content)
+        self.assertIn('id="cs-tiles"', content)
+        self.assertIn('id="geo-hero-map-continental"', content)
 
     def test_dashboard_contains_agent_actions(self):
         """A página do dashboard deve conter as acções do agente."""
@@ -320,12 +325,6 @@ class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
         response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
         content = response.content.decode('utf-8')
         self.assertIn('id="case-map"', content)
-
-    def test_occurrence_detail_contains_devices_section(self):
-        """A página de detalhe deve conter a secção de dispositivos."""
-        response = self.client.get(reverse('occurrence_detail', kwargs={'occurrence_id': 1}))
-        content = response.content.decode('utf-8')
-        self.assertIn('id="devices-section"', content)
 
     def test_occurrence_detail_contains_custody_summary(self):
         """A página de detalhe deve conter o resumo de custódia."""

@@ -22,13 +22,16 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import RequestFactory, TestCase
 from rest_framework.test import APIClient, APITestCase
 
-from core.exceptions import forensiq_exception_handler
 from core.middleware import ContentSecurityPolicyMiddleware, CorrelationIDMiddleware
-from core.models import ChainOfCustody, DigitalDevice, Evidence, Occurrence, User
+from core.models import ChainOfCustody, Evidence, Occurrence, User
 from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOnly
+
+# =========================================================================
+# 1. VALIDADORES - testes unitarios puros (sem BD)
+# =========================================================================
 from core.tests_factories import (
     ChainOfCustodyFactory,
-    DigitalDeviceFactory,
+    CrimeTipoFactory,
     EvidenceMobileFactory,
     ExpertFactory,
     OccurrenceFactory,
@@ -42,10 +45,6 @@ from core.validators import (
     validate_vin,
     validate_vin_advisory,
 )
-
-# =========================================================================
-# 1. VALIDADORES - testes unitarios puros (sem BD)
-# =========================================================================
 
 
 class ValidateIMEITest(TestCase):
@@ -199,47 +198,6 @@ class ImsiAdvisoryTest(TestCase):
         self.assertIsNone(validate_imsi_advisory(None))
 
 
-class DigitalDeviceImeiValidationTest(TestCase):
-    """Regressão: DigitalDevice.imei deve exigir checksum Luhn.
-
-    Antes do fix, ``RegexValidator(r'^(\\d{15})?$')`` aceitava qualquer
-    sequência de 15 dígitos sem verificar Luhn — divergindo do path
-    ``Evidence._validate_type_specific_data`` que já exigia o checksum.
-    """
-
-    def setUp(self):
-        agent = UserFactory.create()
-        occ = OccurrenceFactory.create(agent=agent)
-        self.evidence = EvidenceMobileFactory.create(occurrence=occ, agent=agent)
-
-    def test_invalid_luhn_imei_rejected_on_save(self):
-        dev = DigitalDevice(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            imei='111111111111111',  # 15 dígitos, Luhn falha
-        )
-        with self.assertRaises(DjangoValidationError):
-            dev.save()
-
-    def test_empty_imei_accepted(self):
-        dev = DigitalDevice(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            imei='',
-        )
-        dev.save()  # não levanta — campo opcional
-        self.assertEqual(dev.imei, '')
-
-    def test_valid_luhn_imei_accepted(self):
-        dev = DigitalDevice(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            imei='490154203237518',  # exemplo 3GPP, Luhn ✓
-        )
-        dev.save()  # não levanta
-        self.assertEqual(dev.imei, '490154203237518')
-
-
 # =========================================================================
 # 2. PERMISSOES - testes unitarios com RequestFactory (sem views)
 # =========================================================================
@@ -369,53 +327,11 @@ class IsOwnerOrReadOnlyPermissionTest(TestCase):
 
 
 # =========================================================================
-# 3. EXCEPTION HANDLER
+# 3. MIDDLEWARE
 # =========================================================================
-
-
-class ExceptionHandlerTest(TestCase):
-    """Cobertura de ``core.exceptions.forensiq_exception_handler``."""
-
-    def test_django_validation_error_with_message_dict(self):
-        exc = DjangoValidationError({'number': ['Ja existe.']})
-        resp = forensiq_exception_handler(exc, {})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('number', resp.data)
-
-    def test_django_validation_error_with_messages(self):
-        exc = DjangoValidationError(['Erro generico.'])
-        resp = forensiq_exception_handler(exc, {})
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn('detail', resp.data)
-
-    def test_django_validation_error_with_string(self):
-        exc = DjangoValidationError('Erro simples.')
-        resp = forensiq_exception_handler(exc, {})
-        self.assertEqual(resp.status_code, 400)
-
-    def test_non_django_error_returns_generic_500_in_production(self):
-        """Excepcoes nao-DRF em producao sao mascaradas com 500 generico.
-
-        Comportamento adicionado em chore(api) commit 2927437: o handler
-        intercepta ``response is None`` (DRF nao sabia processar) e devolve
-        Response 500 com mensagem generica em vez de propagar o stack
-        trace para o cliente (OWASP A05:2021 Security Misconfiguration).
-
-        O teste corre com DEBUG=False (test_settings.py), portanto a
-        ramificacao de mascaramento dispara.
-        """
-        exc = ValueError('Algo inesperado')
-        resp = forensiq_exception_handler(exc, {})
-        self.assertIsNotNone(resp)
-        self.assertEqual(resp.status_code, 500)
-        self.assertIn('detail', resp.data)
-        # Nao deve vazar 'Algo inesperado' nem nada do tipo na resposta.
-        self.assertNotIn('inesperado', resp.data['detail'])
-
-
-# =========================================================================
-# 4. MIDDLEWARE
-# =========================================================================
+# Nota: a cobertura de ``forensiq_exception_handler`` (antes aqui) foi
+# consolidada em ``tests_services.py::ExceptionHandlerTest`` (superconjunto,
+# inclui o ramo DEBUG=True). T16.
 
 
 class CorrelationIDMiddlewareTest(TestCase):
@@ -467,7 +383,7 @@ class PDFContentValidationTest(TestCase):
     Correccao do item do code review:
     > ALTO - Falta validacao de conteudo do PDF
     > Testes verificam assinatura %PDF e tamanho, mas nao que hash
-    > SHA-256, dispositivos e cadeia de custodia aparecem no PDF.
+    > SHA-256 e cadeia de custodia aparecem no PDF.
     """
 
     def setUp(self):
@@ -477,11 +393,6 @@ class PDFContentValidationTest(TestCase):
             occurrence=self.occ,
             agent=self.agent,
             description='Samsung Galaxy S24 apreendido em Lisboa',
-        )
-        self.device = DigitalDeviceFactory.create(
-            evidence=self.evidence,
-            brand='Samsung',
-            model='Galaxy S24',
         )
         self.custody = ChainOfCustodyFactory.create(
             evidence=self.evidence,
@@ -522,7 +433,8 @@ class PDFContentValidationTest(TestCase):
 
         pdf_bytes = generate_evidence_pdf(self.evidence)
         text = self._extract_pdf_text(pdf_bytes)
-        self.assertIn('APREENDIDA', text.upper())
+        # O ledger mostra o rótulo do evento ("Apreensão") na tabela.
+        self.assertIn('APREENS', text.upper())
 
     def test_occurrence_pdf_contains_evidence_list(self):
         from core.pdf_export import generate_occurrence_pdf
@@ -615,9 +527,10 @@ class DashboardStatsOwnershipTest(APITestCase):
 
 
 class HealthcheckTest(TestCase):
-    """Cobertura de ``core.views.healthcheck``."""
+    """Cobertura de ``core.views.healthcheck`` (endpoint público de liveness)."""
 
-    def test_healthcheck_returns_200(self):
+    def test_healthcheck_returns_200_sem_auth(self):
+        """Cliente sem credenciais obtém 200 + status 'ok' (não exige auth)."""
         from django.test import Client
 
         client = Client()
@@ -625,12 +538,38 @@ class HealthcheckTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()['status'], 'ok')
 
-    def test_healthcheck_no_auth_required(self):
-        from django.test import Client
 
-        client = Client()
-        resp = client.get('/api/health/')
-        self.assertEqual(resp.status_code, 200)
+class HealthcheckThrottleTest(APITestCase):
+    """O healthcheck público está protegido por HealthcheckRateThrottle (por IP)
+    — fecha o finding `healthcheck-sem-throttle-info-leak`.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        # SimpleRateThrottle conta na default cache; limpar evita herdar
+        # contagens de outros testes.
+        cache.clear()
+
+    def test_throttle_scope_is_healthcheck(self):
+        from core.throttles import HealthcheckRateThrottle
+
+        self.assertEqual(HealthcheckRateThrottle().scope, 'healthcheck')
+
+    def test_429_apos_limite(self):
+        from unittest.mock import patch
+
+        from rest_framework.throttling import SimpleRateThrottle
+
+        # Forçar 2/min só neste teste (ver nota em ImeiLookupThrottleTest).
+        rates = {'healthcheck': '2/minute'}
+        with patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
+            r1 = self.client.get('/api/health/')
+            r2 = self.client.get('/api/health/')
+            r3 = self.client.get('/api/health/')
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r3.status_code, 429)
 
 
 # =========================================================================
@@ -726,77 +665,12 @@ class SerializerEdgeCasesTest(APITestCase):
 
 
 # =========================================================================
-# 10. MODEL INTEGRITY - compute_record_hash includes ID
+# 10. LOOKUP VIEWS - IMEI / VIN
 # =========================================================================
-
-
-class RecordHashIntegrityTest(TestCase):
-    """Verifica que o hash da cadeia de custodia e robusto.
-
-    Correccao do item do code review:
-    > ALTO - compute_record_hash() sem ID do registo
-    """
-
-    def setUp(self):
-        self.agent = UserFactory.create()
-        self.occ = OccurrenceFactory.create(agent=self.agent)
-        self.ev = EvidenceMobileFactory.create(
-            occurrence=self.occ,
-            agent=self.agent,
-        )
-
-    def test_custody_records_have_unique_hashes(self):
-        """Dois registos de custodia com dados semelhantes tem hashes distintos."""
-        c1 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-            observations='Apreensao teste',
-        )
-        c2 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-            observations='Transporte teste',
-        )
-        self.assertNotEqual(c1.record_hash, c2.record_hash)
-
-    def test_hash_chain_links_correctly(self):
-        """O record_hash do segundo registo encadeia com o do primeiro.
-
-        ChainOfCustody nao armazena `previous_hash` como campo; o
-        encadeamento e feito em ``compute_record_hash(previous_hash=...)``
-        que e funcao pura. Verificamos que recomputar o hash de ``c2``
-        passando ``c1.record_hash`` como entrada reproduz exactamente o
-        valor que foi gravado, e que e diferente do hash de ``c1``.
-        """
-        c1 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-            observations='Primeiro registo',
-        )
-        c2 = ChainOfCustody.objects.create(
-            evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-            observations='Segundo registo',
-        )
-        self.assertNotEqual(c1.record_hash, c2.record_hash)
-        self.assertEqual(
-            c2.compute_record_hash(previous_hash=c1.record_hash),
-            c2.record_hash,
-        )
-
-    def test_evidence_integrity_hash_not_empty(self):
-        """Cada evidencia criada tem um hash SHA-256 de integridade."""
-        self.assertIsNotNone(self.ev.integrity_hash)
-        self.assertEqual(len(self.ev.integrity_hash), 64)
-
-
-# =========================================================================
-# 11. LOOKUP VIEWS - IMEI / VIN
-# =========================================================================
+# Nota: a integridade do hash-chain (records únicos, recompute encadeado) e
+# o hash de integridade da evidência estão cobertos por
+# ``tests.py::ChainOfCustodyModelTest::test_hash_chain_integrity``,
+# ``CustodyHashFormulaTest`` e ``EvidenceModelTest::test_create_evidence_with_auto_hash``. T16.
 
 
 class IMEILookupViewTest(APITestCase):
@@ -877,11 +751,12 @@ class OccurrenceCodeTest(APITestCase):
         resp = self.client.post(
             '/api/occurrences/',
             {
+                'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-TEST-001',
                 'description': 'Teste de codigo',
                 'date_time': '2026-05-08T10:00:00Z',
                 'gps_lat': '38.7223',
-                'gps_lon': '-9.1393',
+                'gps_lng': '-9.1393',
                 'address': 'Lisboa',
             },
         )
@@ -894,11 +769,12 @@ class OccurrenceCodeTest(APITestCase):
             resp = self.client.post(
                 '/api/occurrences/',
                 {
+                    'crime_type': CrimeTipoFactory().id,
                     'number': f'NUIPC-UNIQ-{i:03d}',
                     'description': f'Teste {i}',
                     'date_time': '2026-05-08T10:00:00Z',
                     'gps_lat': '38.7223',
-                    'gps_lon': '-9.1393',
+                    'gps_lng': '-9.1393',
                     'address': 'Lisboa',
                 },
             )
