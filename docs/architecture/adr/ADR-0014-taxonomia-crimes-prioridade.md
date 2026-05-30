@@ -114,9 +114,9 @@ A **Lei n.º 51/2023, de 28 de agosto** (DR n.º 166/2023, Série I) é a Lei de
 
 ### Migrations
 
-- Cabeça actual da migration chain: `0017_alter_auditlog_options_auditlog_sequence`. O track GPS (ADR-0013) ocupa `0018`-`0019` (rename `gps_lng` + GPS na custódia); para **evitar colisão de numeração** entre tracks paralelos, este ADR usa a faixa **`0020`-`0021`**.
-- `0020_crime_taxonomy` (cria as 4 tabelas de referência) + `0021_occurrence_crime_priority` (add `crime_type`/`priority`/`priority_source` à `Occurrence`). Aditivas; sem `RunPython` de dados sobre prova; sem mexer em `0002`/`0008`/`0013`. (Se a ordem de merge dos tracks divergir, reconciliar a numeração no merge — mas a faixa fixa evita-o.)
-- **Não** semear via `RunPython` na migração (mantenho as migrations puras de schema) — o seed dos dados de referência fica num management command.
+- A cabeça era `0017_alter_auditlog_options_auditlog_sequence`; `0018` faz o rename `gps_lng` (T02). Como o track da taxonomia (T19) avança **antes** da reforma da custódia (T20), usa a migração seguinte: **`0019_taxonomia_crimes_prioridade`** (a custódia/GPS ocupará `0020`+). A numeração segue a ordem de execução, não a reserva inicial.
+- `0019` é **uma migração aditiva combinada**: cria os 5 modelos de referência (`CrimeCategoria`/`CrimeSubcategoria`/`CrimeTipo`/`PoliticaCriminalPrioridade`/`PrioridadeCrimeTipo`) e adiciona `crime_type`/`priority`/`priority_source` à `Occurrence`. O `crime_type` é obrigatório **sem default** (greenfield: a Tabela semeia-se antes de existirem ocorrências). Sem `RunPython` de dados sobre prova; sem mexer em `0002`/`0008`/`0013`.
+- **Não** semear via `RunPython` na migração (mantenho as migrations puras de schema) — o seed dos dados de referência fica num management command (`seed_crime_taxonomy`).
 
 ### Serializers / API
 
