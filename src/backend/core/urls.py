@@ -11,6 +11,7 @@ Router DRF com os seguintes endpoints:
 - /api/evidences/lookup/vin/<vin>/     — redirect para vindecoder.eu
 - /api/custody/                        — cadeia de custódia
 - /api/custody/evidence/<id>/timeline/ — timeline de custódia
+- /api/activity-feed/                  — feed read-only de actividade (AuditLog)
 - /api/stats/                          — stats agregadas (legacy)
 - /api/stats/dashboard/                — payload estável do dashboard (Wave 2d)
 - /api/health/                         — healthcheck (liveness + DB)
@@ -22,6 +23,7 @@ from django.urls import path
 from rest_framework.routers import DefaultRouter
 
 from .views import (
+    ActivityFeedView,
     ChainOfCustodyViewSet,
     DashboardStatsView,
     EvidenceIMEILookupView,
@@ -58,6 +60,7 @@ urlpatterns = [
     ),
     path('reverse-geocode/', ReverseGeocodeView.as_view(), name='reverse-geocode'),
     path('nearby-pois/', NearbyPOIsView.as_view(), name='nearby-pois'),
+    path('activity-feed/', ActivityFeedView.as_view(), name='activity-feed'),
     path('stats/', StatsView.as_view(), name='stats'),
     path('stats/dashboard/', DashboardStatsView.as_view(), name='stats-dashboard'),
     path('health/', healthcheck, name='healthcheck'),

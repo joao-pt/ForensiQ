@@ -20,6 +20,7 @@ Endpoints:
 import logging
 import math
 import mimetypes
+from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 
 import httpx
@@ -29,12 +30,14 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
 from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.http import require_safe
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import (
     filters,
+    generics,
     serializers as drf_serializers,  # Para converter ValidationError
     status,
     viewsets,
@@ -51,8 +54,6 @@ from .models import (
     LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
-    CustodianType,
-    EventType,
     Evidence,
     Occurrence,
     TERMINAL_EVENTS,
@@ -61,6 +62,7 @@ from .models import (
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
+    ActivityFeedSerializer,
     CascadeCustodyRequestSerializer,
     ChainOfCustodySerializer,
     EvidenceSerializer,
@@ -1145,8 +1147,158 @@ class DashboardStatsView(APIView):
                 'evidences_without_custody': evidences_without_custody,
                 'custodies_in_transit': custodies_in_transit,
                 'evidences_in_analysis': evidences_in_analysis,
+                # --- Enriquecimento T07 (aditivo) ---
+                'deltas_24h': self._deltas_24h(occ_qs, ev_qs, coc_qs),
+                'total_active': self._total_active(coc_qs, total_evidences),
+                'occurrences_series_7d': self._occurrences_series_7d(occ_qs),
             }
         )
+
+    # ------------------------------------------------------------------
+    # Helpers do enriquecimento T07
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _deltas_24h(occ_qs, ev_qs, coc_qs):
+        """Variação das últimas 24h vs as 24h anteriores (T07).
+
+        Compara a janela [agora-24h, agora] (``last_24h``) com a janela
+        [agora-48h, agora-24h] (``prev_24h``) para ocorrências, evidências e
+        eventos de custódia. ``delta`` = ``last_24h - prev_24h`` (positivo =
+        aceleração da actividade). Ocorrências e evidências contam por
+        ``created_at``; os eventos de custódia por ``timestamp`` (o ledger não
+        tem ``created_at``).
+        """
+        now = timezone.now()
+        h24 = now - timedelta(hours=24)
+        h48 = now - timedelta(hours=48)
+
+        def janelas(qs, campo):
+            last_n = qs.filter(**{f'{campo}__gte': h24, f'{campo}__lte': now}).count()
+            prev_n = qs.filter(**{f'{campo}__gte': h48, f'{campo}__lt': h24}).count()
+            return {'last_24h': last_n, 'prev_24h': prev_n, 'delta': last_n - prev_n}
+
+        return {
+            'occurrences': janelas(occ_qs, 'created_at'),
+            'evidences': janelas(ev_qs, 'created_at'),
+            'custody_events': janelas(coc_qs, 'timestamp'),
+        }
+
+    @staticmethod
+    def _total_active(coc_qs, total_evidences):
+        """Nº de evidências cujo estado legal derivado NÃO é terminal (T07).
+
+        Uma evidência está "activa" enquanto o seu último evento de custódia
+        não é terminal (RESTITUICAO/DESTRUICAO — ``TERMINAL_EVENTS``).
+        Evidências sem qualquer registo de custódia contam como activas
+        (ainda não saíram do circuito). Deriva o estado por evidência a partir
+        da sequência de eventos, coerente com o resto do dashboard.
+        """
+        eventos_por_evidencia = {}
+        for rec in coc_qs.order_by('evidence_id', 'sequence'):
+            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
+        terminais = {
+            ev_id
+            for ev_id, eventos in eventos_por_evidencia.items()
+            if eventos[-1].event_type in TERMINAL_EVENTS
+        }
+        # Activas = todas as evidências menos as que estão em estado terminal.
+        # Itens sem custódia não entram em ``terminais`` → contam como activas.
+        return total_evidences - len(terminais)
+
+    @staticmethod
+    def _occurrences_series_7d(occ_qs):
+        """Série diária de ocorrências criadas nos últimos 7 dias (T07).
+
+        Devolve 7 objectos ``{"date": "YYYY-MM-DD", "count": N}`` do mais
+        antigo (há 6 dias) ao dia de hoje, inclusive dias com zero. A agregação
+        usa o dia LOCAL (``timezone.localdate``) para alinhar com o fuso do
+        projecto — uma ocorrência criada às 23h conta no dia local correcto.
+        """
+        hoje = timezone.localdate()
+        dias = [hoje - timedelta(days=offset) for offset in range(6, -1, -1)]
+        inicio = dias[0]
+        # Janela [inicio_local_00h, agora]; agrega por dia local via
+        # TruncDate, que respeita o TIME_ZONE activo do projecto.
+        inicio_dt = timezone.make_aware(datetime.combine(inicio, dt_time.min))
+        contagens = dict(
+            occ_qs.filter(created_at__gte=inicio_dt)
+            .annotate(dia=TruncDate('created_at'))
+            .values('dia')
+            .annotate(n=Count('id'))
+            .values_list('dia', 'n')
+        )
+        return [{'date': dia.isoformat(), 'count': contagens.get(dia, 0)} for dia in dias]
+
+
+# ---------------------------------------------------------------------------
+# Activity Feed — feed read-only de actividade sobre o AuditLog (T06)
+# ---------------------------------------------------------------------------
+
+
+class ActivityFeedView(generics.ListAPIView):
+    """GET /api/activity-feed/ — feed read-only de actividade (T06).
+
+    Lista os eventos do ``AuditLog`` (append-only) por ``-timestamp``,
+    paginado pela paginação default do projecto. Read-only: apenas GET é
+    exposto (``ListAPIView``); POST/PUT/PATCH/DELETE devolvem 405.
+
+    Âmbito (documentado):
+    - EXPERT / staff vêem TODOS os eventos de auditoria.
+    - AGENT vê APENAS os eventos que ELE praticou (``user_id == request.user.id``).
+      Como o ``AuditLog`` regista acessos a prova potencialmente sob segredo de
+      justiça, não se expõe a um agente a actividade de terceiros.
+
+    O sinal ``is_priority_alert`` (ADR-0014 §7) destaca a criação de
+    ocorrências prioritárias. Para evitar N+1, os ids das ocorrências
+    prioritárias REFERENCIADAS pela página corrente são resolvidos numa única
+    query e passados ao serializer via contexto.
+    """
+
+    serializer_class = ActivityFeedSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = AuditLog.objects.select_related('user').order_by('-timestamp')
+        user = self.request.user
+        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+            qs = qs.filter(user_id=user.id)
+        return qs
+
+    def get_serializer_context(self):
+        """Pré-carrega os ids de ocorrências prioritárias da página (sem N+1).
+
+        Resolve, numa só query, quais das ocorrências referenciadas pelos
+        eventos CREATE/OCCURRENCE da página corrente têm
+        ``priority=PRIORITARIA``. Ocorrências entretanto eliminadas não
+        constam do resultado → ``is_priority_alert=False`` para elas.
+        """
+        context = super().get_serializer_context()
+        page = getattr(self, '_paginated_object_list', None)
+        occ_ids = [
+            log.resource_id
+            for log in (page or [])
+            if log.action == AuditLog.Action.CREATE
+            and log.resource_type == AuditLog.ResourceType.OCCURRENCE
+        ]
+        priority_ids = set()
+        if occ_ids:
+            priority_ids = set(
+                Occurrence.objects.filter(
+                    id__in=occ_ids,
+                    priority=Occurrence.Priority.PRIORITARIA,
+                ).values_list('id', flat=True)
+            )
+        context['priority_occurrence_ids'] = priority_ids
+        return context
+
+    def paginate_queryset(self, queryset):
+        """Guarda a página materializada para o contexto resolver prioridades."""
+        page = super().paginate_queryset(queryset)
+        # Quando há paginação, ``page`` é a lista da página corrente; caso
+        # contrário (paginação desligada) usamos o queryset inteiro.
+        self._paginated_object_list = page if page is not None else list(queryset)
+        return page
 
 
 # ---------------------------------------------------------------------------

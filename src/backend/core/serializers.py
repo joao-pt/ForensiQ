@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from .models import (
+    AuditLog,
     ChainOfCustody,
     CrimeTipo,
     CustodianType,
@@ -557,3 +558,91 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
         default='',
         max_length=2000,
     )
+
+
+# ---------------------------------------------------------------------------
+# ActivityFeed — serializer read-only do feed de actividade sobre AuditLog (T06)
+# ---------------------------------------------------------------------------
+
+
+class ActivityFeedSerializer(serializers.ModelSerializer):
+    """Serializa um ``AuditLog`` como item do feed de actividade (T06).
+
+    Read-only: o feed é uma LEITURA do registo de auditoria, nunca uma
+    escrita (o ``AuditLog`` é append-only e imutável). Cada item expõe os
+    metadados crus (action/resource) com os respectivos rótulos legíveis, o
+    autor da acção e uma frase pronta a exibir (``label``).
+
+    O sinal ``is_priority_alert`` (ADR-0014 §7) destaca a criação de uma
+    ocorrência prioritária. Para evitar N+1, o conjunto de ids de ocorrências
+    prioritárias da página é pré-calculado pela view e injectado no
+    ``context['priority_occurrence_ids']`` — o serializer apenas o consulta.
+    """
+
+    action_display = serializers.CharField(source='get_action_display', read_only=True)
+    resource_type_display = serializers.CharField(
+        source='get_resource_type_display', read_only=True
+    )
+    user = serializers.SerializerMethodField()
+    user_name = serializers.SerializerMethodField()
+    is_priority_alert = serializers.SerializerMethodField()
+    label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id',
+            'timestamp',
+            'action',
+            'action_display',
+            'resource_type',
+            'resource_type_display',
+            'resource_id',
+            'user',
+            'user_name',
+            'correlation_id',
+            'is_priority_alert',
+            'label',
+        ]
+        read_only_fields = fields
+
+    def get_user(self, obj):
+        """Username do autor da acção (``None`` se foi o sistema/anónimo)."""
+        return obj.user.username if obj.user_id else None
+
+    def get_user_name(self, obj):
+        """Nome legível do autor: nome completo > username > 'sistema'."""
+        if obj.user_id is None:
+            return 'sistema'
+        return obj.user.get_full_name() or obj.user.username
+
+    def get_is_priority_alert(self, obj):
+        """True para criação de ocorrência PRIORITÁRIA (ADR-0014 §7).
+
+        Só é alerta quando ``action=CREATE`` + ``resource_type=OCCURRENCE`` e
+        a ocorrência referenciada existe e tem ``priority=PRIORITARIA``. A
+        view pré-carrega os ids prioritários da página em
+        ``context['priority_occurrence_ids']`` (evita N+1); se a ocorrência já
+        não existir, o id não consta do conjunto e o resultado é False.
+        """
+        if (
+            obj.action != AuditLog.Action.CREATE
+            or obj.resource_type != AuditLog.ResourceType.OCCURRENCE
+        ):
+            return False
+        priority_ids = self.context.get('priority_occurrence_ids', set())
+        return obj.resource_id in priority_ids
+
+    def get_label(self, obj):
+        """Frase legível do evento (ex.: 'Ana Silva criou OCORRÊNCIA #12')."""
+        actor = self.get_user_name(obj)
+        verbo = {
+            AuditLog.Action.CREATE: 'criou',
+            AuditLog.Action.VIEW: 'consultou',
+            AuditLog.Action.EXPORT_PDF: 'exportou PDF de',
+            AuditLog.Action.EXPORT_CSV: 'exportou CSV de',
+            AuditLog.Action.AUDIT_PURGE: 'expurgou',
+            AuditLog.Action.SYSTEM_ALERT: 'alertou sobre',
+        }.get(obj.action, obj.get_action_display().lower())
+        recurso = obj.get_resource_type_display().upper()
+        return f'{actor} {verbo} {recurso} #{obj.resource_id}'
