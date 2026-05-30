@@ -131,7 +131,7 @@ footer técnico com métricas hardcoded/ausentes. Bug já presente: o do hero ge
 | Tema | Título | Fase | Pri | Esforço | Risco |
 |------|--------|------|-----|---------|-------|
 | **T01** | GPS na custódia + hash versionado + arredondamento por papel (ADR-0013) | 2-backend | P1 | L | **ALTO** |
-| **T02** | Decidir convenção única de longitude (`gps_lon` vs `gps_lng`) | 2-backend | P1 | S | Baixo |
+| **T02** | Normalizar longitude para `gps_lng` (rename migration + JS) | 2-backend | P1 | M | Baixo-Médio |
 | **T03** | `Occurrence.priority` (P1-P4) + serializer + `evidences_count` | 2-backend | P1 | M | Baixo |
 | **T04** | Remover export CSV por completo | ambas | P1 | M | Baixo |
 | **T05** | Deprecar/remover `DigitalDevice`, consolidar em "evidência" | ambas | P1 | L | Médio |
@@ -152,11 +152,11 @@ footer técnico com métricas hardcoded/ausentes. Bug já presente: o do hero ge
 ### Detalhe dos temas
 
 **T01 — GPS na ChainOfCustody, entrada versionada no hash-chain e arredondamento por papel (ADR-0013).** `[P1 · fase-2-backend · L · risco ALTO]`
-Lacuna estrutural #1: o mini-mapa "Cadeia" (polyline + pins por estado + tooltip ±Nm) e a timeline não têm fonte. Adicionar `gps_lat`/`gps_lng`/`gps_accuracy_m` + serializer + write no `perform_create`. **Ponto crítico forense:** o hash NÃO inclui GPS hoje; a fórmula tem de ser estendida de forma **aditiva/versionada** (anexar segmento GPS só quando não-nulo, ou `hash_version`) para registos históricos continuarem recalculáveis. Arredondamento por papel **server-side** antes do hash (RGPD). Triggers de linha já cobrem os campos novos. *Findings:* `coc-gps-hash-versionado`, `coc-gps-campos`, `coc-gps-trigger-imutabilidade`, `bd-chainofcustody-sem-gps`, `api-gps-hash-chain`, `coc-hash-sem-gps`, `coc-arredondamento-por-papel-inexistente`, `adr-0013-gps-custody-em-falta`, `gps-custody-rounding-privacidade`, `gap-gps-chain-model`, `gap-gps-chain-serializer`, `gap-gps-chain-rounding`, `gap-timeline-gps-fields`, `gps-custodia-sem-teste`, `gps-no-hash-chain-risco`, `verificacao-cadeia-inteira-inexistente`. *Depende de:* T02.
+Lacuna estrutural #1: o mini-mapa "Cadeia" (polyline + pins por estado + tooltip ±Nm) e a timeline não têm fonte. Adicionar `gps_lat`/`gps_lng`/`gps_accuracy_m` + serializer + write no `perform_create`. **Ponto crítico forense:** o hash NÃO inclui GPS hoje; a fórmula tem de ser estendida de forma **aditiva/versionada** (anexar segmento GPS só quando não-nulo, ou `hash_version`) para registos históricos continuarem recalculáveis. **Decisão D5:** captura com **precisão máxima** (sem arredondamento por papel) + `gps_accuracy_m`; o GPS marca a localização da *evidência*, não vigia o agente. **Ajuste manual** da posição permitido pelo agente **antes** de submeter (pré-hash, porque o registo é imutável ao gravar). Para estados de laboratório, **localização de armazenamento textual** (armário/sala) complementa o GPS. Campos com convenção `gps_lng` (decisão D2). Triggers de linha já cobrem os campos novos. *Findings:* `coc-gps-hash-versionado`, `coc-gps-campos`, `coc-gps-trigger-imutabilidade`, `bd-chainofcustody-sem-gps`, `api-gps-hash-chain`, `coc-hash-sem-gps`, `coc-arredondamento-por-papel-inexistente`, `adr-0013-gps-custody-em-falta`, `gps-custody-rounding-privacidade`, `gap-gps-chain-model`, `gap-gps-chain-serializer`, `gap-gps-chain-rounding`, `gap-timeline-gps-fields`, `gps-custodia-sem-teste`, `gps-no-hash-chain-risco`, `verificacao-cadeia-inteira-inexistente`. *Depende de:* T02.
 **Risco:** se o GPS entrar no hash sem versionamento, a cadeia histórica fica inverificável; se entrar sem teste de determinismo, regride silenciosamente (factories gravam GPS=None e o teste continua verde). O ADR-0013 TEM de fixar a ordem dos campos e a regra None/precisão **antes** de ir a produção.
 
-**T02 — Decidir convenção única de longitude.** `[P1 · fase-2-backend · S · baixo]`
-Pré-requisito de T01 e do fix do hero. `Occurrence`/`Evidence` usam `gps_lon` (confirmado `serializers.py:139`); a spec/mockup usam `gps_lng`. Criar a custódia com `gps_lng` introduz duas convenções no mesmo schema — raiz do bug do hero. *Findings:* `coc-gps-nome-lng-vs-lon`, `gps-lon-vs-lng-nomenclatura`, `gap-gps-lon-vs-lng-naming`. **Recomendação:** manter `gps_lon` (sem migration de rename, sem churn no JS). → §6.
+**T02 — Normalizar longitude para `gps_lng`.** `[P1 · fase-2-backend · M · baixo-médio]`
+Pré-requisito de T01 e do fix do hero. `Occurrence`/`Evidence` usam `gps_lon` (confirmado `serializers.py:139`); a spec/mockup usam `gps_lng`. **Decisão D2: normalizar tudo para `gps_lng`** (convenção única em todo o schema). Migration de rename `gps_lon`→`gps_lng` em `Occurrence` e `Evidence`; actualizar `filters.py`, serializers, `pdf_export._fmt_gps`, `config.js`, `dashboard_geo_hero.js` e restantes pages. O rename **não** altera o `integrity_hash` da `Evidence` (usa o valor, não o nome). A `ChainOfCustody` nova nasce já com `gps_lng`. *Findings:* `coc-gps-nome-lng-vs-lon`, `gps-lon-vs-lng-nomenclatura`, `gap-gps-lon-vs-lng-naming`. → §6 D2.
 
 **T03 — `Occurrence.priority` + serializer + contagem.** `[P1 · fase-2-backend · M · baixo]`
 Lacuna estrutural #2: colorbar do hero, cor dos pins e coluna "Pri." são decorativas porque não existe `Occurrence.priority`. Adição pura (IntegerChoices + migration + serializer). Aproveitar para anotar `evidences_count` no queryset. *Findings:* `gap-occurrence-priority`, `gap-occurrence-priority-serializer`, `gap-table-priority-feed-source`.
@@ -250,16 +250,19 @@ Dois itens que os 9 agentes não conectaram e a verificação directa expôs:
 
 ---
 
-## 6. Decisões abertas (precisam do dono)
+## 6. Decisões de âmbito
 
-Esta secção fecha a Fase 1. As Fases 2/3 só arrancam após estas decisões.
+Esta secção fecha a Fase 1. **Estado (2026-05-30):** D1, D2, D5 e D8
+(forensicamente irreversíveis) **DECIDIDAS** pelo dono — ver cada bloco.
+D3, D4, D6 e D7 (P2/P3, reversíveis) **seguem a recomendação por defeito**
+até decisão em contrário.
 
-**D1 — O GPS entra no `compute_record_hash`? Como tratar registos históricos?**
+**D1 — O GPS entra no `compute_record_hash`? Como tratar registos históricos?** ✅ **DECIDIDO (2026-05-30): (c) aditiva/versionada.**
 Opções: (a) não entra (fica fora do ledger, mas o trigger de linha protege-o de UPDATE); (b) entra sempre (partiria o recálculo de todos os hashes históricos); (c) **entra de forma aditiva/versionada** (anexa segmento só quando não-nulo, ou `hash_version`).
-**Recomendação: (c).** Mantém o recálculo idêntico para o histórico (GPS=None) e cobre transições novas. Fixar a ordem dos campos e a regra de serialização no ADR-0013. **É a decisão forense mais crítica do refactor — irreversível depois de em produção.**
+**Decisão: (c).** Mantém o recálculo idêntico para o histórico (GPS=None) e cobre transições novas. Fixar a ordem dos campos e a regra de serialização no ADR-0013. **É a decisão forense mais crítica do refactor — irreversível depois de em produção.**
 
-**D2 — `gps_lon` (já em produção) ou normalizar para `gps_lng` (spec/mockup)?**
-**Recomendação: (a) manter `gps_lon`** em todo o lado, incluindo a custódia nova; ajustar spec/mockup/ADR-0013. Evita migration de rename em 2 modelos em produção e churn no JS; coerente com `filters.py`. Elimina a raiz do bug do hero.
+**D2 — `gps_lon` (já em produção) ou normalizar para `gps_lng` (spec/mockup)?** ✅ **DECIDIDO (2026-05-30): (b) normalizar tudo para `gps_lng`.**
+**Decisão: (b).** Convenção única `gps_lng` em todo o schema (Occurrence/Evidence/ChainOfCustody) + spec/mockup. **Implica:** migration de rename `gps_lon`→`gps_lng` em `Occurrence` e `Evidence` + actualizar `filters.py`, serializers, `pdf_export._fmt_gps`, e todo o JS de mapas (`config.js`, `dashboard_geo_hero.js`, pages). **Nota forense:** o rename **não** altera o `integrity_hash` da `Evidence` (o hash usa o *valor*, não o nome do campo). Confirmar que nenhum índice/constraint depende do nome antigo. Efeito colateral positivo: elimina a raiz do bug do hero (uma só convenção).
 
 **D3 — Squash de migrations: agora ou adiar?**
 **Recomendação: (a) limitado** — só o bloco de choices do `AuditLog` (0012/0015/0016, puro ruído), e **só depois** de estabilizar o schema da Fase 2. **Nunca** squashar 0002/0008/0013 nem RunPython de dados. É P3, não bloqueia.
@@ -267,8 +270,9 @@ Opções: (a) não entra (fica fora do ledger, mas o trigger de linha protege-o 
 **D4 — Remover `/stats/` legacy e `investigation_report` já, ou só marcar v2?**
 **Recomendação: (b) marcar v2.** Apagar agora é trabalho desperdiçado se voltarem; marcar deixa a fronteira explícita sem custo. **Separar `/stats/dashboard/` (FICA) do `/stats/` legacy (sai).**
 
-**D5 — Granularidade do arredondamento GPS por papel — confirmar 3 casas (AGENT ~110m) / 4 casas (PERITO ~11m)?**
-**Recomendação: (a) 3/4 casas, imposto server-side** no `perform_create`/serializer **antes** do hash (senão o valor hasheado diverge do gravado). Controlo de minimização RGPD — não confiar ao JS. Registar a tabela papel→casas no ADR-0013.
+**D5 — Granularidade do GPS / arredondamento por papel?** ✅ **DECIDIDO (2026-05-30): precisão máxima, SEM arredondamento por papel, com ajuste manual.**
+**Reenquadramento do dono:** o GPS na custódia regista **onde está a evidência** em cada transição (apreensão, transporte, armazenamento no laboratório), **não** é vigilância da posição do agente. É necessidade estrita para a prova ("need to know"). A inferência da posição do agente é incidental e aceitável (acontece em qualquer registo de campo).
+**Decisão:** capturar a posição com **a precisão máxima possível** (`gps_lat`/`gps_lng` com casas suficientes — `decimal_places=7` como `Occurrence`/`Evidence`) + `gps_accuracy_m` (precisão reportada pelo dispositivo, metadado, não arredondamento). **Sem** tabela de arredondamento por papel. O agente pode **ajustar a posição manualmente** antes de submeter a transição (correcção de drift de GPS) — o ajuste tem de ser **pré-hash** (o registo torna-se imutável ao gravar). Adicionar ainda **localização de armazenamento textual** (ex.: "Armário B-12, Sala 3") para os estados de laboratório (`RECEBIDA_LABORATORIO`/`EM_PERICIA`) — o GPS dá o sítio, o armário dá a gaveta. O ADR-0013 documenta a base legal (necessidade/finalidade probatória; minimização satisfeita pela limitação de finalidade, não por coarsening de coordenadas).
 
 **D6 — Fechar N7 (trigger PG de imutabilidade no `AuditLog`) agora?**
 Refinado pela verificação (§7): `seed_demo` usa **TRUNCATE** (não dispara `BEFORE DELETE` — seguro), mas `purge_audit_logs` usa `QuerySet.delete()` (**DELETE SQL — seria bloqueado**).
@@ -277,10 +281,10 @@ Refinado pela verificação (§7): `seed_demo` usa **TRUNCATE** (não dispara `B
 **D7 — Métricas do footer técnico v2 (p50, uptime, testes, db) — dinâmicas ou build-time?**
 **Recomendação: (b)** — `uptime` (process start) e `db` label triviais e reais; `commit`/`region`/`CSP` já existem no context_processor; `p50` (middleware de amostragem) e nº de testes como literais build-time honestos (`env FQ_TEST_COUNT`/`FQ_VERSION`) em vez de fingir runtime. Tornar `app_csp_label` dinâmico (Report-Only dev vs enforced prod).
 
-**D8 — *(novo)* A `Occurrence` deve ser POST-only na API (coerente com a BD imutável)?**
+**D8 — *(novo)* A `Occurrence` deve ser POST-only na API (coerente com a BD imutável)?** ✅ **DECIDIDO (2026-05-30): (a) tornar POST-only.**
 A BD bloqueia qualquer UPDATE/DELETE de `Occurrence` (0013), mas `OccurrenceViewSet` não restringe métodos.
 Opções: (a) **tornar POST-only** (`http_method_names = ['get','post','head','options']`, como os outros 3) — coerente com a BD; `priority` define-se só na criação; (b) manter mutável e remover o trigger 0013 (enfraquece a imutabilidade — **não recomendado**); (c) permitir edição de um subconjunto de campos não-forenses (exige relaxar o trigger por coluna — complexo).
-**Recomendação: (a).** É a única opção coerente com a imutabilidade já em vigor na BD e fecha a janela de mutação silenciosa em testes SQLite. Confirmar que nenhuma funcionalidade legítima edita `Occurrence` hoje.
+**Decisão: (a).** É a única opção coerente com a imutabilidade já em vigor na BD e fecha a janela de mutação silenciosa em testes SQLite. Acção em T18: adicionar `http_method_names` ao `OccurrenceViewSet` + teste que confirme 405 em PUT/PATCH/DELETE. Confirmar que nenhuma funcionalidade legítima edita `Occurrence` hoje (`priority` passa a ser campo de criação).
 
 ---
 
@@ -325,12 +329,15 @@ ou registadas abaixo):
 ## 9. Critério de fecho da Fase 1
 
 - [x] Inventário em disco (`docs/refactor/REFACTOR_MANIFEST.md`).
-- [ ] Manifesto commitado na branch `refactor/art-direction-v2`.
-- [ ] **Dono aprovou o âmbito** (decisões D1–D8 da §6 registadas).
+- [x] Manifesto commitado na branch `refactor/art-direction-v2` (`0fcd970`).
+- [x] **Dono aprovou o âmbito** — D1/D2/D5/D8 decididas (2026-05-30); D3/D4/D6/D7 seguem a recomendação por defeito (§6).
 
-> A Fase 2 só arranca após a conversa de âmbito. Próximo passo concreto:
-> decidir D1–D8, depois abrir `refactor/backend-cleanup` e executar o PASSO 0
-> (ADR-0013 + T02).
+> **Fase 1 fechada.** Próximo passo concreto da Fase 2: abrir
+> `refactor/backend-cleanup` a partir de `refactor/art-direction-v2` e executar o
+> **PASSO 0** — escrever **ADR-0013** (GPS na cadeia: hash versionado aditivo,
+> precisão máxima sem arredondamento por papel, ajuste manual pré-hash,
+> localização de armazenamento, convenção `gps_lng`) + **T02** (rename
+> `gps_lon`→`gps_lng`). Só depois tocar código GPS (T01).
 
 ---
 
