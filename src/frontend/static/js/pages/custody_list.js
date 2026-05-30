@@ -19,7 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     mountDataTable();
     setupSearch();
     setupSidebarFilters();
-    refreshExportLink();
 });
 
 function mountDataTable() {
@@ -87,7 +86,6 @@ function mountDataTable() {
             if (countEl) countEl.textContent = `${n} ${n === 1 ? 'transição' : 'transições'}`;
             const live = document.getElementById('results-announce');
             if (live) live.textContent = `${n} resultado${n !== 1 ? 's' : ''} após filtragem`;
-            refreshExportLink();
         },
     });
 
@@ -161,21 +159,6 @@ function setupSidebarFilters() {
             dataTable.setFilter('new_state', []);
         });
     }
-}
-
-/**
- * O href do botão "Exportar CSV" reflecte sempre o querystring actual,
- * para que o ficheiro descarregado corresponda ao que o utilizador vê.
- * Excluímos parâmetros internos de paginação (``page``, ``page_size``).
- */
-function refreshExportLink() {
-    const btn = document.getElementById('btn-export-csv');
-    if (!btn) return;
-    const params = new URLSearchParams(window.location.search);
-    params.delete('page');
-    params.delete('page_size');
-    const qs = params.toString();
-    btn.href = qs ? `/api/custody/csv/?${qs}` : '/api/custody/csv/';
 }
 
 function renderCustodyCard(rec) {
