@@ -9,7 +9,6 @@ from .models import (
     CrimeCategoria,
     CrimeSubcategoria,
     CrimeTipo,
-    DigitalDevice,
     Evidence,
     Occurrence,
     PoliticaCriminalPrioridade,
@@ -112,23 +111,6 @@ class EvidenceAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Evidências são imutáveis — sem eliminação."""
         return False
-
-
-@admin.register(DigitalDevice)
-class DigitalDeviceAdmin(admin.ModelAdmin):
-    list_display = (
-        'pk',
-        'type',
-        'brand',
-        'commercial_name',
-        'model',
-        'condition',
-        'imei',
-        'evidence',
-    )
-    list_filter = ('type', 'condition')
-    search_fields = ('brand', 'commercial_name', 'model', 'imei', 'serial_number')
-    raw_id_fields = ('evidence',)
 
 
 @admin.register(ChainOfCustody)

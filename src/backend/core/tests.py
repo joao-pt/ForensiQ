@@ -25,7 +25,6 @@ from core.tests_factories import CrimeTipoFactory
 
 from .models import (
     ChainOfCustody,
-    DigitalDevice,
     Evidence,
     Occurrence,
     User,
@@ -146,40 +145,6 @@ class EvidenceModelTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             ev.delete()
-
-
-class DigitalDeviceModelTest(TestCase):
-    """Testes para o modelo DigitalDevice."""
-
-    def setUp(self):
-        self.agent = User.objects.create_user(
-            username='agente01',
-            password='test12345',
-        )
-        self.occurrence = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='NUIPC-2026-002',
-            description='Apreensão de portátil.',
-            agent=self.agent,
-        )
-        self.evidence = Evidence.objects.create(
-            occurrence=self.occurrence,
-            type=Evidence.EvidenceType.COMPUTER,
-            description='Portátil Lenovo.',
-            agent=self.agent,
-        )
-
-    def test_create_device(self):
-        device = DigitalDevice.objects.create(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.LAPTOP,
-            brand='Lenovo',
-            model='ThinkPad X1',
-            condition=DigitalDevice.DeviceCondition.FUNCTIONAL,
-            serial_number='SN-ABC-12345',
-        )
-        self.assertIn('Lenovo', str(device))
-        self.assertIn('ThinkPad X1', str(device))
 
 
 class ChainOfCustodyModelTest(TestCase):

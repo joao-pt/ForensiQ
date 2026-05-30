@@ -52,7 +52,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 function renderTotals(data) {
     setText('kpi-occurrences', data.occurrences ?? 0);
     setText('kpi-evidences',   data.evidences ?? 0);
-    setText('kpi-devices',     data.devices ?? 0);
     setText('kpi-custody',     data.custody_records ?? 0);
 }
 

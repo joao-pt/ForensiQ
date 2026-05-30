@@ -172,26 +172,6 @@ class ForensiQUser(FastHttpUser):
 
         return None
 
-    def _create_digital_device(self, evidence_id):
-        """
-        POST /api/devices/ — cria dispositivo digital.
-        """
-        device_data = {
-            'evidence': evidence_id,
-            'type': 'SMARTPHONE',
-            'model': f'Test Device {int(datetime.now().timestamp()) % 1000}',
-            'serial_number': f'SN-{int(datetime.now().timestamp()) % 100000}',
-            'imei': '358623072123456',
-        }
-
-        response = self.client.post(
-            '/api/devices/',
-            json=device_data,
-            name='/api/devices/ (POST)'
-        )
-
-        return response.status_code == 201
-
     def _create_custody_record(self, evidence_id, previous_state, new_state):
         """
         POST /api/custody/ — registar transição de custódia.
@@ -225,7 +205,7 @@ class ForensiQUser(FastHttpUser):
     @task(2)
     def create_occurrence_and_evidence(self):
         """
-        Workflow: criar ocorrência + evidência + dispositivo + custódia.
+        Workflow: criar ocorrência + evidência + custódia.
         Simula operação completa de first responder.
         """
         # 1. Criar ocorrência
@@ -238,12 +218,7 @@ class ForensiQUser(FastHttpUser):
         if not evidence_id:
             return
 
-        # 3. Criar dispositivo digital (quando a evidência é MOBILE_DEVICE
-        # ou COMPUTER — a API aceita o POST mesmo para outros tipos; é
-        # um cenário de carga, não uma regra de negócio).
-        self._create_digital_device(evidence_id)
-
-        # 4. Registar primeiro estado de custódia
+        # 3. Registar primeiro estado de custódia
         self._create_custody_record(evidence_id, '', 'APREENDIDA')
 
     @task(1)

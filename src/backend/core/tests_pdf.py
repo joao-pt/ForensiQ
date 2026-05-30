@@ -8,8 +8,8 @@ Testa:
   - Resposta com content-type application/pdf
   - Content-Disposition com nome de ficheiro correcto
   - Conteúdo não vazio (bytes válidos de PDF)
-- Evidência sem dispositivos digitais e sem cadeia de custódia
-- Evidência com dispositivos digitais e com cadeia de custódia
+- Evidência sem cadeia de custódia
+- Evidência com cadeia de custódia
 
 Nota de taxonomia (ADR-0010): os tipos genéricos legados (DIGITAL_DEVICE,
 DOCUMENT, PHOTO) foram substituídos pela taxonomia digital-first:
@@ -32,7 +32,6 @@ from core.tests_factories import CrimeTipoFactory
 
 from .models import (
     ChainOfCustody,
-    DigitalDevice,
     Evidence,
     Occurrence,
     User,
@@ -110,18 +109,8 @@ class PDFGenerationUnitTest(TestCase):
         pdf = generate_evidence_pdf(self.evidence)
         self.assertGreater(len(pdf), 3_000, 'PDF demasiado pequeno — provavelmente incompleto')
 
-    def test_pdf_with_devices_and_custody(self):
-        """PDF com dispositivos e cadeia de custódia deve ser gerado sem erros."""
-        # Adicionar dispositivo digital
-        DigitalDevice.objects.create(
-            evidence=self.evidence,
-            type=DigitalDevice.DeviceType.SMARTPHONE,
-            brand='Samsung',
-            model='Galaxy S23',
-            condition=DigitalDevice.DeviceCondition.FUNCTIONAL,
-            imei='123456789012347',  # Luhn-válido (check digit 7)
-            serial_number='SN-DEV-001',
-        )
+    def test_pdf_with_custody(self):
+        """PDF com cadeia de custódia deve ser gerado sem erros."""
         # Adicionar registo de custódia
         ChainOfCustody.objects.create(
             evidence=self.evidence,
@@ -342,17 +331,17 @@ class PdfBufferLifecycleTest(TestCase):
 class PdfNoNPlusOneTest(TestCase):
     """O endpoint `/api/occurrences/<id>/pdf/` deve aplicar prefetch_related
     para evitar N+1 quando a ocorrência tem várias evidências, cada uma
-    com sub-componentes, dispositivos e cadeia de custódia. O número
-    total de queries deve crescer ~O(1) com o número de evidências
-    (e não ~O(N) como aconteceria sem prefetch).
+    com sub-componentes e cadeia de custódia. O número total de queries
+    deve crescer ~O(1) com o número de evidências (e não ~O(N) como
+    aconteceria sem prefetch).
     """
 
     @classmethod
     def setUpTestData(cls):
         cls.agent = _make_agent(username='agente_nplus1', badge='AGT-NPL-01')
         cls.occurrence = _make_occurrence(cls.agent, number='OCC-NPL-001')
-        # 3 evidências raiz, cada uma com 2 dispositivos digitais e
-        # 4 registos de custódia (mais que suficiente para detectar N+1).
+        # 3 evidências raiz, cada uma com 3 registos de custódia
+        # (mais que suficiente para detectar N+1).
         for i in range(3):
             ev = Evidence.objects.create(
                 occurrence=cls.occurrence,
@@ -363,17 +352,7 @@ class PdfNoNPlusOneTest(TestCase):
                 gps_lat=Decimal('38.7'),
                 gps_lng=Decimal('-9.1'),
             )
-            for j in range(2):
-                DigitalDevice.objects.create(
-                    evidence=ev,
-                    type=DigitalDevice.DeviceType.SMARTPHONE,
-                    brand='Brand',
-                    model=f'M{j}',
-                    condition=DigitalDevice.DeviceCondition.FUNCTIONAL,
-                    imei='123456789012347',  # Luhn-válido (mesmo IMEI ok para teste)
-                    serial_number=f'D-{i}-{j}',
-                )
-            # 1ª transição APREENDIDA (auto), depois 3 transições
+            # 1ª transição APREENDIDA (auto), depois mais transições
             ChainOfCustody.objects.create(
                 evidence=ev,
                 new_state=ChainOfCustody.CustodyState.APREENDIDA,
@@ -402,7 +381,7 @@ class PdfNoNPlusOneTest(TestCase):
     def test_occurrence_pdf_endpoint_sem_n_plus_one(self):
         """Endpoint /api/occurrences/<id>/pdf/ — query count deve ser
         baixo e ~O(1) com N evidências. Sem prefetch, este caso
-        (3 evidências × 2 dispositivos × 3 custody) faria 50+ queries.
+        (3 evidências × 3 custody) faria muitas queries.
         """
         client = APIClient()
         client.force_authenticate(user=self.agent)
@@ -420,8 +399,8 @@ class PdfNoNPlusOneTest(TestCase):
         )
 
     def test_evidence_pdf_endpoint_sem_n_plus_one(self):
-        """Endpoint /api/evidences/<id>/pdf/ para item com 2 dispositivos
-        e 3 entradas de custódia — sem N+1 nos sub_components."""
+        """Endpoint /api/evidences/<id>/pdf/ para item com 3 entradas
+        de custódia — sem N+1 nos sub_components."""
         client = APIClient()
         client.force_authenticate(user=self.agent)
         evidence = self.occurrence.evidences.first()

@@ -37,31 +37,10 @@ from core.models import (
     CrimeCategoria,
     CrimeSubcategoria,
     CrimeTipo,
-    DigitalDevice,
     Evidence,
     Occurrence,
     User,
 )
-
-
-def _luhn_complete(prefix14: str) -> str:
-    """Anexa o check digit de Luhn a um prefixo de 14 dígitos para produzir
-    um IMEI válido. Usado pelas factories para que dispositivos criados em
-    testes passem o validador de `DigitalDevice.imei` (que exige checksum
-    via `_digital_device_imei_validator`).
-    """
-    total = 0
-    for i, ch in enumerate(reversed(prefix14)):
-        digit = int(ch)
-        # No número final (15 dígitos), prefix14[i] (i a partir do fim) ocupa
-        # a posição rev = i+1; posições ímpares são duplicadas.
-        if (i + 1) % 2 == 1:
-            digit *= 2
-            if digit > 9:
-                digit -= 9
-        total += digit
-    check = (10 - (total % 10)) % 10
-    return f'{prefix14}{check}'
 
 
 # ---------------------------------------------------------------------------
@@ -254,32 +233,6 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
 
 
 # ---------------------------------------------------------------------------
-# Dispositivo digital
-# ---------------------------------------------------------------------------
-
-
-class DigitalDeviceFactory(factory.django.DjangoModelFactory):
-    """Dispositivo digital associado a uma evidência (``MOBILE_DEVICE``)."""
-
-    class Meta:
-        model = DigitalDevice
-
-    evidence = factory.SubFactory(EvidenceMobileFactory)
-    type = DigitalDevice.DeviceType.SMARTPHONE
-    brand = factory.Faker(
-        'random_element',
-        elements=('Samsung', 'Apple', 'Xiaomi', 'Google'),
-    )
-    model = factory.Sequence(lambda n: f'Model-{n:04d}')
-    condition = DigitalDevice.DeviceCondition.FUNCTIONAL
-    serial_number = factory.Sequence(lambda n: f'DEV-SN-{n:010d}')
-    # IMEI sequencial com check digit de Luhn calculado — o modelo exige
-    # checksum válido via `_digital_device_imei_validator`. Testes que
-    # queiram IMEIs inválidos devem passar explicitamente um valor.
-    imei = factory.Sequence(lambda n: _luhn_complete(f'{n:014d}'))
-
-
-# ---------------------------------------------------------------------------
 # Cadeia de custódia
 # ---------------------------------------------------------------------------
 
@@ -308,6 +261,5 @@ __all__ = [
     'EvidenceMobileFactory',
     'EvidenceVehicleFactory',
     'EvidenceSimCardFactory',
-    'DigitalDeviceFactory',
     'ChainOfCustodyFactory',
 ]

@@ -23,7 +23,6 @@ const CONFIG = Object.freeze({
         USERS_ME: '/api/users/me/',
         OCCURRENCES: '/api/occurrences/',
         EVIDENCES: '/api/evidences/',
-        DEVICES: '/api/devices/',
         CUSTODY: '/api/custody/',
         STATS_DASHBOARD: '/api/stats/dashboard/',
         STATS_LEGACY: '/api/stats/',

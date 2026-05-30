@@ -24,7 +24,6 @@ from core.tests_factories import CrimeTipoFactory
 from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import (
     ChainOfCustody,
-    DigitalDevice,
     Evidence,
     Occurrence,
     User,
@@ -306,48 +305,6 @@ class EvidenceAPITest(BaseAPITestCase):
 
 
 # ---------------------------------------------------------------------------
-# Testes de DigitalDevice
-# ---------------------------------------------------------------------------
-
-
-class DigitalDeviceAPITest(BaseAPITestCase):
-    """Testes para o endpoint /api/devices/."""
-
-    def setUp(self):
-        super().setUp()
-        self.occurrence = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='NUIPC-2026-DEV',
-            description='Ocorrência para dispositivos.',
-            agent=self.agent,
-        )
-        self.evidence = Evidence.objects.create(
-            occurrence=self.occurrence,
-            type='MOBILE_DEVICE',
-            description='Portátil.',
-            agent=self.agent,
-        )
-
-    def test_agent_creates_device(self):
-        """AGENT pode registar um dispositivo digital."""
-        self.authenticate_as(self.agent)
-        url = reverse('core:device-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'type': 'LAPTOP',
-                'brand': 'Lenovo',
-                'model': 'ThinkPad X1',
-                'condition': 'FUNCTIONAL',
-                'serial_number': 'SN-TEST-001',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['brand'], 'Lenovo')
-
-
-# ---------------------------------------------------------------------------
 # Testes de ChainOfCustody
 # ---------------------------------------------------------------------------
 
@@ -596,28 +553,6 @@ class AuthorizationIDORTest(BaseAPITestCase):
         results = response.data.get('results', [])
         self.assertEqual(len(results), 0)
 
-    def test_agent_a_cannot_see_agent_b_devices(self):
-        """Agent A não consegue ver dispositivos digitais de Agent B."""
-        # Criar um dispositivo na evidência de Agent B
-        device_b = Evidence.objects.create(
-            occurrence=self.occurrence_b,
-            type='MOBILE_DEVICE',
-            description='Outro dispositivo de Agent B.',
-            agent=self.agent_b,
-        )
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:device-list')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Verificar que Agent A não vê dispositivos de Agent B
-        results = response.data.get('results', [])
-        for device in results:
-            # Cada dispositivo deve estar associado a evidência de Agent A
-            evidence_id = device.get('evidence')
-            self.assertNotEqual(evidence_id, device_b.id)
-
     def test_expert_can_see_all_occurrences(self):
         """EXPERT consegue ver ocorrências de todos os agentes."""
         self.authenticate_as(self.expert)
@@ -733,116 +668,6 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
 
         # Verificar que evidência ainda existe na BD
         self.assertTrue(Evidence.objects.filter(pk=self.evidence.pk).exists())
-
-
-# ---------------------------------------------------------------------------
-# Testes de Imutabilidade — DigitalDevice (API)
-# ---------------------------------------------------------------------------
-
-
-class DigitalDeviceImmutabilityAPITest(BaseAPITestCase):
-    """
-    Testa que dispositivos digitais são imutáveis via API.
-    PUT, PATCH e DELETE devem retornar 405 Method Not Allowed.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.occurrence = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='NUIPC-2026-IMMUT-DEV',
-            description='Ocorrência para teste de imutabilidade de dispositivos.',
-            agent=self.agent,
-        )
-        self.evidence = Evidence.objects.create(
-            occurrence=self.occurrence,
-            type='MOBILE_DEVICE',
-            description='Portátil apreendido.',
-            agent=self.agent,
-        )
-        self.device = DigitalDevice.objects.create(
-            evidence=self.evidence,
-            type='LAPTOP',
-            brand='Apple',
-            model='MacBook Pro',
-            condition='FUNCTIONAL',
-            serial_number='SN-IMMUT-001',
-        )
-
-    def test_device_put_returns_405(self):
-        """PUT no dispositivo retorna 405 Method Not Allowed."""
-        self.authenticate_as(self.agent)
-        url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        response = self.client.put(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'type': 'DESKTOP',
-                'brand': 'Dell',
-                'model': 'XPS 13',
-                'condition': 'DAMAGED',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    def test_device_patch_returns_405(self):
-        """PATCH no dispositivo retorna 405 Method Not Allowed."""
-        self.authenticate_as(self.agent)
-        url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        response = self.client.patch(
-            url,
-            {
-                'condition': 'DAMAGED',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    def test_device_delete_returns_405(self):
-        """DELETE no dispositivo retorna 405 Method Not Allowed."""
-        self.authenticate_as(self.agent)
-        url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        response = self.client.delete(url)
-        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
-
-    def test_device_data_unchanged_after_attempted_patch(self):
-        """Dados do dispositivo permanecem inalterados após tentativa de PATCH."""
-        original_brand = self.device.brand
-        original_model = self.device.model
-        original_condition = self.device.condition
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        self.client.patch(
-            url,
-            {
-                'brand': 'HP',
-                'model': 'Pavilion 15',
-                'condition': 'DAMAGED',
-            },
-        )
-
-        # Recarregar dispositivo da BD
-        self.device.refresh_from_db()
-        self.assertEqual(self.device.brand, original_brand)
-        self.assertEqual(self.device.model, original_model)
-        self.assertEqual(self.device.condition, original_condition)
-
-    def test_device_cannot_be_deleted_by_expert(self):
-        """Perito não consegue deletar dispositivo (403 — apenas AGENT tem acesso)."""
-        self.authenticate_as(self.expert)
-        url = reverse('core:device-detail', kwargs={'pk': self.device.pk})
-        response = self.client.delete(url)
-        # EXPERT recebe 403 (não tem permissão IsAgent) antes do 405
-        self.assertIn(
-            response.status_code,
-            [
-                status.HTTP_403_FORBIDDEN,
-                status.HTTP_405_METHOD_NOT_ALLOWED,
-            ],
-        )
-
-        # Verificar que dispositivo ainda existe
-        self.assertTrue(DigitalDevice.objects.filter(pk=self.device.pk).exists())
 
 
 # ---------------------------------------------------------------------------
@@ -1213,15 +1038,14 @@ class EndToEndFlowTest(BaseAPITestCase):
         1. Autenticação como agente
         2. Criar ocorrência com coordenadas GPS
         3. Criar evidência ligada à ocorrência
-        4. Criar dispositivo digital ligado à evidência
-        5. Criar registo de custódia: '' → APREENDIDA (agente)
-        6. Criar registo de custódia: APREENDIDA → EM_TRANSPORTE (agente)
-        7. Trocar para utilizador perito
-        8. Criar registo de custódia: EM_TRANSPORTE → RECEBIDA_LABORATORIO (perito)
-        9. Exportar PDF da evidência
-        10. Verificar resposta PDF (status 200, tipo, header %PDF)
-        11. Consultar timeline de custódia (3 registos em ordem)
-        12. Verificar integridade: todos os hashes são 64 caracteres hex
+        4. Criar registo de custódia: '' → APREENDIDA (agente)
+        5. Criar registo de custódia: APREENDIDA → EM_TRANSPORTE (agente)
+        6. Trocar para utilizador perito
+        7. Criar registo de custódia: EM_TRANSPORTE → RECEBIDA_LABORATORIO (perito)
+        8. Exportar PDF da evidência
+        9. Verificar resposta PDF (status 200, tipo, header %PDF)
+        10. Consultar timeline de custódia (3 registos em ordem)
+        11. Verificar integridade: todos os hashes são 64 caracteres hex
         """
         # --- STEP 1: Autenticação como agente ---
         self.authenticate_as(self.agent)
@@ -1258,25 +1082,7 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(len(evidence_response.data['integrity_hash']), 64)
         self.assertRegex(evidence_response.data['integrity_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 4: Criar dispositivo digital ---
-        device_url = reverse('core:device-list')
-        device_response = self.client.post(
-            device_url,
-            {
-                'evidence': evidence_id,
-                'type': 'SMARTPHONE',
-                'model': 'Apple iPhone 13 Pro',
-                'serial_number': 'MGLN3LL/A',
-                'imei': '358623072123455',  # Luhn-válido (check digit 5)
-            },
-        )
-        self.assertEqual(device_response.status_code, status.HTTP_201_CREATED)
-        # device_id é devolvido pela resposta mas não precisamos de o
-        # referenciar nas asserções seguintes — o teste segue pela
-        # evidence_id. Mantemos a verificação estrutural do payload.
-        self.assertIn('id', device_response.data)
-
-        # --- STEP 5: Criar primeiro registo de custódia ('' → APREENDIDA) ---
+        # --- STEP 4: Criar primeiro registo de custódia ('' → APREENDIDA) ---
         custody_url = reverse('core:custody-list')
         custody_response_1 = self.client.post(
             custody_url,
@@ -1293,7 +1099,7 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(len(custody_response_1.data['record_hash']), 64)
         self.assertRegex(custody_response_1.data['record_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 6: Criar segundo registo (APREENDIDA → EM_TRANSPORTE) ---
+        # --- STEP 5: Criar segundo registo (APREENDIDA → EM_TRANSPORTE) ---
         custody_response_2 = self.client.post(
             custody_url,
             {
@@ -1307,10 +1113,10 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(custody_response_2.data['new_state'], 'EM_TRANSPORTE')
         self.assertEqual(len(custody_response_2.data['record_hash']), 64)
 
-        # --- STEP 7: Trocar para utilizador perito ---
+        # --- STEP 6: Trocar para utilizador perito ---
         self.authenticate_as(self.expert)
 
-        # --- STEP 8: Criar terceiro registo (EM_TRANSPORTE → RECEBIDA_LABORATORIO) ---
+        # --- STEP 7: Criar terceiro registo (EM_TRANSPORTE → RECEBIDA_LABORATORIO) ---
         custody_response_3 = self.client.post(
             custody_url,
             {
@@ -1324,7 +1130,7 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(custody_response_3.data['new_state'], 'RECEBIDA_LABORATORIO')
         self.assertEqual(len(custody_response_3.data['record_hash']), 64)
 
-        # --- STEP 9-10: Exportar PDF da evidência e verificar ---
+        # --- STEP 8-9: Exportar PDF da evidência e verificar ---
         pdf_url = reverse('core:evidence-export-pdf', kwargs={'pk': evidence_id})
         pdf_response = self.client.get(pdf_url)
         self.assertEqual(pdf_response.status_code, status.HTTP_200_OK)
@@ -1332,7 +1138,7 @@ class EndToEndFlowTest(BaseAPITestCase):
         # PDF deve começar com %PDF
         self.assertTrue(pdf_response.content.startswith(b'%PDF'))
 
-        # --- STEP 11: Consultar timeline de custódia ---
+        # --- STEP 10: Consultar timeline de custódia ---
         timeline_url = reverse('core:custody-list') + f'?evidence={evidence_id}'
         timeline_response = self.client.get(timeline_url)
         self.assertEqual(timeline_response.status_code, status.HTTP_200_OK)
@@ -1343,7 +1149,7 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(timeline_response.data['results'][1]['new_state'], 'EM_TRANSPORTE')
         self.assertEqual(timeline_response.data['results'][2]['new_state'], 'RECEBIDA_LABORATORIO')
 
-        # --- STEP 12: Verificar integridade de todos os hashes ---
+        # --- STEP 11: Verificar integridade de todos os hashes ---
         for record in timeline_response.data['results']:
             # Todos os hashes devem ser 64 caracteres hexadecimais
             self.assertEqual(len(record['record_hash']), 64)

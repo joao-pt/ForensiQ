@@ -13,7 +13,6 @@ from rest_framework import serializers
 from .models import (
     ChainOfCustody,
     CrimeTipo,
-    DigitalDevice,
     Evidence,
     Occurrence,
 )
@@ -419,48 +418,6 @@ class EvidenceSerializer(serializers.ModelSerializer):
                 )
 
         return attrs
-
-
-# ---------------------------------------------------------------------------
-# DigitalDevice
-# ---------------------------------------------------------------------------
-
-
-class DigitalDeviceSerializer(serializers.ModelSerializer):
-    """Serializer para dispositivos digitais.
-
-    Valida ownership: a evidência referenciada tem de pertencer a uma
-    ocorrência acessível ao utilizador (AGENT dono, EXPERT ou staff).
-    Fecha o IDOR identificado na auditoria 2026-04-19.
-    """
-
-    class Meta:
-        model = DigitalDevice
-        fields = [
-            'id',
-            'evidence',
-            'type',
-            'brand',
-            'model',
-            'commercial_name',
-            'condition',
-            'imei',
-            'serial_number',
-            'notes',
-            'created_at',
-        ]
-        read_only_fields = ['id', 'created_at']
-
-    def validate_evidence(self, evidence):
-        """Bloqueia IDOR — só ownership da ocorrência permite associar."""
-        request = self.context.get('request')
-        if request is None or not request.user.is_authenticated:
-            return evidence
-        if not _user_can_access_occurrence(request.user, evidence.occurrence):
-            raise serializers.ValidationError(
-                'Não tem permissão para associar um dispositivo a esta evidência.'
-            )
-        return evidence
 
 
 # ---------------------------------------------------------------------------
