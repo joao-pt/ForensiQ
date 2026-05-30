@@ -33,6 +33,7 @@ import factory
 from django.utils import timezone
 
 from core.models import (
+    AuditLog,
     ChainOfCustody,
     CrimeCategoria,
     CrimeSubcategoria,
@@ -250,6 +251,32 @@ class ChainOfCustodyFactory(factory.django.DjangoModelFactory):
     observations = 'Apreensão inicial no local (factory).'
 
 
+# ---------------------------------------------------------------------------
+# Auditoria
+# ---------------------------------------------------------------------------
+
+
+class AuditLogFactory(factory.django.DjangoModelFactory):
+    """Registo de auditoria (append-only, ISO/IEC 27037).
+
+    ``timestamp`` (``auto_now_add``) e ``sequence`` (atribuído no ``save()``
+    do modelo como ``max(sequence)+1``) são deixados ao modelo — não os
+    definimos na factory para não colidir com a invariante de sequência
+    global monótona.
+    """
+
+    class Meta:
+        model = AuditLog
+
+    user = factory.SubFactory(UserFactory)
+    action = AuditLog.Action.VIEW
+    resource_type = AuditLog.ResourceType.EVIDENCE
+    resource_id = factory.Sequence(lambda n: n + 1)
+    ip_address = '127.0.0.1'
+    correlation_id = factory.Sequence(lambda n: f'test-corr-{n:08d}')
+    details = factory.LazyFunction(dict)
+
+
 __all__ = [
     'UserFactory',
     'ExpertFactory',
@@ -262,4 +289,5 @@ __all__ = [
     'EvidenceVehicleFactory',
     'EvidenceSimCardFactory',
     'ChainOfCustodyFactory',
+    'AuditLogFactory',
 ]

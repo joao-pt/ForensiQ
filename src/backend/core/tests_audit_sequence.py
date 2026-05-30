@@ -116,3 +116,27 @@ class AuditLogImmutabilityTest(TestCase):
         log.sequence = 999
         with self.assertRaises(ValidationError):
             log.save()
+
+
+class AuditLogFactoryTest(TestCase):
+    """Valida a ``AuditLogFactory``: produz um registo persistido, com a
+    ``sequence`` global atribuída pelo ``save()`` do modelo e ``details``
+    por omissão a vazio.
+    """
+
+    def test_factory_cria_registo_persistido_com_sequence(self):
+        from core.tests_factories import AuditLogFactory
+
+        log = AuditLogFactory()
+        self.assertIsNotNone(log.pk)
+        self.assertGreater(log.sequence, 0)
+        self.assertEqual(log.details, {})
+        self.assertEqual(log.resource_type, AuditLog.ResourceType.EVIDENCE)
+        self.assertIsNotNone(log.user)
+
+    def test_factory_atribui_sequences_distintas(self):
+        from core.tests_factories import AuditLogFactory
+
+        a = AuditLogFactory()
+        b = AuditLogFactory()
+        self.assertNotEqual(a.sequence, b.sequence)

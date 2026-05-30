@@ -21,7 +21,7 @@ from datetime import timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import connection
+from django.db import DatabaseError, connection
 from django.test import TestCase
 from django.utils import timezone
 
@@ -618,8 +618,24 @@ class CustodyHashFormulaTest(TestCase):
         )
 
 
-class CustodyImmutabilityTriggerTest(TestCase):
-    """3.ª camada de imutabilidade (trigger PG) cobre as colunas novas."""
+_ONLY_PG = 'Os triggers de imutabilidade só existem em PostgreSQL.'
+
+
+class ImmutabilityTriggerTest(TestCase):
+    """3.ª camada de imutabilidade — triggers PostgreSQL (BEFORE UPDATE/DELETE).
+
+    Exercita, via cursor **bruto** (bypass do ORM e dos ``save()``/``delete()``
+    sobrepostos), as três tabelas protegidas — ``core_evidence`` e
+    ``core_chainofcustody`` (migration ``0002``) e ``core_occurrence``
+    (migration ``0013``) — provando que a recusa de UPDATE/DELETE vem da BD,
+    não apenas da camada Python (ORM/admin/API).
+
+    Só correm contra PostgreSQL (``skipUnless``): em SQLite (BD de teste por
+    omissão) os triggers não existem, pelo que ficam *skipped*. Para os
+    exercitar de facto, correr a suite contra Postgres (ver job dedicado no
+    pipeline). Cada método faz **uma única** operação por transação porque um
+    erro de BD a meio aborta a transação corrente.
+    """
 
     def setUp(self):
         self.agent = User.objects.create_user(username='ag_trg', password='x12345678')
@@ -643,17 +659,82 @@ class CustodyImmutabilityTriggerTest(TestCase):
         )
         self.record.save()
 
-    @unittest.skipUnless(
-        connection.vendor == 'postgresql',
-        'Os triggers de imutabilidade só existem em PostgreSQL.',
-    )
-    def test_update_directo_coluna_nova_bloqueado(self):
-        """UPDATE directo numa coluna NOVA (event_type) é recusado pelo trigger."""
-        from django.db import DatabaseError
+    # -- ChainOfCustody (core_chainofcustody, trigger de 0002) ------------
 
+    @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
+    def test_update_directo_custody_bloqueado(self):
+        """UPDATE directo numa coluna do ledger (event_type) é recusado pelo trigger."""
         with self.assertRaises(DatabaseError):
             with connection.cursor() as cur:
                 cur.execute(
                     'UPDATE core_chainofcustody SET event_type = %s WHERE id = %s',
                     [EventType.VALIDACAO, self.record.pk],
                 )
+
+    @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
+    def test_delete_directo_custody_bloqueado(self):
+        """DELETE directo de um registo do ledger é recusado pelo trigger."""
+        with self.assertRaises(DatabaseError):
+            with connection.cursor() as cur:
+                cur.execute(
+                    'DELETE FROM core_chainofcustody WHERE id = %s',
+                    [self.record.pk],
+                )
+
+    # -- Evidence (core_evidence, trigger de 0002) ------------------------
+
+    @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
+    def test_update_directo_evidence_bloqueado(self):
+        """UPDATE directo numa coluna da evidência é recusado pelo trigger."""
+        with self.assertRaises(DatabaseError):
+            with connection.cursor() as cur:
+                cur.execute(
+                    'UPDATE core_evidence SET description = %s WHERE id = %s',
+                    ['adulterado', self.evidence.pk],
+                )
+
+    @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
+    def test_delete_directo_evidence_bloqueado(self):
+        """DELETE directo de uma evidência é recusado pelo trigger.
+
+        Usa uma evidência **sem** registos de custódia a referenciá-la, para
+        isolar o trigger da restrição de chave estrangeira.
+        """
+        ev = Evidence.objects.create(
+            occurrence=self.occ,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Sem custódia.',
+            agent=self.agent,
+        )
+        with self.assertRaises(DatabaseError):
+            with connection.cursor() as cur:
+                cur.execute('DELETE FROM core_evidence WHERE id = %s', [ev.pk])
+
+    # -- Occurrence (core_occurrence, trigger de 0013) --------------------
+
+    @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
+    def test_update_directo_occurrence_bloqueado(self):
+        """UPDATE directo numa coluna da ocorrência é recusado pelo trigger (0013)."""
+        with self.assertRaises(DatabaseError):
+            with connection.cursor() as cur:
+                cur.execute(
+                    'UPDATE core_occurrence SET description = %s WHERE id = %s',
+                    ['adulterado', self.occ.pk],
+                )
+
+    @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)
+    def test_delete_directo_occurrence_bloqueado(self):
+        """DELETE directo de uma ocorrência é recusado pelo trigger (0013).
+
+        Usa uma ocorrência **sem** evidências a referenciá-la, para isolar o
+        trigger da restrição de chave estrangeira.
+        """
+        occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
+            number='NUIPC-TRG-002',
+            description='Sem evidências.',
+            agent=self.agent,
+        )
+        with self.assertRaises(DatabaseError):
+            with connection.cursor() as cur:
+                cur.execute('DELETE FROM core_occurrence WHERE id = %s', [occ.pk])

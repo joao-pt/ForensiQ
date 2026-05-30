@@ -1523,3 +1523,93 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
         self.client.patch(url, {'record_hash': 'a' * 64})
         self.custody.refresh_from_db()
         self.assertEqual(self.custody.record_hash, original_hash)
+
+
+# ---------------------------------------------------------------------------
+# Fluxo CSRF por cookie (ADR-0009)
+# ---------------------------------------------------------------------------
+
+
+class CsrfCookieFlowTest(TestCase):
+    """Prova a fronteira CSRF da autenticação por cookie (``enforce_csrf``).
+
+    A esmagadora maioria dos testes de escrita usa ``force_authenticate``,
+    que faz *bypass* de ``JWTCookieAuthentication`` e, com ele, do
+    ``enforce_csrf()``. Mesmo os testes que fazem login real por cookie usam
+    o ``APIClient`` por omissão (``enforce_csrf_checks=False``), que marca
+    ``request._dont_enforce_csrf_checks = True`` — tornando o ``enforce_csrf()``
+    um *no-op*. Esta classe usa explicitamente
+    ``APIClient(enforce_csrf_checks=True)`` para exercitar o gate a sério: um
+    POST autenticado por cookie **sem** token CSRF tem de ser recusado (403),
+    e **com** token tem de passar o gate (nunca 403 por CSRF).
+    """
+
+    def setUp(self):
+        # Cliente que FAZ enforce de CSRF — oposto do APIClient por omissão.
+        self.client = APIClient(enforce_csrf_checks=True)
+        self.agent = User.objects.create_user(
+            username='ag_csrf',
+            password='TestPass123!',
+            profile=User.Profile.AGENT,
+            badge_number='AGT-CSRF-01',
+        )
+        self.occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(),
+            number='NUIPC-CSRF-001',
+            description='Ocorrência para teste CSRF.',
+            agent=self.agent,
+        )
+        self.evidence = Evidence.objects.create(
+            occurrence=self.occ,
+            type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Item para teste CSRF.',
+            agent=self.agent,
+        )
+
+    def _login(self):
+        """Login real por cookie: semeia fq_access/fq_refresh + csrftoken.
+
+        Devolve o valor do cookie ``csrftoken`` (a enviar no header
+        ``X-CSRFToken``). ``CookieLoginView`` é uma view DRF (csrf_exempt ao
+        nível do middleware do Django) decorada com ``ensure_csrf_cookie``,
+        pelo que o próprio login passa sem token e devolve o cookie CSRF.
+        """
+        resp = self.client.post(
+            reverse('auth_login'),
+            {'username': 'ag_csrf', 'password': 'TestPass123!'},
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertIn('csrftoken', self.client.cookies)
+        return self.client.cookies['csrftoken'].value
+
+    def _custody_payload(self):
+        return {
+            'evidence': self.evidence.pk,
+            'event_type': 'APREENSAO',
+            'custodian_type': 'OPC',
+            'observations': 'Apreensão no local (teste CSRF).',
+        }
+
+    def test_write_sem_csrf_token_recusado_403(self):
+        """POST autenticado por cookie SEM header X-CSRFToken → 403 CSRF."""
+        self._login()
+        resp = self.client.post(reverse('core:custody-list'), self._custody_payload())
+        self.assertEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn('CSRF', str(resp.data))
+
+    def test_write_com_csrf_token_passa_o_gate(self):
+        """POST autenticado por cookie COM X-CSRFToken válido → 201 (nunca 403)."""
+        token = self._login()
+        resp = self.client.post(
+            reverse('core:custody-list'),
+            self._custody_payload(),
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertNotEqual(resp.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
+
+    def test_metodo_safe_get_nao_exige_csrf(self):
+        """GET (método safe) não aciona o gate CSRF, mesmo autenticado por cookie."""
+        self._login()
+        resp = self.client.get(reverse('core:occurrence-list'))
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
