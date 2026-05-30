@@ -539,6 +539,39 @@ class HealthcheckTest(TestCase):
         self.assertEqual(resp.json()['status'], 'ok')
 
 
+class HealthcheckThrottleTest(APITestCase):
+    """O healthcheck público está protegido por HealthcheckRateThrottle (por IP)
+    — fecha o finding `healthcheck-sem-throttle-info-leak`.
+    """
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        # SimpleRateThrottle conta na default cache; limpar evita herdar
+        # contagens de outros testes.
+        cache.clear()
+
+    def test_throttle_scope_is_healthcheck(self):
+        from core.throttles import HealthcheckRateThrottle
+
+        self.assertEqual(HealthcheckRateThrottle().scope, 'healthcheck')
+
+    def test_429_apos_limite(self):
+        from unittest.mock import patch
+
+        from rest_framework.throttling import SimpleRateThrottle
+
+        # Forçar 2/min só neste teste (ver nota em ImeiLookupThrottleTest).
+        rates = {'healthcheck': '2/minute'}
+        with patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
+            r1 = self.client.get('/api/health/')
+            r2 = self.client.get('/api/health/')
+            r3 = self.client.get('/api/health/')
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(r2.status_code, 200)
+        self.assertEqual(r3.status_code, 429)
+
+
 # =========================================================================
 # 8. THROTTLE CONFIGURATION
 # =========================================================================
