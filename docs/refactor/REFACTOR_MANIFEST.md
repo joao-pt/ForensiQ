@@ -268,7 +268,11 @@ Redesenha a máquina de estados **linear** actual numa **FSM ramificada fiel ao 
 **Transversais (P2/P3, ao longo da Fase 2, sem bloquear o caminho crítico):** T13, T14 (README só depois de T04/T05), T16, T17, e a parte backend de T18.
 **Abre a Fase 3:** T09 (depende de T02/T03/T08), depois T10, T15 e o re-skin do intake/públicas.
 
-**Invariante a guardar em todos os passos:** nunca mudar a classe base dos ViewSets POST-only nem `http_method_names` (reabriria PUT/PATCH/DELETE); nunca squashar migrations de imutabilidade (`0002`/`0008`/`0013`) nem RunPython de dados; o arredondamento GPS é **sempre** server-side antes do hash.
+**Tracks novos desta sessão (2026-05-30):**
+- **T19 (taxonomia de crimes + prioridade):** track independente do GPS. Arranca por **obter a Tabela 2024** + redigir **ADR-0014**; depois 3 tabelas de referência + `crime_type`/`priority` na Occurrence (com T03/T18) + alertas (com T06). Paralelizável com o PASSO 2/3.
+- **T20 (FSM da custódia ramificada + localização):** o maior e mais sensível. **Depende de T01** (campos GPS/localização) + **ADR-0015**. Entra **depois** do PASSO 2 (GPS no hash fechado), com validação adversarial por workflow antes de tocar o validador da FSM. Liga-se a T18 (intake = recepção/validação).
+
+**Invariante a guardar em todos os passos:** nunca mudar a classe base dos ViewSets POST-only nem `http_method_names` (reabriria PUT/PATCH/DELETE); nunca squashar migrations de imutabilidade (`0002`/`0008`/`0013`) nem RunPython de dados; **nunca reescrever registos da cadeia** (estados/campos novos são sempre aditivos); qualquer processamento de GPS (incl. ajuste manual) é **sempre** pré-hash, server-side.
 
 ---
 
