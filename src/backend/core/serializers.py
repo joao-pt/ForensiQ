@@ -13,8 +13,11 @@ from rest_framework import serializers
 from .models import (
     ChainOfCustody,
     CrimeTipo,
+    CustodianType,
+    EventType,
     Evidence,
     Occurrence,
+    derive_legal_state,
 )
 from .validators import validate_imei, validate_imsi, validate_vin
 
@@ -295,17 +298,21 @@ class EvidenceSerializer(serializers.ModelSerializer):
         ]
 
     def get_current_state(self, obj):
-        """Estado actual de custódia (último ChainOfCustody por sequence).
+        """Estado legal DERIVADO da cadeia de custódia (ADR-0015 §6).
 
-        Usa a anotação ``current_state`` se o queryset foi construído com
-        ``Evidence.objects.with_current_state()`` (caminho normal das
-        listagens). Em retrieve isolado, faz uma query adicional barata.
-        Devolve ``None`` se a evidência ainda não tem registo de custódia.
+        Calcula :func:`derive_legal_state` sobre a sequência completa de
+        eventos da evidência. Devolve ``None`` se a evidência ainda não tem
+        nenhum registo de custódia.
+
+        Nota: usa a relação ``custody_chain`` (prefetchada no caminho normal
+        das listagens via ``Meta.ordering = ['evidence', 'sequence']``); o
+        estado é uma função pura do log, nunca uma coluna gravada.
         """
-        annotated = getattr(obj, 'current_state', None)
-        if annotated is not None:
-            return annotated
-        return obj.custody_chain.order_by('-sequence').values_list('new_state', flat=True).first()
+        eventos = list(obj.custody_chain.all())
+        if not eventos:
+            return None
+        eventos.sort(key=lambda r: r.sequence)
+        return derive_legal_state(eventos)
 
     class Meta:
         model = Evidence
@@ -427,12 +434,17 @@ class EvidenceSerializer(serializers.ModelSerializer):
 
 class ChainOfCustodySerializer(serializers.ModelSerializer):
     """
-    Serializer para registos de cadeia de custódia.
+    Serializer para registos do ledger de eventos da custódia (ADR-0015).
 
     Append-only: apenas criação é permitida.
     O ``record_hash`` é calculado automaticamente pelo modelo.
-    O ``previous_state`` e o ``timestamp`` são determinados pelo servidor —
+    O ``sequence`` e o ``timestamp`` são determinados pelo servidor —
     nunca pelo cliente.
+
+    Input do agente: ``event_type`` (obrigatório), ``custodian_type``,
+    ``location_name``, ``storage_location`` e GPS (``gps_lat``/``gps_lng``/
+    ``gps_accuracy_m``, ADR-0013). O ``legal_state`` (estado legal derivado)
+    é read-only — função pura do log, nunca uma coluna que se contradiga.
 
     Valida ownership: só AGENT dono da ocorrência, EXPERT ou staff podem
     criar registos (fecha IDOR identificado na auditoria 2026-04-19).
@@ -440,10 +452,17 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 
     agent_name = serializers.SerializerMethodField()
     evidence_code = serializers.CharField(source='evidence.code', read_only=True)
+    legal_state = serializers.SerializerMethodField()
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
         return obj.agent.get_full_name() or obj.agent.username
+
+    def get_legal_state(self, obj):
+        """Estado legal derivado da sequência completa de eventos da evidência."""
+        eventos = list(obj.evidence.custody_chain.all())
+        eventos.sort(key=lambda r: r.sequence)
+        return derive_legal_state(eventos)
 
     class Meta:
         model = ChainOfCustody
@@ -453,8 +472,14 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'evidence',
             'evidence_code',
             'sequence',
-            'previous_state',
-            'new_state',
+            'event_type',
+            'custodian_type',
+            'location_name',
+            'storage_location',
+            'gps_lat',
+            'gps_lng',
+            'gps_accuracy_m',
+            'legal_state',
             'agent',
             'agent_name',
             'timestamp',
@@ -467,10 +492,20 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'evidence_code',
             'agent',
             'sequence',
-            'previous_state',
+            'legal_state',
             'timestamp',
             'record_hash',
         ]
+
+    def validate(self, attrs):
+        """Coerência GPS: lat e lng ambas presentes ou ambas ausentes."""
+        lat = attrs.get('gps_lat')
+        lng = attrs.get('gps_lng')
+        if (lat is None) != (lng is None):
+            raise serializers.ValidationError(
+                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+            )
+        return attrs
 
     def validate_evidence(self, evidence):
         """Só dono da ocorrência (AGENT), EXPERT ou staff registam custódia."""
@@ -490,13 +525,13 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 
 
 class CascadeCustodyRequestSerializer(serializers.Serializer):
-    """Payload do endpoint de transição em cascata.
+    """Payload do endpoint de eventos de custódia em cascata.
 
-    Permite mover N evidências (item-pai + sub-componentes) para o mesmo
-    estado de custódia numa única operação atómica. A validação de
-    transição (máquina de estados) e de ownership é feita por evidência
-    dentro da view; este serializer apenas garante que o payload tem o
-    formato correcto.
+    Permite registar o mesmo evento (ex.: ``TRANSFERENCIA`` para
+    ``LAB_PUBLICO`` no intake do ADR-0012) em N evidências (item-pai +
+    sub-componentes) numa única operação atómica. As guardas do ledger e a
+    validação de ownership são feitas por evidência dentro da view; este
+    serializer apenas garante que o payload tem o formato correcto.
     """
 
     evidence_ids = serializers.ListField(
@@ -505,9 +540,16 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
         max_length=200,
         help_text='IDs das evidências a transitar (item principal + sub-componentes).',
     )
-    new_state = serializers.ChoiceField(
-        choices=ChainOfCustody.CustodyState.choices,
-        help_text='Novo estado a aplicar a todas as evidências.',
+    event_type = serializers.ChoiceField(
+        choices=EventType.choices,
+        help_text='Tipo de evento a registar em todas as evidências.',
+    )
+    custodian_type = serializers.ChoiceField(
+        choices=CustodianType.choices,
+        required=False,
+        allow_blank=True,
+        default='',
+        help_text='Custódio após o evento (opcional).',
     )
     observations = serializers.CharField(
         required=False,

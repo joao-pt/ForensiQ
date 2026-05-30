@@ -15,6 +15,7 @@ Router DRF com os seguintes endpoints:
 - /api/stats/dashboard/                — payload estável do dashboard (Wave 2d)
 - /api/health/                         — healthcheck (liveness + DB)
 - /api/reverse-geocode/                — geocodificação inversa (proxy Nominatim)
+- /api/nearby-pois/                    — POIs OSM próximos (proxy Overpass)
 """
 
 from django.urls import path
@@ -26,6 +27,7 @@ from .views import (
     EvidenceIMEILookupView,
     EvidenceViewSet,
     EvidenceVINLookupView,
+    NearbyPOIsView,
     OccurrenceViewSet,
     ReverseGeocodeView,
     StatsView,
@@ -55,6 +57,7 @@ urlpatterns = [
         name='evidence-lookup-vin',
     ),
     path('reverse-geocode/', ReverseGeocodeView.as_view(), name='reverse-geocode'),
+    path('nearby-pois/', NearbyPOIsView.as_view(), name='nearby-pois'),
     path('stats/', StatsView.as_view(), name='stats'),
     path('stats/dashboard/', DashboardStatsView.as_view(), name='stats-dashboard'),
     path('health/', healthcheck, name='healthcheck'),

@@ -476,7 +476,8 @@ class PDFContentValidationTest(TestCase):
 
         pdf_bytes = generate_evidence_pdf(self.evidence)
         text = self._extract_pdf_text(pdf_bytes)
-        self.assertIn('APREENDIDA', text.upper())
+        # O ledger mostra o rótulo do evento ("Apreensão") na tabela.
+        self.assertIn('APREENS', text.upper())
 
     def test_occurrence_pdf_contains_evidence_list(self):
         from core.pdf_export import generate_occurrence_pdf
@@ -703,15 +704,17 @@ class RecordHashIntegrityTest(TestCase):
         """Dois registos de custodia com dados semelhantes tem hashes distintos."""
         c1 = ChainOfCustody.objects.create(
             evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
             observations='Apreensao teste',
         )
         c2 = ChainOfCustody.objects.create(
             evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
+            event_type=ChainOfCustody.EventType.VALIDACAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
-            observations='Transporte teste',
+            observations='Validacao teste',
         )
         self.assertNotEqual(c1.record_hash, c2.record_hash)
 
@@ -726,13 +729,15 @@ class RecordHashIntegrityTest(TestCase):
         """
         c1 = ChainOfCustody.objects.create(
             evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
             observations='Primeiro registo',
         )
         c2 = ChainOfCustody.objects.create(
             evidence=self.ev,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
+            event_type=ChainOfCustody.EventType.VALIDACAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
             observations='Segundo registo',
         )

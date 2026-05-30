@@ -125,9 +125,9 @@ class OccurrenceFilterTest(APITestCase):
         self.assertNotIn(self.occ_today.id, ids)
 
     def test_state_filter_still_works(self):
-        """Filtro ``?state=`` (custom no get_queryset) continua a funcionar."""
-        # Sem registo de custódia — `state=APREENDIDA` devolve 0 itens.
-        response = self.client.get('/api/occurrences/?state=APREENDIDA')
+        """Filtro ``?state=`` (estado legal derivado) continua a funcionar."""
+        # Sem registo de custódia — `state=a_guarda_opc` devolve 0 itens.
+        response = self.client.get('/api/occurrences/?state=a_guarda_opc')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
 

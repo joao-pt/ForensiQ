@@ -328,47 +328,47 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         )
 
     def test_agent_creates_first_custody_record(self):
-        """AGENT pode criar primeiro registo de custódia."""
+        """AGENT pode criar o primeiro evento (APREENSAO)."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
         response = self.client.post(
             url,
             {
                 'evidence': self.evidence.pk,
-                'previous_state': '',
-                'new_state': 'APREENDIDA',
+                'event_type': 'APREENSAO',
+                'custodian_type': 'OPC',
                 'observations': 'Apreensão no local do crime.',
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(response.data['record_hash']), 64)
+        self.assertEqual(response.data['legal_state'], 'a_guarda_opc')
 
     def test_expert_can_advance_custody(self):
-        """EXPERT pode avançar a custódia."""
-        # Primeiro registo pelo agente
+        """EXPERT pode registar eventos seguintes (ex.: início de perícia)."""
+        # Sequência prévia pelo agente.
         ChainOfCustody(
             evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
         ChainOfCustody(
             evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
+            event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
             agent=self.agent,
         ).save()
 
-        # Perito recebe no laboratório
+        # Perito inicia a perícia no laboratório.
         self.authenticate_as(self.expert)
         url = reverse('core:custody-list')
         response = self.client.post(
             url,
             {
                 'evidence': self.evidence.pk,
-                'previous_state': 'EM_TRANSPORTE',
-                'new_state': 'RECEBIDA_LABORATORIO',
-                'observations': 'Recebido no laboratório forense.',
+                'event_type': 'INICIO_PERICIA',
+                'custodian_type': 'LAB_PUBLICO',
+                'observations': 'Início da perícia forense.',
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -377,8 +377,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """PUT não é permitido (append-only)."""
         ChainOfCustody(
             evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
             agent=self.agent,
         ).save()
 
@@ -389,8 +388,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
             url,
             {
                 'evidence': self.evidence.pk,
-                'previous_state': '',
-                'new_state': 'APREENDIDA',
+                'event_type': 'APREENSAO',
                 'observations': 'Alteração bloqueada.',
             },
         )
@@ -400,8 +398,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """DELETE não é permitido (append-only)."""
         ChainOfCustody(
             evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
             agent=self.agent,
         ).save()
 
@@ -411,17 +408,16 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
-    def test_invalid_transition_returns_400(self):
-        """Transição inválida retorna 400."""
+    def test_invalid_first_event_returns_400(self):
+        """Primeiro evento ≠ APREENSAO é rejeitado pela guarda do ledger (400)."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
         response = self.client.post(
             url,
             {
                 'evidence': self.evidence.pk,
-                'previous_state': '',
-                'new_state': 'EM_PERICIA',  # Inválido — deve ser APREENDIDA primeiro
-                'observations': 'Transição inválida.',
+                'event_type': 'VALIDACAO',  # Inválido — 1.º evento tem de ser APREENSAO
+                'observations': 'Evento inválido.',
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -430,14 +426,14 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """Endpoint timeline retorna histórico ordenado."""
         ChainOfCustody(
             evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
+            event_type=ChainOfCustody.EventType.APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
         ChainOfCustody(
             evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
+            event_type=ChainOfCustody.EventType.VALIDACAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
 
@@ -446,9 +442,9 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
-        # Ordenação cronológica
-        self.assertEqual(response.data[0]['new_state'], 'APREENDIDA')
-        self.assertEqual(response.data[1]['new_state'], 'EM_TRANSPORTE')
+        # Ordenação canónica por sequence.
+        self.assertEqual(response.data[0]['event_type'], 'APREENSAO')
+        self.assertEqual(response.data[1]['event_type'], 'VALIDACAO')
 
 
 # ---------------------------------------------------------------------------
@@ -671,356 +667,6 @@ class EvidenceImmutabilityAPITest(BaseAPITestCase):
 
 
 # ---------------------------------------------------------------------------
-# Testes de Máquina de Estados — Transições de Custódia
-# ---------------------------------------------------------------------------
-
-
-class CustodyStateTransitionsTest(BaseAPITestCase):
-    """
-    Testa a máquina de estados completa da cadeia de custódia.
-    Valida transições válidas e rejeita inválidas (retorna 400).
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.occurrence = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='NUIPC-2026-STATE-TEST',
-            description='Ocorrência para teste de transições de custódia.',
-            agent=self.agent,
-        )
-        self.evidence = Evidence.objects.create(
-            occurrence=self.occurrence,
-            type='MOBILE_DEVICE',
-            description='Evidência para teste de estados.',
-            agent=self.agent,
-        )
-
-    def test_valid_transition_apreendida(self):
-        """Transição válida: (vazio) → APREENDIDA."""
-        self.authenticate_as(self.agent)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': '',
-                'new_state': 'APREENDIDA',
-                'observations': 'Apreendida no local.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'APREENDIDA')
-
-    def test_valid_transition_em_transporte(self):
-        """Transição válida: APREENDIDA → EM_TRANSPORTE."""
-        # Criar primeiro registo
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'APREENDIDA',
-                'new_state': 'EM_TRANSPORTE',
-                'observations': 'Em transporte para laboratório.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'EM_TRANSPORTE')
-
-    def test_valid_transition_recebida_laboratorio(self):
-        """Transição válida: EM_TRANSPORTE → RECEBIDA_LABORATORIO."""
-        # Criar registos anteriores
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-        )
-
-        self.authenticate_as(self.expert)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'EM_TRANSPORTE',
-                'new_state': 'RECEBIDA_LABORATORIO',
-                'observations': 'Recebido e catalogado no laboratório.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'RECEBIDA_LABORATORIO')
-
-    def test_valid_transition_em_pericia(self):
-        """Transição válida: RECEBIDA_LABORATORIO → EM_PERICIA."""
-        # Criar cadeia até RECEBIDA_LABORATORIO
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            new_state=ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-            agent=self.expert,
-        )
-
-        self.authenticate_as(self.expert)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'RECEBIDA_LABORATORIO',
-                'new_state': 'EM_PERICIA',
-                'observations': 'Iniciada análise forense.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'EM_PERICIA')
-
-    def test_valid_transition_concluida(self):
-        """Transição válida: EM_PERICIA → CONCLUIDA."""
-        # Criar cadeia completa até EM_PERICIA
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            new_state=ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-            agent=self.expert,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.RECEBIDA_LABORATORIO,
-            new_state=ChainOfCustody.CustodyState.EM_PERICIA,
-            agent=self.expert,
-        )
-
-        self.authenticate_as(self.expert)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'EM_PERICIA',
-                'new_state': 'CONCLUIDA',
-                'observations': 'Perícia concluída. Relatório pronto.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'CONCLUIDA')
-
-    def test_valid_transition_devolvida(self):
-        """Transição válida: CONCLUIDA → DEVOLVIDA."""
-        # Criar cadeia até CONCLUIDA
-        self._create_custody_chain_to_state(ChainOfCustody.CustodyState.CONCLUIDA)
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'CONCLUIDA',
-                'new_state': 'DEVOLVIDA',
-                'observations': 'Devolvida ao dono após conclusão.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'DEVOLVIDA')
-
-    def test_valid_transition_destruida(self):
-        """Transição válida: CONCLUIDA → DESTRUIDA."""
-        # Criar cadeia até CONCLUIDA
-        self._create_custody_chain_to_state(ChainOfCustody.CustodyState.CONCLUIDA)
-
-        self.authenticate_as(self.expert)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'CONCLUIDA',
-                'new_state': 'DESTRUIDA',
-                'observations': 'Destruída conforme procedimentos.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data['new_state'], 'DESTRUIDA')
-
-    def test_invalid_transition_skip_states(self):
-        """Transição inválida: APREENDIDA → EM_PERICIA (saltando estados)."""
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'APREENDIDA',
-                'new_state': 'EM_PERICIA',  # Inválido: salta EM_TRANSPORTE e RECEBIDA_LABORATORIO
-                'observations': 'Tentativa de saltar estados.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_invalid_transition_from_devolvida(self):
-        """Transição inválida: DEVOLVIDA é estado terminal."""
-        # Criar cadeia até DEVOLVIDA
-        self._create_custody_chain_to_state(ChainOfCustody.CustodyState.DEVOLVIDA)
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'DEVOLVIDA',
-                'new_state': 'DESTRUIDA',
-                'observations': 'Tentativa de transição de estado terminal.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_invalid_transition_from_destruida(self):
-        """Transição inválida: DESTRUIDA é estado terminal."""
-        # Criar cadeia até DESTRUIDA
-        self._create_custody_chain_to_state(ChainOfCustody.CustodyState.DESTRUIDA)
-
-        self.authenticate_as(self.expert)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'DESTRUIDA',
-                'new_state': 'DEVOLVIDA',
-                'observations': 'Tentativa de transição a partir de DESTRUIDA.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_invalid_transition_backwards(self):
-        """Transição inválida: não se pode recuar (EM_TRANSPORTE → APREENDIDA)."""
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state='',
-            new_state=ChainOfCustody.CustodyState.APREENDIDA,
-            agent=self.agent,
-        )
-        ChainOfCustody.objects.create(
-            evidence=self.evidence,
-            previous_state=ChainOfCustody.CustodyState.APREENDIDA,
-            new_state=ChainOfCustody.CustodyState.EM_TRANSPORTE,
-            agent=self.agent,
-        )
-
-        self.authenticate_as(self.agent)
-        url = reverse('core:custody-list')
-        response = self.client.post(
-            url,
-            {
-                'evidence': self.evidence.pk,
-                'previous_state': 'EM_TRANSPORTE',
-                'new_state': 'APREENDIDA',  # Inválido: recuo não permitido
-                'observations': 'Tentativa de recuo na cadeia.',
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def _create_custody_chain_to_state(self, target_state):
-        """
-        Helper: cria cadeia de custódia até um estado-alvo específico.
-        Inclui o próprio estado-alvo como transição final.
-        Útil para testes de transições a partir de estados intermediários/terminais.
-        """
-        # Caminho completo de estados (incluindo o alvo)
-        full_chain = [
-            '',
-            'APREENDIDA',
-            'EM_TRANSPORTE',
-            'RECEBIDA_LABORATORIO',
-            'EM_PERICIA',
-            'CONCLUIDA',
-            'DEVOLVIDA',
-        ]
-        # Caminho alternativo para DESTRUIDA (bifurca a partir de CONCLUIDA)
-        if target_state == ChainOfCustody.CustodyState.DESTRUIDA:
-            full_chain = [
-                '',
-                'APREENDIDA',
-                'EM_TRANSPORTE',
-                'RECEBIDA_LABORATORIO',
-                'EM_PERICIA',
-                'CONCLUIDA',
-                'DESTRUIDA',
-            ]
-
-        # Encontrar o índice do estado-alvo e cortar o caminho
-        target_str = str(target_state)
-        if target_str in full_chain:
-            target_idx = full_chain.index(target_str)
-            path = full_chain[: target_idx + 1]
-        else:
-            path = full_chain
-
-        # Criar transições consecutivas
-        for i in range(len(path) - 1):
-            prev_state = path[i]
-            next_state = path[i + 1]
-            responsible_user = (
-                self.expert if next_state in ['RECEBIDA_LABORATORIO', 'EM_PERICIA'] else self.agent
-            )
-
-            ChainOfCustody.objects.create(
-                evidence=self.evidence,
-                previous_state=prev_state,
-                new_state=next_state,
-                agent=responsible_user,
-            )
-
-
-# ---------------------------------------------------------------------------
 # Testes End-to-End
 # ---------------------------------------------------------------------------
 
@@ -1034,17 +680,17 @@ class EndToEndFlowTest(BaseAPITestCase):
 
     def test_full_operational_flow(self):
         """
-        Fluxo completo operacional:
+        Fluxo completo operacional (ledger de eventos, ADR-0015):
         1. Autenticação como agente
         2. Criar ocorrência com coordenadas GPS
         3. Criar evidência ligada à ocorrência
-        4. Criar registo de custódia: '' → APREENDIDA (agente)
-        5. Criar registo de custódia: APREENDIDA → EM_TRANSPORTE (agente)
+        4. Registar evento APREENSAO (agente)
+        5. Registar evento VALIDACAO (agente)
         6. Trocar para utilizador perito
-        7. Criar registo de custódia: EM_TRANSPORTE → RECEBIDA_LABORATORIO (perito)
+        7. Registar evento DESPACHO_PERICIA → INICIO_PERICIA (perito)
         8. Exportar PDF da evidência
         9. Verificar resposta PDF (status 200, tipo, header %PDF)
-        10. Consultar timeline de custódia (3 registos em ordem)
+        10. Consultar timeline de custódia (4 registos em ordem)
         11. Verificar integridade: todos os hashes são 64 caracteres hex
         """
         # --- STEP 1: Autenticação como agente ---
@@ -1082,52 +728,64 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(len(evidence_response.data['integrity_hash']), 64)
         self.assertRegex(evidence_response.data['integrity_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 4: Criar primeiro registo de custódia ('' → APREENDIDA) ---
+        # --- STEP 4: Registar evento APREENSAO ---
         custody_url = reverse('core:custody-list')
         custody_response_1 = self.client.post(
             custody_url,
             {
                 'evidence': evidence_id,
-                'previous_state': '',
-                'new_state': 'APREENDIDA',
+                'event_type': 'APREENSAO',
+                'custodian_type': 'OPC',
                 'observations': 'Apreensão no local do crime. Dispositivo selado.',
             },
         )
         self.assertEqual(custody_response_1.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(custody_response_1.data['new_state'], 'APREENDIDA')
+        self.assertEqual(custody_response_1.data['event_type'], 'APREENSAO')
         # Verificar hash do registo
         self.assertEqual(len(custody_response_1.data['record_hash']), 64)
         self.assertRegex(custody_response_1.data['record_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 5: Criar segundo registo (APREENDIDA → EM_TRANSPORTE) ---
+        # --- STEP 5: Registar evento VALIDACAO ---
         custody_response_2 = self.client.post(
             custody_url,
             {
                 'evidence': evidence_id,
-                'previous_state': 'APREENDIDA',
-                'new_state': 'EM_TRANSPORTE',
-                'observations': 'Transporte para o laboratório. Transportado por OPC.',
+                'event_type': 'VALIDACAO',
+                'custodian_type': 'OPC',
+                'observations': 'Apreensão validada pela autoridade judiciária.',
             },
         )
         self.assertEqual(custody_response_2.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(custody_response_2.data['new_state'], 'EM_TRANSPORTE')
+        self.assertEqual(custody_response_2.data['event_type'], 'VALIDACAO')
         self.assertEqual(len(custody_response_2.data['record_hash']), 64)
 
         # --- STEP 6: Trocar para utilizador perito ---
         self.authenticate_as(self.expert)
 
-        # --- STEP 7: Criar terceiro registo (EM_TRANSPORTE → RECEBIDA_LABORATORIO) ---
+        # --- STEP 7a: Despacho para perícia (pré-requisito de INICIO_PERICIA) ---
+        custody_response_3a = self.client.post(
+            custody_url,
+            {
+                'evidence': evidence_id,
+                'event_type': 'DESPACHO_PERICIA',
+                'observations': 'Despacho que ordena a perícia (Art. 154.º).',
+            },
+        )
+        self.assertEqual(custody_response_3a.status_code, status.HTTP_201_CREATED)
+
+        # --- STEP 7b: Início da perícia no laboratório ---
         custody_response_3 = self.client.post(
             custody_url,
             {
                 'evidence': evidence_id,
-                'previous_state': 'EM_TRANSPORTE',
-                'new_state': 'RECEBIDA_LABORATORIO',
-                'observations': 'Recepção no laboratório. Catalogado e armazenado.',
+                'event_type': 'INICIO_PERICIA',
+                'custodian_type': 'LAB_PUBLICO',
+                'observations': 'Início da análise forense.',
             },
         )
         self.assertEqual(custody_response_3.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(custody_response_3.data['new_state'], 'RECEBIDA_LABORATORIO')
+        self.assertEqual(custody_response_3.data['event_type'], 'INICIO_PERICIA')
+        self.assertEqual(custody_response_3.data['legal_state'], 'em_pericia')
         self.assertEqual(len(custody_response_3.data['record_hash']), 64)
 
         # --- STEP 8-9: Exportar PDF da evidência e verificar ---
@@ -1142,12 +800,13 @@ class EndToEndFlowTest(BaseAPITestCase):
         timeline_url = reverse('core:custody-list') + f'?evidence={evidence_id}'
         timeline_response = self.client.get(timeline_url)
         self.assertEqual(timeline_response.status_code, status.HTTP_200_OK)
-        # Deve haver 3 registos
-        self.assertEqual(len(timeline_response.data['results']), 3)
-        # Verificar ordem: '', APREENDIDA, EM_TRANSPORTE, RECEBIDA_LABORATORIO
-        self.assertEqual(timeline_response.data['results'][0]['new_state'], 'APREENDIDA')
-        self.assertEqual(timeline_response.data['results'][1]['new_state'], 'EM_TRANSPORTE')
-        self.assertEqual(timeline_response.data['results'][2]['new_state'], 'RECEBIDA_LABORATORIO')
+        # Deve haver 4 registos
+        self.assertEqual(len(timeline_response.data['results']), 4)
+        # Verificar ordem: APREENSAO, VALIDACAO, DESPACHO_PERICIA, INICIO_PERICIA
+        self.assertEqual(timeline_response.data['results'][0]['event_type'], 'APREENSAO')
+        self.assertEqual(timeline_response.data['results'][1]['event_type'], 'VALIDACAO')
+        self.assertEqual(timeline_response.data['results'][2]['event_type'], 'DESPACHO_PERICIA')
+        self.assertEqual(timeline_response.data['results'][3]['event_type'], 'INICIO_PERICIA')
 
         # --- STEP 11: Verificar integridade de todos os hashes ---
         for record in timeline_response.data['results']:
@@ -1804,10 +1463,11 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
             description='Evidência para teste de imutabilidade CoC.',
             agent=self.agent,
         )
-        # Criar registo de custódia
+        # Criar primeiro evento do ledger
         self.custody = ChainOfCustody.objects.create(
             evidence=self.evidence,
-            new_state='APREENDIDA',
+            event_type='APREENSAO',
+            custodian_type='OPC',
             agent=self.agent,
         )
 
@@ -1819,7 +1479,7 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
             url,
             {
                 'evidence': self.evidence.pk,
-                'new_state': 'EM_TRANSPORTE',
+                'event_type': 'VALIDACAO',
                 'observations': 'Tentativa de PUT.',
             },
         )
@@ -1847,12 +1507,12 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
             url,
             {
                 'evidence': self.evidence.pk,
-                'new_state': 'EM_TRANSPORTE',
+                'event_type': 'VALIDACAO',
                 'observations': 'Adulteração.',
             },
         )
         self.custody.refresh_from_db()
-        self.assertEqual(self.custody.new_state, 'APREENDIDA')
+        self.assertEqual(self.custody.event_type, 'APREENSAO')
         self.assertNotEqual(self.custody.observations, 'Adulteração.')
 
     def test_custody_hash_integrity_preserved(self):
