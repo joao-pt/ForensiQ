@@ -674,7 +674,7 @@ class Command(BaseCommand):
         # A ordem canónica é dada pelo campo sequence (auto-incrementado).
         # Eventos no laboratório são da responsabilidade do perito (EXPERT).
         lab_custodians = (CustodianType.LAB_PUBLICO, CustodianType.LAB_PRIVADO)
-        for occurrence, evidences, eventos in cases:
+        for _occurrence, evidences, eventos in cases:
             for ev in evidences:
                 for event_type, custodian_type in eventos:
                     record = ChainOfCustody(

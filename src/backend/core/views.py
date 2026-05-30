@@ -52,11 +52,11 @@ from .audit import log_access
 from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
     LEGAL_STATES,
+    TERMINAL_EVENTS,
     AuditLog,
     ChainOfCustody,
     Evidence,
     Occurrence,
-    TERMINAL_EVENTS,
     derive_legal_state,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
@@ -1389,8 +1389,10 @@ class MediaServeView(APIView):
             )
 
         content_type, _ = mimetypes.guess_type(str(target))
+        # FileResponse assume a posse do handle e fecha-o quando a resposta é
+        # fechada; um `with` fecharia o ficheiro antes do streaming (SIM115 N/A).
         response = FileResponse(
-            open(target, 'rb'),
+            open(target, 'rb'),  # noqa: SIM115
             content_type=content_type or 'application/octet-stream',
         )
         response['Content-Disposition'] = f'inline; filename="{target.name}"'

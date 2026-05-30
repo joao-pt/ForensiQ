@@ -109,7 +109,7 @@ def _vin_check_digit_valid(vin: str) -> bool:
     sem I/O/Q). Devolve True se o check digit confere.
     """
     try:
-        total = sum(_VIN_VALUES[c] * w for c, w in zip(vin, _VIN_WEIGHTS))
+        total = sum(_VIN_VALUES[c] * w for c, w in zip(vin, _VIN_WEIGHTS, strict=False))
     except KeyError:
         return False
     remainder = total % 11
