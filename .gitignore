@@ -89,3 +89,14 @@ node_modules/
 *.pem
 *.key
 credentials.json
+.git-credentials
+*.git-credentials
+
+# Pasta de trabalho interna local (notas, credenciais) — NUNCA versionar
+_cowork/
+
+# Materiais de referência / consulta externa (páginas HTML guardadas, PDFs) — não distribuir
+*Belkasoft*
+Lei n*Agosto*
+*51_2023*
+tabela-crimes.pdf
