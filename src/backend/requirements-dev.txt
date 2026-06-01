@@ -7,7 +7,7 @@
 pytest>=9.0.3,<10.0
 pytest-django>=4.12.0,<5.0
 factory-boy>=3.3.3,<4.0
-coverage[toml]>=7.6,<8.0
+coverage[toml]>=7.14.1,<8.0
 
 # Extracção fiável de texto de PDFs (ReportLab + ASCII85+FlateDecode) usada
 # em `core/tests_coverage.py::PDFContentValidationTest` para verificar que
