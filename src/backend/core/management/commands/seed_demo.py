@@ -242,13 +242,19 @@ class Command(BaseCommand):
         # Organização (ADR-0017): instituições custódias básicas + pertenças.
         institutions = self._seed_organizations(agent, expert)
 
+        # Perfis adicionais para a demo cobrir os 6 papéis do ADR-0017 (custódio,
+        # MP, chefe, auditor) — sem isto só era possível autenticar como
+        # agente/perito e os outros 4 perfis nunca eram instanciados.
+        extra = self._seed_extra_roles(institutions)
+        all_users = [agent, expert] + extra
+
         if users_only:
-            self._print_summary([agent, expert], cases_created=False)
+            self._print_summary(all_users, cases_created=False)
             return
 
         # Modo --reset (acabámos de truncar) ou BD vazia → criar cases.
         cases = self._create_cases(agent, expert, institutions)
-        self._print_summary([agent, expert], cases_created=True, cases=cases)
+        self._print_summary(all_users, cases_created=True, cases=cases)
 
     # ----- helpers de input -----
 
@@ -329,6 +335,50 @@ class Command(BaseCommand):
             f'pertenças: {agent.username}@PSP-LSB, {expert.username}@LPC.'
         )
         return institutions
+
+    def _seed_extra_roles(self, institutions):
+        """Provisiona os 4 perfis além de agente/perito, para a demo cobrir os
+        6 papéis do ADR-0017. Password demo ÚNICA e conhecida (impressa no
+        resumo) — uso exclusivamente de demonstração local (CWE-521 aceite)."""
+        password = 'Prova-Digital-2026!'
+        specs = [
+            ('custodio', User.Profile.EVIDENCE_CUSTODIAN, User.Clearance.NORMAL,
+             'Custódio', 'Demo', 'CUSTODY-DEMO', 'LPC'),
+            ('mp', User.Profile.CASE_AUTHORITY, User.Clearance.NACIONAL,
+             'Magistrado', 'Demo', 'MP-DEMO', 'DIAP-LSB'),
+            ('chefe', User.Profile.CHEFE_SERVICO, User.Clearance.NACIONAL,
+             'Chefe', 'Serviço', 'CHEFE-DEMO', 'PSP-LSB'),
+            ('auditor', User.Profile.AUDITOR, User.Clearance.NACIONAL,
+             'Auditor', 'Demo', 'AUDITOR-DEMO', 'TJ-LSB'),
+        ]
+        users = []
+        self._extra_credentials = []
+        for username, profile, clearance, fn, ln, badge, sigla in specs:
+            u = self._upsert_user(
+                username=username,
+                password=password,
+                profile=profile,
+                clearance=clearance,
+                first_name=fn,
+                last_name=ln,
+                email=f'{username}@forensiq.demo',
+                badge_number=badge,
+            )
+            inst = institutions.get(sigla)
+            if inst:
+                InstitutionMembership.objects.update_or_create(
+                    user=u,
+                    institution=inst,
+                    defaults={'is_active': True},
+                )
+            users.append(u)
+            self._extra_credentials.append(username)
+        self._extra_password = password
+        self.stdout.write(
+            '   Perfis adicionais: 4 '
+            '(custodio@LPC, mp@DIAP-LSB, chefe@PSP-LSB, auditor@TJ-LSB).'
+        )
+        return users
 
     @transaction.atomic
     def _reset_database(self, *, wipe_media):
@@ -811,6 +861,12 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('=' * 60))
         for user in users:
             self.stdout.write(f'   {user.profile:<18} {user.clearance:<9} {user.username}')
+        if getattr(self, '_extra_credentials', None):
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING(
+                f'Perfis adicionais ({", ".join(self._extra_credentials)}) — '
+                f'password demo única: {self._extra_password}'
+            ))
         self.stdout.write('')
         if cases_created and cases:
             num_items = sum(len(es) for _, es, _ in cases)
