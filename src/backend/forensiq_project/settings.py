@@ -178,6 +178,7 @@ if TESTING:
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',
         'verify_public': '10000/minute',
+        'healthcheck': '10000/minute',
     }
 
 # --- SimpleJWT ---

@@ -53,6 +53,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from . import access
 from .audit import log_access
 from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
@@ -100,30 +101,17 @@ _LOOKUP_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
-    """Helper partilhado por views e serializers (IDOR / ownership).
-
-    Regra: staff / EXPERT vêem tudo; AGENT só ocorrências próprias.
-    Qualquer outro perfil autenticado é bloqueado.
-    """
-    if user is None or not user.is_authenticated:
-        return False
-    if getattr(user, 'is_staff', False):
-        return True
-    profile = getattr(user, 'profile', None)
-    if profile == 'EXPERT':
-        return True
-    if profile == 'AGENT':
-        return occurrence.agent_id == user.id
-    return False
+    """Acesso à OCORRÊNCIA (need-to-know — ADR-0017; fonte única em core.access)."""
+    return access.can_access_occurrence(user, occurrence)
 
 
 def _user_can_lookup(user) -> bool:
-    """Só AGENT / EXPERT (ou staff) podem consultar APIs externas."""
+    """Só FIRST_RESPONDER / FORENSIC_EXPERT (ou staff) consultam APIs externas."""
     if user is None or not user.is_authenticated:
         return False
     if getattr(user, 'is_staff', False):
         return True
-    return getattr(user, 'profile', None) in ('AGENT', 'EXPERT')
+    return getattr(user, 'profile', None) in ('FIRST_RESPONDER', 'FORENSIC_EXPERT')
 
 
 def _evidence_ids_in_legal_state(custody_qs, state):
@@ -210,8 +198,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(agent=user)
+        qs = access.scope_occurrences(user, base_qs=qs)
         # Filtro opcional por ESTADO LEGAL DERIVADO (ADR-0015) das evidências
         # da ocorrência. O estado não é coluna — deriva-se da sequência de
         # eventos via derive_legal_state, mantendo a definição coerente com os
@@ -227,9 +214,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
                         )
                     }
                 )
-            custody_qs = ChainOfCustody.objects.all()
-            if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-                custody_qs = custody_qs.filter(evidence__occurrence__agent=user)
+            custody_qs = access.scope_custody(user)
             ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
             occ_ids = (
                 Evidence.objects.filter(id__in=ev_ids)
@@ -373,8 +358,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         """
         qs = super().get_queryset().with_current_state()
         user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(occurrence__agent=user)
+        qs = access.scope_evidences(user, base_qs=qs)
         occurrence_id = self.request.query_params.get('occurrence')
         if occurrence_id:
             qs = qs.filter(occurrence_id=occurrence_id)
@@ -393,10 +377,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
                     }
                 )
             # Estado legal derivado (ADR-0015) — não é coluna; computa-se sobre
-            # a sequência de eventos. Universo de custódia já segue o ownership.
-            custody_qs = ChainOfCustody.objects.all()
-            if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-                custody_qs = custody_qs.filter(evidence__occurrence__agent=user)
+            # a sequência de eventos. Universo de custódia segue o need-to-know.
+            custody_qs = access.scope_custody(user)
             ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
             qs = qs.filter(id__in=ev_ids)
         return qs
@@ -518,14 +500,23 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(evidence__occurrence__agent=user)
+        qs = access.scope_custody(user, base_qs=qs)
         evidence_id = self.request.query_params.get('evidence')
         if evidence_id:
             qs = qs.filter(evidence_id=evidence_id)
         return qs
 
     def perform_create(self, serializer):
+        # Gate de ESCRITA (ADR-0017 §5): só quem detém o item (ou pode assumi-lo),
+        # o perito (override) ou a autoridade do caso (atos de despacho) regista.
+        evidence = serializer.validated_data.get('evidence')
+        event_type = serializer.validated_data.get('event_type')
+        if evidence is not None and not access.can_append_custody(
+            self.request.user, evidence, event_type
+        ):
+            raise drf_serializers.ValidationError(
+                {'detail': 'Sem permissão para registar eventos de custódia neste item (ADR-0017).'}
+            )
         try:
             custody_record = serializer.save(agent=self.request.user)
             log_access(
@@ -561,7 +552,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         Permite ao utilizador registar o mesmo evento num item-pai e nos seus
         sub-componentes (ex: telemóvel + cartão SIM + cartão de memória) numa
         única acção, em vez de o fazer item a item. Caso de uso típico: o
-        intake EXPERT-only (ADR-0012) emite ``event_type=TRANSFERENCIA`` para
+        intake EXPERT-only (ADR-0012) emite ``event_type=TRANSFERENCIA_CUSTODIA`` para
         ``custodian_type=LAB_PUBLICO`` em lote.
 
         Garantias:
@@ -1127,14 +1118,9 @@ class StatsView(APIView):
 
     def get(self, request):
         user = request.user
-        occ_qs = Occurrence.objects.all()
-        ev_qs = Evidence.objects.all()
-        coc_qs = ChainOfCustody.objects.all()
-
-        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-            occ_qs = occ_qs.filter(agent=user)
-            ev_qs = ev_qs.filter(occurrence__agent=user)
-            coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
+        occ_qs = access.scope_occurrences(user)
+        ev_qs = access.scope_evidences(user)
+        coc_qs = access.scope_custody(user)
 
         evidence_by_type = dict(
             ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
@@ -1184,14 +1170,9 @@ class DashboardStatsView(APIView):
 
     def get(self, request):
         user = request.user
-        occ_qs = Occurrence.objects.all()
-        ev_qs = Evidence.objects.all()
-        coc_qs = ChainOfCustody.objects.all()
-
-        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-            occ_qs = occ_qs.filter(agent=user)
-            ev_qs = ev_qs.filter(occurrence__agent=user)
-            coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
+        occ_qs = access.scope_occurrences(user)
+        ev_qs = access.scope_evidences(user)
+        coc_qs = access.scope_custody(user)
 
         total_occurrences = occ_qs.count()
         total_evidences = ev_qs.count()
@@ -1362,7 +1343,7 @@ class ActivityFeedView(generics.ListAPIView):
     def get_queryset(self):
         qs = AuditLog.objects.select_related('user').order_by('-timestamp')
         user = self.request.user
-        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+        if not user.is_staff and getattr(user, 'profile', None) == 'FIRST_RESPONDER':
             qs = qs.filter(user_id=user.id)
         return qs
 

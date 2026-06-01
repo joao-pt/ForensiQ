@@ -10,6 +10,8 @@ from .models import (
     CrimeSubcategoria,
     CrimeTipo,
     Evidence,
+    Institution,
+    InstitutionMembership,
     Occurrence,
     PoliticaCriminalPrioridade,
     PrioridadeCrimeTipo,
@@ -19,15 +21,46 @@ from .models import (
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'email', 'get_full_name', 'profile', 'badge_number', 'is_active')
-    list_filter = ('profile', 'is_active', 'is_staff')
+    list_display = (
+        'username',
+        'email',
+        'get_full_name',
+        'profile',
+        'clearance',
+        'badge_number',
+        'is_active',
+    )
+    list_filter = ('profile', 'clearance', 'is_active', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name', 'badge_number')
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('ForensiQ', {'fields': ('profile', 'badge_number', 'phone')}),
+        ('ForensiQ', {'fields': ('profile', 'clearance', 'badge_number', 'phone')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('ForensiQ', {'fields': ('profile', 'badge_number')}),
+        ('ForensiQ', {'fields': ('profile', 'clearance', 'badge_number')}),
     )
+
+
+class InstitutionMembershipInline(admin.TabularInline):
+    model = InstitutionMembership
+    extra = 0
+    raw_id_fields = ('user',)
+
+
+@admin.register(Institution)
+class InstitutionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'type', 'sigla', 'is_active')
+    list_filter = ('type', 'is_active')
+    search_fields = ('name', 'sigla')
+    ordering = ('name',)
+    inlines = [InstitutionMembershipInline]
+
+
+@admin.register(InstitutionMembership)
+class InstitutionMembershipAdmin(admin.ModelAdmin):
+    list_display = ('user', 'institution', 'is_active', 'joined_at')
+    list_filter = ('is_active', 'institution__type')
+    search_fields = ('user__username', 'institution__name', 'institution__sigla')
+    raw_id_fields = ('user', 'institution')
 
 
 @admin.register(Occurrence)

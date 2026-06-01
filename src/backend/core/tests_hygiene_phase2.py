@@ -51,7 +51,7 @@ class PublicVerifyThrottleTest(TestCase):
         cls.agent = User.objects.create_user(
             username='agent_vp_throttle',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-VPT-01',
         )
         cls.occurrence = Occurrence.objects.create(
@@ -132,7 +132,7 @@ class CascadeErrorShapeTest(TestCase):
         self.agent = User.objects.create_user(
             username='agent_cascade_shape',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-CSH-01',
         )
         self.occurrence = Occurrence.objects.create(
@@ -149,7 +149,7 @@ class CascadeErrorShapeTest(TestCase):
         )
         ChainOfCustody.objects.create(
             evidence=self.evidence,
-            event_type=EventType.APREENSAO,
+            event_type=EventType.APREENSAO_OBJETO,
             custodian_type=CustodianType.OPC,
             agent=self.agent,
         )
@@ -168,7 +168,7 @@ class CascadeErrorShapeTest(TestCase):
             '/api/custody/cascade/',
             {
                 'evidence_ids': [self.evidence.id],
-                'event_type': 'VALIDACAO',
+                'event_type': 'VALIDACAO_APREENSAO',
                 'custodian_type': 'OPC',
             },
             format='json',
@@ -194,7 +194,7 @@ class PdfExportErrorShapeTest(TestCase):
         self.agent = User.objects.create_user(
             username='agent_pdf_shape',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-PDF-01',
         )
         self.occurrence = Occurrence.objects.create(

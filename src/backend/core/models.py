@@ -2,7 +2,8 @@
 ForensiQ — Modelos de dados core.
 
 Entidades principais:
-- User: utilizador com perfil AGENT (first responder) ou EXPERT (perito forense)
+- User: utilizador com função (``profile``) + credencial (``clearance``) — ADR-0017
+- Institution / InstitutionMembership: organização custódia (ADR-0017)
 - Occurrence: ocorrência / cena de crime
 - Evidence: evidência apreendida (com hash SHA-256 para integridade)
 - ChainOfCustody: ledger de eventos imutável (append-only) da custódia
@@ -39,14 +40,14 @@ CODE_MAX_ATTEMPTS = 5
 MAX_SEQUENCE_ATTEMPTS = 10  # Audit 2026-05-18 §3 N10 — retry de AuditLog.sequence
 
 
-def _next_yearly_code(prefix, model, year, field='code'):
-    """Gera o próximo código ``PREFIX-YYYY-NNNNN`` para o ano indicado.
+def _next_yearly_code(prefix, model, year, field='code', width=5):
+    """Gera o próximo código ``PREFIX-YYYY-N…`` para o ano indicado.
 
     A unicidade é garantida pelo constraint único no campo ``code``; em
     caso de colisão concorrente o chamador faz retry até
     ``CODE_MAX_ATTEMPTS``. Consulta o MAX existente para o ano (``startswith``
-    tira partido do índice) e soma 1. Para o primeiro registo de um ano
-    cai em ``00001``.
+    tira partido do índice) e soma 1. ``width`` controla o zero-padding
+    (ex.: ``width=4`` → ``OC-2026-0001``; ``width=5`` → ``OCC-2026-00001``).
     """
     prefix_filter = f'{prefix}-{year}-'
     last = (
@@ -62,7 +63,39 @@ def _next_yearly_code(prefix, model, year, field='code'):
             seq = 1
     else:
         seq = 1
-    return f'{prefix}-{year}-{seq:05d}'
+    return f'{prefix}-{year}-{seq:0{width}d}'
+
+
+def _next_local_index(evidence):
+    """Próximo índice local (sufixo do código hierárquico) — ADR-0016 §1.
+
+    Item-raiz → posição entre os itens-raiz da ocorrência; sub-componente →
+    posição entre os irmãos (filhos do mesmo pai). Cada âmbito tem o seu
+    ``UniqueConstraint``; o chamador serializa com ``select_for_update`` no
+    âmbito e faz retry sob colisão concorrente.
+    """
+    if evidence.parent_evidence_id is None:
+        qs = Evidence.objects.filter(
+            occurrence_id=evidence.occurrence_id, parent_evidence__isnull=True
+        )
+    else:
+        qs = Evidence.objects.filter(parent_evidence_id=evidence.parent_evidence_id)
+    last = qs.order_by('-local_index').values_list('local_index', flat=True).first()
+    return (last or 0) + 1
+
+
+def _derive_evidence_code(evidence):
+    """Código hierárquico completo do item (ADR-0016 §1).
+
+    Item-raiz: ``{occurrence.code}.{local_index}``. Sub-componente:
+    ``{parent.code}.{local_index}`` (o pai já tem o código completo
+    materializado, pois a prova é imutável após criação).
+    """
+    if evidence.parent_evidence_id is None:
+        base = evidence.occurrence.code
+    else:
+        base = evidence.parent_evidence.code
+    return f'{base}.{evidence.local_index}'
 
 
 # ---------------------------------------------------------------------------
@@ -173,18 +206,39 @@ def _strip_exif(photo_file):
 
 
 class User(AbstractUser):
-    """Utilizador do sistema com perfil baseado em roles."""
+    """Utilizador do sistema: função (``profile``) + credencial (``clearance``).
+
+    Dois eixos independentes (ADR-0017): a *função* diz o que a pessoa faz na
+    cadeia de custódia; a *credencial* diz a amplitude de visibilidade de
+    leitura a que está habilitada. A visibilidade nacional é uma credencial,
+    não um papel — peritos e chefes de serviço são habilitados a ``NACIONAL``.
+    """
 
     class Profile(models.TextChoices):
-        AGENT = 'AGENT', 'Agente / First Responder'
-        EXPERT = 'EXPERT', 'Perito Forense Digital'
+        FIRST_RESPONDER = 'FIRST_RESPONDER', 'Agente / Primeiro interveniente'
+        FORENSIC_EXPERT = 'FORENSIC_EXPERT', 'Perito forense digital'
+        EVIDENCE_CUSTODIAN = 'EVIDENCE_CUSTODIAN', 'Custódio / Fiel depositário'
+        CASE_AUTHORITY = 'CASE_AUTHORITY', 'Autoridade judiciária (MP)'
+        CHEFE_SERVICO = 'CHEFE_SERVICO', 'Chefe de serviço (só-leitura)'
+        AUDITOR = 'AUDITOR', 'Auditor (só-leitura)'
+
+    class Clearance(models.TextChoices):
+        NORMAL = 'NORMAL', 'Normal (need-to-know)'
+        NACIONAL = 'NACIONAL', 'Nacional (leitura nacional)'
 
     profile = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=Profile.choices,
-        default=Profile.AGENT,
-        verbose_name='Perfil',
-        help_text='Define as permissões e vistas disponíveis.',
+        default=Profile.FIRST_RESPONDER,
+        verbose_name='Função',
+        help_text='Papel na cadeia de custódia (ADR-0017).',
+    )
+    clearance = models.CharField(
+        max_length=10,
+        choices=Clearance.choices,
+        default=Clearance.NORMAL,
+        verbose_name='Credencial',
+        help_text='Amplitude de visibilidade de leitura. NACIONAL = leitura a nível nacional.',
     )
     badge_number = models.CharField(
         max_length=20,
@@ -209,11 +263,102 @@ class User(AbstractUser):
 
     @property
     def is_agent(self):
-        return self.profile == self.Profile.AGENT
+        return self.profile == self.Profile.FIRST_RESPONDER
 
     @property
     def is_expert(self):
-        return self.profile == self.Profile.EXPERT
+        return self.profile == self.Profile.FORENSIC_EXPERT
+
+    @property
+    def has_national_clearance(self):
+        """Habilitação de leitura nacional (credencial, não função) — ADR-0017."""
+        return self.clearance == self.Clearance.NACIONAL
+
+
+# ---------------------------------------------------------------------------
+# Instituições (organização) — ADR-0017
+#
+# A custódia é institucional: a prova fica à guarda de uma instituição
+# (OPC, laboratório, tribunal, serviço do MP) e uma pessoa dessa instituição
+# executa e assina os atos. Conjunto básico para a prova de conceito; não é
+# prova e não está sujeito aos invariantes de imutabilidade.
+# ---------------------------------------------------------------------------
+
+
+class InstitutionType(models.TextChoices):
+    """Tipo de instituição custódia (promove o eixo ``CustodianType``)."""
+
+    OPC = 'OPC', 'Órgão de polícia criminal'
+    LAB_PUBLICO = 'LAB_PUBLICO', 'Laboratório público'
+    LAB_PRIVADO = 'LAB_PRIVADO', 'Laboratório privado'
+    TRIBUNAL = 'TRIBUNAL', 'Tribunal'
+    MP = 'MP', 'Ministério Público'
+    DEPOSITARIO = 'DEPOSITARIO', 'Depositário'
+
+
+class Institution(models.Model):
+    """Entidade que detém prova à sua guarda (a custódia é institucional)."""
+
+    name = models.CharField(max_length=255, verbose_name='Nome')
+    type = models.CharField(
+        max_length=20,
+        choices=InstitutionType.choices,
+        verbose_name='Tipo',
+    )
+    sigla = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        verbose_name='Sigla',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Ativa')
+
+    class Meta:
+        verbose_name = 'Instituição'
+        verbose_name_plural = 'Instituições'
+        ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['name', 'type'],
+                name='uniq_institution_name_type',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.sigla or self.name} ({self.get_type_display()})'
+
+
+class InstitutionMembership(models.Model):
+    """Pertença de uma pessoa a uma instituição (M2M com atributos)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='institution_memberships',
+        verbose_name='Utilizador',
+    )
+    institution = models.ForeignKey(
+        Institution,
+        on_delete=models.PROTECT,
+        related_name='memberships',
+        verbose_name='Instituição',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Ativa')
+    joined_at = models.DateTimeField(default=timezone.now, verbose_name='Membro desde')
+
+    class Meta:
+        verbose_name = 'Pertença a instituição'
+        verbose_name_plural = 'Pertenças a instituições'
+        ordering = ['institution', 'user']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'institution'],
+                name='uniq_membership_user_institution',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.user} @ {self.institution}'
 
 
 # ---------------------------------------------------------------------------
@@ -412,13 +557,13 @@ class Occurrence(models.Model):
         MANUAL = 'MANUAL', 'Override manual'
 
     code = models.CharField(
-        max_length=20,
+        max_length=32,
         unique=True,
         blank=True,
         default='',
         db_index=True,
         verbose_name='Código do caso',
-        help_text='Gerado automaticamente no formato OCC-YYYY-NNNNN.',
+        help_text='Gerado automaticamente no formato OC-YYYY-NNNN (ano de registo) — ADR-0016.',
     )
     number = models.CharField(
         max_length=50,
@@ -533,13 +678,17 @@ class Occurrence(models.Model):
             self.priority_source = self.PrioritySource.LEI
 
     def save(self, *args, **kwargs):
-        """Chama full_clean e atribui ``code`` (OCC-YYYY-NNNNN) na criação."""
+        """Chama full_clean e atribui ``code`` (OC-YYYY-NNNN) na criação.
+
+        O ano é o de REGISTO (``timezone.now()``), não o do crime — ADR-0016 §1;
+        a data do crime/apreensão fica em ``date_time``.
+        """
         self.full_clean()
         is_new = self.pk is None
         if is_new and not self.code:
-            year = (self.date_time or timezone.now()).year
+            year = timezone.now().year
             for _ in range(CODE_MAX_ATTEMPTS):
-                self.code = _next_yearly_code('OCC', type(self), year=year)
+                self.code = _next_yearly_code('OC', type(self), year=year, width=4)
                 try:
                     with transaction.atomic():
                         super().save(*args, **kwargs)
@@ -550,7 +699,7 @@ class Occurrence(models.Model):
                     self.code = ''
                     self.pk = None
             raise RuntimeError(
-                'Não foi possível gerar um código OCC-YYYY-NNNNN único após várias tentativas.'
+                'Não foi possível gerar um código OC-YYYY-NNNN único após várias tentativas.'
             )
         super().save(*args, **kwargs)
 
@@ -647,14 +796,37 @@ class Evidence(models.Model):
         INTERNAL_DRIVE = 'INTERNAL_DRIVE', 'Disco Interno (HDD / SSD / NVMe)'
         VEHICLE_COMPONENT = 'VEHICLE_COMPONENT', 'Componente Electrónico de Veículo'
 
+    class AcquisitionVerification(models.TextChoices):
+        """Estado da verificação source==cópia (ISO 27037 §5.4.4)."""
+
+        VERIFICADO = 'VERIFICADO', 'Verificado (source == cópia)'
+        NAO_VERIFICAVEL = 'NAO_VERIFICAVEL', 'Não verificável (live/móvel)'
+        PENDENTE = 'PENDENTE', 'Pendente'
+
+    class SealCondition(models.TextChoices):
+        """Condição de um selo de prova (inicial ou na receção de um evento)."""
+
+        INTACTO = 'INTACTO', 'Intacto'
+        PARTIDO = 'PARTIDO', 'Partido'
+        VIOLADO = 'VIOLADO', 'Violado'
+        AUSENTE = 'AUSENTE', 'Ausente'
+
     code = models.CharField(
-        max_length=20,
+        max_length=32,
         unique=True,
         blank=True,
         default='',
         db_index=True,
         verbose_name='Código do item',
-        help_text='Gerado automaticamente no formato ITM-YYYY-NNNNN.',
+        help_text='Código hierárquico derivado (ex.: OC-2026-0001.1.1) — ADR-0016.',
+    )
+    local_index = models.PositiveSmallIntegerField(
+        default=0,
+        verbose_name='Índice local',
+        help_text=(
+            'Sufixo do código hierárquico: posição no âmbito — na ocorrência se '
+            'item-raiz, no pai se sub-componente (ADR-0016 §1).'
+        ),
     )
     occurrence = models.ForeignKey(
         Occurrence,
@@ -756,6 +928,72 @@ class Evidence(models.Model):
         blank=True,
         verbose_name='Data/hora da consulta externa',
     )
+    # --- Apreensão de dados (ADR-0016 §3) ---
+    # Para evidência DIGITAL_FILE adquirida no terreno: o exhibit é a CÓPIA no
+    # suporte; o dispositivo-fonte fica fora do sistema (metadado em
+    # type_specific_data). O acquisition_hash é carimbado uma vez sobre os
+    # dados copiados — distinto do integrity_hash (hash de verificação do
+    # registo). Fonte/ferramenta/nível vivem em type_specific_data.
+    acquisition_hash = models.CharField(
+        max_length=128,
+        blank=True,
+        default='',
+        verbose_name='Hash de aquisição',
+        help_text='Hash carimbado uma vez sobre os dados copiados (≠ integrity_hash).',
+    )
+    acquisition_hash_algo = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        verbose_name='Algoritmo do hash de aquisição',
+        help_text='Ex.: SHA-256, SHA-1, MD5.',
+    )
+    acquisition_verification_status = models.CharField(
+        max_length=20,
+        choices=AcquisitionVerification.choices,
+        blank=True,
+        default='',
+        verbose_name='Verificação da aquisição',
+        help_text='ISO 27037 §5.4.4 — exceção documentada para aquisição live/móvel.',
+    )
+    acquisition_verification_note = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Nota de verificação da aquisição',
+    )
+    # --- Selagem inicial na génese (ADR-0016 §4) ---
+    bag_number = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Número do saco de prova',
+    )
+    initial_seal_number = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Número do selo inicial',
+    )
+    seal_packaging_description = models.TextField(
+        blank=True,
+        default='',
+        verbose_name='Descrição do acondicionamento',
+    )
+    initial_condition = models.CharField(
+        max_length=20,
+        choices=SealCondition.choices,
+        blank=True,
+        default='',
+        verbose_name='Condição inicial',
+    )
+    sealed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='sealed_evidences',
+        verbose_name='Selado por',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -769,6 +1007,21 @@ class Evidence(models.Model):
             models.Index(fields=['occurrence', '-timestamp_seizure'], name='ev_occ_ts_idx'),
             models.Index(fields=['agent', '-timestamp_seizure'], name='ev_agent_ts_idx'),
             models.Index(fields=['parent_evidence'], name='ev_parent_idx'),
+        ]
+        constraints = [
+            # Índice local único por âmbito (ADR-0016 §1): por ocorrência para
+            # itens-raiz; por pai para sub-componentes. O contador de sub-itens
+            # nunca consome o da ocorrência (evita a regressão tipo SENAITE).
+            models.UniqueConstraint(
+                fields=['occurrence', 'local_index'],
+                condition=models.Q(parent_evidence__isnull=True),
+                name='uniq_evidence_root_local_index',
+            ),
+            models.UniqueConstraint(
+                fields=['parent_evidence', 'local_index'],
+                condition=models.Q(parent_evidence__isnull=False),
+                name='uniq_evidence_child_local_index',
+            ),
         ]
 
     def __str__(self):
@@ -873,14 +1126,22 @@ class Evidence(models.Model):
             f'{self.agent_id}|'
             f'tsd={tsd_json}|'
             f'photo={photo_hash}'
+            # Campos nucleares de aquisição + selagem inicial (ADR-0016 §6).
+            f'|acq={self.acquisition_hash}'
+            f'|acqalgo={self.acquisition_hash_algo}'
+            f'|bag={_hash_escape(self.bag_number)}'
+            f'|seal0={_hash_escape(self.initial_seal_number)}'
+            f'|pack={_hash_escape(self.seal_packaging_description)}'
+            f'|cond0={self.initial_condition}'
+            f'|sealedby={self.sealed_by_id or ""}'
         )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
     def save(self, *args, **kwargs):
         """
         Override: apenas permite criação (imutável após registo).
-        Calcula o hash de integridade e atribui ``code`` (ITM-YYYY-NNNNN)
-        no momento do registo.
+        Calcula o hash de integridade e atribui o ``code`` hierárquico
+        (ex.: OC-2026-0001.1.1) no momento do registo — ADR-0016 §1.
         Conformidade ISO/IEC 27037 — metadados de prova não são alteráveis.
         """
         if self.pk is not None:
@@ -896,21 +1157,34 @@ class Evidence(models.Model):
         if self.photo:
             self.photo = _strip_exif(self.photo)
         self.integrity_hash = self.compute_integrity_hash()
-        year = (self.timestamp_seizure or timezone.now()).year
+        # Índice local + código hierárquico (ADR-0016 §1). O índice atribui-se
+        # sob lock do âmbito (ocorrência se raiz; pai se sub-componente) para
+        # serializar criações concorrentes; o UniqueConstraint do âmbito + retry
+        # cobrem a colisão tardia. Os códigos NÃO entram no integrity_hash.
         for _ in range(CODE_MAX_ATTEMPTS):
-            if not self.code:
-                self.code = _next_yearly_code('ITM', type(self), year=year)
             try:
                 with transaction.atomic():
+                    if self.parent_evidence_id is None:
+                        Occurrence.objects.select_for_update().filter(
+                            pk=self.occurrence_id
+                        ).first()
+                    else:
+                        Evidence.objects.select_for_update().filter(
+                            pk=self.parent_evidence_id
+                        ).first()
+                    self.local_index = _next_local_index(self)
+                    self.code = _derive_evidence_code(self)
                     super().save(*args, **kwargs)
                 return
             except IntegrityError as exc:
-                if 'code' not in str(exc).lower():
+                msg = str(exc).lower()
+                if 'code' not in msg and 'local_index' not in msg:
                     raise
                 self.code = ''
+                self.local_index = 0
                 self.pk = None
         raise RuntimeError(
-            'Não foi possível gerar um código ITM-YYYY-NNNNN único após várias tentativas.'
+            'Não foi possível gerar um código hierárquico único após várias tentativas.'
         )
 
     def delete(self, *args, **kwargs):
@@ -1054,14 +1328,31 @@ def _digital_device_imei_validator(value):
 
 
 class EventType(models.TextChoices):
-    """Acto processual registado em cada evento do ledger (ADR-0015, CPP)."""
+    """Acto processual registado em cada evento do ledger (ADR-0015/0016, CPP).
 
-    APREENSAO = 'APREENSAO', 'Apreensão'
-    VALIDACAO = 'VALIDACAO', 'Validação da apreensão'
+    Génese (1.º movimento) por proveniência (ADR-0016 §2):
+    - ``APREENSAO_OBJETO`` — objeto físico apreendido (CPP art. 178.º).
+    - ``APREENSAO_DADOS`` — dados adquiridos no terreno e copiados para suporte
+      autónomo (Lei do Cibercrime art. 16.º/7-b); só para ``DIGITAL_FILE``.
+    - ``DERIVACAO_ITEM`` — sub-componente autonomizado (em regra no laboratório);
+      só para evidência com ``parent_evidence``.
+
+    Movimentação (ADR-0017 §6): ``TRANSFERENCIA_CUSTODIA`` (push — entrega em
+    pessoa) e ``ASSUNCAO_CUSTODIA`` (pull — membro da instituição que tem o
+    item armazenado chama-o a si).
+    """
+
+    # --- Génese (1.º movimento) ---
+    APREENSAO_OBJETO = 'APREENSAO_OBJETO', 'Apreensão de objeto'
+    APREENSAO_DADOS = 'APREENSAO_DADOS', 'Apreensão de dados informáticos'
+    DERIVACAO_ITEM = 'DERIVACAO_ITEM', 'Autonomizado no laboratório'
+    # --- Atos subsequentes ---
+    VALIDACAO_APREENSAO = 'VALIDACAO_APREENSAO', 'Validação da apreensão'
     DESPACHO_PERICIA = 'DESPACHO_PERICIA', 'Despacho para perícia'
-    TRANSFERENCIA = 'TRANSFERENCIA', 'Transferência de custódia'
     INICIO_PERICIA = 'INICIO_PERICIA', 'Início de perícia'
     CONCLUSAO_PERICIA = 'CONCLUSAO_PERICIA', 'Conclusão de perícia'
+    TRANSFERENCIA_CUSTODIA = 'TRANSFERENCIA_CUSTODIA', 'Transferência de custódia'
+    ASSUNCAO_CUSTODIA = 'ASSUNCAO_CUSTODIA', 'Assunção de custódia'
     RESTITUICAO = 'RESTITUICAO', 'Restituição'  # terminal
     PERDA_FAVOR_ESTADO = 'PERDA_FAVOR_ESTADO', 'Perda a favor do Estado'
     DESTRUICAO = 'DESTRUICAO', 'Destruição'  # terminal
@@ -1081,6 +1372,17 @@ class CustodianType(models.TextChoices):
 
 # Eventos que fecham o ledger — nenhum evento é aceite depois de um deles.
 TERMINAL_EVENTS = {EventType.RESTITUICAO, EventType.DESTRUICAO}
+
+# Eventos de génese (1.º movimento) — exatamente um, na posição 1 (ADR-0016 §2).
+GENESIS_EVENTS = {
+    EventType.APREENSAO_OBJETO,
+    EventType.APREENSAO_DADOS,
+    EventType.DERIVACAO_ITEM,
+}
+
+# Génese que constitui uma APREENSÃO validável (CPP art. 178.º/6; valida-se uma
+# vez). A derivação de item (DERIVACAO_ITEM) não é uma apreensão autónoma.
+SEIZURE_GENESIS_EVENTS = {EventType.APREENSAO_OBJETO, EventType.APREENSAO_DADOS}
 
 # Prazo legal de validação da apreensão (CPP Art. 178.º/6). O incumprimento é
 # assinalado (validation_overdue) no momento em que o evento VALIDACAO é gravado,
@@ -1107,9 +1409,9 @@ def derive_legal_state(eventos_ordenados):
     - existe PERDA_FAVOR_ESTADO (sem terminal posterior) → ``perdida_favor_estado``
       (estatuto legal forte; domina mesmo uma perícia em curso).
     - último INICIO_PERICIA → ``em_pericia``; último CONCLUSAO_PERICIA → ``pericia_concluida``.
-    - último TRANSFERENCIA → ``a_guarda_opc`` se de volta ao OPC, senão
-      ``encaminhada`` (lab/tribunal/depositário/proprietário).
-    - DESPACHO_PERICIA/VALIDACAO/APREENSAO como último → patamar atingido
+    - último TRANSFERENCIA_CUSTODIA/ASSUNCAO_CUSTODIA → ``a_guarda_opc`` se de
+      volta ao OPC, senão ``encaminhada`` (lab/tribunal/depositário/proprietário).
+    - DESPACHO_PERICIA/VALIDACAO_APREENSAO/génese como último → patamar atingido
       (``validada`` se já houve validação, senão ``a_guarda_opc``).
     """
     if not eventos_ordenados:
@@ -1135,12 +1437,12 @@ def derive_legal_state(eventos_ordenados):
         return 'em_pericia'
     if et == EventType.CONCLUSAO_PERICIA:
         return 'pericia_concluida'
-    if et == EventType.TRANSFERENCIA:
+    if et in (EventType.TRANSFERENCIA_CUSTODIA, EventType.ASSUNCAO_CUSTODIA):
         # De volta ao OPC = à guarda do OPC; qualquer outro custódio = encaminhada.
         return 'a_guarda_opc' if ultimo.custodian_type == CustodianType.OPC else 'encaminhada'
 
-    # DESPACHO_PERICIA / VALIDACAO / APREENSAO como último: patamar atingido.
-    if EventType.VALIDACAO in tipos:
+    # DESPACHO_PERICIA / VALIDACAO_APREENSAO / génese como último: patamar atingido.
+    if EventType.VALIDACAO_APREENSAO in tipos:
         return 'validada'
     return 'a_guarda_opc'
 
@@ -1201,13 +1503,13 @@ class ChainOfCustody(models.Model):
     CustodianType = CustodianType
 
     code = models.CharField(
-        max_length=20,
+        max_length=32,
         unique=True,
         blank=True,
         default='',
         db_index=True,
-        verbose_name='Código da transição',
-        help_text='Gerado automaticamente no formato CC-YYYY-NNNNN.',
+        verbose_name='Código do movimento',
+        help_text='Movimento do item: {código do item}-M{sequência} (ex.: OC-2026-0001.1-M01).',
     )
     evidence = models.ForeignKey(
         Evidence,
@@ -1216,7 +1518,7 @@ class ChainOfCustody(models.Model):
         verbose_name='Evidência',
     )
     event_type = models.CharField(
-        max_length=20,
+        max_length=25,
         choices=EventType.choices,
         verbose_name='Tipo de evento',
     )
@@ -1226,6 +1528,27 @@ class ChainOfCustody(models.Model):
         blank=True,
         default='',
         verbose_name='Custódio após o evento',
+    )
+    custodian_institution = models.ForeignKey(
+        'Institution',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custody_events',
+        verbose_name='Instituição custódia (titular)',
+        help_text='Instituição à guarda de quem o item fica após o evento (ADR-0017).',
+    )
+    custodian_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custody_holdings',
+        verbose_name='Custódio pessoal após o evento',
+        help_text=(
+            'Pessoa que detém ativamente o item após o evento. Null = custódia '
+            'institucional (armazenado; qualquer membro pode assumir) — ADR-0017.'
+        ),
     )
     location_name = models.CharField(
         max_length=255,
@@ -1278,6 +1601,33 @@ class ChainOfCustody(models.Model):
         blank=True,
         default='',
         verbose_name='Observações',
+    )
+    # --- Selagem por-evento (a cada handover — ADR-0016 §4) ---
+    sealed = models.BooleanField(
+        default=False,
+        verbose_name='Selado',
+    )
+    seal_condition_on_receipt = models.CharField(
+        max_length=20,
+        choices=Evidence.SealCondition.choices,
+        blank=True,
+        default='',
+        verbose_name='Condição do selo na receção',
+    )
+    new_seal_number = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Novo número de selo',
+        help_text='Re-selagem gera um novo número (o selo não é fixo por item).',
+    )
+    relinquished_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custody_relinquishments',
+        verbose_name='Entregue por',
     )
     record_hash = models.CharField(
         max_length=64,
@@ -1335,13 +1685,76 @@ class ChainOfCustody(models.Model):
         )
         prior_types = [r.event_type for r in prior]
 
-        # 1.º evento tem de ser APREENSAO; APREENSAO só pode ser o 1.º.
-        if not prior and self.event_type != EventType.APREENSAO:
+        evidence = self.evidence
+
+        # Génese (1.º evento): exatamente um evento de génese, na posição 1,
+        # coerente com a proveniência da evidência (ADR-0016 §2).
+        if not prior:
+            if self.event_type not in GENESIS_EVENTS:
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'O primeiro evento tem de ser de génese (apreensão de '
+                            'objeto/dados ou derivação de item).'
+                        )
+                    }
+                )
+            # APREENSAO_DADOS só para DIGITAL_FILE (cópia em suporte autónomo).
+            if (
+                self.event_type == EventType.APREENSAO_DADOS
+                and evidence.type != Evidence.EvidenceType.DIGITAL_FILE
+            ):
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'APREENSAO_DADOS só é válida para evidência do tipo '
+                            'DIGITAL_FILE (cópia de dados).'
+                        )
+                    }
+                )
+            # DERIVACAO_ITEM só para sub-componente (tem evidência-pai).
+            if (
+                self.event_type == EventType.DERIVACAO_ITEM
+                and evidence.parent_evidence_id is None
+            ):
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'DERIVACAO_ITEM só é válida como génese de um '
+                            'sub-componente (com evidência-pai).'
+                        )
+                    }
+                )
+            # APREENSAO_OBJETO só para item-raiz (sub-componentes derivam-se).
+            if (
+                self.event_type == EventType.APREENSAO_OBJETO
+                and evidence.parent_evidence_id is not None
+            ):
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'Um sub-componente (com evidência-pai) entra por '
+                            'DERIVACAO_ITEM, não por APREENSAO_OBJETO.'
+                        )
+                    }
+                )
+            # Derivação de pai com evento terminal é proibida (ADR-0016 edge 2).
+            if self.event_type == EventType.DERIVACAO_ITEM and ChainOfCustody.objects.filter(
+                evidence_id=evidence.parent_evidence_id,
+                event_type__in=TERMINAL_EVENTS,
+            ).exists():
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'Não se autonomiza um componente de prova já '
+                            'restituída/destruída (evidência-pai fechada).'
+                        )
+                    }
+                )
+        elif self.event_type in GENESIS_EVENTS:
             raise ValidationError(
-                {'event_type': 'O primeiro evento de uma evidência tem de ser APREENSAO.'}
+                {'event_type': 'Um evento de génese só pode ser o primeiro evento.'}
             )
-        if prior and self.event_type == EventType.APREENSAO:
-            raise ValidationError({'event_type': 'APREENSAO só pode ser o primeiro evento.'})
 
         # Terminais fecham o ledger — nenhum evento depois de RESTITUICAO/DESTRUICAO,
         # em QUALQUER posição (semântica de presença, ADR-0015; robusto a sequences
@@ -1356,15 +1769,21 @@ class ChainOfCustody(models.Model):
                 }
             )
 
-        # VALIDACAO: exige APREENSAO prévia, só uma vez, prazo ≤72h (assinalado).
-        if self.event_type == EventType.VALIDACAO:
-            if EventType.APREENSAO not in prior_types:
-                raise ValidationError({'event_type': 'VALIDACAO requer uma APREENSAO prévia.'})
-            if EventType.VALIDACAO in prior_types:
-                raise ValidationError({'event_type': 'A apreensão só pode ser validada uma vez.'})
-            apreensao = next(r for r in prior if r.event_type == EventType.APREENSAO)
+        # VALIDACAO_APREENSAO: exige apreensão prévia, uma vez, ≤72h (assinalado).
+        if self.event_type == EventType.VALIDACAO_APREENSAO:
+            seizure = next(
+                (r for r in prior if r.event_type in SEIZURE_GENESIS_EVENTS), None
+            )
+            if seizure is None:
+                raise ValidationError(
+                    {'event_type': 'VALIDACAO_APREENSAO requer uma apreensão prévia.'}
+                )
+            if EventType.VALIDACAO_APREENSAO in prior_types:
+                raise ValidationError(
+                    {'event_type': 'A apreensão só pode ser validada uma vez.'}
+                )
             ts = self.timestamp or timezone.now()
-            self.validation_overdue = ts - apreensao.timestamp > VALIDATION_DEADLINE
+            self.validation_overdue = ts - seizure.timestamp > VALIDATION_DEADLINE
 
         # INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º).
         if (
@@ -1403,11 +1822,13 @@ class ChainOfCustody(models.Model):
         recalcular o hash a partir dos campos relidos da BD e do hash do
         registo anterior, verificando a integridade da cadeia (ISO/IEC 27037).
 
-        Fórmula (13 segmentos por ``|``, ordem fixa — contrato irreversível):
+        Fórmula (17 segmentos por ``|``, ordem fixa — contrato irreversível):
 
             previous_hash | seq=N | evidence_id | event_type | custodian_type |
             agent_id | timestamp_iso | gps_lat | gps_lng | gps_accuracy_m |
-            esc(location_name) | esc(storage_location) | observations
+            esc(location_name) | esc(storage_location) | observations |
+            sealed=0/1 | seal_condition_on_receipt | esc(new_seal_number) |
+            relinquished_by_id   (selo por-evento — ADR-0016 §6)
 
         Regras de serialização (ADR-0013):
         - Todos os campos entram SEMPRE; campo ``None`` → string vazia
@@ -1448,6 +1869,11 @@ class ChainOfCustody(models.Model):
             f'{_hash_escape(self.location_name)}|'
             f'{_hash_escape(self.storage_location)}|'
             f'{self.observations}'
+            # Campos de selo por-evento (ADR-0016 §6).
+            f'|sealed={int(self.sealed)}'
+            f'|sealcond={self.seal_condition_on_receipt}'
+            f'|newseal={_hash_escape(self.new_seal_number)}'
+            f'|relinq={self.relinquished_by_id or ""}'
         )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
@@ -1509,11 +1935,10 @@ class ChainOfCustody(models.Model):
                     self.timestamp = timezone.now()
 
                     if not self.code:
-                        self.code = _next_yearly_code(
-                            'CC',
-                            ChainOfCustody,
-                            year=self.timestamp.year,
-                        )
+                        # Código do movimento = {código do item}-M{sequência}
+                        # (ADR-0016 §1). Não há contador próprio da cadeia: a
+                        # identidade do movimento é a do item + o nº de sequência.
+                        self.code = f'{self.evidence.code}-M{self.sequence:02d}'
 
                     self.full_clean()
                     # Passar o hash explicitamente para a função ficar pura e
@@ -1530,7 +1955,7 @@ class ChainOfCustody(models.Model):
                 self.code = ''
                 self.pk = None
         raise RuntimeError(
-            'Não foi possível gerar um código CC-YYYY-NNNNN único após várias tentativas.'
+            'Não foi possível gerar um código de movimento único após várias tentativas.'
         )
 
     def delete(self, *args, **kwargs):

@@ -46,21 +46,22 @@ class DashboardBaseTestCase(TestCase):
         self.agent = User.objects.create_user(
             username='agente_dash',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             first_name='Ana',
             last_name='Silva',
         )
         self.other_agent = User.objects.create_user(
             username='agente_dash_2',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             first_name='Bruno',
             last_name='Mendes',
         )
         self.expert = User.objects.create_user(
             username='perito_dash',
             password='TestPass123!',
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
             first_name='Carlos',
             last_name='Costa',
         )
@@ -308,10 +309,10 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
         # Eventos de custódia: 3 nas últimas 24h, 0 nas anteriores.
         ev = EvidenceMobileFactory(agent=self.agent, occurrence=ancora)
         Evidence.objects.filter(pk=ev.pk).update(created_at=old)
-        # APREENSAO + DESPACHO_PERICIA + INICIO_PERICIA (sequência válida).
+        # APREENSAO_OBJETO + DESPACHO_PERICIA + INICIO_PERICIA (sequência válida).
         ChainOfCustody(
             evidence=ev,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
@@ -348,20 +349,20 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
         # ev_sem_custodia: activa (sem qualquer registo de custódia).
         EvidenceMobileFactory(agent=self.agent)
 
-        # ev_activa: APREENSAO (não terminal) → activa.
+        # ev_activa: APREENSAO_OBJETO (não terminal) → activa.
         ev_activa = EvidenceMobileFactory(agent=self.agent)
         ChainOfCustody(
             evidence=ev_activa,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
 
-        # ev_terminal: APREENSAO → RESTITUICAO (terminal) → NÃO activa.
+        # ev_terminal: APREENSAO_OBJETO → RESTITUICAO (terminal) → NÃO activa.
         ev_terminal = EvidenceMobileFactory(agent=self.agent)
         ChainOfCustody(
             evidence=ev_terminal,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()

@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from . import access
 from .models import (
     AuditLog,
     ChainOfCustody,
@@ -39,25 +40,12 @@ User = get_user_model()
 
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
-    """Verifica se ``user`` pode operar sobre uma ``occurrence``.
+    """Acesso à OCORRÊNCIA para operar sobre o dossier (IDOR a nível de payload).
 
-    Política (ver ADR-0010 e permissions.py):
-    - Staff / superuser: acesso total (admin).
-    - EXPERT: acesso a todas as ocorrências (é a única forma de receber
-      custódia no laboratório e escrever no dossier).
-    - AGENT: apenas às ocorrências de que é responsável (``agent`` FK).
-    - Outros perfis autenticados: sem acesso.
+    Need-to-know derivado do ledger (ADR-0017) — fonte única em
+    :mod:`core.access`: titular, credencial nacional, ou autoridade do caso.
     """
-    if user is None or not user.is_authenticated:
-        return False
-    if getattr(user, 'is_staff', False):
-        return True
-    profile = getattr(user, 'profile', None)
-    if profile == 'EXPERT':
-        return True
-    if profile == 'AGENT':
-        return occurrence.agent_id == user.id
-    return False
+    return access.can_access_occurrence(user, occurrence)
 
 
 # ---------------------------------------------------------------------------
@@ -536,6 +524,8 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'sequence',
             'event_type',
             'custodian_type',
+            'custodian_institution',
+            'custodian_user',
             'location_name',
             'storage_location',
             'gps_lat',
@@ -546,6 +536,10 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'agent_name',
             'timestamp',
             'observations',
+            'sealed',
+            'seal_condition_on_receipt',
+            'new_seal_number',
+            'relinquished_by',
             'record_hash',
         ]
         read_only_fields = [
@@ -560,25 +554,25 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, attrs):
-        """Coerência GPS: lat e lng ambas presentes ou ambas ausentes."""
+        """Coerência GPS + gate de ESCRITA item-level (ADR-0017 §5)."""
         lat = attrs.get('gps_lat')
         lng = attrs.get('gps_lng')
         if (lat is None) != (lng is None):
             raise serializers.ValidationError(
                 'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
             )
-        return attrs
-
-    def validate_evidence(self, evidence):
-        """Só dono da ocorrência (AGENT), EXPERT ou staff registam custódia."""
         request = self.context.get('request')
-        if request is None or not request.user.is_authenticated:
-            return evidence
-        if not _user_can_access_occurrence(request.user, evidence.occurrence):
-            raise serializers.ValidationError(
-                'Não tem permissão para registar custódia nesta evidência.'
-            )
-        return evidence
+        evidence = attrs.get('evidence')
+        if request is not None and request.user.is_authenticated and evidence is not None:
+            if not access.can_append_custody(
+                request.user, evidence, attrs.get('event_type')
+            ):
+                raise serializers.ValidationError(
+                    'Não tem permissão para registar eventos de custódia neste item '
+                    '(ADR-0017): só o custódio atual, um membro da instituição que o '
+                    'detém, o perito ou a autoridade do caso.'
+                )
+        return attrs
 
 
 # ---------------------------------------------------------------------------
@@ -589,7 +583,7 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 class CascadeCustodyRequestSerializer(serializers.Serializer):
     """Payload do endpoint de eventos de custódia em cascata.
 
-    Permite registar o mesmo evento (ex.: ``TRANSFERENCIA`` para
+    Permite registar o mesmo evento (ex.: ``TRANSFERENCIA_CUSTODIA`` para
     ``LAB_PUBLICO`` no intake do ADR-0012) em N evidências (item-pai +
     sub-componentes) numa única operação atómica. As guardas do ledger e a
     validação de ownership são feitas por evidência dentro da view; este

@@ -43,7 +43,7 @@ def _make_agent(username='agente_pdf', badge='AGT-PDF-01'):
     return User.objects.create_user(
         username=username,
         password='TestPass123!',
-        profile=User.Profile.AGENT,
+        profile=User.Profile.FIRST_RESPONDER,
         badge_number=badge,
         first_name='Maria',
         last_name='Ferreira',
@@ -114,7 +114,7 @@ class PDFGenerationUnitTest(TestCase):
         # Adicionar evento de custódia
         ChainOfCustody.objects.create(
             evidence=self.evidence,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
             observations='Apreensão inicial.',
@@ -151,7 +151,8 @@ class PDFAPIEndpointTest(TestCase):
         cls.expert = User.objects.create_user(
             username='perito_api_pdf',
             password='TestPass123!',
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
         )
         cls.occurrence = _make_occurrence(cls.agent, 'OCC-API-PDF-001')
         cls.evidence = _make_evidence(cls.occurrence, cls.agent)
@@ -357,19 +358,19 @@ class PdfNoNPlusOneTest(TestCase):
             # transferência para laboratório (3 eventos por evidência).
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=ChainOfCustody.EventType.APREENSAO,
+                event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
                 custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
             )
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=ChainOfCustody.EventType.VALIDACAO,
+                event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
                 custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
             )
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=ChainOfCustody.EventType.TRANSFERENCIA,
+                event_type=ChainOfCustody.EventType.TRANSFERENCIA_CUSTODIA,
                 custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
                 agent=cls.agent,
             )

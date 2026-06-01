@@ -661,7 +661,7 @@ class SerializerEdgeCasesTest(APITestCase):
         self.assertIsNotNone(resp.data.get('code'))
         # Formato gerado por core/models.py:Evidence.save() — ITM-YYYY-NNNNN
         # (ITM = item; o prefixo original "EVI-" foi renomeado em PR posterior).
-        self.assertRegex(resp.data['code'], r'^ITM-\d{4}-\d{5}$')
+        self.assertRegex(resp.data['code'], r'^OC-\d{4}-\d{4}\.\d+$')
 
 
 # =========================================================================
@@ -762,7 +762,7 @@ class OccurrenceCodeTest(APITestCase):
         )
         self.assertEqual(resp.status_code, 201)
         self.assertIsNotNone(resp.data.get('code'))
-        self.assertTrue(resp.data['code'].startswith('OCC-'))
+        self.assertTrue(resp.data['code'].startswith('OC-'))
 
     def test_occurrence_codes_are_unique(self):
         for i in range(3):
@@ -815,8 +815,8 @@ class SeedDemoUsersOnlyTest(TestCase):
 
         agent = User.objects.get(username='smoke-agent')
         expert = User.objects.get(username='smoke-expert')
-        self.assertEqual(agent.profile, User.Profile.AGENT)
-        self.assertEqual(expert.profile, User.Profile.EXPERT)
+        self.assertEqual(agent.profile, User.Profile.FIRST_RESPONDER)
+        self.assertEqual(expert.profile, User.Profile.FORENSIC_EXPERT)
         self.assertFalse(agent.is_superuser)
         self.assertFalse(expert.is_superuser)
         self.assertTrue(agent.check_password('SmokeAgent1!'))

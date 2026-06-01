@@ -13,7 +13,7 @@ Cobertura da view `/occurrences/<id>/intake/`:
   - código da ocorrência
   - contagem de evidências esperadas
   - 1 checkbox por evidência (com `disabled` se já recebida)
-  - target_state = TRANSFERENCIA (evento → LAB_PUBLICO, ADR-0015)
+  - target_state = TRANSFERENCIA_CUSTODIA (evento → LAB_PUBLICO, ADR-0015)
 
 A submissão real (POST a `/api/custody/cascade/`) é coberta pelos
 testes existentes do cascade endpoint — este ficheiro só valida a
@@ -36,7 +36,7 @@ User = get_user_model()
 from core.tests_factories import CrimeTipoFactory
 
 
-def _make_user(username, profile='AGENT', is_staff=False, is_superuser=False):
+def _make_user(username, profile='FIRST_RESPONDER', is_staff=False, is_superuser=False):
     user = User.objects.create_user(
         username=username,
         password='TestPass123!',
@@ -140,32 +140,32 @@ class OccurrenceIntakeRenderTest(TestCase):
         cls.ev_in_transit = _make_evidence(cls.occurrence, cls.agent, 'SN-TRA-1')
         cls.ev_received = _make_evidence(cls.occurrence, cls.agent, 'SN-RCV-1')
         # Ledger de eventos (ADR-0015):
-        # - pending  → só APREENSAO          (estado derivado: a_guarda_opc)
-        # - in_transit → APREENSAO+VALIDACAO (estado derivado: validada)
-        # - received → APREENSAO+TRANSFERENCIA→LAB_PUBLICO (encaminhada =
+        # - pending  → só APREENSAO_OBJETO          (estado derivado: a_guarda_opc)
+        # - in_transit → APREENSAO_OBJETO+VALIDACAO_APREENSAO (estado derivado: validada)
+        # - received → APREENSAO_OBJETO+TRANSFERENCIA_CUSTODIA→LAB_PUBLICO (encaminhada =
         #   "já recebida" no intake).
         ChainOfCustody.objects.create(
             evidence=cls.ev_pending,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=cls.agent,
         )
         for ev in (cls.ev_in_transit, cls.ev_received):
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=ChainOfCustody.EventType.APREENSAO,
+                event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
                 custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
             )
         ChainOfCustody.objects.create(
             evidence=cls.ev_in_transit,
-            event_type=ChainOfCustody.EventType.VALIDACAO,
+            event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=cls.agent,
         )
         ChainOfCustody.objects.create(
             evidence=cls.ev_received,
-            event_type=ChainOfCustody.EventType.TRANSFERENCIA,
+            event_type=ChainOfCustody.EventType.TRANSFERENCIA_CUSTODIA,
             custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
             agent=cls.agent,
         )
@@ -203,5 +203,5 @@ class OccurrenceIntakeRenderTest(TestCase):
 
     def test_template_inclui_target_state(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        # Intake regista um evento TRANSFERENCIA (→ LAB_PUBLICO) em lote.
-        self.assertIn(b'TRANSFERENCIA', response.content)
+        # Intake regista um evento TRANSFERENCIA_CUSTODIA (→ LAB_PUBLICO) em lote.
+        self.assertIn(b'TRANSFERENCIA_CUSTODIA', response.content)

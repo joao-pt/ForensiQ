@@ -62,7 +62,7 @@ class _Fixture:
         cls.agent = User.objects.create_user(
             username='agente_exif',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-EXIF-01',
         )
         cls.occurrence = Occurrence.objects.create(

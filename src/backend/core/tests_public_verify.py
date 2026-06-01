@@ -30,7 +30,7 @@ User = get_user_model()
 from core.tests_factories import CrimeTipoFactory
 
 
-def _make_user(username, profile='AGENT', password='TestPass123!'):
+def _make_user(username, profile='FIRST_RESPONDER', password='TestPass123!'):
     return User.objects.create_user(
         username=username,
         password=password,

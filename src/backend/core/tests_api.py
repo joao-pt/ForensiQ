@@ -40,7 +40,7 @@ class BaseAPITestCase(TestCase):
         self.agent = User.objects.create_user(
             username='agente_api',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-API-01',
             first_name='Ana',
             last_name='Silva',
@@ -48,7 +48,8 @@ class BaseAPITestCase(TestCase):
         self.expert = User.objects.create_user(
             username='perito_api',
             password='TestPass123!',
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
             first_name='Carlos',
             last_name='Costa',
         )
@@ -160,7 +161,7 @@ class UserAPITest(BaseAPITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['username'], 'agente_api')
-        self.assertEqual(response.data['profile'], 'AGENT')
+        self.assertEqual(response.data['profile'], 'FIRST_RESPONDER')
 
     def test_create_user_requires_admin(self):
         """Apenas administradores podem criar utilizadores."""
@@ -171,7 +172,7 @@ class UserAPITest(BaseAPITestCase):
             {
                 'username': 'novo_agente',
                 'password': 'NovoPass123!',
-                'profile': 'AGENT',
+                'profile': 'FIRST_RESPONDER',
             },
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -185,7 +186,7 @@ class UserAPITest(BaseAPITestCase):
             {
                 'username': 'novo_agente',
                 'password': 'NovoPass123!',
-                'profile': 'AGENT',
+                'profile': 'FIRST_RESPONDER',
                 'badge_number': 'AGT-NEW-01',
             },
         )
@@ -328,14 +329,14 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         )
 
     def test_agent_creates_first_custody_record(self):
-        """AGENT pode criar o primeiro evento (APREENSAO)."""
+        """AGENT pode criar o primeiro evento (APREENSAO_OBJETO)."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
         response = self.client.post(
             url,
             {
                 'evidence': self.evidence.pk,
-                'event_type': 'APREENSAO',
+                'event_type': 'APREENSAO_OBJETO',
                 'custodian_type': 'OPC',
                 'observations': 'Apreensão no local do crime.',
             },
@@ -349,7 +350,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         # Sequência prévia pelo agente.
         ChainOfCustody(
             evidence=self.evidence,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
@@ -377,7 +378,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """PUT não é permitido (append-only)."""
         ChainOfCustody(
             evidence=self.evidence,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             agent=self.agent,
         ).save()
 
@@ -388,7 +389,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
             url,
             {
                 'evidence': self.evidence.pk,
-                'event_type': 'APREENSAO',
+                'event_type': 'APREENSAO_OBJETO',
                 'observations': 'Alteração bloqueada.',
             },
         )
@@ -398,7 +399,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """DELETE não é permitido (append-only)."""
         ChainOfCustody(
             evidence=self.evidence,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             agent=self.agent,
         ).save()
 
@@ -409,14 +410,14 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
     def test_invalid_first_event_returns_400(self):
-        """Primeiro evento ≠ APREENSAO é rejeitado pela guarda do ledger (400)."""
+        """Primeiro evento ≠ APREENSAO_OBJETO é rejeitado pela guarda do ledger (400)."""
         self.authenticate_as(self.agent)
         url = reverse('core:custody-list')
         response = self.client.post(
             url,
             {
                 'evidence': self.evidence.pk,
-                'event_type': 'VALIDACAO',  # Inválido — 1.º evento tem de ser APREENSAO
+                'event_type': 'VALIDACAO_APREENSAO',  # Inválido — 1.º evento tem de ser APREENSAO_OBJETO
                 'observations': 'Evento inválido.',
             },
         )
@@ -426,13 +427,13 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         """Endpoint timeline retorna histórico ordenado."""
         ChainOfCustody(
             evidence=self.evidence,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
         ChainOfCustody(
             evidence=self.evidence,
-            event_type=ChainOfCustody.EventType.VALIDACAO,
+            event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
@@ -443,8 +444,8 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
         # Ordenação canónica por sequence.
-        self.assertEqual(response.data[0]['event_type'], 'APREENSAO')
-        self.assertEqual(response.data[1]['event_type'], 'VALIDACAO')
+        self.assertEqual(response.data[0]['event_type'], 'APREENSAO_OBJETO')
+        self.assertEqual(response.data[1]['event_type'], 'VALIDACAO_APREENSAO')
 
 
 # ---------------------------------------------------------------------------
@@ -464,7 +465,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
         self.agent_b = User.objects.create_user(
             username='agente_b_api',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-API-02',
             first_name='Bruno',
             last_name='Santos',
@@ -684,8 +685,8 @@ class EndToEndFlowTest(BaseAPITestCase):
         1. Autenticação como agente
         2. Criar ocorrência com coordenadas GPS
         3. Criar evidência ligada à ocorrência
-        4. Registar evento APREENSAO (agente)
-        5. Registar evento VALIDACAO (agente)
+        4. Registar evento APREENSAO_OBJETO (agente)
+        5. Registar evento VALIDACAO_APREENSAO (agente)
         6. Trocar para utilizador perito
         7. Registar evento DESPACHO_PERICIA → INICIO_PERICIA (perito)
         8. Exportar PDF da evidência
@@ -728,35 +729,35 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(len(evidence_response.data['integrity_hash']), 64)
         self.assertRegex(evidence_response.data['integrity_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 4: Registar evento APREENSAO ---
+        # --- STEP 4: Registar evento APREENSAO_OBJETO ---
         custody_url = reverse('core:custody-list')
         custody_response_1 = self.client.post(
             custody_url,
             {
                 'evidence': evidence_id,
-                'event_type': 'APREENSAO',
+                'event_type': 'APREENSAO_OBJETO',
                 'custodian_type': 'OPC',
                 'observations': 'Apreensão no local do crime. Dispositivo selado.',
             },
         )
         self.assertEqual(custody_response_1.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(custody_response_1.data['event_type'], 'APREENSAO')
+        self.assertEqual(custody_response_1.data['event_type'], 'APREENSAO_OBJETO')
         # Verificar hash do registo
         self.assertEqual(len(custody_response_1.data['record_hash']), 64)
         self.assertRegex(custody_response_1.data['record_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 5: Registar evento VALIDACAO ---
+        # --- STEP 5: Registar evento VALIDACAO_APREENSAO ---
         custody_response_2 = self.client.post(
             custody_url,
             {
                 'evidence': evidence_id,
-                'event_type': 'VALIDACAO',
+                'event_type': 'VALIDACAO_APREENSAO',
                 'custodian_type': 'OPC',
                 'observations': 'Apreensão validada pela autoridade judiciária.',
             },
         )
         self.assertEqual(custody_response_2.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(custody_response_2.data['event_type'], 'VALIDACAO')
+        self.assertEqual(custody_response_2.data['event_type'], 'VALIDACAO_APREENSAO')
         self.assertEqual(len(custody_response_2.data['record_hash']), 64)
 
         # --- STEP 6: Trocar para utilizador perito ---
@@ -802,9 +803,9 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(timeline_response.status_code, status.HTTP_200_OK)
         # Deve haver 4 registos
         self.assertEqual(len(timeline_response.data['results']), 4)
-        # Verificar ordem: APREENSAO, VALIDACAO, DESPACHO_PERICIA, INICIO_PERICIA
-        self.assertEqual(timeline_response.data['results'][0]['event_type'], 'APREENSAO')
-        self.assertEqual(timeline_response.data['results'][1]['event_type'], 'VALIDACAO')
+        # Verificar ordem: APREENSAO_OBJETO, VALIDACAO_APREENSAO, DESPACHO_PERICIA, INICIO_PERICIA
+        self.assertEqual(timeline_response.data['results'][0]['event_type'], 'APREENSAO_OBJETO')
+        self.assertEqual(timeline_response.data['results'][1]['event_type'], 'VALIDACAO_APREENSAO')
         self.assertEqual(timeline_response.data['results'][2]['event_type'], 'DESPACHO_PERICIA')
         self.assertEqual(timeline_response.data['results'][3]['event_type'], 'INICIO_PERICIA')
 
@@ -1466,7 +1467,7 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
         # Criar primeiro evento do ledger
         self.custody = ChainOfCustody.objects.create(
             evidence=self.evidence,
-            event_type='APREENSAO',
+            event_type='APREENSAO_OBJETO',
             custodian_type='OPC',
             agent=self.agent,
         )
@@ -1479,7 +1480,7 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
             url,
             {
                 'evidence': self.evidence.pk,
-                'event_type': 'VALIDACAO',
+                'event_type': 'VALIDACAO_APREENSAO',
                 'observations': 'Tentativa de PUT.',
             },
         )
@@ -1507,12 +1508,12 @@ class CustodyImmutabilityAPITest(BaseAPITestCase):
             url,
             {
                 'evidence': self.evidence.pk,
-                'event_type': 'VALIDACAO',
+                'event_type': 'VALIDACAO_APREENSAO',
                 'observations': 'Adulteração.',
             },
         )
         self.custody.refresh_from_db()
-        self.assertEqual(self.custody.event_type, 'APREENSAO')
+        self.assertEqual(self.custody.event_type, 'APREENSAO_OBJETO')
         self.assertNotEqual(self.custody.observations, 'Adulteração.')
 
     def test_custody_hash_integrity_preserved(self):
@@ -1550,7 +1551,7 @@ class CsrfCookieFlowTest(TestCase):
         self.agent = User.objects.create_user(
             username='ag_csrf',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-CSRF-01',
         )
         self.occ = Occurrence.objects.create(
@@ -1585,7 +1586,7 @@ class CsrfCookieFlowTest(TestCase):
     def _custody_payload(self):
         return {
             'evidence': self.evidence.pk,
-            'event_type': 'APREENSAO',
+            'event_type': 'APREENSAO_OBJETO',
             'custodian_type': 'OPC',
             'observations': 'Apreensão no local (teste CSRF).',
         }

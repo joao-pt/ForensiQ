@@ -3,7 +3,8 @@
 O comando suporta três modos:
 
 * ``--users-only`` cria/actualiza apenas os dois utilizadores demo
-  (perfis AGENT e EXPERT). Idempotente, não destrutivo.
+  (FIRST_RESPONDER e FORENSIC_EXPERT) e as instituições base. Idempotente,
+  não destrutivo.
 * ``--reset`` apaga TODOS os dados em ``core_*`` e recria utilizadores +
   cinco ocorrências realistas com cadeia de custódia em vários estados.
 * Sem flags: comporta-se como ``--reset`` se a base estiver vazia. Se já
@@ -39,6 +40,7 @@ Exemplos:
 from __future__ import annotations
 
 import getpass
+import hashlib
 import shutil
 from datetime import timedelta
 from decimal import Decimal
@@ -63,6 +65,9 @@ from core.models import (
     CustodianType,
     EventType,
     Evidence,
+    Institution,
+    InstitutionMembership,
+    InstitutionType,
     Occurrence,
 )
 
@@ -131,8 +136,9 @@ def _make_placeholder_photo(evidence_type: str, label: str, sub: str) -> Content
 
 class Command(BaseCommand):
     help = (
-        'Seed interactivo: cria utilizadores demo (AGENT/EXPERT) e, com '
-        '--reset, popula a BD com cinco ocorrências realistas + itens.'
+        'Seed interactivo: cria utilizadores demo (FIRST_RESPONDER/'
+        'FORENSIC_EXPERT) + instituições e, com --reset, popula a BD com '
+        'cinco ocorrências realistas + itens.'
     )
 
     def add_arguments(self, parser):
@@ -215,7 +221,8 @@ class Command(BaseCommand):
         agent = self._upsert_user(
             username=agent_username,
             password=agent_password,
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
+            clearance=User.Clearance.NORMAL,
             first_name='Agente',
             last_name='Demo',
             email=f'{agent_username}@forensiq.demo',
@@ -224,19 +231,23 @@ class Command(BaseCommand):
         expert = self._upsert_user(
             username=expert_username,
             password=expert_password,
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
             first_name='Perito',
             last_name='Demo',
             email=f'{expert_username}@forensiq.demo',
             badge_number='EXPERT-DEMO',
         )
 
+        # Organização (ADR-0017): instituições custódias básicas + pertenças.
+        institutions = self._seed_organizations(agent, expert)
+
         if users_only:
             self._print_summary([agent, expert], cases_created=False)
             return
 
         # Modo --reset (acabámos de truncar) ou BD vazia → criar cases.
-        cases = self._create_cases(agent, expert)
+        cases = self._create_cases(agent, expert, institutions)
         self._print_summary([agent, expert], cases_created=True, cases=cases)
 
     # ----- helpers de input -----
@@ -285,6 +296,40 @@ class Command(BaseCommand):
         self.stdout.write(f"   Utilizador '{username}' [{verb}, perfil={defaults['profile']}].")
         return user
 
+    def _seed_organizations(self, agent, expert):
+        """Cria instituições custódias básicas e liga os utilizadores (ADR-0017).
+
+        A custódia é institucional: o agente pertence a um OPC, o perito a um
+        laboratório público. Tribunal e serviço do MP ficam disponíveis para
+        os fluxos de encaminhamento/validação. Idempotente.
+        """
+        specs = [
+            ('Polícia de Segurança Pública — Esquadra de Lisboa', InstitutionType.OPC, 'PSP-LSB'),
+            ('Laboratório de Polícia Científica', InstitutionType.LAB_PUBLICO, 'LPC'),
+            ('Tribunal Judicial da Comarca de Lisboa', InstitutionType.TRIBUNAL, 'TJ-LSB'),
+            ('DIAP de Lisboa', InstitutionType.MP, 'DIAP-LSB'),
+        ]
+        institutions = {}
+        for name, type_, sigla in specs:
+            inst, _ = Institution.objects.update_or_create(
+                name=name,
+                type=type_,
+                defaults={'sigla': sigla, 'is_active': True},
+            )
+            institutions[sigla] = inst
+
+        for user, inst in ((agent, institutions['PSP-LSB']), (expert, institutions['LPC'])):
+            InstitutionMembership.objects.update_or_create(
+                user=user,
+                institution=inst,
+                defaults={'is_active': True},
+            )
+        self.stdout.write(
+            f'   Instituições: {len(institutions)} criadas/actualizadas; '
+            f'pertenças: {agent.username}@PSP-LSB, {expert.username}@LPC.'
+        )
+        return institutions
+
     @transaction.atomic
     def _reset_database(self, *, wipe_media):
         self.stdout.write(self.style.WARNING('A apagar dados existentes...'))
@@ -322,7 +367,7 @@ class Command(BaseCommand):
 
     # ----- criação de casos forenses -----
 
-    def _create_cases(self, agent, expert):
+    def _create_cases(self, agent, expert, institutions):
         """Cria 5 ocorrências realistas com itens e cadeia de custódia."""
         self.stdout.write('A criar ocorrências e itens...')
 
@@ -359,6 +404,11 @@ class Command(BaseCommand):
             serial_number='F2LXV3PJ9K',
             agent=agent,
             type_specific_data={'imei': '353918023456789'},
+            bag_number='SACO-2026-0001',
+            initial_seal_number='SELO-2026-0001',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.MOBILE_DEVICE,
                 'Lisboa · 01',
@@ -389,8 +439,8 @@ class Command(BaseCommand):
                 c1,
                 [e1a, e1b],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 ],
             )
         )
@@ -419,6 +469,15 @@ class Command(BaseCommand):
             gps_lng=Decimal('-8.6109'),
             serial_number='C02ABCDEFGHJ',
             agent=agent,
+            bag_number='SACO-2026-0002',
+            initial_seal_number='SELO-2026-0002',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
+            acquisition_hash=hashlib.sha256(b'aquisicao-C02ABCDEFGHJ').hexdigest(),
+            acquisition_hash_algo='SHA-256',
+            acquisition_verification_status=Evidence.AcquisitionVerification.VERIFICADO,
+            acquisition_verification_note='Cópia forense verificada (source == cópia) no terreno.',
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.COMPUTER,
                 'Porto · 01',
@@ -435,6 +494,11 @@ class Command(BaseCommand):
             serial_number='RZ8M407JKLM',
             agent=agent,
             type_specific_data={'imei': '358412345987650'},
+            bag_number='SACO-2026-0003',
+            initial_seal_number='SELO-2026-0003',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.MOBILE_DEVICE,
                 'Porto · 02',
@@ -463,10 +527,10 @@ class Command(BaseCommand):
                 c2,
                 [e2a, e2b, e2c],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                     (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
                     (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 ],
             )
@@ -495,6 +559,15 @@ class Command(BaseCommand):
             gps_lng=None,
             serial_number='NA8ABCDXYZ',
             agent=agent,
+            bag_number='SACO-2026-0004',
+            initial_seal_number='SELO-2026-0004',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
+            acquisition_hash=hashlib.sha256(b'aquisicao-NA8ABCDXYZ').hexdigest(),
+            acquisition_hash_algo='SHA-256',
+            acquisition_verification_status=Evidence.AcquisitionVerification.VERIFICADO,
+            acquisition_verification_note='Cópia forense verificada (source == cópia) no terreno.',
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.STORAGE_MEDIA,
                 'Coimbra · 01',
@@ -507,10 +580,10 @@ class Command(BaseCommand):
                 c3,
                 [e3],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                     (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
                     (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                     (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
                     (EventType.RESTITUICAO, CustodianType.PROPRIETARIO),
@@ -541,6 +614,11 @@ class Command(BaseCommand):
             gps_lng=Decimal('-8.4265'),
             serial_number='1581F5A0B0C0D',
             agent=agent,
+            bag_number='SACO-2026-0005',
+            initial_seal_number='SELO-2026-0005',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.DRONE,
                 'Braga · 01',
@@ -569,9 +647,9 @@ class Command(BaseCommand):
                 c4,
                 [e4a, e4b],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
+                    (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
                 ],
             )
         )
@@ -601,6 +679,11 @@ class Command(BaseCommand):
             serial_number='WAUZZZ8E5BA123456',
             agent=agent,
             type_specific_data={'vin': '1HGBH41JXMN109186'},
+            bag_number='SACO-2026-0006',
+            initial_seal_number='SELO-2026-0006',
+            seal_packaging_description='Viatura selada e imobilizada no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.VEHICLE,
                 'Faro · 01',
@@ -662,32 +745,60 @@ class Command(BaseCommand):
                 c5,
                 [e5a, e5b, e5c, e5d],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 ],
             )
         )
 
         # Ledger de eventos — registar a sequência coerente de cada item.
-        # ChainOfCustody.timestamp é sempre fixado em save() via
-        # timezone.now() (NTP-synced server-side, ISO/IEC 27037).
-        # A ordem canónica é dada pelo campo sequence (auto-incrementado).
-        # Eventos no laboratório são da responsabilidade do perito (EXPERT).
+        # ChainOfCustody.timestamp é sempre fixado em save() via timezone.now()
+        # (NTP-synced server-side, ISO/IEC 27037); a ordem canónica é dada pelo
+        # campo sequence. A custódia é institucional (ADR-0017): cada evento
+        # carrega a instituição titular + a pessoa que detém/assina. A génese
+        # depende da proveniência (ADR-0016 §2): objeto físico → APREENSAO_OBJETO;
+        # cópia de dados → APREENSAO_DADOS; sub-componente → DERIVACAO_ITEM (e a
+        # sua cadeia começa na derivação, sem validação própria).
         lab_custodians = (CustodianType.LAB_PUBLICO, CustodianType.LAB_PRIVADO)
+        ct_to_inst = {
+            CustodianType.OPC: institutions.get('PSP-LSB'),
+            CustodianType.LAB_PUBLICO: institutions.get('LPC'),
+            CustodianType.LAB_PRIVADO: institutions.get('LPC'),
+            CustodianType.TRIBUNAL: institutions.get('TJ-LSB'),
+        }
         for _occurrence, evidences, eventos in cases:
             for ev in evidences:
-                for event_type, custodian_type in eventos:
-                    record = ChainOfCustody(
+                if ev.parent_evidence_id is not None:
+                    # Sub-componente: génese por derivação (cadeia própria mínima).
+                    custodian_type = eventos[0][1] if eventos else CustodianType.OPC
+                    ChainOfCustody(
                         evidence=ev,
-                        event_type=event_type,
+                        event_type=EventType.DERIVACAO_ITEM,
                         custodian_type=custodian_type,
-                        agent=expert if custodian_type in lab_custodians else agent,
-                        observations=(
-                            f'Evento de demonstração: {event_type} '
-                            f'(custódio {custodian_type}).'
-                        ),
-                    )
-                    record.save()
+                        custodian_institution=ct_to_inst.get(custodian_type),
+                        custodian_user=agent,
+                        agent=agent,
+                        observations='Sub-componente autonomizado a partir do item-pai.',
+                    ).save()
+                    continue
+
+                genesis = (
+                    EventType.APREENSAO_DADOS
+                    if ev.type == Evidence.EvidenceType.DIGITAL_FILE
+                    else EventType.APREENSAO_OBJETO
+                )
+                for idx, (event_type, custodian_type) in enumerate(eventos):
+                    et = genesis if idx == 0 else event_type
+                    acting = expert if custodian_type in lab_custodians else agent
+                    ChainOfCustody(
+                        evidence=ev,
+                        event_type=et,
+                        custodian_type=custodian_type,
+                        custodian_institution=ct_to_inst.get(custodian_type),
+                        custodian_user=acting,
+                        agent=acting,
+                        observations=f'Evento de demonstração: {et} (custódio {custodian_type}).',
+                    ).save()
 
         return cases
 
@@ -699,7 +810,7 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('SEED COMPLETO'))
         self.stdout.write(self.style.SUCCESS('=' * 60))
         for user in users:
-            self.stdout.write(f'   {user.profile:<8}  {user.username}')
+            self.stdout.write(f'   {user.profile:<18} {user.clearance:<9} {user.username}')
         self.stdout.write('')
         if cases_created and cases:
             num_items = sum(len(es) for _, es, _ in cases)

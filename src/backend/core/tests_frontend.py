@@ -28,7 +28,7 @@ class AuthenticatedFrontendTestCase(TestCase):
         cls.test_user = User.objects.create_user(
             username='test_agent',
             password='testpass123',
-            profile='AGENT',
+            profile='FIRST_RESPONDER',
         )
 
     def setUp(self):
