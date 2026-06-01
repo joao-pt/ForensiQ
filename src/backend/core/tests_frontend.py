@@ -109,18 +109,19 @@ class DashboardPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('cs-tile', content)
         self.assertIn('aria-label="Mapa de Portugal continental"', content)
 
-    def test_dashboard_contains_new_occurrence_cta(self):
-        """O painel deve oferecer ao agente o atalho de nova ocorrência.
+    def test_dashboard_has_no_new_occurrence_cta(self):
+        """O painel já NÃO tem o atalho de nova ocorrência (Lote 3, 2026-06).
 
-        Fase 3: as antigas caixas de acções separadas por papel
-        (``agent-actions``/``expert-actions``) foram substituídas por um
-        único CTA na hero — ``btn-new-occ`` para /occurrences/new/ — visível
-        a agentes e staff. O ``test_user`` é FIRST_RESPONDER, logo aparece.
+        Decisão do João: o registo de nova ocorrência sai do painel — este
+        fica focado na situação (mapa + estado da cadeia + atividade), sem
+        ações de entrada de dados. A entrada canónica vive na lista de
+        ocorrências (/occurrences/, ``btn-accent``), coberta pelo teste
+        ``test_occurrences_page_contains_new_button``.
         """
         response = self.client.get(reverse('dashboard'))
         content = response.content.decode('utf-8')
-        self.assertIn('class="btn-new-occ"', content)
-        self.assertIn('/occurrences/new/', content)
+        self.assertNotIn('btn-new-occ', content)
+        self.assertNotIn('/occurrences/new/', content)
 
     def test_dashboard_loads_auth_js(self):
         """A página do dashboard deve carregar o módulo auth.js."""
@@ -189,6 +190,57 @@ class OccurrencesPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('grid--clickable', content)
         self.assertIn('data-row', content)
         self.assertIn('hx-get="/occurrences/?drawer=', content)
+
+
+class OccurrencesFilterTest(AuthenticatedFrontendTestCase):
+    """Filtros da lista de ocorrências (Lote 2): categoria de crime N1 e datas.
+
+    Tranca a parte não-trivial: o join N3→N2→N1
+    (``crime_type__subcategoria__categoria_id``) e a filtragem por intervalo de
+    datas sobre ``date_time``. Os restantes filtros (prioridade) já existiam.
+    """
+
+    def test_filter_by_crime_category(self):
+        """``?cat=<id>`` mostra só as ocorrências dessa categoria N1."""
+        from core.tests_factories import (
+            CrimeCategoriaFactory,
+            CrimeSubcategoriaFactory,
+            CrimeTipoFactory,
+        )
+
+        occ1 = OccurrenceFactory(agent=self.test_user)
+        cat1 = occ1.crime_type.subcategoria.categoria
+        tipo2 = CrimeTipoFactory(
+            codigo=2,
+            subcategoria=CrimeSubcategoriaFactory(
+                codigo=2,
+                categoria=CrimeCategoriaFactory(codigo=2, nome='Outra categoria'),
+            ),
+        )
+        occ2 = OccurrenceFactory(agent=self.test_user, crime_type=tipo2)
+
+        response = self.client.get(f'/occurrences/?cat={cat1.id}')
+        content = response.content.decode('utf-8')
+        self.assertIn(occ1.number, content)
+        self.assertNotIn(occ2.number, content)
+
+    def test_filter_by_date_range(self):
+        """``?date_after=<hoje>`` exclui ocorrências anteriores ao intervalo."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        recent = OccurrenceFactory(agent=self.test_user)
+        old = OccurrenceFactory(
+            agent=self.test_user,
+            date_time=timezone.now() - timedelta(days=40),
+        )
+
+        today = timezone.now().date().isoformat()
+        response = self.client.get(f'/occurrences/?date_after={today}')
+        content = response.content.decode('utf-8')
+        self.assertIn(recent.number, content)
+        self.assertNotIn(old.number, content)
 
 
 class OccurrencesNewPageTest(AuthenticatedFrontendTestCase):

@@ -41,12 +41,31 @@
       <option value="{{ val }}" {% if event == val %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    <select name="custodian" aria-label="Filtrar por custódio">
+      <option value="">Custódio: todos</option>
+      {% for val, label in custodian_types %}
+      <option value="{{ val }}" {% if custodian == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="institution" aria-label="Filtrar por instituição">
+      <option value="">Instituição: todas</option>
+      {% for inst in institutions %}
+      <option value="{{ inst.id }}" {% if institution == inst.id|stringformat:"s" %}selected{% endif %}>{{ inst.sigla|default:inst.name }}</option>
+      {% endfor %}
+    </select>
+    <select name="state" aria-label="Filtrar por estado legal">
+      <option value="">Estado: todos</option>
+      {% for val, label in legal_state_choices %}
+      <option value="{{ val }}" {% if state == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Eventos desde" title="Eventos desde">
+    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Eventos até" title="Eventos até">
     <select name="sort" aria-label="Ordenar">
       <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
       <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigos</option>
       <option value="evidence" {% if sort == 'evidence' %}selected{% endif %}>Por item</option>
     </select>
-    <button type="submit" class="btn-ghost">Filtrar</button>
     <span class="toolbar__busy" id="cc-busy" aria-hidden="true"></span>
   </form>
 

@@ -103,8 +103,13 @@
    ============================================================ */
 .toolbar {
     display: flex;
+    /* flex-direction:row e margin:0 anulam EXPLICITAMENTE a .toolbar legada do
+       main.css (flex-direction:column + margin-bottom), que de outro modo vazava
+       para aqui (esta regra não os declarava) e empurrava o cabeçalho sticky. */
+    flex-direction: row;
     align-items: center;
     gap: var(--sp-2);
+    margin: 0;
     padding: var(--sp-2) var(--sp-4);
     border-bottom: 1px solid var(--border);
     background: var(--bg-subtle);
@@ -144,6 +149,10 @@
 }
 .toolbar select {
     height: 34px;
+    /* Cap de largura: o Chrome dimensiona o <select> à opção mais longa, e os
+       rótulos de categoria de crime são extensos — sem isto o dropdown estica e
+       desfigura a toolbar. O texto fechado trunca; a lista aberta mostra tudo. */
+    max-width: 220px;
     padding: 0 var(--sp-2);
     font-family: var(--font-sans);
     font-size: var(--fs-xs);
@@ -152,11 +161,25 @@
     border: 1px solid var(--border-input);
     border-radius: var(--r-2);
     cursor: pointer;
+    text-overflow: ellipsis;
 }
+.toolbar input[type="date"] {
+    height: 34px;
+    padding: 0 var(--sp-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    color: var(--text-muted);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-input);
+    border-radius: var(--r-2);
+    cursor: pointer;
+}
+.toolbar__date { max-width: 150px; }
 /* Controlos do toolbar a >=44px em mobile (pesquisa, prioridade, ordenação) */
 @media (max-width: 767px) {
     .toolbar input[type="search"],
     .toolbar input[type="text"],
+    .toolbar input[type="date"],
     .toolbar select { height: var(--min-touch); }
 }
 .toolbar__busy {
@@ -181,7 +204,12 @@
 .grid { width: 100%; min-width: max-content; border-collapse: collapse; font-size: var(--fs-sm); }
 .grid thead th {
     position: sticky;
-    top: 51px;                 /* abaixo da toolbar sticky (34px control + 2*8 padding) */
+    /* Offset = altura REAL da toolbar (medida por sticky-toolbar.js para
+       --toolbar-h). Substitui o antigo top:51px fixo, que assumia uma toolbar
+       de uma só linha e falhava quando ela embrulhava (mobile, drawer aberto,
+       ou com mais filtros) — colando o cabeçalho por cima da 1.ª linha. O 51px
+       fica como fallback até o JS medir. */
+    top: var(--toolbar-h, 51px);
     z-index: 1;
     text-align: left;
     padding: var(--sp-2) var(--sp-3);
@@ -498,11 +526,75 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-hint { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 2px; }
 .pri-hint--p1 { color: var(--danger); }
 .form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
+/* Modo terreno: a barra de ações acompanha o teclado virtual no telemóvel
+   (queixa do João: o teclado tapava os botões). --kb é medido por
+   field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal. */
+@media (max-width: 767px) {
+    .form-actions--sticky {
+        position: sticky;
+        bottom: var(--kb, 0px);
+        margin-top: var(--sp-4);
+        padding: var(--sp-3) var(--sp-4);
+        padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom));
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        z-index: 5;
+    }
+    .form-actions--sticky .btn-accent,
+    .form-actions--sticky .btn-ghost { flex: 1; min-height: var(--min-touch); }
+}
 .form-inline { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .form-check { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text); text-transform: none; letter-spacing: 0; cursor: pointer; }
 .form-check input { width: auto; }
 .geo-acc--flag { color: var(--danger); }
+.geo-acc--error { color: var(--danger); }
 .intake-meta { margin-top: var(--sp-4); }
+
+/* Picker de POIs próximos — lista de botões selecionáveis (fiável em mobile,
+   ao contrário do <datalist>). A escolha escreve no input location_name. */
+.poi-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: var(--sp-2);
+    max-height: 220px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    background: var(--bg-subtle);
+}
+.poi-chip {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    width: 100%;
+    min-height: var(--min-touch);
+    padding: var(--sp-2) var(--sp-3);
+    text-align: left;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+}
+.poi-chip:last-child { border-bottom: none; }
+.poi-chip:hover { background: var(--surface-hover); }
+.poi-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.poi-chip[aria-pressed="true"] {
+    background: var(--accent-tint);
+    color: var(--accent);
+}
+.poi-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.poi-chip__meta {
+    flex-shrink: 0;
+    font-size: var(--fs-xs);
+    color: var(--text-subtle);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+}
 
 /* Identificadores específicos do tipo (evidences_new) — visibilidade por tipo */
 .id-section { display: none; }

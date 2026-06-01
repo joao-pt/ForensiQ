@@ -49,6 +49,14 @@
       <option value="PRIORITARIA" {% if pri == 'PRIORITARIA' %}selected{% endif %}>Prioritárias</option>
       <option value="NORMAL" {% if pri == 'NORMAL' %}selected{% endif %}>Normais</option>
     </select>
+    <select name="cat" aria-label="Filtrar por categoria de crime">
+      <option value="">Crime: todos</option>
+      {% for c in crime_categories %}
+      <option value="{{ c.id }}" {% if cat == c.id|stringformat:"s" %}selected{% endif %}>{{ c.codigo }} — {{ c.nome }}</option>
+      {% endfor %}
+    </select>
+    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Data desde" title="Ocorrências desde">
+    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Data até" title="Ocorrências até">
     <select name="sort" aria-label="Ordenar">
       <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
       <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>

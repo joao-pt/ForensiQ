@@ -12,6 +12,7 @@ sensíveis só sejam carregados via API.
 
 import json
 from functools import wraps
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -25,6 +26,7 @@ from django.http import (
     HttpResponseRedirect,
 )
 from django.shortcuts import render
+from django.utils.dateparse import parse_date
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
@@ -72,6 +74,45 @@ def _throttle_public_verify(request):
     """
     throttle = ScopedRateThrottle()
     return throttle.allow_request(request, _ScopeView('verify_public'))
+
+
+# --- Anti-brute-force do /v/ : lockout por IP além do throttle por minuto ---
+# O throttle (30/min) limita o ritmo; o lockout trava um atacante persistente:
+# após muitos 404 consecutivos (tentativas de adivinhar o hash de 48 bits), o IP
+# fica bloqueado por uma janela. Usa a cache (tabela forensiq_cache).
+_VERIFY_FAIL_LIMIT = 20
+_VERIFY_LOCK_SECONDS = 900  # 15 min
+
+
+def _client_ip(request):
+    xff = request.META.get('HTTP_X_FORWARDED_FOR')
+    if xff:
+        return xff.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
+def _verify_is_locked(ip):
+    from django.core.cache import cache
+
+    return bool(ip) and bool(cache.get(f'verify_lock:{ip}'))
+
+
+def _verify_register_fail(ip):
+    from django.core.cache import cache
+
+    if not ip:
+        return
+    n = (cache.get(f'verify_fail:{ip}') or 0) + 1
+    cache.set(f'verify_fail:{ip}', n, _VERIFY_LOCK_SECONDS)
+    if n >= _VERIFY_FAIL_LIMIT:
+        cache.set(f'verify_lock:{ip}', True, _VERIFY_LOCK_SECONDS)
+
+
+def _verify_clear_fails(ip):
+    from django.core.cache import cache
+
+    if ip:
+        cache.delete(f'verify_fail:{ip}')
 
 
 def jwt_cookie_required(view_func):
@@ -262,9 +303,16 @@ def public_verify_view(request, short_hash):
     """
     from core.qr_verify import resolve_occurrence
 
-    # Rate-limit por IP (scope `verify_public`, ADR-0012): superfície pública
-    # não-autenticada; sem freio um atacante poderia tentar enumerar hashes
-    # curtos. Aplicado ANTES de resolver para travar tentativas inválidas.
+    # Lockout por IP (escalada) + rate-limit por minuto. Superfície pública
+    # não-autenticada; sem freio um atacante poderia tentar enumerar os hashes
+    # curtos. Aplicados ANTES de resolver para travar tentativas inválidas.
+    ip = _client_ip(request)
+    if _verify_is_locked(ip):
+        return HttpResponse(
+            'Demasiadas tentativas. Tente novamente mais tarde.',
+            status=429,
+            content_type='text/plain; charset=utf-8',
+        )
     if not _throttle_public_verify(request):
         return HttpResponse(
             'Demasiados pedidos. Tente novamente mais tarde.',
@@ -275,8 +323,10 @@ def public_verify_view(request, short_hash):
     occurrence = resolve_occurrence(short_hash)
     if occurrence is None:
         # Hash desconhecido — não distinguimos "não existe" de
-        # "secret rotacionado" para não vazar informação.
+        # "secret rotacionado" para não vazar informação. Conta para o lockout.
+        _verify_register_fail(ip)
         return render(request, 'public_verify_notfound.html', status=404)
+    _verify_clear_fails(ip)
 
     # Tenta autenticar via cookie JWT.
     token = request.COOKIES.get('fq_access')
@@ -316,6 +366,55 @@ def public_verify_view(request, short_hash):
             'evidence_count': len(evidences),
             'evidences': evidences,
         },
+    )
+
+
+@jwt_cookie_user
+def verifications_view(request):
+    """Centro de verificação / QR (operador EXPERT/staff).
+
+    Resolve um ``short_hash`` de QR OU um código de ocorrência (OC-…) para o
+    caso correspondente, mostra o URL canónico do QR (para reimpressão da guia)
+    e documenta o fluxo guia-de-transporte e as suas mitigações. NÃO é entrada
+    de dados por código nem pesquisa pública — é ferramenta interna de
+    gestão/auditoria, pelo que respeita o ADR-0012 §6. Só resolve casos dentro
+    do âmbito do operador (need-to-know)."""
+    from django.conf import settings as dj_settings
+
+    from core.qr_verify import resolve_occurrence, short_hash_for
+
+    user = request.user
+    if not (user.is_staff or getattr(user, 'profile', None) == 'FORENSIC_EXPERT'):
+        return HttpResponseForbidden('Acesso reservado a perito forense / staff.')
+
+    query = (request.GET.get('q') or '').strip()
+    result = None
+    not_found = False
+    if query:
+        occ = None
+        if query.upper().startswith('OC-'):
+            occ = _scope_occurrences(user).filter(code__iexact=query).first()
+        else:
+            cand = resolve_occurrence(query.lower())
+            if cand is not None and _scope_occurrences(user).filter(pk=cand.id).exists():
+                occ = cand
+        if occ is not None:
+            site = (getattr(dj_settings, 'SITE_URL', '') or '').rstrip('/')
+            sh = short_hash_for(occ.id)
+            result = {
+                'id': occ.id,
+                'code': occ.code or f'#{occ.id}',
+                'number': occ.number,
+                'short_hash': sh,
+                'verify_url': f'{site}/v/{sh}/',
+            }
+        else:
+            not_found = True
+
+    return render(
+        request,
+        'verifications.html',
+        {'q': query, 'result': result, 'not_found': not_found},
     )
 
 
@@ -460,6 +559,20 @@ def occurrences_view(request):
     if priority in (Occurrence.Priority.PRIORITARIA, Occurrence.Priority.NORMAL):
         qs = qs.filter(priority=priority)
 
+    # Filtro por categoria de crime (N1). Um dropdown dos N3 (centenas de tipos)
+    # seria mau de UX; filtra-se pela categoria de topo via a cascata N3→N2→N1.
+    cat = (request.GET.get('cat') or '').strip()
+    if cat.isdigit():
+        qs = qs.filter(crime_type__subcategoria__categoria_id=int(cat))
+
+    date_after = (request.GET.get('date_after') or '').strip()
+    date_before = (request.GET.get('date_before') or '').strip()
+    d_after, d_before = parse_date(date_after), parse_date(date_before)
+    if d_after:
+        qs = qs.filter(date_time__date__gte=d_after)
+    if d_before:
+        qs = qs.filter(date_time__date__lte=d_before)
+
     sort_key = (request.GET.get('sort') or 'recent').strip()
     qs = qs.order_by(_OCC_SORTS.get(sort_key, '-date_time'))
 
@@ -467,12 +580,23 @@ def occurrences_view(request):
     page_obj = paginator.get_page(request.GET.get('page'))
     _decorate_occurrences(page_obj.object_list)
 
+    # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
+    qs_base = urlencode({k: v for k, v in (
+        ('q', query), ('pri', priority), ('cat', cat),
+        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
+    ) if v})
+
     ctx = {
         'page_obj': page_obj,
         'total': paginator.count,
         'q': query,
         'pri': priority,
+        'cat': cat,
+        'date_after': date_after,
+        'date_before': date_before,
         'sort': sort_key,
+        'qs_base': qs_base,
+        'crime_categories': CrimeCategoria.objects.order_by('codigo'),
         'selected_id': request.GET.get('selected') or '',
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
@@ -597,12 +721,25 @@ def evidences_view(request):
         matching = [ev_id for ev_id, st in _legal_states_by_evidence(user).items() if st == state]
         qs = qs.filter(id__in=matching)
 
+    date_after = (request.GET.get('date_after') or '').strip()
+    date_before = (request.GET.get('date_before') or '').strip()
+    d_after, d_before = parse_date(date_after), parse_date(date_before)
+    if d_after:
+        qs = qs.filter(timestamp_seizure__date__gte=d_after)
+    if d_before:
+        qs = qs.filter(timestamp_seizure__date__lte=d_before)
+
     sort_key = (request.GET.get('sort') or 'recent').strip()
     qs = qs.order_by(_EVD_SORTS.get(sort_key, '-timestamp_seizure'))
 
     paginator = Paginator(qs, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
     _decorate_evidences(page_obj.object_list)
+
+    qs_base = urlencode({k: v for k, v in (
+        ('q', query), ('type', etype), ('state', state),
+        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
+    ) if v})
 
     ctx = {
         'page_obj': page_obj,
@@ -611,8 +748,12 @@ def evidences_view(request):
         'type': etype,
         'state': state,
         'state_label': LEGAL_STATE_LABELS.get(state, ''),
+        'date_after': date_after,
+        'date_before': date_before,
         'sort': sort_key,
+        'qs_base': qs_base,
         'evidence_types': Evidence.EvidenceType.choices,
+        'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
     if ctx['is_htmx']:
@@ -988,6 +1129,29 @@ def custody_list_view(request):
     if event in EventType.values:
         qs = qs.filter(event_type=event)
 
+    # Custódio (coluna visível, antes não filtrável) e instituição titular.
+    custodian = (request.GET.get('custodian') or '').strip()
+    if custodian in CustodianType.values:
+        qs = qs.filter(custodian_type=custodian)
+
+    institution = (request.GET.get('institution') or '').strip()
+    if institution.isdigit():
+        qs = qs.filter(custodian_institution_id=int(institution))
+
+    # Estado legal DERIVADO do item a que o evento pertence (mesmo padrão WI-E).
+    state = (request.GET.get('state') or '').strip()
+    if state in LEGAL_STATES:
+        matching = [ev_id for ev_id, st in _legal_states_by_evidence(user).items() if st == state]
+        qs = qs.filter(evidence_id__in=matching)
+
+    date_after = (request.GET.get('date_after') or '').strip()
+    date_before = (request.GET.get('date_before') or '').strip()
+    d_after, d_before = parse_date(date_after), parse_date(date_before)
+    if d_after:
+        qs = qs.filter(timestamp__date__gte=d_after)
+    if d_before:
+        qs = qs.filter(timestamp__date__lte=d_before)
+
     sort_key = (request.GET.get('sort') or 'recent').strip()
     qs = qs.order_by(_CUSTODY_SORTS.get(sort_key, '-timestamp'))
 
@@ -995,13 +1159,28 @@ def custody_list_view(request):
     page_obj = paginator.get_page(request.GET.get('page'))
     _decorate_events(page_obj.object_list)
 
+    qs_base = urlencode({k: v for k, v in (
+        ('q', query), ('event', event), ('custodian', custodian),
+        ('institution', institution), ('state', state),
+        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
+    ) if v})
+
     ctx = {
         'page_obj': page_obj,
         'total': paginator.count,
         'q': query,
         'event': event,
+        'custodian': custodian,
+        'institution': institution,
+        'state': state,
+        'date_after': date_after,
+        'date_before': date_before,
         'sort': sort_key,
+        'qs_base': qs_base,
         'event_types': EventType.choices,
+        'custodian_types': CustodianType.choices,
+        'institutions': Institution.objects.filter(is_active=True).order_by('name'),
+        'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
     if ctx['is_htmx']:

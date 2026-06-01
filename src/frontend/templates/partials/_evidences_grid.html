@@ -38,15 +38,15 @@
 <nav class="pager" aria-label="Paginação">
   {% if page_obj.has_previous %}
   <a class="pager__btn"
-     href="/evidences/?q={{ q|urlencode }}&type={{ type }}&state={{ state }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
-     hx-get="/evidences/?q={{ q|urlencode }}&type={{ type }}&state={{ state }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
+     href="/evidences/?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
+     hx-get="/evidences/?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
      hx-target="#evd-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
   {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
   <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
   <a class="pager__btn"
-     href="/evidences/?q={{ q|urlencode }}&type={{ type }}&state={{ state }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
-     hx-get="/evidences/?q={{ q|urlencode }}&type={{ type }}&state={{ state }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
+     href="/evidences/?{{ qs_base }}&page={{ page_obj.next_page_number }}"
+     hx-get="/evidences/?{{ qs_base }}&page={{ page_obj.next_page_number }}"
      hx-target="#evd-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
   {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
 </nav>
@@ -55,6 +55,6 @@
 {% else %}
 <div class="empty">
   <p class="empty__title">Sem itens de prova</p>
-  <p class="empty__hint">{% if q or type or state %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há itens registados.{% endif %}</p>
+  <p class="empty__hint">{% if q or type or state or date_after or date_before %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há itens registados.{% endif %}</p>
 </div>
 {% endif %}

@@ -22,10 +22,6 @@
     <div class="page-head__heading">
       <h1 class="page-head__title" id="evd-title">Itens de prova</h1>
       <span class="page-head__count" id="evd-count" aria-live="polite">{{ total }} ite{{ total|pluralize:"m,ns" }}</span>
-      {% if state_label %}<a class="filter-chip" href="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}"
-            hx-get="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}"
-            hx-target="#evd-grid" hx-swap="innerHTML" hx-push-url="true"
-            title="Remover filtro de estado">{{ state_label }} ✕</a>{% endif %}
     </div>
     {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
     <a class="btn-accent" href="/evidences/new/">
@@ -38,7 +34,6 @@
   <form class="toolbar" role="search" action="/evidences/" method="get"
         hx-get="/evidences/" hx-target="#evd-grid" hx-swap="innerHTML"
         hx-trigger="submit, input changed delay:350ms" hx-push-url="true" hx-indicator="#evd-busy">
-    <input type="hidden" name="state" value="{{ state }}">
     <div class="toolbar__search">
       <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
@@ -52,6 +47,14 @@
       <option value="{{ val }}" {% if type == val %}selected{% endif %}>{{ label }}</option>
       {% endfor %}
     </select>
+    <select name="state" aria-label="Filtrar por estado legal">
+      <option value="">Estado: todos</option>
+      {% for val, label in legal_state_choices %}
+      <option value="{{ val }}" {% if state == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Apreensão desde" title="Apreensão desde">
+    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Apreensão até" title="Apreensão até">
     <select name="sort" aria-label="Ordenar">
       <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Apreensão recente</option>
       <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Apreensão antiga</option>

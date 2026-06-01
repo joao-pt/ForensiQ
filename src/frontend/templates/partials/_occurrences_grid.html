@@ -57,15 +57,15 @@
 <nav class="pager" aria-label="Paginação">
   {% if page_obj.has_previous %}
   <a class="pager__btn"
-     href="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
-     hx-get="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
+     href="/occurrences/?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
+     hx-get="/occurrences/?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
      hx-target="#occ-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
   {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
   <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
   <a class="pager__btn"
-     href="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
-     hx-get="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
+     href="/occurrences/?{{ qs_base }}&page={{ page_obj.next_page_number }}"
+     hx-get="/occurrences/?{{ qs_base }}&page={{ page_obj.next_page_number }}"
      hx-target="#occ-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
   {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
 </nav>
@@ -75,7 +75,7 @@
 <div class="empty">
   <p class="empty__title">Sem ocorrências</p>
   <p class="empty__hint">
-    {% if q or pri %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências registadas.{% endif %}
+    {% if q or pri or cat or date_after or date_before %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências registadas.{% endif %}
   </p>
 </div>
 {% endif %}
