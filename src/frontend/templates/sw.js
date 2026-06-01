@@ -1,7 +1,15 @@
 {% load static %}// ForensiQ — Service Worker (PWA básica, Fase 3).
-// Precache da casca + cache-first para estáticos. NUNCA cacheia prova/dados
-// mutáveis (/api, /media, /v/, /pdf) — imutabilidade forense ISO/IEC 27037.
-const CACHE = 'forensiq-shell-v1';
+// Precache da casca + network-first para estáticos (cache só como fallback
+// offline). NUNCA cacheia prova/dados mutáveis (/api, /media, /v/, /pdf) —
+// imutabilidade forense ISO/IEC 27037.
+//
+// NOTA: a estratégia para /static/ é NETWORK-FIRST de propósito. Os ficheiros
+// estáticos não têm hash no nome (sem ManifestStaticFilesStorage), pelo que um
+// cache-first servia versões antigas de CSS/JS indefinidamente (o utilizador
+// via correções "não aplicadas" mesmo após Ctrl+F5). Network-first garante
+// frescura quando há rede e mantém a app utilizável offline pelo cache.
+// Bump da versão expurga o cache anterior no activate.
+const CACHE = 'forensiq-shell-v2';
 const PRECACHE = [
   '{% static "css/main.css" %}',
   '{% static "css/components/app-shell.css" %}',
@@ -41,19 +49,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Estáticos: cache-first com preenchimento.
+  // Estáticos: network-first (atualiza o cache) com fallback ao cache offline.
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(
-      caches.match(req).then((hit) =>
-        hit ||
-        fetch(req).then((resp) => {
+      fetch(req)
+        .then((resp) => {
           if (resp && resp.ok) {
             const copy = resp.clone();
             caches.open(CACHE).then((c) => c.put(req, copy));
           }
           return resp;
         })
-      )
+        .catch(() => caches.match(req))
     );
   }
 });
