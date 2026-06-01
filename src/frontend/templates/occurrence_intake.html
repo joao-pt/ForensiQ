@@ -14,6 +14,7 @@
 {% endblock %}
 
 {% block extra_js %}
+  <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/components/nearby-pois.js' %}"></script>
 {% endblock %}
@@ -89,7 +90,8 @@
                 Capturar GPS
               </button>
               <button type="button" class="btn-ghost" data-nearby-pois
-                      data-lat-target="#f-lat" data-lng-target="#f-lng" data-pois-target="#intake-pois" data-radius="500">
+                      data-lat-target="#f-lat" data-lng-target="#f-lng" data-pois-target="#intake-pois"
+                      data-input-target="#f-loc" data-pois-list-target="#intake-pois-list" data-radius="500">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 POIs próximos
               </button>
@@ -103,6 +105,7 @@
             <input type="text" id="f-loc" name="location_name" list="intake-pois"
                    placeholder="Ex.: Laboratório de Informática Forense, LPC" autocomplete="off">
             <datalist id="intake-pois"></datalist>
+            <div id="intake-pois-list" class="poi-picker" role="group" aria-label="POIs próximos" hidden></div>
           </div>
           <div class="form-field">
             <label for="f-storage">Armazenamento interno</label>
@@ -115,7 +118,7 @@
           </div>
         </div>
 
-        <div class="form-actions">
+        <div class="form-actions form-actions--sticky">
           <a class="btn-ghost" href="/occurrences/{{ occurrence.id }}/">Cancelar</a>
           <button type="submit" class="btn-accent">Registar receção</button>
         </div>

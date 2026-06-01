@@ -99,6 +99,7 @@
             <input type="text" id="r-loc" name="location_name" value="{{ register_data.location_name }}"
                    list="r-pois" placeholder="Ex.: Laboratório de Informática Forense" autocomplete="off">
             <datalist id="r-pois"></datalist>
+            <div id="r-pois-list" class="poi-picker" role="group" aria-label="POIs próximos" hidden></div>
           </div>
 
           <div class="form-field">
@@ -127,7 +128,8 @@
                 Capturar GPS
               </button>
               <button type="button" class="btn-ghost" data-nearby-pois
-                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-pois-target="#r-pois" data-radius="500">
+                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-pois-target="#r-pois"
+                      data-input-target="#r-loc" data-pois-list-target="#r-pois-list" data-radius="500">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 POIs próximos
               </button>
@@ -171,7 +173,7 @@
           {% endif %}
 
         </div>
-        <div class="form-actions">
+        <div class="form-actions form-actions--sticky">
           <button type="submit" class="btn-accent">Registar evento</button>
         </div>
       </form>
@@ -221,6 +223,7 @@
   {% include '_leaflet_js.html' %}
   <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
   <script src="{% static 'js/components/forensic-list.js' %}"></script>
+  <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/components/nearby-pois.js' %}"></script>
 {% endblock %}

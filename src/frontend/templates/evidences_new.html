@@ -116,7 +116,7 @@
             <div class="form-field form-field--full id-field" data-id-field data-id-type="MOBILE_DEVICE">
               <label for="f-imei">IMEI <span class="facts__src">(15 dígitos · Luhn)</span></label>
               <div class="form-inline">
-                <input class="mono" type="text" id="f-imei" name="imei" value="{{ data.imei }}" placeholder="123456789012345" autocomplete="off">
+                <input class="mono" type="text" inputmode="numeric" id="f-imei" name="imei" value="{{ data.imei }}" placeholder="123456789012345" autocomplete="off">
                 <button type="button" class="btn-ghost" data-lookup="imei" data-target="#f-imei" data-result="#imei-enrich">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                   Consultar imeidb.xyz
@@ -127,11 +127,11 @@
 
             <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
               <label for="f-imsi">IMSI <span class="facts__src">(14–15 dígitos)</span></label>
-              <input class="mono" type="text" id="f-imsi" name="imsi" value="{{ data.imsi }}" placeholder="268xxxxxxxxxxxx" autocomplete="off">
+              <input class="mono" type="text" inputmode="numeric" id="f-imsi" name="imsi" value="{{ data.imsi }}" placeholder="268xxxxxxxxxxxx" autocomplete="off">
             </div>
             <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
               <label for="f-iccid">ICCID <span class="facts__src">(18–22 dígitos · Luhn)</span></label>
-              <input class="mono" type="text" id="f-iccid" name="iccid" value="{{ data.iccid }}" placeholder="8935101…" autocomplete="off">
+              <input class="mono" type="text" inputmode="numeric" id="f-iccid" name="iccid" value="{{ data.iccid }}" placeholder="8935101…" autocomplete="off">
             </div>
 
             <div class="form-field form-field--full id-field" data-id-field data-id-type="VEHICLE">
@@ -154,7 +154,7 @@
           </div>
         </div>
 
-        <div class="form-actions">
+        <div class="form-actions form-actions--sticky">
           <a class="btn-ghost" href="/evidences/">Cancelar</a>
           <button type="submit" class="btn-accent">Registar evidência</button>
         </div>
@@ -166,6 +166,7 @@
 {% endblock %}
 
 {% block extra_js %}
+  <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/components/identifier-lookup.js' %}"></script>
 {% endblock %}

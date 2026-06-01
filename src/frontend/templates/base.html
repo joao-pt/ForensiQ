@@ -3,7 +3,7 @@
 <html lang="pt-PT" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta name="theme-color" content="#0F1115" id="meta-theme-color">
     <meta name="description" content="ForensiQ — Gestão de Prova Digital para First Responders">
     <title>{% block title %}ForensiQ{% endblock %}</title>
@@ -224,6 +224,19 @@
                         </svg>
                         <span class="app-sidebar__label">Custódias</span>
                     </a>
+                    {% if user.is_staff or user.profile == 'FORENSIC_EXPERT' %}
+                    <a class="app-sidebar__link" href="/verificacoes/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/>
+                        </svg>
+                        <span class="app-sidebar__label">Verificações</span>
+                    </a>
+                    {% endif %}
                 </div>
 
                 <div class="app-sidebar__group">
@@ -380,6 +393,8 @@
     <script src="{% static 'js/user-menu.js' %}"></script>
     <script src="{% static 'js/toast.js' %}"></script>
     <script src="{% static 'js/app-shell.js' %}"></script>
+    <script src="{% static 'js/sticky-toolbar.js' %}"></script>
+    <script src="{% static 'js/field-keyboard.js' %}"></script>
     {% block extra_js %}{% endblock %}
     <script src="{% static 'js/pwa-register.js' %}"></script>
 </body>
