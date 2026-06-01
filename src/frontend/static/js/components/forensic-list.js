@@ -149,8 +149,34 @@
         }
     });
 
+    // Reparação robusta do tamanho de um mapa Leaflet. O bug clássico é o mapa
+    // arrancar num container ainda sem dimensões (drawer a abrir, swap HTMX,
+    // transição para overlay fixed em mobile, banda do hero sem altura) e ficar
+    // cinzento. Em vez de depender de um único invalidateSize com timing frágil,
+    // disparamos em três momentos: já a seguir ao layout (duplo rAF), quando o
+    // mapa fica pronto (whenReady) e sempre que o container muda de dimensões
+    // (ResizeObserver) — cobrindo todos os casos acima.
+    function refreshMapSize(map, el) {
+        if (!map || !el) return;
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () { try { map.invalidateSize(); } catch (e) { /* removido */ } });
+        });
+        map.whenReady(function () { try { map.invalidateSize(); } catch (e) { /* removido */ } });
+        if (typeof ResizeObserver !== 'undefined' && !el._fqRO) {
+            var ro = new ResizeObserver(function () {
+                if (el.clientWidth > 0 && el.clientHeight > 0) {
+                    try { map.invalidateSize(); } catch (e) { /* removido */ }
+                }
+            });
+            ro.observe(el);
+            el._fqRO = ro;
+        }
+    }
+
     function destroyDrawerMap() {
         if (!drawerMap) return;
+        var dm = document.getElementById('drawer-map');
+        if (dm && dm._fqRO) { dm._fqRO.disconnect(); dm._fqRO = null; }
         try { drawerMap.remove(); } catch (e) { /* container já destacado */ }
         drawerMap = null;
     }
@@ -178,9 +204,7 @@
             drawerMap.setView([lat, lng], 15);
             L.marker([lat, lng]).addTo(drawerMap).bindTooltip(el.dataset.label || '', { permanent: false });
         }
-        requestAnimationFrame(function () {
-            requestAnimationFrame(function () { if (drawerMap) drawerMap.invalidateSize(); });
-        });
+        refreshMapSize(drawerMap, el);
     }
 
     // Modo Cadeia — desenha o trajeto a partir de #drawer-map[data-chain].
@@ -271,7 +295,7 @@
                 m.setView([lat, lng], 15);
                 L.marker([lat, lng]).addTo(m).bindTooltip(el.dataset.label || '', { permanent: false });
             }
-            setTimeout(function () { m.invalidateSize(); }, 60);
+            refreshMapSize(m, el);
         });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initStaticMaps);

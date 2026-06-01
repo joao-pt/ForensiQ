@@ -43,6 +43,9 @@
         grid-template-columns: 220px 1fr 300px;
         grid-template-rows: 400px;
     }
+    /* Dentro da linha fixa de 400px, o mapa volta a poder encolher (flex:1)
+       sem que o piso responsivo o force a transbordar e a cortar a colorbar. */
+    .geo-hero__map { min-height: 0; }
 }
 
 /* Todas as colunas do hero como cartões sólidos */
@@ -189,7 +192,11 @@
 
 .geo-hero__map {
     flex: 1;
-    min-height: 0;
+    /* Altura base garantida em TODAS as larguras. Sem isto, na banda
+       768–1279px (onde a grelha não tem grid-template-rows) o container
+       colapsava para 0px e o Leaflet ficava cinzento/vazio. Com a linha fixa
+       de 400px (≥1280px) o fl:1 cresce para além deste piso. */
+    min-height: clamp(280px, 38vh, 420px);
     isolation: isolate;  /* contém z-index do Leaflet */
     position: relative;
     background: var(--bg-inset);
@@ -281,54 +288,6 @@
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
     pointer-events: none;
-}
-
-.geo-hero__cta {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    gap: var(--sp-2);
-    padding: var(--sp-2) 0 0;
-}
-
-.geo-hero__cta .btn-new-occ {
-    width: 100%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--sp-2);
-    min-height: 44px;
-    padding: var(--sp-2) var(--sp-3);
-    background: var(--accent);
-    color: var(--on-accent);
-    border: 1px solid var(--accent);
-    border-radius: var(--r-2);
-    font-weight: var(--fw-semi);
-    font-size: var(--fs-sm);
-    cursor: pointer;
-    text-decoration: none;
-    transition: background var(--t-fast) var(--ease),
-                transform var(--t-fast) var(--ease);
-}
-.geo-hero__cta .btn-new-occ:hover {
-    background: var(--accent-hover);
-}
-.geo-hero__cta .btn-new-occ:active {
-    transform: translateY(1px);
-}
-.geo-hero__cta .btn-new-occ:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-}
-.geo-hero__cta .btn-new-occ__kbd {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    opacity: 0.7;
-    padding: 1px 5px;
-    border: 1px solid currentColor;
-    border-radius: var(--r-1);
-    margin-left: auto;
 }
 
 /* =====================================================================
