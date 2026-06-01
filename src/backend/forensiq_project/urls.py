@@ -56,6 +56,7 @@ from core.frontend_views import (
     reports_view,
     settings_view,
     stats_view,
+    verifications_view,
 )
 from core.views import MediaServeView
 
@@ -138,6 +139,10 @@ urlpatterns = [
 
     # Auditoria — relatório estático de investigação de erros
     path('audit/investigation/', investigation_report_view, name='investigation_report'),
+
+    # Centro de verificação / QR (operador EXPERT/staff) — gestão, não pesquisa
+    # pública (ADR-0012 §6). Resolve hash/código → ocorrência.
+    path('verificacoes/', verifications_view, name='verifications'),
 
     # Verificação pública via QR (ADR-0012 Vaga 1) — sem auth.
     # URL curta `/v/<hash>/` para QR codes denso (texto curto).
