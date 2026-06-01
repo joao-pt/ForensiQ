@@ -7,9 +7,9 @@ Cobertura:
 - Hash desconhecido → 404 com template `public_verify_notfound.html`.
 - Hash válido + sem login → 200 com template `public_verify.html`
   contendo dados mínimos não-sensíveis.
-- Hash válido + EXPERT logado → 302 para `/occurrences/<id>/`.
-- Hash válido + AGENT-dono → 302.
-- Hash válido + AGENT-não-dono → 200 vista pública (não vaza).
+- Hash válido + FORENSIC_EXPERT logado → 302 para `/occurrences/<id>/`.
+- Hash válido + FIRST_RESPONDER-dono → 302.
+- Hash válido + FIRST_RESPONDER-não-dono → 200 vista pública (não vaza).
 - Vista pública não contém descrição, GPS, ou nome de agente.
 """
 
@@ -97,7 +97,7 @@ class PublicVerifyEndpointTest(TestCase):
     def setUpTestData(cls):
         cls.agent_owner = _make_user('agent_owner_pv')
         cls.agent_other = _make_user('agent_other_pv')
-        cls.expert = _make_user('expert_pv', profile='EXPERT')
+        cls.expert = _make_user('expert_pv', profile='FORENSIC_EXPERT')
         cls.occurrence = _make_occurrence(cls.agent_owner)
         cls.evidence = _make_evidence(cls.occurrence, cls.agent_owner)
         cls.short_hash = short_hash_for(cls.occurrence.id)
@@ -109,7 +109,7 @@ class PublicVerifyEndpointTest(TestCase):
         response = self.client.get('/v/000000000000/')
         self.assertEqual(response.status_code, 404)
         # Mensagem em PT-PT do template not-found.
-        self.assertIn(b'Tal\xc3\xa3o n\xc3\xa3o reconhecido', response.content)
+        self.assertIn('Referência não encontrada'.encode(), response.content)
 
     def test_hash_curto_invalido_devolve_404(self):
         # Hash com tamanho diferente de QR_VERIFY_HASH_LEN.
@@ -119,9 +119,11 @@ class PublicVerifyEndpointTest(TestCase):
     def test_sem_login_renderiza_vista_publica(self):
         response = self.client.get(f'/v/{self.short_hash}/')
         self.assertEqual(response.status_code, 200)
-        # Mostra código da ocorrência e contagem.
+        # Mostra código da ocorrência (OC-2026-...) e contagem de itens.
         self.assertIn(self.occurrence.code.encode(), response.content)
-        self.assertIn(b'Itens esperados', response.content)
+        self.assertIn('item de prova'.encode(), response.content)
+        # Cabeçalho da secção de itens e integridade.
+        self.assertIn('Itens e integridade (SHA-256)'.encode(), response.content)
         # Mostra integrity_hash (defesa em profundidade).
         self.assertIn(self.evidence.integrity_hash.encode(), response.content)
 
@@ -148,9 +150,9 @@ class PublicVerifyEndpointTest(TestCase):
         self.assertEqual(response.url, f'/occurrences/{self.occurrence.id}/')
 
     def test_agent_nao_dono_ve_vista_publica(self):
-        """AGENT que não é dono cai na vista pública (read-only)."""
+        """FIRST_RESPONDER que não é dono cai na vista pública (read-only)."""
         _login_cookie(self.client, self.agent_other)
         response = self.client.get(f'/v/{self.short_hash}/')
+        # 200 (vista pública) e não 302 — não vaza o detalhe (IDOR-safe).
         self.assertEqual(response.status_code, 200)
-        # Não redirecciona para detalhe (IDOR-safe).
-        self.assertIn(b'Aceder com login', response.content)
+        self.assertIn('Verificação pública de integridade'.encode(), response.content)

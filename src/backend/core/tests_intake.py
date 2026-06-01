@@ -84,7 +84,7 @@ class OccurrenceIntakeAuthTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.agent = _make_user('agent_intake')
-        cls.expert = _make_user('expert_intake', profile='EXPERT')
+        cls.expert = _make_user('expert_intake', profile='FORENSIC_EXPERT')
         cls.staff = _make_user('staff_intake', is_staff=True)
         cls.occurrence = _make_occurrence(cls.agent)
         cls.evidence = _make_evidence(cls.occurrence, cls.agent, 'SN-IN-001')
@@ -134,7 +134,7 @@ class OccurrenceIntakeRenderTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.agent = _make_user('agent_render')
-        cls.expert = _make_user('expert_render', profile='EXPERT')
+        cls.expert = _make_user('expert_render', profile='FORENSIC_EXPERT')
         cls.occurrence = _make_occurrence(cls.agent)
         cls.ev_pending = _make_evidence(cls.occurrence, cls.agent, 'SN-PND-1')
         cls.ev_in_transit = _make_evidence(cls.occurrence, cls.agent, 'SN-TRA-1')
@@ -180,28 +180,32 @@ class OccurrenceIntakeRenderTest(TestCase):
 
     def test_template_inclui_contagem(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        self.assertIn(b'Itens esperados', response.content)
-        # 3 evidências criadas no setup.
-        self.assertIn(b'>3<', response.content)
+        # O cabeçalho da receção mostra a contagem em texto livre
+        # (`{{ evidence_count }} ite{{ ...|pluralize }}`). 3 evidências no setup.
+        self.assertIn('3 itens'.encode(), response.content)
 
-    def test_template_marca_recebidas_como_disabled(self):
+    def test_template_recebidas_nao_tem_checkbox(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        # Tolerante a whitespace: procura por `disabled` perto do id do checkbox
-        # da evidência já recebida.
-        ev_id_str = f'id="ev-{self.ev_received.id}"'.encode()
-        self.assertIn(ev_id_str, response.content)
-        idx = response.content.find(ev_id_str)
-        chunk = response.content[idx : idx + 200]
-        self.assertIn(b'disabled', chunk)
+        # A evidência já recebida não é selecionável: a sua linha mostra o
+        # estado "Já recebida" (em vez de um checkbox `evidence_ids`).
+        self.assertNotIn(
+            f'name="evidence_ids" value="{self.ev_received.id}"'.encode(),
+            response.content,
+        )
+        self.assertIn(b'>J\xc3\xa1 recebida<', response.content)
 
-    def test_template_pendentes_nao_estao_disabled(self):
+    def test_template_pendentes_tem_checkbox_selecionavel(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        ev_id_str = f'id="ev-{self.ev_in_transit.id}"'.encode()
-        idx = response.content.find(ev_id_str)
-        chunk = response.content[idx : idx + 200]
-        self.assertNotIn(b'disabled', chunk)
+        # As evidências ainda não recebidas têm um checkbox `evidence_ids`
+        # pré-marcado para a receção em lote.
+        chk = f'name="evidence_ids" value="{self.ev_in_transit.id}" checked'.encode()
+        self.assertIn(chk, response.content)
 
-    def test_template_inclui_target_state(self):
+    def test_template_indica_transferencia_para_laboratorio(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        # Intake regista um evento TRANSFERENCIA_CUSTODIA (→ LAB_PUBLICO) em lote.
-        self.assertIn(b'TRANSFERENCIA_CUSTODIA', response.content)
+        # Intake regista um evento TRANSFERENCIA → LAB_PUBLICO em lote. O DOM
+        # reconstruído não expõe o enum cru; comunica-o na frase do cabeçalho.
+        self.assertIn(
+            'Transferência → Laboratório público'.encode(),
+            response.content,
+        )
