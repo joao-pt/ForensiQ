@@ -13,6 +13,7 @@ sensíveis só sejam carregados via API.
 import json
 from functools import wraps
 
+from django.contrib import messages
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
@@ -29,10 +30,13 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
+from core import access
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.models import (
+    GENESIS_EVENTS,
     LEGAL_STATES,
+    SEIZURE_GENESIS_EVENTS,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -40,6 +44,7 @@ from core.models import (
     CustodianType,
     EventType,
     Evidence,
+    Institution,
     Occurrence,
     derive_legal_state,
 )
@@ -144,12 +149,10 @@ _OCC_SORTS = {
 
 
 def _scope_occurrences(user):
-    """Queryset de ocorrências com o ownership do utilizador (espelha
-    ``OccurrenceViewSet.get_queryset``): AGENTE vê as suas; PERITO/staff todas."""
+    """Ocorrências legíveis pelo utilizador — *need-to-know* derivado do ledger
+    (ADR-0017; fonte única em :mod:`core.access`)."""
     qs = Occurrence.objects.select_related('agent', 'crime_type')
-    if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-        qs = qs.filter(agent=user)
-    return qs
+    return access.scope_occurrences(user, base_qs=qs)
 
 
 def _occurrence_drawer(request, user, drawer_id):
@@ -200,13 +203,12 @@ _EVD_SORTS = {
 
 
 def _scope_evidences(user):
-    """Queryset de evidências com ownership (espelha EvidenceViewSet)."""
+    """Evidências legíveis pelo utilizador — *need-to-know* item-level
+    (ADR-0017; fonte única em :mod:`core.access`)."""
     qs = Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence').prefetch_related(
         'custody_chain'
     )
-    if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-        qs = qs.filter(occurrence__agent=user)
-    return qs
+    return access.scope_evidences(user, base_qs=qs)
 
 
 def _evidence_state(evidence):
@@ -287,12 +289,12 @@ def public_verify_view(request, short_hash):
             user_id = access['user_id']
             user = get_user_model().objects.filter(pk=user_id).first()
             if user and user.is_authenticated:
-                # EXPERT vê tudo; AGENT só vê se for o dono da ocorrência.
+                # FORENSIC_EXPERT vê tudo; FIRST_RESPONDER só se for o dono.
                 profile = getattr(user, 'profile', None)
                 if (
                     getattr(user, 'is_staff', False)
-                    or profile == 'EXPERT'
-                    or profile == 'AGENT'
+                    or profile == 'FORENSIC_EXPERT'
+                    or profile == 'FIRST_RESPONDER'
                     and occurrence.agent_id == user.id
                 ):
                     user_can_see_full = True
@@ -339,7 +341,7 @@ def _activity_feed(user, limit=20):
     de custódia, exportações de PDF, alertas.
     """
     qs = AuditLog.objects.select_related('user').order_by('-sequence')
-    if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+    if not user.is_staff and getattr(user, 'profile', None) == 'FIRST_RESPONDER':
         qs = qs.filter(user_id=user.id)
     logs = list(qs[:limit])
     for r in logs:
@@ -367,7 +369,7 @@ def _legal_states_by_evidence(user):
     sem tradução para SQL). É o mesmo padrão usado nos endpoints da API.
     """
     qs = ChainOfCustody.objects.all()
-    if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+    if not user.is_staff and getattr(user, 'profile', None) == 'FIRST_RESPONDER':
         qs = qs.filter(evidence__occurrence__agent=user)
     eventos = {}
     for rec in qs.order_by('evidence_id', 'sequence').only(
@@ -507,7 +509,7 @@ def occurrences_new_view(request):
     from core.serializers import OccurrenceSerializer
 
     user = request.user
-    if not (user.is_staff or getattr(user, 'profile', None) == 'AGENT'):
+    if not (user.is_staff or getattr(user, 'profile', None) == 'FIRST_RESPONDER'):
         return HttpResponseForbidden('Apenas agentes podem registar ocorrências.')
 
     crime_categories = CrimeCategoria.objects.order_by('codigo')
@@ -551,6 +553,7 @@ def occurrences_new_view(request):
                 resource_type=AuditLog.ResourceType.OCCURRENCE,
                 resource_id=occ.pk,
             )
+            messages.success(request, f'Ocorrência {occ.code or occ.number} registada.')
             return HttpResponseRedirect(f'/occurrences/{occ.pk}/')
         return render(
             request, 'occurrences_new.html', _ctx(serializer.errors, request.POST), status=400
@@ -632,7 +635,7 @@ def evidences_new_view(request):
     from core.serializers import EvidenceSerializer
 
     user = request.user
-    if not (user.is_staff or getattr(user, 'profile', None) == 'AGENT'):
+    if not (user.is_staff or getattr(user, 'profile', None) == 'FIRST_RESPONDER'):
         return HttpResponseForbidden('Apenas agentes podem registar evidências.')
 
     occurrences = _scope_occurrences(user).order_by('-date_time')
@@ -675,6 +678,7 @@ def evidences_new_view(request):
                 resource_id=ev.pk,
                 details={'hash': ev.integrity_hash},
             )
+            messages.success(request, f'Item de prova {ev.code} registado.')
             return HttpResponseRedirect(f'/evidences/{ev.pk}/')
         return render(
             request,
@@ -758,27 +762,40 @@ def evidence_detail_view(request, evidence_id):
 _TERMINAL_EVENT_VALUES = {EventType.RESTITUICAO, EventType.DESTRUICAO}
 
 
-def _valid_next_events(events):
+def _genesis_event_for(evidence):
+    """Evento de génese aplicável à evidência, por proveniência (ADR-0016 §2)."""
+    if evidence is not None and evidence.parent_evidence_id is not None:
+        return EventType.DERIVACAO_ITEM
+    if evidence is not None and evidence.type == Evidence.EvidenceType.DIGITAL_FILE:
+        return EventType.APREENSAO_DADOS
+    return EventType.APREENSAO_OBJETO
+
+
+def _valid_next_events(events, evidence=None):
     """(value, label) dos ``EventType`` que as guardas de ``ChainOfCustody.clean()``
-    aceitariam como PRÓXIMO evento, dado o ledger atual.
+    aceitariam como PRÓXIMO evento, dado o ledger atual e (na génese) a
+    proveniência da evidência — ADR-0016 §2.
 
     Espelha apenas as regras BLOQUEANTES (não as advisory de 72h): 1.º evento =
-    APREENSÃO; APREENSÃO só pode ser o 1.º; nenhum evento após terminal;
-    VALIDAÇÃO exige APREENSÃO prévia e só uma vez; INÍCIO_PERÍCIA exige
-    DESPACHO_PERÍCIA prévio. O backend (serializer + clean) continua a ser a
-    fonte de verdade — isto é só para não oferecer transições impossíveis.
+    génese (objeto/dados/derivação conforme a evidência); a génese só pode ser o
+    1.º; nenhum evento após terminal; VALIDAÇÃO_APREENSÃO exige apreensão prévia
+    e só uma vez; INÍCIO_PERÍCIA exige DESPACHO_PERÍCIA prévio. O backend
+    (serializer + clean) continua a ser a fonte de verdade — isto é só para não
+    oferecer transições impossíveis.
     """
     types = {e.event_type for e in events}
     if not events:
-        return [(EventType.APREENSAO.value, EventType.APREENSAO.label)]
+        genesis = _genesis_event_for(evidence)
+        return [(genesis.value, genesis.label)]
     if types & _TERMINAL_EVENT_VALUES:
         return []
+    seizure_done = bool(types & SEIZURE_GENESIS_EVENTS)
     out = []
     for et in EventType:
-        if et == EventType.APREENSAO:
-            continue
-        if et == EventType.VALIDACAO and (
-            EventType.APREENSAO not in types or EventType.VALIDACAO in types
+        if et in GENESIS_EVENTS:
+            continue  # génese só na posição 1
+        if et == EventType.VALIDACAO_APREENSAO and (
+            not seizure_done or EventType.VALIDACAO_APREENSAO in types
         ):
             continue
         if et == EventType.INICIO_PERICIA and EventType.DESPACHO_PERICIA not in types:
@@ -827,6 +844,20 @@ def _register_custody_event(request, evidence, targets):
         'storage_location': (request.POST.get('storage_location') or '').strip(),
         'observations': (request.POST.get('observations') or '').strip(),
     }
+    # Custódia institucional / pessoal (ADR-0017) — opcionais.
+    for fk in ('custodian_institution', 'custodian_user', 'relinquished_by'):
+        val = (request.POST.get(fk) or '').strip()
+        if val:
+            base[fk] = val
+    # Selagem por-evento (ADR-0016 §4) — opcionais.
+    if request.POST.get('sealed'):
+        base['sealed'] = True
+    seal_cond = (request.POST.get('seal_condition_on_receipt') or '').strip()
+    if seal_cond:
+        base['seal_condition_on_receipt'] = seal_cond
+    new_seal = (request.POST.get('new_seal_number') or '').strip()
+    if new_seal:
+        base['new_seal_number'] = new_seal
     gps_lat = (request.POST.get('gps_lat') or '').strip()
     gps_lng = (request.POST.get('gps_lng') or '').strip()
     if gps_lat and gps_lng:
@@ -884,12 +915,13 @@ def custody_timeline_view(request, evidence_id):
             targets += sub_components
         register_errors = _register_custody_event(request, ev, targets)
         if not register_errors:
+            messages.success(request, 'Evento de custódia registado.')
             return HttpResponseRedirect(f'/evidences/{ev.id}/custody/')
 
     _decorate_evidences([ev])
     events = sorted(ev.custody_chain.all(), key=lambda r: r.sequence)
     _decorate_events(events)
-    valid_events = _valid_next_events(events)
+    valid_events = _valid_next_events(events, ev)
     return render(
         request,
         'custody_timeline.html',
@@ -899,6 +931,8 @@ def custody_timeline_view(request, evidence_id):
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             'valid_events': valid_events,
             'custodian_types': CustodianType.choices,
+            'institutions': Institution.objects.filter(is_active=True).order_by('name'),
+            'seal_conditions': Evidence.SealCondition.choices,
             'sub_components': sub_components,
             'ledger_closed': not valid_events,
             'register_errors': register_errors,
@@ -915,11 +949,10 @@ _CUSTODY_SORTS = {
 
 
 def _scope_custody(user):
-    """Queryset do ledger de custódia com ownership (AGENTE vê via ocorrência)."""
+    """Eventos de custódia dos itens legíveis pelo utilizador (ADR-0017;
+    fonte única em :mod:`core.access`)."""
     qs = ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
-    if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-        qs = qs.filter(evidence__occurrence__agent=user)
-    return qs
+    return access.scope_custody(user, base_qs=qs)
 
 
 def _custody_drawer(request, user, drawer_id):
@@ -1046,7 +1079,7 @@ def occurrence_intake_view(request, occurrence_id):
     if user is None:
         return HttpResponseRedirect('/login/?next=' + request.path)
 
-    is_expert = getattr(user, 'profile', None) == 'EXPERT'
+    is_expert = getattr(user, 'profile', None) == 'FORENSIC_EXPERT'
     if not (user.is_staff or user.is_superuser or is_expert):
         return render(request, '403_intake.html', status=403)
 
@@ -1103,7 +1136,7 @@ def occurrence_intake_view(request, occurrence_id):
                     for ev in to_receive:
                         payload = {
                             'evidence': ev.id,
-                            'event_type': EventType.TRANSFERENCIA,
+                            'event_type': EventType.TRANSFERENCIA_CUSTODIA,
                             'custodian_type': ChainOfCustody.CustodianType.LAB_PUBLICO,
                         }
                         if location:
@@ -1131,6 +1164,10 @@ def occurrence_intake_view(request, occurrence_id):
                                 'custodian_type': rec.custodian_type,
                             },
                         )
+                messages.success(
+                    request,
+                    f'Receção registada: {len(to_receive)} item(ns) no laboratório.',
+                )
                 return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
             except Exception as exc:  # noqa: BLE001 — qualquer falha → rollback + mostra erro
                 intake_errors.append(f'Falha no registo: {exc}')
@@ -1139,6 +1176,9 @@ def occurrence_intake_view(request, occurrence_id):
         {
             'evidence': ev,
             'current_state': state_by_evidence[ev.id],
+            'current_state_display': LEGAL_STATE_LABELS.get(state_by_evidence[ev.id])
+            or 'Sem custódia',
+            'current_state_css': LEGAL_STATE_CSS.get(state_by_evidence[ev.id], 'muted'),
             'already_received': state_by_evidence[ev.id] in received_states,
         }
         for ev in evidences
@@ -1157,7 +1197,7 @@ def occurrence_intake_view(request, occurrence_id):
             # intake para compor o POST a /api/custody/cascade/ (event_type +
             # custodian_type). O template do intake será reformulado na fase
             # frontend; o backend já entrega a semântica nova.
-            'target_state': EventType.TRANSFERENCIA,
+            'target_state': EventType.TRANSFERENCIA_CUSTODIA,
             'target_custodian': ChainOfCustody.CustodianType.LAB_PUBLICO,
         },
     )

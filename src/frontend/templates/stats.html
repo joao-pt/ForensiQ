@@ -14,7 +14,8 @@
 
   <div class="dash__greet"><h1>Estatísticas</h1><p>Agregados do universo visível ao seu perfil</p></div>
 
-  <section class="stats" aria-label="Indicadores">
+  <section class="stats" aria-labelledby="stats-kpis-title">
+    <h2 id="stats-kpis-title" class="visually-hidden">Indicadores</h2>
     <div class="stat"><div class="stat__num">{{ kpis.occurrences }}</div><div class="stat__label">Ocorrências</div></div>
     <div class="stat"><div class="stat__num">{{ kpis.prioritarias }}</div><div class="stat__label">Prioritárias</div></div>
     <div class="stat"><div class="stat__num">{{ kpis.evidences }}</div><div class="stat__label">Itens de prova</div></div>
@@ -26,15 +27,19 @@
       <header class="section__head"><h2 class="section__title">Itens por tipo</h2></header>
       <div class="section__body section__body--flush">
         {% if by_type %}
-        <table class="grid" role="grid" aria-label="Itens por tipo">
-          <thead><tr role="row"><th scope="col">Tipo</th><th scope="col">Total</th></tr></thead>
+        <table class="grid grid--no-toolbar" aria-label="Itens por tipo">
+          <thead><tr><th scope="col">Tipo</th><th scope="col">Distribuição</th><th scope="col">Total</th></tr></thead>
           <tbody>
             {% for r in by_type %}
-            <tr role="row"><td role="gridcell" class="grid__ellipsis">{{ r.label }}</td><td role="gridcell" class="mono">{{ r.n }}</td></tr>
+            <tr>
+              <td class="grid__ellipsis" title="{{ r.label }}">{{ r.label }}</td>
+              <td class="grid__bar"><meter class="bar" min="0" max="{{ by_type.0.n }}" value="{{ r.n }}" aria-hidden="true"></meter></td>
+              <td class="mono">{{ r.n }}</td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
-        {% else %}<div class="empty"><p class="empty__hint">Sem itens.</p></div>{% endif %}
+        {% else %}<div class="empty"><p class="empty__hint">Sem itens de prova no universo visível.</p></div>{% endif %}
       </div>
     </section>
 
@@ -42,15 +47,19 @@
       <header class="section__head"><h2 class="section__title">Eventos de custódia por tipo</h2></header>
       <div class="section__body section__body--flush">
         {% if by_event %}
-        <table class="grid" role="grid" aria-label="Eventos por tipo">
-          <thead><tr role="row"><th scope="col">Evento</th><th scope="col">Total</th></tr></thead>
+        <table class="grid grid--no-toolbar" aria-label="Eventos por tipo">
+          <thead><tr><th scope="col">Evento</th><th scope="col">Distribuição</th><th scope="col">Total</th></tr></thead>
           <tbody>
             {% for r in by_event %}
-            <tr role="row"><td role="gridcell" class="grid__ellipsis">{{ r.label }}</td><td role="gridcell" class="mono">{{ r.n }}</td></tr>
+            <tr>
+              <td class="grid__ellipsis" title="{{ r.label }}">{{ r.label }}</td>
+              <td class="grid__bar"><meter class="bar" min="0" max="{{ by_event.0.n }}" value="{{ r.n }}" aria-hidden="true"></meter></td>
+              <td class="mono">{{ r.n }}</td>
+            </tr>
             {% endfor %}
           </tbody>
         </table>
-        {% else %}<div class="empty"><p class="empty__hint">Sem eventos.</p></div>{% endif %}
+        {% else %}<div class="empty"><p class="empty__hint">Sem eventos de custódia no universo visível.</p></div>{% endif %}
       </div>
     </section>
   </div>

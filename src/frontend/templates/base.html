@@ -23,6 +23,7 @@
     <!-- CSS principal + casca three-pane -->
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     <link rel="stylesheet" href="{% static 'css/components/app-shell.css' %}">
+    <link rel="stylesheet" href="{% static 'css/print.css' %}" media="print">
     {% block extra_css %}{% endblock %}
 
     <!-- Tipografia forense: IBM Plex Sans (UI) + IBM Plex Mono (hashes, IDs, timestamps) -->
@@ -43,6 +44,16 @@
          ========================= -->
     {% block app_top %}
     <header class="app-top" role="banner">
+        <!-- Navegação móvel (<1024px): abre o off-canvas com a sidebar -->
+        <button type="button" class="app-top__nav-toggle" id="nav-toggle"
+                aria-label="Abrir navegação" aria-expanded="false"
+                aria-controls="nav-offcanvas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+        </button>
+
         <a href="/dashboard/" class="app-top__brand" aria-label="ForensiQ — Início">
             <svg class="app-top__brand-mark" viewBox="0 0 56 48" aria-hidden="true">
                 <defs>
@@ -60,26 +71,21 @@
             <span class="app-top__brand-name">ForensiQ</span>
         </a>
 
+        <!-- Chips de contexto operacional — papel e nome do utilizador da sessão. -->
+        {% if user.is_authenticated %}
         <span class="app-top__sep" aria-hidden="true">·</span>
-
-        <!-- Chips de contexto operacional (preenchidas em runtime via JS auth) -->
         <div class="app-top__chips" role="list" aria-label="Contexto operacional">
             <span class="app-top__chip" data-variant="role" role="listitem"
-                  id="ctx-role" data-priority="high">—</span>
+                  id="ctx-role" data-priority="high">{{ user.get_profile_display }}</span>
             <span class="app-top__chip" role="listitem"
-                  id="ctx-name" data-priority="high">—</span>
-            <span class="app-top__chip" role="listitem"
-                  id="ctx-shift" data-priority="low" title="Turno operacional">Diurno</span>
-            <span class="app-top__chip" role="listitem"
-                  id="ctx-zone" data-priority="low" title="Zona territorial">PT-CONT</span>
-            <span class="app-top__chip" role="listitem"
-                  id="ctx-device" data-priority="low" title="Dispositivo">DESKTOP</span>
+                  id="ctx-name" data-priority="high">{{ user.get_full_name|default:user.username }}</span>
         </div>
+        {% endif %}
 
         <div class="app-top__spacer"></div>
 
         <time class="app-top__clock" id="app-clock"
-              aria-label="Hora actual" datetime="">--:<span class="app-top__clock-sep">:</span>--:--</time>
+              aria-label="Hora actual" datetime="">--<span class="app-top__clock-sep">:</span>--:--</time>
 
         <!-- Alternar tema (dia / noite) -->
         <button type="button" class="icon-btn" id="theme-toggle"
@@ -162,10 +168,22 @@
     <div class="app-grid" id="app-grid" data-drawer="closed">
 
         {% block app_sidebar %}
-        <aside class="app-sidebar" aria-label="Navegação principal">
+        <!-- Fundo do off-canvas de navegação (só visível <1024px) -->
+        <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+        <aside class="app-sidebar" id="nav-offcanvas" aria-label="Navegação principal">
+            <div class="app-sidebar__head">
+                <span class="app-sidebar__head-title">Navegação</span>
+                <button type="button" class="app-sidebar__close" id="nav-close"
+                        aria-label="Fechar navegação" title="Fechar navegação">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
             <nav>
                 <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Principal</h3>
+                    <p class="app-sidebar__group-title" role="presentation">Principal</p>
                     <a class="app-sidebar__link" href="/dashboard/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -187,7 +205,7 @@
                 </div>
 
                 <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Laboratório</h3>
+                    <p class="app-sidebar__group-title" role="presentation">Laboratório</p>
                     <a class="app-sidebar__link" href="/evidences/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -209,7 +227,7 @@
                 </div>
 
                 <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Análise</h3>
+                    <p class="app-sidebar__group-title" role="presentation">Análise</p>
                     <a class="app-sidebar__link" href="/reports/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -230,7 +248,7 @@
                 </div>
 
                 <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Sistema</h3>
+                    <p class="app-sidebar__group-title" role="presentation">Sistema</p>
                     <a class="app-sidebar__link" href="/settings/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -266,7 +284,8 @@
         {% endblock %}
 
         {% block app_drawer %}
-        <aside class="app-drawer" id="app-drawer" aria-label="Painel contextual" hidden>
+        <aside class="app-drawer" id="app-drawer" role="dialog" aria-modal="true"
+               aria-labelledby="app-drawer-title" hidden>
             <div class="app-drawer__rail" aria-hidden="true">
                 <button type="button" class="app-drawer__btn" data-drawer-action="expand"
                         aria-label="Expandir painel" title="Expandir painel">
@@ -345,13 +364,21 @@
     <!-- Notificações / alertas -->
     <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
+    <!-- Mensagens server-side entregues como dados; app-shell.js encaminha-as para o toast. -->
+    {% if messages %}
+    <div id="server-messages" hidden>
+        {% for m in messages %}
+        <span class="server-message" data-text="{{ m.message }}" data-level="{{ m.level_tag }}"></span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Scripts base -->
     <script src="{% static 'js/config.js' %}"></script>
-    <script src="{% static 'js/icons.js' %}"></script>
     <script src="{% static 'js/auth.js' %}"></script>
-    <script src="{% static 'js/api.js' %}"></script>
     <script src="{% static 'js/theme-switch.js' %}"></script>
     <script src="{% static 'js/user-menu.js' %}"></script>
+    <script src="{% static 'js/toast.js' %}"></script>
     <script src="{% static 'js/app-shell.js' %}"></script>
     {% block extra_js %}{% endblock %}
     <script src="{% static 'js/pwa-register.js' %}"></script>

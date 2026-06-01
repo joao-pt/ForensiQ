@@ -9,6 +9,25 @@
  */
 (function () {
     'use strict';
+
+    // O botão só é útil depois de haver coordenadas: arranca desativado quando
+    // os campos de GPS estão vazios e é reativado pela captura (geo-capture.js).
+    function hasCoords(btn) {
+        var latEl = document.querySelector(btn.getAttribute('data-lat-target'));
+        var lngEl = document.querySelector(btn.getAttribute('data-lng-target'));
+        return !!(latEl && lngEl && latEl.value.trim() && lngEl.value.trim());
+    }
+    function refreshButtons() {
+        var btns = document.querySelectorAll('[data-nearby-pois]');
+        Array.prototype.forEach.call(btns, function (btn) {
+            btn.disabled = !hasCoords(btn);
+        });
+    }
+    refreshButtons();
+    document.addEventListener('forensiq:geo-captured', refreshButtons);
+    // Reavalia também na digitação manual de coordenadas (campos visíveis).
+    document.addEventListener('input', refreshButtons);
+
     document.body.addEventListener('click', function (ev) {
         var btn = ev.target.closest ? ev.target.closest('[data-nearby-pois]') : null;
         if (!btn) return;

@@ -218,9 +218,11 @@
     --accent-tint-hover: rgba(180, 83, 9, 0.14);
     --on-accent:       #FFFFFF;
 
-    --warning:         #B45309;
-    --warning-strong:  #92400E;
-    --warning-tint:    rgba(180, 83, 9, 0.10);
+    /* Warning destacado do accent (amber-600 #D97706) para que P2/aviso não
+       colida com botões/marca (--accent #B45309) nem com --state-em-transporte. */
+    --warning:         #D97706;
+    --warning-strong:  #B45309;
+    --warning-tint:    rgba(217, 119, 6, 0.12);
 
     --danger:          #B91C1C;
     --danger-strong:   #991B1B;
@@ -1445,26 +1447,6 @@ textarea.form-control {
 .status-dot.warning { background: var(--warning); box-shadow: 0 0 0 3px var(--warning-tint); }
 .status-dot.danger  { background: var(--danger);  box-shadow: 0 0 0 3px var(--danger-tint); }
 .status-dot.accent  { background: var(--accent);  box-shadow: 0 0 0 3px var(--accent-tint); }
-
-/* Marcadores Leaflet — partilhados entre lista de ocorrências e detalhe.
-   CSP-safe: substituem os style="" inline antes injectados por JS. */
-.fq-marker-dot {
-    width: 14px;
-    height: 14px;
-    display: block;
-}
-
-.fq-map-marker {
-    color: #fff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    border: 2px solid #fff;
-}
-.fq-map-marker-case     { background: #1a237e; }
-.fq-map-marker-evidence { background: #ff6f00; }
 
 /* Chip maior, para filtros/tags */
 .chip {

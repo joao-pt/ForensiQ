@@ -57,3 +57,25 @@
     margin-top: var(--sp-4);
     justify-content: center;
 }
+
+/* =====================================================================
+   skip-link — atalho de salto para o conteúdo
+   Replicado de app-shell.css; o 500.html é documento autónomo que só
+   carrega main.css + error.css, sem a casca que estiliza este atalho.
+   ===================================================================== */
+
+.skip-link {
+    position: absolute;
+    left: -10000px;
+    top: 0;
+    z-index: 200;
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: var(--fw-semi);
+    border-radius: 0 0 var(--r-2) 0;
+}
+
+.skip-link:focus {
+    left: 0;
+}

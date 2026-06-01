@@ -21,6 +21,12 @@
     function reset(sel, placeholder) {
         sel.innerHTML = '<option value="">' + placeholder + '</option>';
         sel.disabled = true;
+        sel.removeAttribute('aria-busy');
+    }
+    function loading(sel) {
+        sel.innerHTML = '<option value="">— a carregar… —</option>';
+        sel.disabled = true;
+        sel.setAttribute('aria-busy', 'true');
     }
     function fill(sel, items, render) {
         sel.innerHTML = '<option value="">— selecionar —</option>';
@@ -30,13 +36,26 @@
             sel.appendChild(o);
         });
         sel.disabled = false;
+        sel.removeAttribute('aria-busy');
     }
     function clearBadge() {
         if (badge) { badge.textContent = ''; badge.className = 'form-hint'; }
     }
+    // Mensagem por estado: distingue sessão expirada (401/403) de falha de servidor.
+    function statusMessage(status) {
+        if (status === 401 || status === 403) return '— sessão expirada, reautentique —';
+        return '— erro ao carregar —';
+    }
     function getJSON(url) {
         return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then(function (r) { return r.json(); });
+            .then(function (r) {
+                if (!r.ok) {
+                    var err = new Error('HTTP ' + r.status);
+                    err.status = r.status;
+                    throw err;
+                }
+                return r.json();
+            });
     }
 
     function loadSubs(catId) {
@@ -46,13 +65,14 @@
             clearBadge();
             return Promise.resolve();
         }
+        loading(subSel);
         return getJSON('/api/crime-subcategories/?categoria=' + encodeURIComponent(catId))
             .then(function (items) {
                 fill(subSel, items, function (o, it) { o.value = it.id; o.textContent = it.codigo + ' — ' + it.nome; });
                 reset(typeSel, '— selecione a subcategoria —');
                 clearBadge();
             })
-            .catch(function () { reset(subSel, '— erro ao carregar —'); });
+            .catch(function (e) { reset(subSel, statusMessage(e && e.status)); });
     }
 
     function loadTypes(subId) {
@@ -61,6 +81,7 @@
             clearBadge();
             return Promise.resolve();
         }
+        loading(typeSel);
         return getJSON('/api/crime-types/?subcategoria=' + encodeURIComponent(subId))
             .then(function (items) {
                 fill(typeSel, items, function (o, it) {
@@ -70,7 +91,7 @@
                 });
                 clearBadge();
             })
-            .catch(function () { reset(typeSel, '— erro ao carregar —'); });
+            .catch(function (e) { reset(typeSel, statusMessage(e && e.status)); });
     }
 
     function updateBadge() {
@@ -92,9 +113,28 @@
     typeSel.addEventListener('change', updateBadge);
 
     // Pré-seleção após re-render por erro de validação (mantém o crime escolhido).
+    // Se a cascata falhar a recarregar (rede/401), preserva o tipo escolhido
+    // numa opção de recurso para o formulário não ficar inutilizável.
     var selCat = form.getAttribute('data-sel-cat');
     var selSub = form.getAttribute('data-sel-sub');
     var selType = form.getAttribute('data-sel-type');
+
+    function keepChosenType() {
+        if (!selType) return;
+        // Garante que o tipo previamente escolhido continua selecionável e submetível,
+        // mesmo que loadSubs/loadTypes não tenham repopulado os selects.
+        if (!typeSel.querySelector('option[value="' + selType + '"]')) {
+            var o = document.createElement('option');
+            o.value = selType;
+            o.textContent = 'Tipo escolhido (recuperado)';
+            typeSel.appendChild(o);
+        }
+        typeSel.disabled = false;
+        typeSel.removeAttribute('aria-busy');
+        typeSel.value = selType;
+        updateBadge();
+    }
+
     if (selCat) {
         catSel.value = selCat;
         loadSubs(selCat).then(function () {
@@ -103,6 +143,9 @@
             return loadTypes(selSub).then(function () {
                 if (selType) { typeSel.value = selType; updateBadge(); }
             });
-        });
+        }).then(function () {
+            // Se algum passo falhou, o tipo escolhido pode não ter ficado selecionado.
+            if (selType && typeSel.value !== selType) keepChosenType();
+        }).catch(keepChosenType);
     }
 })();

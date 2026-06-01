@@ -15,8 +15,8 @@
  * O estado do drawer vive em `.app-grid[data-drawer="..."]` e é gerido
  * por `app-shell.js` (persiste em localStorage entre páginas).
  *
- * Em <1024px: sidebar oculta (hamburger virá no Sem.9 mobile-first),
- * drawer torna-se overlay fullscreen quando aberto.
+ * Em <1024px: sidebar em off-canvas (aberta pelo hamburger do header,
+ * com fundo e foco preso); drawer torna-se overlay fullscreen quando aberto.
  *
  * Ver a especificação de art direction §Layout.
  */
@@ -77,6 +77,48 @@ body.app-body {
     padding: 0 var(--sp-3);
     background: var(--bg-subtle);
     border-bottom: 1px solid var(--border);
+}
+
+/* Hamburger — navegação móvel (<1024px) */
+.app-top__nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    margin-left: calc(var(--sp-1) * -1);
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--r-2);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+}
+.app-top__nav-toggle:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-top__nav-toggle:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+.app-top__nav-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+@media (pointer: coarse) {
+    .app-top__nav-toggle {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
+}
+/* A partir de 1024px a sidebar é fixa: o hamburger desaparece. */
+@media (min-width: 1024px) {
+    .app-top__nav-toggle {
+        display: none;
+    }
 }
 
 .app-top__brand {
@@ -202,17 +244,109 @@ body.app-body {
    ===================================================================== */
 
 .app-sidebar {
-    display: none;
     background: var(--bg-subtle);
     border-right: 1px solid var(--border);
     overflow-y: auto;
     overflow-x: hidden;
-    padding: var(--sp-3) 0 var(--sp-6);
+    padding: 0 0 var(--sp-6);
 }
 
+/* Cabeçalho do off-canvas — só no modo móvel (<1024px) */
+.app-sidebar__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    height: var(--app-top-h);
+    padding: 0 var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+.app-sidebar__head-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
+    text-transform: uppercase;
+}
+.app-sidebar__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--r-2);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+}
+.app-sidebar__close:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-sidebar__close:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+.app-sidebar__close svg {
+    width: 18px;
+    height: 18px;
+}
+@media (pointer: coarse) {
+    .app-sidebar__close {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
+}
+
+/* -------------------------------------------------------------------
+   <1024px — sidebar como off-canvas controlado por body.nav-open
+   ------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+    .app-sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 80;
+        width: min(86vw, var(--app-sidebar-w));
+        padding-top: 0;
+        transform: translateX(-100%);
+        transition: transform var(--t-base) var(--ease);
+        box-shadow: var(--shadow-lg);
+    }
+    body.nav-open .app-sidebar {
+        transform: translateX(0);
+    }
+
+    .nav-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        background: rgba(0, 0, 0, 0.5);
+        border: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-sidebar {
+        transition: none;
+    }
+}
+
+/* A partir de 1024px a sidebar é fixa na grelha; o off-canvas desliga-se. */
 @media (min-width: 1024px) {
     .app-sidebar {
-        display: block;
+        padding-top: var(--sp-3);
+    }
+    .app-sidebar__head {
+        display: none;
+    }
+    .nav-backdrop {
+        display: none;
     }
 }
 
@@ -395,6 +529,15 @@ body.app-body {
 .app-drawer__btn svg {
     width: 14px;
     height: 14px;
+}
+
+/* Em dispositivos de toque o drawer pode ocupar o ecrã todo (overlay):
+   garante alvo de >=44px para fechar/minimizar/expandir de forma fiável. */
+@media (pointer: coarse) {
+    .app-drawer__btn {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
 }
 
 .app-drawer__body {

@@ -9,7 +9,7 @@
 {% endif %}
 
 {% if page_obj.object_list %}
-<table class="grid grid--clickable" role="grid" aria-label="Lista de ocorrências" aria-rowcount="{{ total }}">
+<table class="grid grid--clickable" role="grid" aria-label="Lista de ocorrências">
   <thead>
     <tr role="row">
       <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
@@ -25,13 +25,13 @@
     {% for o in page_obj %}
     <tr role="row" tabindex="0"
         data-row data-id="{{ o.id }}"
+        aria-label="Abrir detalhe de {{ o.code|default:o.number }}" aria-haspopup="dialog"
         hx-get="/occurrences/?drawer={{ o.id }}"
         hx-target="#app-drawer-body"
-        hx-swap="innerHTML"
-        {% if selected_id == o.id|stringformat:'s' %}aria-selected="true"{% endif %}>
+        hx-swap="innerHTML">
       <td role="gridcell" class="grid__pri">
         {% if o.pri %}
-          <span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}">{{ o.pri.level }}</span>
+          <span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}" aria-label="{{ o.pri.title }}">{{ o.pri.level }}</span>
         {% else %}
           <span class="pri pri--none" title="Normal" aria-label="Prioridade normal">—</span>
         {% endif %}

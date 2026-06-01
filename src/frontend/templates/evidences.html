@@ -22,12 +22,17 @@
     <div class="page-head__heading">
       <h1 class="page-head__title" id="evd-title">Itens de prova</h1>
       <span class="page-head__count" id="evd-count" aria-live="polite">{{ total }} ite{{ total|pluralize:"m,ns" }}</span>
-      {% if state_label %}<a class="filter-chip" href="/evidences/" title="Remover filtro de estado">{{ state_label }} ✕</a>{% endif %}
+      {% if state_label %}<a class="filter-chip" href="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}"
+            hx-get="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}"
+            hx-target="#evd-grid" hx-swap="innerHTML" hx-push-url="true"
+            title="Remover filtro de estado">{{ state_label }} ✕</a>{% endif %}
     </div>
+    {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
     <a class="btn-accent" href="/evidences/new/">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      Nova evidência
+      Novo item de prova
     </a>
+    {% endif %}
   </header>
 
   <form class="toolbar" role="search" action="/evidences/" method="get"

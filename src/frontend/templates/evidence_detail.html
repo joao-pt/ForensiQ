@@ -41,7 +41,7 @@
   {% if ev.photo %}
   <figure class="photo-hero">
     <img class="photo-hero__img" src="{{ ev.photo.url }}"
-         alt="Fotografia da evidência {{ ev.code }}" loading="lazy">
+         alt="Fotografia da evidência {{ ev.code }}" fetchpriority="high">
   </figure>
   {% endif %}
 
@@ -59,15 +59,54 @@
           <div class="facts__row"><dt>Nº série</dt><dd class="mono">{{ ev.serial_number|default:'—' }}</dd></div>
           <div class="facts__row"><dt>Apreensão</dt><dd class="mono">{{ ev.timestamp_seizure|date:'Y-m-d H:i' }}</dd></div>
           <div class="facts__row"><dt>Agente</dt><dd>{{ ev.agent_label }}</dd></div>
-          <div class="facts__row"><dt>Hash</dt>
+          <div class="facts__row"><dt>Hash do registo</dt>
             <dd class="mono"><span class="dd__hash">{{ ev.integrity_hash }}</span>
-              <button type="button" class="copy-btn" data-copy="{{ ev.integrity_hash }}" aria-label="Copiar hash" title="Copiar hash SHA-256">⧉</button></dd></div>
+              <button type="button" class="copy-btn" data-copy="{{ ev.integrity_hash }}" aria-label="Copiar hash do registo" title="Copiar hash SHA-256 do registo">⧉</button></dd></div>
           {% if ev.gps_lat is not None %}
           <div class="facts__row"><dt>GPS</dt>
             <dd class="mono">{{ ev.gps_lat|unlocalize }}, {{ ev.gps_lng|unlocalize }}
               <button type="button" class="copy-btn" data-copy="{{ ev.gps_lat|unlocalize }},{{ ev.gps_lng|unlocalize }}" aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
           {% endif %}
         </dl>
+
+        {% if ev.acquisition_hash %}
+        <h3 class="subhead">Aquisição</h3>
+        <dl class="facts">
+          <div class="facts__row"><dt>Hash de aquisição</dt>
+            <dd class="mono"><span class="dd__hash">{{ ev.acquisition_hash }}</span>
+              <button type="button" class="copy-btn" data-copy="{{ ev.acquisition_hash }}" aria-label="Copiar hash de aquisição" title="Copiar hash de aquisição">⧉</button></dd></div>
+          {% if ev.acquisition_hash_algo %}
+          <div class="facts__row"><dt>Algoritmo</dt><dd class="mono">{{ ev.acquisition_hash_algo }}</dd></div>
+          {% endif %}
+          {% if ev.acquisition_verification_status %}
+          <div class="facts__row"><dt>Verificação</dt><dd>{{ ev.get_acquisition_verification_status_display }}</dd></div>
+          {% endif %}
+          {% if ev.acquisition_verification_note %}
+          <div class="facts__row"><dt>Nota</dt><dd>{{ ev.acquisition_verification_note }}</dd></div>
+          {% endif %}
+        </dl>
+        {% endif %}
+
+        {% if ev.initial_seal_number or ev.bag_number or ev.initial_condition or ev.seal_packaging_description or ev.sealed_by %}
+        <h3 class="subhead">Selagem</h3>
+        <dl class="facts">
+          {% if ev.bag_number %}
+          <div class="facts__row"><dt>Nº saco</dt><dd class="mono">{{ ev.bag_number }}</dd></div>
+          {% endif %}
+          {% if ev.initial_seal_number %}
+          <div class="facts__row"><dt>Nº selo inicial</dt><dd class="mono">{{ ev.initial_seal_number }}</dd></div>
+          {% endif %}
+          {% if ev.initial_condition %}
+          <div class="facts__row"><dt>Condição inicial</dt><dd>{{ ev.get_initial_condition_display }}</dd></div>
+          {% endif %}
+          {% if ev.seal_packaging_description %}
+          <div class="facts__row"><dt>Acondicionamento</dt><dd>{{ ev.seal_packaging_description }}</dd></div>
+          {% endif %}
+          {% if ev.sealed_by %}
+          <div class="facts__row"><dt>Selado por</dt><dd>{{ ev.sealed_by.get_full_name|default:ev.sealed_by.username }}</dd></div>
+          {% endif %}
+        </dl>
+        {% endif %}
 
         {% if ev.type_specific_data %}
         <h3 class="subhead">Dados específicos</h3>
@@ -98,7 +137,7 @@
 
     <section class="section">
       <header class="section__head">
-        <h2 class="section__title">Localização / Cadeia</h2>
+        <h2 class="section__title">{% if chain_json != '[]' %}Localização / Cadeia{% else %}Localização da apreensão{% endif %}</h2>
       </header>
       <div class="section__body section__body--flush">
         {% if ev.gps_lat is not None or chain_json != '[]' %}
@@ -106,6 +145,9 @@
              data-chain="{{ chain_json }}"
              data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"
              data-label="{{ ev.code }}"></div>
+        {% if ev.gps_lat is not None and chain_json == '[]' %}
+        <p class="dd__nogeo">Sem georreferência nos eventos de custódia.</p>
+        {% endif %}
         {% else %}
         <p class="dd__nogeo">Sem georreferência (nem na apreensão, nem nos eventos de custódia).</p>
         {% endif %}
@@ -117,7 +159,7 @@
   <section class="section">
     <header class="section__head"><h2 class="section__title">Sub-componentes · {{ sub_components|length }}</h2></header>
     <div class="section__body section__body--flush">
-      <table class="grid grid--clickable" role="grid" aria-label="Sub-componentes">
+      <table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="Sub-componentes">
         <thead><tr role="row">
           <th role="columnheader" scope="col">Código</th>
           <th role="columnheader" scope="col">Tipo</th>
@@ -127,6 +169,7 @@
         <tbody>
           {% for s in sub_components %}
           <tr role="row" tabindex="0" data-row data-id="{{ s.id }}"
+              aria-haspopup="dialog" aria-label="Abrir detalhe de {{ s.code }}"
               hx-get="/evidences/?drawer={{ s.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
             <td role="gridcell" class="mono grid__code">{{ s.code }}</td>
             <td role="gridcell" class="grid__ellipsis">{{ s.type_label }}</td>

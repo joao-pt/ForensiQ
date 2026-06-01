@@ -222,12 +222,16 @@
     max-width: 100%;
     height: 8px;
     border-radius: var(--r-pill);
+    /* Escala construída só com tokens semânticos — o accent (marca/ações)
+       fica fora de legendas de dados para não diluir o seu papel. O ponto a
+       75% usa --warning-strong (amber distinto do accent) para progressão
+       cromática legível: neutro → azul → teal → amber → vermelho. */
     background: linear-gradient(
         90deg,
         var(--state-devolvida)   0%,
         var(--state-apreendida)  25%,
         var(--state-em-pericia)  50%,
-        var(--accent)            75%,
+        var(--warning-strong)    75%,
         var(--state-destruida)  100%
     );
 }

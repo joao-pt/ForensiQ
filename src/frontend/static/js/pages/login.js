@@ -18,15 +18,41 @@ document.addEventListener('DOMContentLoaded', function () {
     var form          = document.getElementById('login-form');
     var errorBox      = document.getElementById('login-error');
     var btnLogin      = document.getElementById('btn-login');
-    var btnLabel      = btnLogin.querySelector('.lp-submit-label');
-    var btnArrow      = btnLogin.querySelector('.btn-arrow');
     var usernameInput = document.getElementById('username');
     var passwordInput = document.getElementById('password');
     var pwToggle      = document.getElementById('pw-toggle');
-    var eyeShow       = pwToggle.querySelector('.lp-eye-show');
-    var eyeHide       = pwToggle.querySelector('.lp-eye-hide');
     var capsWarn      = document.getElementById('caps-warn');
     var forgotLink    = document.getElementById('lp-forgot');
+
+    // Guard defensivo — se o esqueleto do formulário não existir (script fora
+    // da página de login ou template alterado), aborta antes de tocar no DOM.
+    if (!form || !btnLogin || !pwToggle || !usernameInput || !passwordInput) {
+        return;
+    }
+    var btnLabel = btnLogin.querySelector('.lp-submit-label');
+    var btnArrow = btnLogin.querySelector('.btn-arrow');
+    var eyeShow  = pwToggle.querySelector('.lp-eye-show');
+    var eyeHide  = pwToggle.querySelector('.lp-eye-hide');
+
+    // ----------------------------------------------------------
+    // Destino pós-login — honra ?next= dos deep-links protegidos
+    // ----------------------------------------------------------
+    // As views devolvem /login/?next=<caminho> ao bloquear acesso. Só seguimos
+    // destinos internos: resolvemos o next contra a própria origem e confirmamos
+    // que o host não muda — barra '//host', '/\host' (que o browser normaliza
+    // para '//') e URLs absolutos caem no dashboard, evitando redirect aberto.
+    function resolveDestination() {
+        var next = new URLSearchParams(window.location.search).get('next');
+        if (next) {
+            try {
+                var u = new URL(next, window.location.origin);
+                if (u.origin === window.location.origin) {
+                    return u.pathname + u.search + u.hash;
+                }
+            } catch (e) { /* next malformado — cai no dashboard */ }
+        }
+        return '/dashboard/';
+    }
 
     // ----------------------------------------------------------
     // Auto-redirect se já autenticado
@@ -34,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (typeof Auth !== 'undefined' && typeof Auth.isAuthenticated === 'function') {
         Auth.isAuthenticated().then(function (authenticated) {
             if (authenticated) {
-                window.location.href = '/dashboard/';
+                window.location.href = resolveDestination();
             }
         }).catch(function () { /* silencioso — continua no form */ });
     }
@@ -109,7 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             await Auth.login(username, password);
-            window.location.href = '/dashboard/';
+            window.location.href = resolveDestination();
         } catch (err) {
             showError(err && err.message
                 ? err.message
@@ -162,7 +188,7 @@ document.addEventListener('DOMContentLoaded', function () {
  * Canvas 2D puro. Sem dependências. CSP-safe (script externo).
  * - Pontos movem-se devagar, colidem com as margens
  * - Ligações entre vizinhos (<= LINK_DIST) com alpha proporcional à distância
- * - Cursor acende ligações teal (interacção física com a rede)
+ * - Cursor acende ligações no âmbar do accent (interacção física com a rede)
  * - Respeita prefers-reduced-motion (renderiza uma frame estática)
  * - Pausa quando a tab não está visível (poupa CPU e bateria)
  *
@@ -203,10 +229,33 @@ document.addEventListener('DOMContentLoaded', function initConstellation() {
     var POINT_MAX_R   = 1.8;
     var SPEED         = 0.22;   // px / frame
 
-    // Cores alinhadas com os tokens --lp-*
+    // Cores dos nós e ligações em repouso (azul-acinzentado discreto).
     var COLOR_POINT        = 'rgba(143, 163, 192, 0.55)';
     var COLOR_LINK_PREFIX  = 'rgba(107, 125, 154, ';
-    var COLOR_LINK_CURSOR  = 'rgba(45, 212, 191, ';
+
+    // Realce ao cursor — âmbar do accent do produto. Lê o token --accent em
+    // runtime e converte para um prefixo rgba(); âmbar (#F6AD55) como fallback.
+    var COLOR_LINK_CURSOR  = resolveAccentRgbPrefix();
+
+    function resolveAccentRgbPrefix() {
+        var fallback = 'rgba(246, 173, 85, ';
+        try {
+            var raw = getComputedStyle(document.documentElement)
+                        .getPropertyValue('--accent').trim();
+            if (!raw) return fallback;
+            var rgb = hexToRgb(raw);
+            return rgb ? 'rgba(' + rgb + ', ' : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
+    function hexToRgb(hex) {
+        var m = /^#?([0-9a-f]{6})$/i.exec(hex);
+        if (!m) return null;
+        var n = parseInt(m[1], 16);
+        return ((n >> 16) & 255) + ', ' + ((n >> 8) & 255) + ', ' + (n & 255);
+    }
 
     function resize() {
         var rect = canvas.getBoundingClientRect();
@@ -272,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function initConstellation() {
             }
         }
 
-        // Ligações ao cursor — destaque teal
+        // Ligações ao cursor — destaque no âmbar do accent
         if (mouse.active) {
             ctx.lineWidth = 1.1;
             for (i = 0; i < points.length; i++) {

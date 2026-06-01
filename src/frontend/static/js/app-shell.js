@@ -10,6 +10,9 @@
  *      (mapas Leaflet, etc) possam refrescar layout.
  *   3. Destaque automático do link activo da sidebar via prefixo de URL.
  *   4. ESC fecha drawer aberto.
+ *   5. Navegação móvel (<1024px): off-canvas da sidebar via hamburger,
+ *      com fundo, foco preso, fecho por Esc / fundo / navegação.
+ *   6. Encaminhamento das mensagens server-side para o toast.
  *
  * Sem dependências externas, vanilla. CSP-safe (sem inline handlers).
  */
@@ -33,8 +36,10 @@
             const mm = String(now.getMinutes()).padStart(2, '0');
             const ss = String(now.getSeconds()).padStart(2, '0');
             // Renderiza dígitos preservando o nó do separador para animação.
+            // O <span> separador fornece o ':' entre horas e minutos (pisca),
+            // por isso o primeiro nó não leva ':' (evitar HH::MM:SS).
             if (sep) {
-                el.firstChild.nodeValue = hh + ':';
+                el.firstChild.nodeValue = hh;
                 if (el.childNodes[2]) el.childNodes[2].nodeValue = mm + ':' + ss;
                 blink = blink === 'on' ? 'off' : 'on';
                 el.dataset.blink = blink;
@@ -158,6 +163,97 @@
     }
 
     // -------------------------------------------------------------------
+    // 5. Navegação móvel — off-canvas da sidebar (<1024px)
+    // -------------------------------------------------------------------
+    const FOCUSABLE =
+        'a[href], button:not([disabled]), input:not([disabled]), ' +
+        'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function bindNavOffcanvas() {
+        const toggle = document.getElementById('nav-toggle');
+        const panel = document.getElementById('nav-offcanvas');
+        const backdrop = document.getElementById('nav-backdrop');
+        const closeBtn = document.getElementById('nav-close');
+        if (!toggle || !panel) return;
+
+        let lastFocus = null;
+
+        function isOpen() {
+            return document.body.classList.contains('nav-open');
+        }
+
+        function openNav() {
+            lastFocus = document.activeElement;
+            document.body.classList.add('nav-open');
+            toggle.setAttribute('aria-expanded', 'true');
+            if (backdrop) backdrop.hidden = false;
+            // Foco para o primeiro elemento navegável do painel.
+            const first = panel.querySelector(FOCUSABLE);
+            if (first) first.focus();
+            document.addEventListener('keydown', onKey, true);
+        }
+
+        function closeNav() {
+            if (!isOpen()) return;
+            document.body.classList.remove('nav-open');
+            toggle.setAttribute('aria-expanded', 'false');
+            if (backdrop) backdrop.hidden = true;
+            document.removeEventListener('keydown', onKey, true);
+            if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+        }
+
+        function onKey(ev) {
+            if (ev.key === 'Escape') {
+                ev.preventDefault();
+                ev.stopPropagation();
+                closeNav();
+                return;
+            }
+            if (ev.key !== 'Tab') return;
+            // Foco preso dentro do painel.
+            const items = Array.prototype.filter.call(
+                panel.querySelectorAll(FOCUSABLE),
+                function (el) { return el.offsetParent !== null; }
+            );
+            if (!items.length) return;
+            const first = items[0];
+            const last = items[items.length - 1];
+            if (ev.shiftKey && document.activeElement === first) {
+                ev.preventDefault();
+                last.focus();
+            } else if (!ev.shiftKey && document.activeElement === last) {
+                ev.preventDefault();
+                first.focus();
+            }
+        }
+
+        toggle.addEventListener('click', function () {
+            if (isOpen()) closeNav(); else openNav();
+        });
+        if (closeBtn) closeBtn.addEventListener('click', closeNav);
+        if (backdrop) backdrop.addEventListener('click', closeNav);
+        // Navegar fecha o painel.
+        panel.addEventListener('click', function (ev) {
+            if (ev.target.closest('[data-sidebar-link]')) closeNav();
+        });
+    }
+
+    // -------------------------------------------------------------------
+    // 6. Mensagens server-side -> toast
+    // -------------------------------------------------------------------
+    function flushServerMessages() {
+        const node = document.getElementById('server-messages');
+        if (!node || typeof window.Toast === 'undefined') return;
+
+        const TYPES = { success: 'success', error: 'error', warning: 'warning', info: 'info', debug: 'info' };
+        node.querySelectorAll('.server-message').forEach(function (el) {
+            const text = el.dataset.text;
+            if (!text) return;
+            window.Toast.show(text, TYPES[el.dataset.level] || 'info');
+        });
+    }
+
+    // -------------------------------------------------------------------
     // Boot
     // -------------------------------------------------------------------
     function init() {
@@ -172,8 +268,10 @@
 
         startClock();
         bindDrawerActions();
+        bindNavOffcanvas();
         highlightSidebar();
         applyPlatformHints();
+        flushServerMessages();
     }
 
     if (document.readyState === 'loading') {

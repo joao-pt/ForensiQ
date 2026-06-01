@@ -2,7 +2,7 @@
 {% load l10n %}
 <article class="dd" data-evidence-detail>
 
-  <div class="dd__top">
+  <div class="dd__top" tabindex="-1" data-drawer-head>
     <span class="dd__code mono">{{ ev.code|default:'—' }}</span>
     <button type="button" class="copy-btn" data-copy="{{ ev.code }}"
             aria-label="Copiar código" title="Copiar código">⧉</button>
@@ -38,9 +38,7 @@
   {% endif %}
 
   {% if ev.gps_lat is not None %}
-  <div class="dd__maptabs" role="tablist" aria-label="Vista do mapa">
-    <button type="button" class="dd__tab is-active" role="tab" aria-selected="true">Local</button>
-  </div>
+  <h3 class="subhead">Local da apreensão</h3>
   <div class="dd__map" id="drawer-map"
        data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"
        data-label="{{ ev.code }}"></div>

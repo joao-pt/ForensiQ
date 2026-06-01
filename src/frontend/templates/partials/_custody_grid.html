@@ -4,7 +4,7 @@
 {% endif %}
 
 {% if page_obj.object_list %}
-<table class="grid grid--clickable" role="grid" aria-label="Eventos de custódia" aria-rowcount="{{ total }}">
+<table class="grid grid--clickable" role="grid" aria-label="Eventos de custódia">
   <thead>
     <tr role="row">
       <th role="columnheader" scope="col">Código</th>
@@ -18,6 +18,7 @@
   <tbody>
     {% for r in page_obj %}
     <tr role="row" tabindex="0" data-row data-id="{{ r.id }}"
+        aria-label="Abrir detalhe de {{ r.code|default:r.event_label }}" aria-haspopup="dialog"
         hx-get="/custodies/?drawer={{ r.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
       <td role="gridcell" class="mono grid__code">{{ r.code|default:'—' }}</td>
       <td role="gridcell" class="mono">{{ r.evidence.code }}</td>

@@ -2,7 +2,7 @@
 {% load l10n %}
 <article class="dd" data-custody-detail>
 
-  <div class="dd__top">
+  <div class="dd__top" tabindex="-1" data-drawer-head>
     <span class="dd__code mono">{{ r.code|default:r.event_label }}</span>
     {% if r.code %}<button type="button" class="copy-btn" data-copy="{{ r.code }}" aria-label="Copiar código" title="Copiar código">⧉</button>{% endif %}
   </div>

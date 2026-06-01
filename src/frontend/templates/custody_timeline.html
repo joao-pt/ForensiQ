@@ -59,7 +59,7 @@
       <span class="custody-register__hint">+ adicionar ao ledger</span>
     </summary>
     <div class="section__body">
-      {% for e in register_errors %}<p class="form-error" role="alert">{{ e }}</p>{% endfor %}
+      {% for e in register_errors %}<p class="form-error visible" role="alert">{{ e }}</p>{% endfor %}
       <form method="post" action="/evidences/{{ ev.id }}/custody/">
         {% csrf_token %}
         <div class="form-grid">
@@ -85,6 +85,16 @@
           </div>
 
           <div class="form-field">
+            <label for="r-institution">Instituição custódia (titular)</label>
+            <select id="r-institution" name="custodian_institution">
+              <option value="">— (não aplicável) —</option>
+              {% for inst in institutions %}
+              <option value="{{ inst.id }}" {% if register_data.custodian_institution == inst.id|stringformat:"s" %}selected{% endif %}>{{ inst.sigla|default:inst.name }} · {{ inst.get_type_display }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field">
             <label for="r-loc">Local (POI)</label>
             <input type="text" id="r-loc" name="location_name" value="{{ register_data.location_name }}"
                    list="r-pois" placeholder="Ex.: Laboratório de Informática Forense" autocomplete="off">
@@ -99,16 +109,17 @@
 
           <div class="form-field">
             <label for="r-lat">Latitude</label>
-            <input class="mono" type="text" inputmode="decimal" id="r-lat" name="gps_lat" value="{{ register_data.gps_lat }}" placeholder="38.7197">
+            <input class="mono" type="text" inputmode="decimal" id="r-lat" name="gps_lat" value="{{ register_data.gps_lat }}" placeholder="38.7197" aria-describedby="r-gps-hint">
           </div>
           <div class="form-field">
             <label for="r-lng">Longitude</label>
-            <input class="mono" type="text" inputmode="decimal" id="r-lng" name="gps_lng" value="{{ register_data.gps_lng }}" placeholder="-9.1467">
+            <input class="mono" type="text" inputmode="decimal" id="r-lng" name="gps_lng" value="{{ register_data.gps_lng }}" placeholder="-9.1467" aria-describedby="r-gps-hint">
+            <span class="form-hint" id="r-gps-hint">Use ponto decimal (ex.: 38.7197)</span>
           </div>
           <input type="hidden" id="r-acc" name="gps_accuracy_m" value="{{ register_data.gps_accuracy_m }}">
 
-          <div class="form-field form-field--full">
-            <label>Geolocalização do evento</label>
+          <div class="form-field form-field--full" role="group" aria-labelledby="r-geo-label">
+            <span class="subhead" id="r-geo-label">Geolocalização do evento</span>
             <div class="form-inline">
               <button type="button" class="btn-ghost" data-geo-capture
                       data-lat-target="#r-lat" data-lng-target="#r-lng" data-acc-target="#r-acc" data-decimals="4">
@@ -128,6 +139,26 @@
           <div class="form-field form-field--full">
             <label for="r-obs">Observações</label>
             <textarea id="r-obs" name="observations" placeholder="Estado das embalagens, selos, notas…">{{ register_data.observations }}</textarea>
+          </div>
+
+          <div class="form-field form-field--full">
+            <label class="form-check">
+              <input type="checkbox" name="sealed" value="1" {% if register_data.sealed %}checked{% endif %}>
+              <span>Item selado neste movimento (selagem por-evento)</span>
+            </label>
+          </div>
+          <div class="form-field">
+            <label for="r-sealcond">Condição do selo na receção</label>
+            <select id="r-sealcond" name="seal_condition_on_receipt">
+              <option value="">— (n/a) —</option>
+              {% for val, label in seal_conditions %}
+              <option value="{{ val }}" {% if register_data.seal_condition_on_receipt == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="r-newseal">Novo nº de selo (re-selagem)</label>
+            <input class="mono" type="text" id="r-newseal" name="new_seal_number" value="{{ register_data.new_seal_number }}" placeholder="Ex.: SEL-2026-0123" autocomplete="off">
           </div>
 
           {% if sub_components %}

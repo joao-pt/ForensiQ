@@ -35,6 +35,13 @@
         }
 
         document.documentElement.setAttribute('data-theme', theme);
+
+        // Alinhar a chrome do browser (barra de endereço mobile, splash iOS)
+        // com o tema resolvido, ainda antes do primeiro paint, para não ficar
+        // a cor dark fixa do <meta> enquanto o resto do <head> não termina.
+        // As cores espelham theme-switch.js (META_COLORS).
+        var meta = document.getElementById('meta-theme-color');
+        if (meta) meta.content = theme === 'light' ? '#FAFAF9' : '#0F1115';
     } catch (err) {
         document.documentElement.setAttribute('data-theme', 'dark');
     }

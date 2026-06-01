@@ -4,7 +4,7 @@
 {% endif %}
 
 {% if page_obj.object_list %}
-<table class="grid" role="grid" aria-label="Guias de transporte" aria-rowcount="{{ total }}">
+<table class="grid" role="grid" aria-label="Guias de transporte">
   <thead>
     <tr role="row">
       <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
@@ -20,9 +20,9 @@
     {% for o in page_obj %}
     <tr role="row">
       <td role="gridcell" class="grid__pri">
-        {% if o.pri %}<span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none">—</span>{% endif %}
+        {% if o.pri %}<span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}" aria-label="{{ o.pri.title }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none" title="Normal" aria-label="Prioridade normal">—</span>{% endif %}
       </td>
-      <td role="gridcell" class="mono grid__code"><a class="dd__full" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
+      <td role="gridcell" class="mono grid__code"><a class="grid__link" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
       <td role="gridcell" class="mono">{{ o.number }}</td>
       <td role="gridcell" class="grid__ellipsis col-hide-md">{{ o.crime_label }}</td>
       <td role="gridcell" class="mono">{{ o.n_ev }}</td>

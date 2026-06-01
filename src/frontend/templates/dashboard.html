@@ -27,7 +27,7 @@
     <article class="geo-hero__col geo-hero__custody" aria-label="Estado da cadeia de custódia">
       <header class="geo-hero__header">
         <h2 class="geo-hero__title">Estado da cadeia</h2>
-        <span class="geo-hero__meta">{{ total_active }} item{{ total_active|pluralize:"·ns" }}</span>
+        <span class="geo-hero__meta">{{ total_active }} ite{{ total_active|pluralize:"m,ns" }}</span>
       </header>
       <div class="geo-hero__custody-list" role="list">
         {% for t in tiles %}
@@ -70,6 +70,7 @@
           <span class="geo-hero__inset-label">Açores</span>
         </div>
       </div>
+      {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
       <div class="geo-hero__cta">
         <a class="btn-new-occ" href="/occurrences/new/">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -77,9 +78,9 @@
             <path d="M12 5v14M5 12h14"/>
           </svg>
           <span>Nova ocorrência</span>
-          <kbd class="btn-new-occ__kbd" data-kbd="Ctrl+N">Ctrl+N</kbd>
         </a>
       </div>
+      {% endif %}
     </article>
   </section>
 
@@ -88,7 +89,7 @@
     <header class="section__head"><h2 class="section__title">Últimas ocorrências</h2></header>
     <div class="section__body section__body--flush">
       {% if recent %}
-      <table class="grid" role="grid" aria-label="Últimas ocorrências">
+      <table class="grid" role="table" aria-label="Últimas ocorrências">
         <thead>
           <tr role="row">
             <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
@@ -101,11 +102,11 @@
         <tbody>
           {% for o in recent %}
           <tr role="row">
-            <td role="gridcell" class="grid__pri">{% if o.pri %}<span class="pri pri--{{ o.pri.cls }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none">—</span>{% endif %}</td>
-            <td role="gridcell" class="mono grid__code"><a class="dd__full" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
-            <td role="gridcell" class="mono">{{ o.number }}</td>
-            <td role="gridcell" class="grid__ellipsis col-hide-sm">{{ o.crime_label }}</td>
-            <td role="gridcell" class="mono">{{ o.date_time|date:'Y-m-d H:i' }}</td>
+            <td role="cell" class="grid__pri">{% if o.pri %}<span class="pri pri--{{ o.pri.cls }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none">—</span>{% endif %}</td>
+            <td role="cell" class="mono grid__code"><a class="dd__full" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
+            <td role="cell" class="mono">{{ o.number }}</td>
+            <td role="cell" class="grid__ellipsis col-hide-sm">{{ o.crime_label }}</td>
+            <td role="cell" class="mono">{{ o.date_time|date:'Y-m-d H:i' }}</td>
           </tr>
           {% endfor %}
         </tbody>

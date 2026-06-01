@@ -26,8 +26,8 @@
   {% if errors.non_field_errors or errors.geral %}
   <div class="section" role="alert">
     <div class="section__body">
-      {% for e in errors.non_field_errors %}<p class="form-error">{{ e }}</p>{% endfor %}
-      {% for e in errors.geral %}<p class="form-error">{{ e }}</p>{% endfor %}
+      {% for e in errors.non_field_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+      {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
     </div>
   </div>
   {% endif %}
@@ -42,8 +42,8 @@
           <div class="form-field">
             <label for="f-number">NUIPC / número *</label>
             <input class="mono" type="text" id="f-number" name="number" value="{{ data.number }}" required
-                   placeholder="NUIPC.000/2026.LISBOA">
-            {% if errors.number %}<span class="form-error">{{ errors.number.0 }}</span>{% endif %}
+                   placeholder="NUIPC.000/2026.LISBOA"{% if errors.number %} aria-invalid="true" aria-describedby="f-number-err"{% endif %}>
+            {% if errors.number %}<span class="form-error visible" id="f-number-err">{{ errors.number.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
@@ -65,23 +65,23 @@
 
           <div class="form-field form-field--full">
             <label for="f-crime">Tipo de crime *</label>
-            <select id="f-crime" name="crime_type" required data-crime-type disabled>
+            <select id="f-crime" name="crime_type" required data-crime-type disabled{% if errors.crime_type %} aria-invalid="true" aria-describedby="f-crime-err"{% endif %}>
               <option value="">— selecione a subcategoria —</option>
             </select>
             <span class="form-hint" data-crime-priority aria-live="polite"></span>
-            {% if errors.crime_type %}<span class="form-error">{{ errors.crime_type.0 }}</span>{% endif %}
+            {% if errors.crime_type %}<span class="form-error visible" id="f-crime-err">{{ errors.crime_type.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field form-field--full">
             <label for="f-desc">Descrição *</label>
-            <textarea id="f-desc" name="description" required placeholder="Descrição sumária da ocorrência…">{{ data.description }}</textarea>
-            {% if errors.description %}<span class="form-error">{{ errors.description.0 }}</span>{% endif %}
+            <textarea id="f-desc" name="description" required placeholder="Descrição sumária da ocorrência…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
+            {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
             <label for="f-dt">Data / hora</label>
-            <input class="mono" type="datetime-local" id="f-dt" name="date_time" value="{{ data.date_time }}">
-            {% if errors.date_time %}<span class="form-error">{{ errors.date_time.0 }}</span>{% endif %}
+            <input class="mono" type="datetime-local" id="f-dt" name="date_time" value="{{ data.date_time }}"{% if errors.date_time %} aria-invalid="true" aria-describedby="f-dt-err"{% endif %}>
+            {% if errors.date_time %}<span class="form-error visible" id="f-dt-err">{{ errors.date_time.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
@@ -91,18 +91,18 @@
 
           <div class="form-field">
             <label for="f-lat">Latitude</label>
-            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197">
-            {% if errors.gps_lat %}<span class="form-error">{{ errors.gps_lat.0 }}</span>{% endif %}
+            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
+            {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
             <label for="f-lng">Longitude</label>
-            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467">
-            {% if errors.gps_lng %}<span class="form-error">{{ errors.gps_lng.0 }}</span>{% endif %}
+            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
+            {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
           </div>
 
-          <div class="form-field form-field--full">
-            <label>Geolocalização</label>
+          <div class="form-field form-field--full" role="group" aria-labelledby="on-geo-label">
+            <span class="subhead" id="on-geo-label">Geolocalização</span>
             <div class="form-inline">
               <button type="button" class="btn-ghost" data-geo-capture
                       data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">

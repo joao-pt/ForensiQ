@@ -25,8 +25,8 @@
 
   {% if errors.non_field_errors or errors.geral %}
   <div class="section" role="alert"><div class="section__body">
-    {% for e in errors.non_field_errors %}<p class="form-error">{{ e }}</p>{% endfor %}
-    {% for e in errors.geral %}<p class="form-error">{{ e }}</p>{% endfor %}
+    {% for e in errors.non_field_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+    {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
   </div></div>
   {% endif %}
 
@@ -38,30 +38,30 @@
 
           <div class="form-field">
             <label for="f-occ">Ocorrência *</label>
-            <select id="f-occ" name="occurrence" required>
+            <select id="f-occ" name="occurrence" required{% if errors.occurrence %} aria-invalid="true" aria-describedby="f-occ-err"{% endif %}>
               <option value="">— selecionar —</option>
               {% for o in occurrences %}
               <option value="{{ o.id }}" {% if preselect == o.id|stringformat:'s' %}selected{% endif %}>{{ o.code }} · {{ o.number }}</option>
               {% endfor %}
             </select>
-            {% if errors.occurrence %}<span class="form-error">{{ errors.occurrence.0 }}</span>{% endif %}
+            {% if errors.occurrence %}<span class="form-error visible" id="f-occ-err">{{ errors.occurrence.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
             <label for="f-type">Tipo *</label>
-            <select id="f-type" name="type" required>
+            <select id="f-type" name="type" required{% if errors.type %} aria-invalid="true" aria-describedby="f-type-err"{% endif %}>
               <option value="">— selecionar —</option>
               {% for val, label in evidence_types %}
               <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>
-            {% if errors.type %}<span class="form-error">{{ errors.type.0 }}</span>{% endif %}
+            {% if errors.type %}<span class="form-error visible" id="f-type-err">{{ errors.type.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field form-field--full">
             <label for="f-desc">Descrição *</label>
-            <textarea id="f-desc" name="description" required placeholder="Descrição do item apreendido…">{{ data.description }}</textarea>
-            {% if errors.description %}<span class="form-error">{{ errors.description.0 }}</span>{% endif %}
+            <textarea id="f-desc" name="description" required placeholder="Descrição do item apreendido…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
+            {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
@@ -71,33 +71,33 @@
 
           <div class="form-field">
             <label for="f-parent">Sub-componente de (opcional)</label>
-            <select id="f-parent" name="parent_evidence">
+            <select id="f-parent" name="parent_evidence"{% if errors.parent_evidence %} aria-invalid="true" aria-describedby="f-parent-err"{% endif %}>
               <option value="">— nenhum (item raiz) —</option>
               {% for p in parents %}
               <option value="{{ p.id }}" {% if data.parent_evidence == p.id|stringformat:'s' %}selected{% endif %}>{{ p.code }} · {{ p.get_type_display }}</option>
               {% endfor %}
             </select>
-            {% if errors.parent_evidence %}<span class="form-error">{{ errors.parent_evidence.0 }}</span>{% endif %}
+            {% if errors.parent_evidence %}<span class="form-error visible" id="f-parent-err">{{ errors.parent_evidence.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
             <label for="f-photo">Fotografia</label>
-            <input type="file" id="f-photo" name="photo" accept="image/*">
-            {% if errors.photo %}<span class="form-error">{{ errors.photo.0 }}</span>{% endif %}
+            <input type="file" id="f-photo" name="photo" accept="image/*"{% if errors.photo %} aria-invalid="true" aria-describedby="f-photo-err"{% endif %}>
+            {% if errors.photo %}<span class="form-error visible" id="f-photo-err">{{ errors.photo.0 }}</span>{% endif %}
           </div>
 
           <div class="form-field">
             <label for="f-lat">Latitude (apreensão)</label>
-            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197">
-            {% if errors.gps_lat %}<span class="form-error">{{ errors.gps_lat.0 }}</span>{% endif %}
+            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
+            {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
           </div>
           <div class="form-field">
             <label for="f-lng">Longitude (apreensão)</label>
-            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467">
-            {% if errors.gps_lng %}<span class="form-error">{{ errors.gps_lng.0 }}</span>{% endif %}
+            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
+            {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
           </div>
-          <div class="form-field form-field--full">
-            <label>Geolocalização da apreensão</label>
+          <div class="form-field form-field--full" role="group" aria-labelledby="en-geo-label">
+            <span class="subhead" id="en-geo-label">Geolocalização da apreensão</span>
             <div class="form-inline">
               <button type="button" class="btn-ghost" data-geo-capture data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
@@ -110,7 +110,7 @@
 
         <div class="id-section" data-id-section>
           <h3 class="subhead">Dados específicos do tipo (opcional)</h3>
-          {% if errors.type_specific_data %}<p class="form-error">{{ errors.type_specific_data.0 }}</p>{% endif %}
+          {% if errors.type_specific_data %}<p class="form-error visible" role="alert">{{ errors.type_specific_data.0 }}</p>{% endif %}
           <div class="form-grid">
 
             <div class="form-field form-field--full id-field" data-id-field data-id-type="MOBILE_DEVICE">
@@ -122,7 +122,7 @@
                   Consultar imeidb.xyz
                 </button>
               </div>
-              <div id="imei-enrich" class="lookup-result" hidden></div>
+              <div id="imei-enrich" class="lookup-result" role="status" aria-live="polite" aria-atomic="true" hidden></div>
             </div>
 
             <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
@@ -148,7 +148,7 @@
             <div class="form-field id-field" data-id-field data-id-type="NETWORK_DEVICE">
               <label for="f-mac">MAC <span class="facts__src">(IEEE 802)</span></label>
               <input class="mono" type="text" id="f-mac" name="mac" value="{{ data.mac }}" placeholder="00:1A:2B:3C:4D:5E" autocomplete="off">
-              <span class="facts__src" data-mac-status></span>
+              <span class="facts__src" data-mac-status role="status" aria-live="polite"></span>
             </div>
 
           </div>

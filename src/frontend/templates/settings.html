@@ -21,12 +21,18 @@
 
   <div class="cols-2">
     <section class="section">
-      <header class="section__head"><h2 class="section__title">Credencial</h2></header>
+      <header class="section__head"><h2 class="section__title">Identidade</h2></header>
       <div class="section__body">
         <dl class="facts">
           <div class="facts__row"><dt>Utilizador</dt><dd class="mono">{{ u.username }}</dd></div>
           <div class="facts__row"><dt>Nome</dt><dd>{{ u.get_full_name|default:'—' }}</dd></div>
           <div class="facts__row"><dt>Perfil</dt><dd>{{ u.get_profile_display|default:u.profile }}</dd></div>
+          <div class="facts__row">
+            <dt>Credencial</dt>
+            <dd>
+              {% if u.has_national_clearance %}<span class="state state--info">{{ u.get_clearance_display }}</span>{% else %}{{ u.get_clearance_display }}{% endif %}
+            </dd>
+          </div>
           <div class="facts__row"><dt>Distintivo</dt><dd class="mono">{{ u.badge_number|default:'—' }}</dd></div>
           <div class="facts__row"><dt>Email</dt><dd class="mono">{{ u.email|default:'—' }}</dd></div>
           <div class="facts__row"><dt>Telefone</dt><dd class="mono">{{ u.phone|default:'—' }}</dd></div>
@@ -45,6 +51,24 @@
           <div class="facts__row"><dt>Tema</dt><dd>Alternar no cabeçalho (sol / lua)</dd></div>
         </dl>
         <p class="detail__desc">A autenticação é por cookie de sessão JWT (HttpOnly). Termine a sessão pelo menu de utilizador.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Instituições</h2></header>
+      <div class="section__body">
+        {% if u.institution_memberships.all %}
+        <dl class="facts">
+          {% for m in u.institution_memberships.all %}
+          <div class="facts__row">
+            <dt>{{ m.institution.get_type_display }}</dt>
+            <dd>{{ m.institution.name }}{% if m.institution.sigla %} <span class="facts__src">({{ m.institution.sigla }})</span>{% endif %}{% if not m.is_active %} <span class="state state--muted">Inativa</span>{% endif %}</dd>
+          </div>
+          {% endfor %}
+        </dl>
+        {% else %}
+        <p class="detail__desc">Sem instituições associadas.</p>
+        {% endif %}
       </div>
     </section>
   </div>

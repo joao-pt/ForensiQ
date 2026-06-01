@@ -30,7 +30,7 @@
 
   {% if intake_errors %}
   <div class="section" role="alert"><div class="section__body">
-    {% for e in intake_errors %}<p class="form-error">{{ e }}</p>{% endfor %}
+    {% for e in intake_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
   </div></div>
   {% endif %}
 
@@ -41,7 +41,7 @@
 
         <table class="grid" role="grid" aria-label="Itens a receber">
           <thead><tr role="row">
-            <th role="columnheader" scope="col" class="grid__th--pri"></th>
+            <th role="columnheader" scope="col" class="grid__th--pri"><span class="visually-hidden">Receber</span></th>
             <th role="columnheader" scope="col">Código</th>
             <th role="columnheader" scope="col">Tipo</th>
             <th role="columnheader" scope="col">Estado atual</th>
@@ -51,10 +51,13 @@
             <tr role="row">
               <td role="gridcell">
                 {% if row.already_received %}
-                  <span title="Já recebida no laboratório">✓</span>
+                  <span aria-hidden="true" title="Já recebida no laboratório">✓</span>
+                  <span class="visually-hidden">Já recebida no laboratório</span>
                 {% else %}
-                  <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" checked
-                         aria-label="Receber {{ row.evidence.code }}">
+                  <label class="form-check" title="Receber {{ row.evidence.code }}">
+                    <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" checked
+                           aria-label="Receber {{ row.evidence.code }}">
+                  </label>
                 {% endif %}
               </td>
               <td role="gridcell" class="mono grid__code">{{ row.evidence.code }}</td>
@@ -63,7 +66,7 @@
                 {% if row.already_received %}
                   <span class="state state--ok">Já recebida</span>
                 {% else %}
-                  <span class="state state--info">{{ row.current_state|default:'sem custódia' }}</span>
+                  <span class="state state--{{ row.current_state_css }}">{{ row.current_state_display }}</span>
                 {% endif %}
               </td>
             </tr>
@@ -77,8 +80,8 @@
           <input type="hidden" id="f-lng" name="gps_lng">
           <input type="hidden" id="f-acc" name="gps_accuracy_m">
 
-          <div class="form-field form-field--full">
-            <label>Geolocalização da receção (opcional)</label>
+          <div class="form-field form-field--full" role="group" aria-labelledby="in-geo-label">
+            <span class="subhead" id="in-geo-label">Geolocalização da receção (opcional)</span>
             <div class="form-inline">
               <button type="button" class="btn-ghost" data-geo-capture
                       data-lat-target="#f-lat" data-lng-target="#f-lng" data-acc-target="#f-acc" data-decimals="4">

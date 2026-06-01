@@ -29,12 +29,22 @@
                 if (latEl) latEl.value = pos.coords.latitude.toFixed(dec);
                 if (lngEl) lngEl.value = pos.coords.longitude.toFixed(dec);
                 var m = Math.round(pos.coords.accuracy);
-                if (accEl) accEl.value = m;  // precisão persistida (gps_accuracy_m)
+                // A precisão só é persistida em páginas de MOVIMENTO de custódia
+                // (campo gps_accuracy_m do evento); na génese da prova é só informativa.
+                if (accEl) accEl.value = m;
                 if (acc) {
                     acc.textContent = '±' + m + ' m';
                     acc.classList.toggle('geo-acc--flag', m > 50);
                 }
                 btn.disabled = false;
+                // Sinaliza a captura para componentes dependentes (ex.: POIs próximos),
+                // que só funcionam depois de haver coordenadas.
+                document.dispatchEvent(new CustomEvent('forensiq:geo-captured', {
+                    detail: {
+                        latTarget: btn.getAttribute('data-lat-target'),
+                        lngTarget: btn.getAttribute('data-lng-target')
+                    }
+                }));
             },
             function () {
                 if (acc) acc.textContent = 'GPS indisponível';

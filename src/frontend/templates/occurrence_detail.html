@@ -16,7 +16,7 @@
 
 {% block drawer_title %}Item de prova{% endblock %}
 {% block drawer_content %}
-  <p class="app-drawer__placeholder">Selecione um item de prova para ver a localização.</p>
+  <p class="app-drawer__placeholder">Selecione um item de prova para ver a ficha (estado, hash, localização).</p>
 {% endblock %}
 
 {% block content %}
@@ -25,7 +25,7 @@
   <header class="detail__head">
     <div>
       <h1 class="detail__title" id="occ-title">
-        {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" title="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
+        {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
         {{ occ.code|default:occ.number }}
       </h1>
       <p class="detail__sub">{{ occ.crime_label }}</p>
@@ -35,10 +35,12 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
         Guia PDF
       </a>
+      {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
       <a class="btn-accent" href="/evidences/new/?occurrence={{ occ.id }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         Nova evidência
       </a>
+      {% endif %}
     </div>
   </header>
 
@@ -50,7 +52,7 @@
           <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ occ.number }}</dd></div>
           <div class="facts__row"><dt>Crime</dt><dd>{{ occ.crime_label }}</dd></div>
           <div class="facts__row"><dt>Prioridade</dt>
-            <dd>{{ occ.get_priority_display }} <span class="facts__src">({{ occ.get_priority_source_display }})</span></dd></div>
+            <dd>{{ occ.get_priority_display }}{% if occ.pri %} <span class="facts__src">({{ occ.get_priority_source_display }})</span>{% endif %}</dd></div>
           <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ occ.date_time|date:'Y-m-d H:i' }}</dd></div>
           <div class="facts__row"><dt>Agente</dt><dd>{{ occ.agent_label }}</dd></div>
           <div class="facts__row"><dt>Itens</dt><dd class="mono">{{ occ.evidence_count }}</dd></div>
@@ -89,7 +91,7 @@
     </header>
     <div class="section__body section__body--flush">
       {% if evidences %}
-      <table class="grid grid--clickable" role="grid" aria-label="Itens de prova da ocorrência">
+      <table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="Itens de prova da ocorrência">
         <thead>
           <tr role="row">
             <th role="columnheader" scope="col">Código</th>
@@ -102,6 +104,7 @@
         <tbody>
           {% for e in evidences %}
           <tr role="row" tabindex="0" data-row data-id="{{ e.id }}"
+              aria-haspopup="dialog" aria-label="Abrir detalhe de {{ e.code }}"
               hx-get="/evidences/?drawer={{ e.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
             <td role="gridcell" class="mono grid__code">{% if e.parent_evidence %}<span class="grid__muted">└ </span>{% endif %}{{ e.code }}</td>
             <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>

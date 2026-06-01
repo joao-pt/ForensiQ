@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0F1115">
+  <meta name="theme-color" content="#0F1115" id="meta-theme-color">
   <meta name="robots" content="noindex">
   <title>Verificação · {{ occurrence_code }} — ForensiQ</title>
   <script src="{% static 'js/theme-init.js' %}"></script>
@@ -48,8 +48,12 @@
               <td class="mono grid__code">{{ e.code }}</td>
               <td>{{ e.get_type_display }}</td>
               <td class="mono">
+                {% if e.integrity_hash %}
                 <span class="dd__hash">{{ e.integrity_hash }}</span>
                 <button type="button" class="copy-btn" data-copy="{{ e.integrity_hash }}" aria-label="Copiar hash" title="Copiar hash">⧉</button>
+                {% else %}
+                <span class="state state--warning">Hash por calcular</span>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

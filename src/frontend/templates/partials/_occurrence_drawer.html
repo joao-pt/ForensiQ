@@ -6,8 +6,8 @@
 {% load l10n %}
 <article class="dd" data-occ-detail>
 
-  <div class="dd__top">
-    {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" title="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
+  <div class="dd__top" tabindex="-1" data-drawer-head>
+    {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
     <span class="dd__code mono">{{ occ.code|default:occ.number }}</span>
     <button type="button" class="copy-btn" data-copy="{{ occ.code|default:occ.number }}"
             aria-label="Copiar código" title="Copiar código">⧉</button>
@@ -17,7 +17,7 @@
     <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ occ.number }}</dd></div>
     <div class="facts__row"><dt>Crime</dt><dd>{{ occ.crime_label }}</dd></div>
     <div class="facts__row"><dt>Prioridade</dt>
-      <dd>{{ occ.get_priority_display }} <span class="facts__src">({{ occ.get_priority_source_display }})</span></dd></div>
+      <dd>{{ occ.get_priority_display }}{% if occ.pri %} <span class="facts__src">({{ occ.get_priority_source_display }})</span>{% endif %}</dd></div>
     <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ occ.date_time|date:'Y-m-d H:i' }}</dd></div>
     <div class="facts__row"><dt>Agente</dt><dd>{{ occ.agent_label }}</dd></div>
     <div class="facts__row"><dt>Itens</dt><dd class="mono">{{ occ.evidence_count }}</dd></div>
@@ -38,11 +38,7 @@
   {% endif %}
 
   {% if occ.gps_lat is not None %}
-  <div class="dd__maptabs" role="tablist" aria-label="Vista do mapa">
-    <button type="button" class="dd__tab is-active" role="tab" aria-selected="true" data-map-mode="local">Local</button>
-    <button type="button" class="dd__tab" role="tab" aria-selected="false" disabled
-            title="Disponível com a cadeia de custódia (próxima fase)">Cadeia</button>
-  </div>
+  <h3 class="subhead">Local <span class="facts__src" title="Disponível com a cadeia de custódia (próxima fase)">— cadeia na próxima fase</span></h3>
   <div class="dd__map" id="drawer-map"
        data-lat="{{ occ.gps_lat|unlocalize }}" data-lng="{{ occ.gps_lng|unlocalize }}"
        data-label="{{ occ.code|default:occ.number }}"></div>

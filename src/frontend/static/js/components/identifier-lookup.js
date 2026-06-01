@@ -88,7 +88,12 @@
 
         if (kind === 'vin') {
             val = val.toUpperCase();
+            // Feedback de progresso visível: o VIN só abre uma aba no fim, sem destino
+            // de resultado, por isso o rótulo do botão sinaliza a consulta em curso.
+            var vinLabel = btn.textContent;
             btn.disabled = true;
+            btn.setAttribute('aria-busy', 'true');
+            btn.textContent = 'A consultar…';
             fetch('/api/evidences/lookup/vin/' + encodeURIComponent(val) + '/',
                 { credentials: 'same-origin', headers: { Accept: 'application/json' } })
                 .then(function (r) {
@@ -96,14 +101,28 @@
                 })
                 .then(function (d) { if (d.url) window.open(d.url, '_blank', 'noopener,noreferrer'); })
                 .catch(function (e) { window.alert(e.message || 'Falha na consulta VIN.'); })
-                .finally(function () { btn.disabled = false; });
+                .finally(function () {
+                    btn.disabled = false;
+                    btn.removeAttribute('aria-busy');
+                    btn.textContent = vinLabel;
+                });
             return;
         }
 
         // imei
         var out = document.querySelector(btn.getAttribute('data-result'));
-        if (out) { out.hidden = false; out.innerHTML = '<p class="lookup-pending">A consultar imeidb.xyz…</p>'; }
+        if (out) {
+            // Garante anúncio do estado/resultado a leitores de ecrã, mesmo que o
+            // contentor não traga os atributos no servidor.
+            if (!out.getAttribute('role')) out.setAttribute('role', 'status');
+            out.setAttribute('aria-live', 'polite');
+            out.setAttribute('aria-atomic', 'true');
+            out.setAttribute('aria-busy', 'true');
+            out.hidden = false;
+            out.innerHTML = '<p class="lookup-pending">A consultar imeidb.xyz…</p>';
+        }
         btn.disabled = true;
+        btn.setAttribute('aria-busy', 'true');
         fetch('/api/evidences/lookup/imei/' + encodeURIComponent(val) + '/',
             { credentials: 'same-origin', headers: { Accept: 'application/json' } })
             .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
@@ -120,13 +139,21 @@
                 }
             })
             .catch(function () { if (out) out.innerHTML = '<p class="lookup-error">Erro de rede. Tente novamente.</p>'; })
-            .finally(function () { btn.disabled = false; });
+            .finally(function () {
+                btn.disabled = false;
+                btn.removeAttribute('aria-busy');
+                if (out) out.removeAttribute('aria-busy');
+            });
     });
 
     // --- Pista de formato MAC (não bloqueante) ---
     var macInput = document.getElementById('f-mac');
     var macStatus = document.querySelector('[data-mac-status]');
     if (macInput && macStatus) {
+        // Anuncia a mudança de validade a leitores de ecrã (defensivo se o template
+        // não trouxer os atributos).
+        if (!macStatus.getAttribute('role')) macStatus.setAttribute('role', 'status');
+        macStatus.setAttribute('aria-live', 'polite');
         macInput.addEventListener('input', function () {
             var v = macInput.value.trim();
             if (!v) { macStatus.textContent = ''; macStatus.className = 'facts__src'; return; }

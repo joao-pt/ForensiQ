@@ -46,6 +46,12 @@
     white-space: nowrap;
 }
 .page-head__actions { display: flex; align-items: center; gap: var(--sp-2); }
+/* Em mobile o título/contador e a ação primária deixam de competir na mesma
+   linha — empilham e a ação ocupa a largura toda. */
+@media (max-width: 767px) {
+    .page-head { flex-direction: column; align-items: stretch; }
+    .page-head__actions { justify-content: flex-end; }
+}
 
 /* Botão de ação primária (accent) */
 .btn-accent {
@@ -87,6 +93,10 @@
 .btn-ghost:hover { background: var(--surface-hover); border-color: var(--accent); }
 .btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-ghost svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+/* Alvo de toque >=44px nas ações de página em mobile (uso de campo, luvas) */
+@media (max-width: 767px) {
+    .btn-accent, .btn-ghost { min-height: var(--min-touch); }
+}
 
 /* ============================================================
    Barra de ferramentas / filtros (sticky)
@@ -135,13 +145,19 @@
 .toolbar select {
     height: 34px;
     padding: 0 var(--sp-2);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: var(--fs-xs);
     color: var(--text-muted);
     background: var(--bg-inset);
     border: 1px solid var(--border-input);
     border-radius: var(--r-2);
     cursor: pointer;
+}
+/* Controlos do toolbar a >=44px em mobile (pesquisa, prioridade, ordenação) */
+@media (max-width: 767px) {
+    .toolbar input[type="search"],
+    .toolbar input[type="text"],
+    .toolbar select { height: var(--min-touch); }
 }
 .toolbar__busy {
     flex-shrink: 0;
@@ -159,8 +175,10 @@
 /* ============================================================
    Grelha densa (role=grid)
    ============================================================ */
-.gridwrap { width: 100%; }
-.grid { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
+/* Scroll horizontal nas grelhas densas (replica .data-table-wrap): em ecrãs
+   estreitos as colunas mono nowrap não cabem — deslizar em vez de cortar. */
+.gridwrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.grid { width: 100%; min-width: max-content; border-collapse: collapse; font-size: var(--fs-sm); }
 .grid thead th {
     position: sticky;
     top: 51px;                 /* abaixo da toolbar sticky (34px control + 2*8 padding) */
@@ -185,6 +203,34 @@
     transition: background var(--t-fast) var(--ease);
 }
 .grid--clickable tbody tr { cursor: pointer; }
+/* Indicador de carregamento ao abrir o drawer (aria-busy emitido por
+   forensic-list.js durante o htmx:beforeRequest da linha). */
+.grid--clickable[aria-busy="true"] { opacity: 0.55; pointer-events: none; cursor: progress; }
+/* Ligação dentro de uma célula de grelha (ex.: código → guia PDF no _reports_grid). */
+.grid__link { color: var(--accent); text-decoration: none; }
+.grid__link:hover { text-decoration: underline; }
+
+/* Barra de distribuição (stats): <meter> nativo estilizado para o tema forense
+   (sem isto rende o widget verde do user-agent, fora da paleta âmbar/escura). */
+.grid__bar { width: 160px; }
+meter.bar {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    vertical-align: middle;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--r-1);
+}
+meter.bar::-webkit-meter-bar {
+    background: var(--bg-inset);
+    border: 0;
+    height: 8px;
+    border-radius: var(--r-1);
+}
+meter.bar::-webkit-meter-optimum-value { background: var(--accent); border-radius: var(--r-1); }
+meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1); }
 .grid tbody tr:hover { background: var(--surface-hover); }
 .grid tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .grid tbody tr[aria-selected="true"] {
@@ -265,6 +311,10 @@
 .pager__btn:hover { background: var(--surface-hover); border-color: var(--accent); }
 .pager__btn--off { color: var(--text-placeholder); background: transparent; border-color: var(--border); pointer-events: none; }
 .pager__status { font-size: var(--fs-xs); color: var(--text-muted); }
+/* Navegação entre páginas fiável ao toque (>=44px) em ecrãs estreitos */
+@media (max-width: 767px) {
+    .pager__btn { min-height: var(--min-touch); display: inline-flex; align-items: center; }
+}
 
 /* ============================================================
    Estado vazio
@@ -375,6 +425,10 @@
 .copy-btn:hover { color: var(--text); border-color: var(--border-strong); }
 .copy-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .copy-btn.is-copied { color: var(--success); border-color: var(--success); }
+/* Alvo de toque >=44px no terreno (com luvas/stress); glifo mantém-se a ~24px */
+@media (pointer: coarse) {
+    .copy-btn { min-width: var(--min-touch); min-height: var(--min-touch); }
+}
 
 /* ============================================================
    Painel de detalhe do drawer
@@ -384,17 +438,7 @@
 .dd__code { font-size: var(--fs-md); font-weight: var(--fw-semi); color: var(--text-emphasis); letter-spacing: 0.01em; flex: 1; min-width: 0; word-break: break-all; }
 .dd__desc p { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-base); }
 
-/* Abas + mapa (Local / Cadeia) */
-.dd__maptabs { display: flex; gap: 2px; }
-.dd__tab {
-    flex: 1; padding: var(--sp-1) var(--sp-2);
-    font-family: var(--font-mono); font-size: var(--fs-xs);
-    color: var(--text-muted);
-    background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1);
-    cursor: pointer;
-}
-.dd__tab.is-active { color: var(--accent); border-color: var(--accent); background: var(--accent-tint); }
-.dd__tab:disabled { color: var(--text-placeholder); cursor: not-allowed; }
+/* Mapa do drawer (Local) */
 .dd__map { height: 220px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
 .dd__nogeo {
     font-size: var(--fs-xs); color: var(--text-subtle); font-family: var(--font-mono);
@@ -515,9 +559,18 @@
 .feed__action[data-act="SYSTEM_ALERT"] { color: var(--danger); }
 .feed__what { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed__who { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
+/* Em mobile reorganiza em duas linhas em vez de ocultar: o timestamp e o tipo
+   de evento são probatórios (AuditLog append-only) e não podem desaparecer.
+   Linha 1: timestamp + ação. Linha 2: o-quê + quem. */
 @media (max-width: 767px) {
-    .feed__item { grid-template-columns: 1fr auto; }
-    .feed__time, .feed__action { display: none; }
+    .feed__item {
+        grid-template-columns: auto 1fr;
+        row-gap: 2px;
+    }
+    .feed__time { grid-column: 1; }
+    .feed__action { grid-column: 2; justify-self: end; }
+    .feed__what { grid-column: 1 / -1; }
+    .feed__who { grid-column: 1 / -1; }
 }
 
 @media (max-width: 767px) {
