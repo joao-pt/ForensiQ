@@ -13,6 +13,8 @@ from rest_framework import serializers
 from .models import (
     AuditLog,
     ChainOfCustody,
+    CrimeCategoria,
+    CrimeSubcategoria,
     CrimeTipo,
     CustodianType,
     EventType,
@@ -20,7 +22,13 @@ from .models import (
     Occurrence,
     derive_legal_state,
 )
-from .validators import validate_imei, validate_imsi, validate_vin
+from .validators import (
+    validate_iccid,
+    validate_imei,
+    validate_imsi,
+    validate_mac,
+    validate_vin,
+)
 
 User = get_user_model()
 
@@ -218,6 +226,46 @@ class OccurrenceSerializer(serializers.ModelSerializer):
 
 
 # ---------------------------------------------------------------------------
+# Taxonomia de crimes (read-only) — alimenta o seletor em cascata N1>N2>N3
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoriaSerializer(serializers.ModelSerializer):
+    """Nível 1 (categoria) — para o primeiro select da cascata."""
+
+    class Meta:
+        model = CrimeCategoria
+        fields = ['id', 'codigo', 'nome']
+
+
+class CrimeSubcategoriaSerializer(serializers.ModelSerializer):
+    """Nível 2 (subcategoria) — filtrada por categoria."""
+
+    class Meta:
+        model = CrimeSubcategoria
+        fields = ['id', 'codigo', 'nome']
+
+
+class CrimeTipoSimpleSerializer(serializers.ModelSerializer):
+    """Nível 3 (tipo) com a flag de prioridade derivada da lei vigente.
+
+    ``is_prioritaria`` é True se o tipo está no eixo INVESTIGAÇÃO (Art. 5.º)
+    da versão activa da Política Criminal — o que a vista de ocorrência usa
+    para a pré-visualização do badge P1. A vista pré-calcula o conjunto de
+    ids prioritários (``context['prioritaria_ids']``) para evitar N+1.
+    """
+
+    is_prioritaria = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CrimeTipo
+        fields = ['id', 'codigo', 'descritivo', 'is_prioritaria']
+
+    def get_is_prioritaria(self, obj):
+        return obj.id in (self.context.get('prioritaria_ids') or set())
+
+
+# ---------------------------------------------------------------------------
 # Evidence
 # ---------------------------------------------------------------------------
 
@@ -405,6 +453,12 @@ class EvidenceSerializer(serializers.ModelSerializer):
                     validate_imsi(imsi)
                 except DjangoValidationError as exc:
                     errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
+            iccid = tsd.get('iccid')
+            if iccid:
+                try:
+                    validate_iccid(iccid)
+                except DjangoValidationError as exc:
+                    errors['type_specific_data'] = f'iccid: {"; ".join(exc.messages)}'
         elif etype == Evidence.EvidenceType.VEHICLE:
             vin = tsd.get('vin')
             if vin:
@@ -412,6 +466,13 @@ class EvidenceSerializer(serializers.ModelSerializer):
                     validate_vin(vin)
                 except DjangoValidationError as exc:
                     errors['type_specific_data'] = f'vin: {"; ".join(exc.messages)}'
+        elif etype == Evidence.EvidenceType.NETWORK_DEVICE:
+            mac = tsd.get('mac')
+            if mac:
+                try:
+                    validate_mac(mac)
+                except DjangoValidationError as exc:
+                    errors['type_specific_data'] = f'mac: {"; ".join(exc.messages)}'
         if errors:
             raise serializers.ValidationError(errors)
 
@@ -558,6 +619,31 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
         default='',
         max_length=2000,
     )
+    # Geolocalização/local do evento (ADR-0013) — aplicada a todas as evidências
+    # da cascata. Opcional; coerência lat/lng validada abaixo.
+    location_name = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=255
+    )
+    storage_location = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=120
+    )
+    gps_lat = serializers.DecimalField(
+        max_digits=10, decimal_places=7, required=False, allow_null=True, default=None
+    )
+    gps_lng = serializers.DecimalField(
+        max_digits=10, decimal_places=7, required=False, allow_null=True, default=None
+    )
+    gps_accuracy_m = serializers.IntegerField(
+        required=False, allow_null=True, default=None, min_value=0
+    )
+
+    def validate(self, attrs):
+        """Coerência GPS: latitude e longitude ambas presentes ou ambas ausentes."""
+        if (attrs.get('gps_lat') is None) != (attrs.get('gps_lng') is None):
+            raise serializers.ValidationError(
+                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+            )
+        return attrs
 
 
 # ---------------------------------------------------------------------------

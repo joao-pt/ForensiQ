@@ -1,0 +1,59 @@
+{% comment %}Fragmento da grelha de evidências (HTMX-swappable).{% endcomment %}
+{% if is_htmx %}
+<span id="evd-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} ite{{ total|pluralize:"m,ns" }}</span>
+{% endif %}
+
+{% if page_obj.object_list %}
+<table class="grid grid--clickable" role="grid" aria-label="Itens de prova" aria-rowcount="{{ total }}">
+  <thead>
+    <tr role="row">
+      <th role="columnheader" scope="col">Código</th>
+      <th role="columnheader" scope="col">Tipo</th>
+      <th role="columnheader" scope="col" class="col-hide-md">Ocorrência</th>
+      <th role="columnheader" scope="col" class="col-hide-sm">Nº série</th>
+      <th role="columnheader" scope="col">Estado</th>
+      <th role="columnheader" scope="col">Apreensão</th>
+      <th role="columnheader" scope="col" class="col-hide-sm">Agente</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in page_obj %}
+    <tr role="row" tabindex="0"
+        data-row data-id="{{ e.id }}"
+        hx-get="/evidences/?drawer={{ e.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
+      <td role="gridcell" class="mono grid__code">{{ e.code|default:'—' }}</td>
+      <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>
+      <td role="gridcell" class="mono col-hide-md">{{ e.occ_label }}</td>
+      <td role="gridcell" class="mono grid__muted col-hide-sm">{{ e.serial_number|default:'—' }}</td>
+      <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span></td>
+      <td role="gridcell" class="mono">{{ e.timestamp_seizure|date:'Y-m-d H:i' }}</td>
+      <td role="gridcell" class="grid__muted col-hide-sm">{{ e.agent_label }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if page_obj.has_other_pages %}
+<nav class="pager" aria-label="Paginação">
+  {% if page_obj.has_previous %}
+  <a class="pager__btn"
+     href="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
+     hx-get="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
+     hx-target="#evd-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
+  {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
+  <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="pager__btn"
+     href="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
+     hx-get="/evidences/?q={{ q|urlencode }}&type={{ type }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
+     hx-target="#evd-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
+  {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="empty">
+  <p class="empty__title">Sem itens de prova</p>
+  <p class="empty__hint">{% if q or type %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há itens registados.{% endif %}</p>
+</div>
+{% endif %}

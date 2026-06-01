@@ -1,84 +1,63 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Custódias{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current">Custódias</span>
-{% endblock %}
+{% block title %}Custódias — ForensiQ{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/pages/custody_timeline.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Custódias</span>{% endblock %}
+
+{% block drawer_title %}Evento de custódia{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione um evento do ledger.</p>
 {% endblock %}
 
 {% block content %}
-<div class="page">
+<section class="fullbleed" aria-labelledby="cc-title">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title">Cadeia de Custódia</h1>
-            <p class="page-subtitle" id="custody-count">A carregar…</p>
-        </div>
-        <a href="/evidences/" class="btn btn-ghost btn-sm">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m15 18-6-6 6-6"/>
-            </svg>
-            Evidências
-        </a>
-    </header>
-
-    <!-- Toolbar: pesquisa + botão de exportação CSV -->
-    <div class="toolbar">
-        <div class="input-group toolbar-search">
-            <span class="input-group-prefix" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"/>
-                    <path d="m21 21-4.3-4.3"/>
-                </svg>
-            </span>
-            <input type="search" id="custody-search" class="form-input"
-                   placeholder="Código (CC-…/ITM-…), NUIPC ou observações"
-                   autocomplete="off" spellcheck="false"
-                   aria-label="Pesquisar custódias">
-        </div>
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="cc-title">Cadeia de custódia</h1>
+      <span class="page-head__count" id="cc-count" aria-live="polite">{{ total }} evento{{ total|pluralize }}</span>
     </div>
-    <div id="results-announce" class="visually-hidden" aria-live="polite"></div>
+  </header>
 
-    <div class="list-page-grid">
-        <div>
-            <div id="custody-list" aria-live="polite"></div>
-        </div>
-        <aside class="list-page-sidebar" aria-label="Filtros">
-            <details open>
-                <summary>Estado actual</summary>
-                <div id="filter-state-list" class="filter-checkbox-list">
-                    <!-- Preenchido por custody_list.js a partir de CONFIG.CUSTODY_STATES -->
-                </div>
-            </details>
-            <details>
-                <summary>Data da transição</summary>
-                <div class="form-group">
-                    <label class="form-label" for="filter-date-after">Desde</label>
-                    <input type="date" id="filter-date-after" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="filter-date-before">Até</label>
-                    <input type="date" id="filter-date-before" class="form-input">
-                </div>
-            </details>
-            <button type="button" id="filter-clear" class="btn btn-ghost btn-sm">
-                Limpar filtros
-            </button>
-        </aside>
+  <form class="toolbar" role="search" action="/custodies/" method="get"
+        hx-get="/custodies/" hx-target="#cc-grid" hx-swap="innerHTML"
+        hx-trigger="submit, input changed delay:350ms" hx-push-url="true" hx-indicator="#cc-busy">
+    <div class="toolbar__search">
+      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="search" name="q" value="{{ q }}"
+             placeholder="Pesquisar item, NUIPC, código…" autocomplete="off" aria-label="Pesquisar eventos">
     </div>
-</div>
+    <select name="event" aria-label="Filtrar por tipo de evento">
+      <option value="">Evento: todos</option>
+      {% for val, label in event_types %}
+      <option value="{{ val }}" {% if event == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="sort" aria-label="Ordenar">
+      <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
+      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigos</option>
+      <option value="evidence" {% if sort == 'evidence' %}selected{% endif %}>Por item</option>
+    </select>
+    <span class="toolbar__busy" id="cc-busy" aria-hidden="true"></span>
+  </form>
+
+  <div id="cc-grid" class="gridwrap">
+    {% include 'partials/_custody_grid.html' %}
+  </div>
+
+</section>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/pages/custody_list.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 {% endblock %}

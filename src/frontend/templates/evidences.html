@@ -1,98 +1,70 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Itens de prova{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current">Itens</span>
-{% endblock %}
+{% block title %}Itens de prova — ForensiQ{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/pages/evidences.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Itens de prova</span>{% endblock %}
+
+{% block drawer_title %}Detalhe do item{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione um item de prova na lista.</p>
 {% endblock %}
 
 {% block content %}
-<div class="page">
+<section class="fullbleed" aria-labelledby="evd-title">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title">Itens</h1>
-            <p class="page-subtitle" id="evidences-count">A carregar…</p>
-        </div>
-        <a href="/evidences/new/" class="btn btn-primary" id="btn-new-evidence">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14"/>
-            </svg>
-            Nova
-        </a>
-    </header>
-
-    <div class="toolbar">
-        <div class="input-group toolbar-search">
-            <span class="input-group-prefix" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"/>
-                    <path d="m21 21-4.3-4.3"/>
-                </svg>
-            </span>
-            <input type="search" id="search-input" class="form-input"
-                   placeholder="Código (ITM-…), descrição, S/N ou NUIPC"
-                   aria-label="Pesquisar itens"
-                   autocomplete="off" spellcheck="false">
-        </div>
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="evd-title">Itens de prova</h1>
+      <span class="page-head__count" id="evd-count" aria-live="polite">{{ total }} ite{{ total|pluralize:"m,ns" }}</span>
+      {% if state_label %}<a class="filter-chip" href="/evidences/" title="Remover filtro de estado">{{ state_label }} ✕</a>{% endif %}
     </div>
-    <div id="results-announce" class="visually-hidden" aria-live="polite"></div>
+    <a class="btn-accent" href="/evidences/new/">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Nova evidência
+    </a>
+  </header>
 
-    <div class="list-page-grid">
-        <div>
-            <div id="evidences-list" aria-live="polite"></div>
-        </div>
-        <aside class="list-page-sidebar" aria-label="Filtros">
-            <details open>
-                <summary>Tipo</summary>
-                <div id="filter-type-list" class="filter-checkbox-list">
-                    <!-- Preenchido por evidences.js a partir de CONFIG.EVIDENCE_TYPES -->
-                </div>
-            </details>
-            <details>
-                <summary>Data de apreensão</summary>
-                <div class="form-group">
-                    <label class="form-label" for="filter-date-after">Desde</label>
-                    <input type="date" id="filter-date-after" class="form-input">
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="filter-date-before">Até</label>
-                    <input type="date" id="filter-date-before" class="form-input">
-                </div>
-            </details>
-            <details>
-                <summary>Localização</summary>
-                <label class="form-checkbox">
-                    <input type="checkbox" id="filter-has-gps">
-                    Apenas com GPS registado
-                </label>
-            </details>
-            <button type="button" id="filter-clear" class="btn btn-ghost btn-sm">
-                Limpar filtros
-            </button>
-        </aside>
+  <form class="toolbar" role="search" action="/evidences/" method="get"
+        hx-get="/evidences/" hx-target="#evd-grid" hx-swap="innerHTML"
+        hx-trigger="submit, input changed delay:350ms" hx-push-url="true" hx-indicator="#evd-busy">
+    <input type="hidden" name="state" value="{{ state }}">
+    <div class="toolbar__search">
+      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="search" name="q" value="{{ q }}"
+             placeholder="Pesquisar código, nº série, NUIPC…" autocomplete="off" aria-label="Pesquisar itens">
     </div>
-</div>
+    <select name="type" aria-label="Filtrar por tipo">
+      <option value="">Tipo: todos</option>
+      {% for val, label in evidence_types %}
+      <option value="{{ val }}" {% if type == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select name="sort" aria-label="Ordenar">
+      <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Apreensão recente</option>
+      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Apreensão antiga</option>
+      <option value="code" {% if sort == 'code' %}selected{% endif %}>Código</option>
+      <option value="occurrence" {% if sort == 'occurrence' %}selected{% endif %}>NUIPC</option>
+    </select>
+    <span class="toolbar__busy" id="evd-busy" aria-hidden="true"></span>
+  </form>
 
-<a href="/evidences/new/" class="fab" aria-label="Novo item">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 5v14M5 12h14"/>
-    </svg>
-    <span class="fab-label">Nova</span>
-</a>
+  <div id="evd-grid" class="gridwrap">
+    {% include 'partials/_evidences_grid.html' %}
+  </div>
+
+</section>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/pages/evidences.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 {% endblock %}

@@ -60,8 +60,13 @@ from .models import (
     TERMINAL_EVENTS,
     AuditLog,
     ChainOfCustody,
+    CrimeCategoria,
+    CrimeSubcategoria,
+    CrimeTipo,
     Evidence,
     Occurrence,
+    PoliticaCriminalPrioridade,
+    PrioridadeCrimeTipo,
     derive_legal_state,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
@@ -70,6 +75,9 @@ from .serializers import (
     ActivityFeedSerializer,
     CascadeCustodyRequestSerializer,
     ChainOfCustodySerializer,
+    CrimeCategoriaSerializer,
+    CrimeSubcategoriaSerializer,
+    CrimeTipoSimpleSerializer,
     EvidenceSerializer,
     OccurrenceSerializer,
     UserCreateSerializer,
@@ -575,6 +583,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         event_type = payload.validated_data['event_type']
         custodian_type = payload.validated_data.get('custodian_type', '')
         observations = payload.validated_data.get('observations', '')
+        location_name = payload.validated_data.get('location_name', '')
+        storage_location = payload.validated_data.get('storage_location', '')
+        gps_lat = payload.validated_data.get('gps_lat')
+        gps_lng = payload.validated_data.get('gps_lng')
+        gps_accuracy_m = payload.validated_data.get('gps_accuracy_m')
 
         evidences = list(
             Evidence.objects.select_related('occurrence', 'occurrence__agent').filter(
@@ -601,6 +614,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                         evidence=ev,
                         event_type=event_type,
                         custodian_type=custodian_type,
+                        location_name=location_name,
+                        storage_location=storage_location,
+                        gps_lat=gps_lat,
+                        gps_lng=gps_lng,
+                        gps_accuracy_m=gps_accuracy_m,
                         observations=observations,
                         agent=request.user,
                     )
@@ -615,6 +633,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                             'evidence_id': ev.pk,
                             'event_type': event_type,
                             'custodian_type': custodian_type,
+                            'location_name': location_name,
                             'cascade': True,
                         },
                     )
@@ -1018,6 +1037,69 @@ def _haversine_m(lat1, lon1, lat2, lon2):
     dlmb = math.radians(lon2 - lon1)
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
     return 2 * r * math.asin(math.sqrt(a))
+
+
+# ---------------------------------------------------------------------------
+# Taxonomia de crimes — seletor em cascata N1>N2>N3 (read-only)
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoryListView(generics.ListAPIView):
+    """GET /api/crime-categories/ — categorias N1 da Tabela de Crimes Registados."""
+
+    queryset = CrimeCategoria.objects.order_by('codigo')
+    serializer_class = CrimeCategoriaSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+
+class CrimeSubcategoryListView(generics.ListAPIView):
+    """GET /api/crime-subcategories/?categoria=<id> — subcategorias N2."""
+
+    serializer_class = CrimeSubcategoriaSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CrimeSubcategoria.objects.order_by('codigo')
+        categoria = self.request.query_params.get('categoria')
+        if categoria:
+            qs = qs.filter(categoria_id=categoria)
+        return qs
+
+
+class CrimeTypeListView(generics.ListAPIView):
+    """GET /api/crime-types/?subcategoria=<id> — tipos N3 (+ flag de prioridade).
+
+    ``is_prioritaria`` deriva da versão activa da Política Criminal (eixo
+    INVESTIGAÇÃO, Art. 5.º). O conjunto de ids prioritários é pré-calculado
+    aqui e passado ao serializer (sem N+1). A derivação final continua a
+    ocorrer em ``Occurrence._aplicar_prioridade`` no momento do POST.
+    """
+
+    serializer_class = CrimeTipoSimpleSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CrimeTipo.objects.filter(is_active=True).order_by('codigo')
+        subcategoria = self.request.query_params.get('subcategoria')
+        if subcategoria:
+            qs = qs.filter(subcategoria_id=subcategoria)
+        return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        vigente = PoliticaCriminalPrioridade.objects.vigente()
+        prioritaria_ids = set()
+        if vigente is not None:
+            assoc = vigente.associacoes.filter(eixo=PrioridadeCrimeTipo.Eixo.INVESTIGACAO)
+            subcategoria = self.request.query_params.get('subcategoria')
+            if subcategoria:
+                assoc = assoc.filter(crime_tipo__subcategoria_id=subcategoria)
+            prioritaria_ids = set(assoc.values_list('crime_tipo_id', flat=True))
+        context['prioritaria_ids'] = prioritaria_ids
+        return context
 
 
 # ---------------------------------------------------------------------------

@@ -14,6 +14,9 @@
     <!-- Favicon — cadeia de custódia (aros entrelaçados) -->
     <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
 
+    <!-- PWA — instalável, offline básico da casca -->
+    <link rel="manifest" href="/manifest.webmanifest">
+
     <!-- Tema — aplica antes do primeiro paint para evitar flash (FOUC) -->
     <script src="{% static 'js/theme-init.js' %}"></script>
 
@@ -347,10 +350,10 @@
     <script src="{% static 'js/icons.js' %}"></script>
     <script src="{% static 'js/auth.js' %}"></script>
     <script src="{% static 'js/api.js' %}"></script>
-    <script src="{% static 'js/components/data-table.js' %}"></script>
     <script src="{% static 'js/theme-switch.js' %}"></script>
     <script src="{% static 'js/user-menu.js' %}"></script>
     <script src="{% static 'js/app-shell.js' %}"></script>
     {% block extra_js %}{% endblock %}
+    <script src="{% static 'js/pwa-register.js' %}"></script>
 </body>
 </html>

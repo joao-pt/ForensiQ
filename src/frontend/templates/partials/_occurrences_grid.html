@@ -1,0 +1,81 @@
+{% comment %}
+  Fragmento da grelha de ocorrências (HTMX-swappable).
+  Renderizado standalone em pedidos HTMX (filtros/paginação) e incluído na
+  página completa. A contagem do cabeçalho é atualizada out-of-band apenas
+  quando chega por HTMX (evita id duplicado no carregamento inicial).
+{% endcomment %}
+{% if is_htmx %}
+<span id="occ-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} registo{{ total|pluralize }}</span>
+{% endif %}
+
+{% if page_obj.object_list %}
+<table class="grid grid--clickable" role="grid" aria-label="Lista de ocorrências" aria-rowcount="{{ total }}">
+  <thead>
+    <tr role="row">
+      <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
+      <th role="columnheader" scope="col">Código</th>
+      <th role="columnheader" scope="col">NUIPC</th>
+      <th role="columnheader" scope="col">Tipo de crime</th>
+      <th role="columnheader" scope="col">Data / hora</th>
+      <th role="columnheader" scope="col">Local</th>
+      <th role="columnheader" scope="col" class="col-hide-sm">Agente</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for o in page_obj %}
+    <tr role="row" tabindex="0"
+        data-row data-id="{{ o.id }}"
+        hx-get="/occurrences/?drawer={{ o.id }}"
+        hx-target="#app-drawer-body"
+        hx-swap="innerHTML"
+        {% if selected_id == o.id|stringformat:'s' %}aria-selected="true"{% endif %}>
+      <td role="gridcell" class="grid__pri">
+        {% if o.pri %}
+          <span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}">{{ o.pri.level }}</span>
+        {% else %}
+          <span class="pri pri--none" title="Normal" aria-label="Prioridade normal">—</span>
+        {% endif %}
+      </td>
+      <td role="gridcell" class="mono grid__code">{{ o.code|default:'—' }}</td>
+      <td role="gridcell" class="mono">{{ o.number }}</td>
+      <td role="gridcell" class="grid__ellipsis">{{ o.crime_label }}</td>
+      <td role="gridcell" class="mono">{{ o.date_time|date:'Y-m-d H:i' }}</td>
+      <td role="gridcell" class="grid__ellipsis grid__muted">
+        {% if o.gps_lat is not None %}
+        <svg class="grid__geo" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/>
+        </svg>
+        {% endif %}{{ o.address|default:'—' }}
+      </td>
+      <td role="gridcell" class="grid__muted col-hide-sm">{{ o.agent_label }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if page_obj.has_other_pages %}
+<nav class="pager" aria-label="Paginação">
+  {% if page_obj.has_previous %}
+  <a class="pager__btn"
+     href="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
+     hx-get="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.previous_page_number }}"
+     hx-target="#occ-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
+  {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
+  <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="pager__btn"
+     href="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
+     hx-get="/occurrences/?q={{ q|urlencode }}&pri={{ pri }}&sort={{ sort }}&page={{ page_obj.next_page_number }}"
+     hx-target="#occ-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
+  {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="empty">
+  <p class="empty__title">Sem ocorrências</p>
+  <p class="empty__hint">
+    {% if q or pri %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências registadas.{% endif %}
+  </p>
+</div>
+{% endif %}

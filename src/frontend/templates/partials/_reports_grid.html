@@ -1,0 +1,60 @@
+{% comment %}Fragmento da grelha de guias de transporte (HTMX-swappable).{% endcomment %}
+{% if is_htmx %}
+<span id="rpt-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} ocorrência{{ total|pluralize }}</span>
+{% endif %}
+
+{% if page_obj.object_list %}
+<table class="grid" role="grid" aria-label="Guias de transporte" aria-rowcount="{{ total }}">
+  <thead>
+    <tr role="row">
+      <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
+      <th role="columnheader" scope="col">Código</th>
+      <th role="columnheader" scope="col">NUIPC</th>
+      <th role="columnheader" scope="col" class="col-hide-md">Tipo de crime</th>
+      <th role="columnheader" scope="col">Itens</th>
+      <th role="columnheader" scope="col" class="col-hide-sm">Data</th>
+      <th role="columnheader" scope="col">Guia</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for o in page_obj %}
+    <tr role="row">
+      <td role="gridcell" class="grid__pri">
+        {% if o.pri %}<span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none">—</span>{% endif %}
+      </td>
+      <td role="gridcell" class="mono grid__code"><a class="dd__full" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
+      <td role="gridcell" class="mono">{{ o.number }}</td>
+      <td role="gridcell" class="grid__ellipsis col-hide-md">{{ o.crime_label }}</td>
+      <td role="gridcell" class="mono">{{ o.n_ev }}</td>
+      <td role="gridcell" class="mono col-hide-sm">{{ o.date_time|date:'Y-m-d' }}</td>
+      <td role="gridcell">
+        <a class="btn-ghost" href="/api/occurrences/{{ o.id }}/pdf/" target="_blank" rel="noopener" aria-label="Descarregar guia PDF de {{ o.code }}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+          PDF
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if page_obj.has_other_pages %}
+<nav class="pager" aria-label="Paginação">
+  {% if page_obj.has_previous %}
+  <a class="pager__btn" href="/reports/?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}"
+     hx-get="/reports/?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}" hx-target="#rpt-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
+  {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
+  <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="pager__btn" href="/reports/?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}"
+     hx-get="/reports/?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}" hx-target="#rpt-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
+  {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<div class="empty">
+  <p class="empty__title">Sem ocorrências</p>
+  <p class="empty__hint">{% if q %}Nenhum resultado para a pesquisa.{% else %}Ainda não há ocorrências para gerar guias.{% endif %}</p>
+</div>
+{% endif %}

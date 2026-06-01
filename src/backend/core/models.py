@@ -23,7 +23,13 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
-from core.validators import validate_imei, validate_imsi, validate_vin
+from core.validators import (
+    validate_iccid,
+    validate_imei,
+    validate_imsi,
+    validate_mac,
+    validate_vin,
+)
 
 # ---------------------------------------------------------------------------
 # Gerador de códigos humanos ANO-TIPO-SEQ (ex.: OCC-2026-00001)
@@ -1002,6 +1008,20 @@ class Evidence(models.Model):
                     validate_imsi(imsi)
                 except ValidationError as exc:
                     errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
+            iccid = data.get('iccid')
+            if iccid:
+                try:
+                    validate_iccid(iccid)
+                except ValidationError as exc:
+                    errors['type_specific_data'] = f'iccid: {"; ".join(exc.messages)}'
+
+        if self.type == self.EvidenceType.NETWORK_DEVICE:
+            mac = data.get('mac')
+            if mac:
+                try:
+                    validate_mac(mac)
+                except ValidationError as exc:
+                    errors['type_specific_data'] = f'mac: {"; ".join(exc.messages)}'
 
         if errors:
             raise ValidationError(errors)

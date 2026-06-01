@@ -1,362 +1,171 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Novo item{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a><span class="breadcrumb-sep">›</span><a href="/evidences/">Itens</a><span class="breadcrumb-sep">›</span><span id="wizard-breadcrumb-current">Novo</span>
-{% endblock %}
+{% block title %}Nova evidência — ForensiQ{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/wizard.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/evidences/">Itens de prova</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Nova</span>
 {% endblock %}
 
 {% block content %}
-<form id="evidence-form" novalidate enctype="multipart/form-data" autocomplete="off">
-<!-- Hidden: parent_evidence (preenchido quando é sub-componente) -->
-<input type="hidden" id="parent_evidence" name="parent_evidence" value="">
-<input type="hidden" id="parent_type" value="">
-<input type="hidden" id="parent_depth" value="0">
+<article class="detail fullbleed" aria-labelledby="en-title">
 
-<!-- Banner persistente: mostrado quando o utilizador chega ao wizard com
-     contexto pré-definido (ocorrência ou pai). Visível em TODOS os passos
-     para nunca perder o contexto. Preenchido em readParentFromUrl(). -->
-<div id="wizard-context-banner" class="wizard-context-banner hidden" role="note" aria-live="polite">
-    <svg class="wizard-context-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="9"/>
-        <path d="M12 16v-4M12 8h.01"/>
-    </svg>
-    <div class="wizard-context-body">
-        <div class="wizard-context-title" id="wizard-context-title">A adicionar item</div>
-        <div class="wizard-context-meta mono" id="wizard-context-meta">—</div>
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="en-title">Nova evidência</h1>
+      <p class="detail__sub">O hash de integridade SHA-256 é calculado automaticamente no registo</p>
     </div>
-</div>
+  </header>
 
-<div class="wizard" id="evidence-wizard" role="form" aria-label="Registar novo item apreendido">
-    <div class="wizard-track">
+  {% if errors.non_field_errors or errors.geral %}
+  <div class="section" role="alert"><div class="section__body">
+    {% for e in errors.non_field_errors %}<p class="form-error">{{ e }}</p>{% endfor %}
+    {% for e in errors.geral %}<p class="form-error">{{ e }}</p>{% endfor %}
+  </div></div>
+  {% endif %}
 
-        <!-- STEP 0 — Ocorrência -->
-        <section class="wizard-step" data-step="0" aria-labelledby="step-occ-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 1</div>
-                <h2 class="wizard-step-title" id="step-occ-title">Ocorrência</h2>
-                <p class="wizard-step-hint">A que ocorrência pertence este item?</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="occurrence">Ocorrência</label>
-                <select id="occurrence" name="occurrence" class="form-control" required
-                        aria-describedby="occurrence-error">
-                    <option value="">— Selecionar ocorrência —</option>
-                </select>
-                <div class="form-error" id="occurrence-error" role="alert"></div>
-            </div>
+  <section class="section">
+    <div class="section__body">
+      <form method="post" action="/evidences/new/" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-grid">
 
-            <!-- Mostrado quando é sub-componente (parent_evidence preenchido) -->
-            <div id="parent-info" class="info-box hidden" role="note">
-                <strong>Sub-componente</strong>
-                <div id="parent-breadcrumb" class="mono wizard-parent-breadcrumb"></div>
-            </div>
-        </section>
+          <div class="form-field">
+            <label for="f-occ">Ocorrência *</label>
+            <select id="f-occ" name="occurrence" required>
+              <option value="">— selecionar —</option>
+              {% for o in occurrences %}
+              <option value="{{ o.id }}" {% if preselect == o.id|stringformat:'s' %}selected{% endif %}>{{ o.code }} · {{ o.number }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.occurrence %}<span class="form-error">{{ errors.occurrence.0 }}</span>{% endif %}
+          </div>
 
-        <!-- STEP 1 — Tipo (select com optgroups) -->
-        <section class="wizard-step" data-step="1" aria-labelledby="step-type-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 2</div>
-                <h2 class="wizard-step-title" id="step-type-title">Tipo de item</h2>
-                <p class="wizard-step-hint" id="type-hint">
-                    Escolha a categoria que melhor descreve o dispositivo apreendido.
-                </p>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="type">Tipo</label>
-                <select id="type" name="type" class="form-control" required
-                        aria-describedby="type-error">
-                    <option value="">— Selecionar tipo —</option>
-                    <!-- optgroups são preenchidos em JS a partir de
-                         CONFIG.EVIDENCE_TYPE_GROUPS -->
-                </select>
-                <div class="form-error" id="type-error" role="alert"></div>
-            </div>
-        </section>
+          <div class="form-field">
+            <label for="f-type">Tipo *</label>
+            <select id="f-type" name="type" required>
+              <option value="">— selecionar —</option>
+              {% for val, label in evidence_types %}
+              <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.type %}<span class="form-error">{{ errors.type.0 }}</span>{% endif %}
+          </div>
 
-        <!-- STEP 2 — Descrição -->
-        <section class="wizard-step" data-step="2" aria-labelledby="step-desc-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 3</div>
-                <h2 class="wizard-step-title" id="step-desc-title">Descrição</h2>
-                <p class="wizard-step-hint">Aspecto, estado e localização exacta.</p>
-            </div>
-            <div class="form-group">
-                <label class="form-label" for="description">Descrição</label>
-                <textarea
-                    id="description"
-                    name="description"
-                    class="form-control"
-                    rows="4"
-                    placeholder="Ex.: iPhone 14 Pro preto, ecrã partido, encontrado na mesa da sala..."
-                    required
-                    aria-describedby="description-error"
-                ></textarea>
-                <div class="form-error" id="description-error" role="alert"></div>
-            </div>
-        </section>
+          <div class="form-field form-field--full">
+            <label for="f-desc">Descrição *</label>
+            <textarea id="f-desc" name="description" required placeholder="Descrição do item apreendido…">{{ data.description }}</textarea>
+            {% if errors.description %}<span class="form-error">{{ errors.description.0 }}</span>{% endif %}
+          </div>
 
-        <!-- STEP 3 — Data/hora -->
-        <section class="wizard-step" data-step="3" aria-labelledby="step-ts-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 4</div>
-                <h2 class="wizard-step-title" id="step-ts-title">Data e hora da apreensão</h2>
-                <p class="wizard-step-hint">Quando foi apreendido este item?</p>
+          <div class="form-field">
+            <label for="f-serial">Número de série</label>
+            <input class="mono" type="text" id="f-serial" name="serial_number" value="{{ data.serial_number }}">
+          </div>
+
+          <div class="form-field">
+            <label for="f-parent">Sub-componente de (opcional)</label>
+            <select id="f-parent" name="parent_evidence">
+              <option value="">— nenhum (item raiz) —</option>
+              {% for p in parents %}
+              <option value="{{ p.id }}" {% if data.parent_evidence == p.id|stringformat:'s' %}selected{% endif %}>{{ p.code }} · {{ p.get_type_display }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.parent_evidence %}<span class="form-error">{{ errors.parent_evidence.0 }}</span>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label for="f-photo">Fotografia</label>
+            <input type="file" id="f-photo" name="photo" accept="image/*">
+            {% if errors.photo %}<span class="form-error">{{ errors.photo.0 }}</span>{% endif %}
+          </div>
+
+          <div class="form-field">
+            <label for="f-lat">Latitude (apreensão)</label>
+            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197">
+            {% if errors.gps_lat %}<span class="form-error">{{ errors.gps_lat.0 }}</span>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="f-lng">Longitude (apreensão)</label>
+            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467">
+            {% if errors.gps_lng %}<span class="form-error">{{ errors.gps_lng.0 }}</span>{% endif %}
+          </div>
+          <div class="form-field form-field--full">
+            <label>Geolocalização da apreensão</label>
+            <div class="form-inline">
+              <button type="button" class="btn-ghost" data-geo-capture data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
+                Capturar GPS
+              </button>
+              <span class="mono facts__src" data-geo-acc></span>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="timestamp_seizure">Data/hora</label>
-                <input
-                    type="datetime-local"
-                    id="timestamp_seizure"
-                    name="timestamp_seizure"
-                    class="form-control"
-                    required
-                    aria-describedby="timestamp_seizure-error"
-                >
-                <div class="form-error" id="timestamp_seizure-error" role="alert"></div>
-            </div>
-        </section>
-
-        <!-- STEP 4 — Campos específicos do tipo (dinâmicos) -->
-        <section class="wizard-step" data-step="4" aria-labelledby="step-ts-spec-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 5</div>
-                <h2 class="wizard-step-title" id="step-ts-spec-title">Detalhes específicos</h2>
-                <p class="wizard-step-hint" id="type-specific-hint">
-                    Preencha os campos relevantes para o tipo escolhido.
-                </p>
-            </div>
-
-            <!-- Número de série — visível para quase todos os tipos -->
-            <div class="form-group">
-                <label class="form-label" for="serial_number">Número de série</label>
-                <input
-                    type="text"
-                    id="serial_number"
-                    name="serial_number"
-                    class="form-control mono"
-                    placeholder="Ex.: SN123456789"
-                    autocomplete="off"
-                >
-            </div>
-
-            <!-- Container dinâmico para type-specific fields -->
-            <div id="type-specific-fields" aria-live="polite"></div>
-
-            <button type="button" class="wizard-skip" data-skip>
-                Saltar — sem detalhes adicionais
-            </button>
-        </section>
-
-        <!-- STEP 5 — Fotografia (opcional) -->
-        <section class="wizard-step" data-step="5" aria-labelledby="step-photo-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 6</div>
-                <h2 class="wizard-step-title" id="step-photo-title">Fotografia</h2>
-                <p class="wizard-step-hint">Registe o item visualmente. JPEG/PNG até 10 MB.</p>
-            </div>
-            <div class="photo-capture" id="photo-capture">
-                <div id="photo-preview" class="photo-preview hidden">
-                    <img id="preview-img" src="" alt="Pré-visualização da fotografia">
-                    <button type="button" id="btn-remove-photo" class="btn btn-sm btn-danger-ghost">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M18 6 6 18M6 6l12 12"/>
-                        </svg>
-                        Remover
-                    </button>
-                </div>
-                <div class="photo-buttons" id="photo-buttons">
-                    <label class="btn btn-ghost btn-lg btn-block photo-label">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3 7a2 2 0 0 1 2-2h3l2-2h4l2 2h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                            <circle cx="12" cy="13" r="4"/>
-                        </svg>
-                        Tirar fotografia
-                        <input type="file" id="photo-camera" accept="image/*" capture="environment" class="visually-hidden">
-                    </label>
-                    <label class="btn btn-ghost btn-block photo-label">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                        </svg>
-                        Selecionar ficheiro
-                        <input type="file" id="photo-file" accept="image/*" class="visually-hidden">
-                    </label>
-                </div>
-            </div>
-            <button type="button" class="wizard-skip" data-skip>Saltar — sem fotografia</button>
-        </section>
-
-        <!-- STEP 6 — GPS (opcional) -->
-        <section class="wizard-step" data-step="6" aria-labelledby="step-gps-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 7</div>
-                <h2 class="wizard-step-title" id="step-gps-title">Localização GPS</h2>
-                <p class="wizard-step-hint">Local exacto onde o item foi apreendido.</p>
-            </div>
-            <div id="gps-status" class="gps-status" role="status" hidden></div>
-            <div class="wizard-gps-row">
-                <div class="wizard-gps-col">
-                    <label for="gps_lat" class="form-label-sm">Latitude</label>
-                    <input type="number" id="gps_lat" name="gps_lat" class="form-control mono"
-                           placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
-                </div>
-                <div class="wizard-gps-col">
-                    <label for="gps_lng" class="form-label-sm">Longitude</label>
-                    <input type="number" id="gps_lng" name="gps_lng" class="form-control mono"
-                           placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
-                </div>
-            </div>
-            <button type="button" id="btn-gps" class="btn btn-primary btn-lg btn-block">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 2a8 8 0 0 0-8 8c0 6 8 12 8 12s8-6 8-12a8 8 0 0 0-8-8z"/>
-                    <circle cx="12" cy="10" r="3"/>
-                </svg>
-                <span id="btn-gps-label">Capturar localização actual</span>
-            </button>
-            <button type="button" class="wizard-skip" data-skip>Saltar — sem GPS</button>
-        </section>
-
-        <!-- STEP 7 — Resumo -->
-        <section class="wizard-step" data-step="7" aria-labelledby="step-sum-title">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 8</div>
-                <h2 class="wizard-step-title" id="step-sum-title">Confirmar registo</h2>
-                <p class="wizard-step-hint">Verifique os dados. Toque em Registar para submeter.</p>
-            </div>
-
-            <div class="callout success mb-4">
-                <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-3z"/>
-                    <path d="m9 12 2 2 4-4"/>
-                </svg>
-                <div class="callout-body">
-                    <div class="callout-title">Integridade garantida</div>
-                    Hash SHA-256 calculado automaticamente. Registo imutável.
-                </div>
-            </div>
-
-            <div class="wizard-summary" id="summary">
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Ocorrência</span>
-                    <span class="wizard-summary-value" id="sum-occurrence">—</span>
-                </div>
-                <div class="wizard-summary-item" id="sum-parent-row" hidden>
-                    <span class="wizard-summary-label">Pai</span>
-                    <span class="wizard-summary-value mono" id="sum-parent">—</span>
-                </div>
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Tipo</span>
-                    <span class="wizard-summary-value" id="sum-type">—</span>
-                </div>
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Descrição</span>
-                    <span class="wizard-summary-value" id="sum-description">—</span>
-                </div>
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Apreensão</span>
-                    <span class="wizard-summary-value mono" id="sum-timestamp">—</span>
-                </div>
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Nº série</span>
-                    <span class="wizard-summary-value mono" id="sum-serial">—</span>
-                </div>
-                <div class="wizard-summary-item" id="sum-tsd-row" hidden>
-                    <span class="wizard-summary-label">Detalhes</span>
-                    <span class="wizard-summary-value mono" id="sum-tsd">—</span>
-                </div>
-                <div class="wizard-summary-item" id="sum-gps-row">
-                    <span class="wizard-summary-label">GPS</span>
-                    <span class="wizard-summary-value mono" id="sum-gps">—</span>
-                </div>
-                <div class="wizard-summary-item" id="sum-photo-row" hidden>
-                    <span class="wizard-summary-label">Foto</span>
-                    <span class="wizard-summary-value">
-                        <img id="sum-photo" class="wizard-summary-photo" src="" alt="Foto do item apreendido">
-                    </span>
-                </div>
-            </div>
-
-            <div id="submit-error" class="form-error mt-8" role="alert"></div>
-            <div class="spinner spinner-dark spinner-submit" id="submit-spinner" hidden></div>
-        </section>
-
-    </div><!-- /wizard-track -->
-
-    <nav class="wizard-nav" aria-label="Navegação do wizard">
-        <button type="button" class="wizard-back" aria-label="Voltar">‹</button>
-        <div class="wizard-dots"></div>
-        <button type="button" class="wizard-next">Seguinte</button>
-    </nav>
-</div><!-- /wizard -->
-</form>
-
-<!-- Modal: continuação após criar item. Oferece 3 opções claras —
-     irmão (outro componente para o mesmo pai), filho (sub-componente do
-     item criado), ou terminar e ver o detalhe. Mostra explicitamente o
-     contexto (item criado + pai) para o utilizador não confundir o nível. -->
-<div class="modal-overlay" id="sub-prompt-modal" aria-hidden="true" role="dialog"
-     aria-labelledby="sub-prompt-title" aria-describedby="sub-prompt-desc" hidden>
-    <div class="modal">
-        <h3 id="sub-prompt-title">Item registado</h3>
-        <div id="sub-prompt-context" class="sub-prompt-context">
-            <div><span class="sub-prompt-label">Criado:</span> <strong id="sub-prompt-created">—</strong></div>
-            <div id="sub-prompt-parent-row" hidden>
-                <span class="sub-prompt-label">Adicionado a:</span>
-                <strong id="sub-prompt-parent">—</strong>
-            </div>
+          </div>
         </div>
-        <p id="sub-prompt-desc">Continuar a registar?</p>
-        <div id="sub-prompt-suggestions" class="sub-suggestions" aria-hidden="true"></div>
-        <div id="sub-prompt-leaf" class="callout info hidden" role="note">
-            <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"/>
-                <path d="M12 16v-4M12 8h.01"/>
-            </svg>
-            <div class="callout-body">
-                <div class="callout-title">Tipo terminal</div>
-                Este tipo de item não admite sub-componentes.
+
+        <div class="id-section" data-id-section>
+          <h3 class="subhead">Dados específicos do tipo (opcional)</h3>
+          {% if errors.type_specific_data %}<p class="form-error">{{ errors.type_specific_data.0 }}</p>{% endif %}
+          <div class="form-grid">
+
+            <div class="form-field form-field--full id-field" data-id-field data-id-type="MOBILE_DEVICE">
+              <label for="f-imei">IMEI <span class="facts__src">(15 dígitos · Luhn)</span></label>
+              <div class="form-inline">
+                <input class="mono" type="text" id="f-imei" name="imei" value="{{ data.imei }}" placeholder="123456789012345" autocomplete="off">
+                <button type="button" class="btn-ghost" data-lookup="imei" data-target="#f-imei" data-result="#imei-enrich">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                  Consultar imeidb.xyz
+                </button>
+              </div>
+              <div id="imei-enrich" class="lookup-result" hidden></div>
             </div>
-        </div>
-        <div id="sub-prompt-max" class="callout warning hidden" role="note">
-            <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="9"/>
-                <path d="M12 8v5M12 16h.01"/>
-            </svg>
-            <div class="callout-body">
-                <div class="callout-title">Profundidade máxima atingida</div>
-                Recomenda-se evitar detalhe excessivo nesta hierarquia.
+
+            <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
+              <label for="f-imsi">IMSI <span class="facts__src">(14–15 dígitos)</span></label>
+              <input class="mono" type="text" id="f-imsi" name="imsi" value="{{ data.imsi }}" placeholder="268xxxxxxxxxxxx" autocomplete="off">
             </div>
+            <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
+              <label for="f-iccid">ICCID <span class="facts__src">(18–22 dígitos · Luhn)</span></label>
+              <input class="mono" type="text" id="f-iccid" name="iccid" value="{{ data.iccid }}" placeholder="8935101…" autocomplete="off">
+            </div>
+
+            <div class="form-field form-field--full id-field" data-id-field data-id-type="VEHICLE">
+              <label for="f-vin">VIN <span class="facts__src">(17 caracteres · ISO 3779)</span></label>
+              <div class="form-inline">
+                <input class="mono upper" type="text" id="f-vin" name="vin" value="{{ data.vin }}" placeholder="WVWZZZ1JZXW000001" autocomplete="off">
+                <button type="button" class="btn-ghost" data-lookup="vin" data-target="#f-vin">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
+                  Abrir vindecoder.eu
+                </button>
+              </div>
+            </div>
+
+            <div class="form-field id-field" data-id-field data-id-type="NETWORK_DEVICE">
+              <label for="f-mac">MAC <span class="facts__src">(IEEE 802)</span></label>
+              <input class="mono" type="text" id="f-mac" name="mac" value="{{ data.mac }}" placeholder="00:1A:2B:3C:4D:5E" autocomplete="off">
+              <span class="facts__src" data-mac-status></span>
+            </div>
+
+          </div>
         </div>
-        <div class="modal-actions modal-actions-stack">
-            <button type="button" class="btn btn-primary" id="btn-sub-sibling" hidden>
-                <span id="btn-sub-sibling-label">Outro componente do pai</span>
-            </button>
-            <button type="button" class="btn btn-secondary" id="btn-sub-child">
-                <span id="btn-sub-child-label">Sub-componente deste item</span>
-            </button>
-            <button type="button" class="btn btn-ghost" id="btn-sub-finish">
-                Terminar e abrir detalhe
-            </button>
+
+        <div class="form-actions">
+          <a class="btn-ghost" href="/evidences/">Cancelar</a>
+          <button type="submit" class="btn-accent">Registar evidência</button>
         </div>
+      </form>
     </div>
-</div>
+  </section>
+
+</article>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/wizard.js' %}"></script>
-<script src="{% static 'js/pages/evidences_new.js' %}"></script>
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/components/identifier-lookup.js' %}"></script>
 {% endblock %}

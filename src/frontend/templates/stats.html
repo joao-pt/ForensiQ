@@ -1,72 +1,59 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Estatísticas{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current">Estatísticas</span>
-{% endblock %}
+{% block title %}Estatísticas — ForensiQ{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/pages/stats.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Estatísticas</span>{% endblock %}
 
 {% block content %}
-<div class="page">
+<div class="dash fullbleed">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title">Estatísticas</h1>
-            <p class="page-subtitle" id="stats-scope">A carregar…</p>
-        </div>
-    </header>
+  <div class="dash__greet"><h1>Estatísticas</h1><p>Agregados do universo visível ao seu perfil</p></div>
 
-    <!-- KPIs (números globais) -->
-    <section class="stats-totals" id="stats-totals">
-        <div class="stat-tile">
-            <div class="stat-tile-label">Ocorrências</div>
-            <div class="stat-tile-value mono-tab" id="kpi-occurrences">—</div>
-        </div>
-        <div class="stat-tile">
-            <div class="stat-tile-label">Evidências</div>
-            <div class="stat-tile-value mono-tab" id="kpi-evidences">—</div>
-        </div>
-        <div class="stat-tile">
-            <div class="stat-tile-label">Registos de custódia</div>
-            <div class="stat-tile-value mono-tab" id="kpi-custody">—</div>
-        </div>
+  <section class="stats" aria-label="Indicadores">
+    <div class="stat"><div class="stat__num">{{ kpis.occurrences }}</div><div class="stat__label">Ocorrências</div></div>
+    <div class="stat"><div class="stat__num">{{ kpis.prioritarias }}</div><div class="stat__label">Prioritárias</div></div>
+    <div class="stat"><div class="stat__num">{{ kpis.evidences }}</div><div class="stat__label">Itens de prova</div></div>
+    <div class="stat"><div class="stat__num">{{ kpis.custody_events }}</div><div class="stat__label">Eventos custódia</div></div>
+  </section>
+
+  <div class="cols-2">
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Itens por tipo</h2></header>
+      <div class="section__body section__body--flush">
+        {% if by_type %}
+        <table class="grid" role="grid" aria-label="Itens por tipo">
+          <thead><tr role="row"><th scope="col">Tipo</th><th scope="col">Total</th></tr></thead>
+          <tbody>
+            {% for r in by_type %}
+            <tr role="row"><td role="gridcell" class="grid__ellipsis">{{ r.label }}</td><td role="gridcell" class="mono">{{ r.n }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<div class="empty"><p class="empty__hint">Sem itens.</p></div>{% endif %}
+      </div>
     </section>
 
-    <!-- Evidências por tipo -->
-    <section>
-        <div class="section-label">Evidências por tipo</div>
-        <div class="card chart-card">
-            <div class="bar-chart" id="chart-evidence-type">
-                <div class="empty-state">
-                    <span class="spinner"></span>
-                </div>
-            </div>
-        </div>
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Eventos de custódia por tipo</h2></header>
+      <div class="section__body section__body--flush">
+        {% if by_event %}
+        <table class="grid" role="grid" aria-label="Eventos por tipo">
+          <thead><tr role="row"><th scope="col">Evento</th><th scope="col">Total</th></tr></thead>
+          <tbody>
+            {% for r in by_event %}
+            <tr role="row"><td role="gridcell" class="grid__ellipsis">{{ r.label }}</td><td role="gridcell" class="mono">{{ r.n }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<div class="empty"><p class="empty__hint">Sem eventos.</p></div>{% endif %}
+      </div>
     </section>
-
-    <!-- Custódia por estado -->
-    <section>
-        <div class="section-label">Registos de custódia por estado</div>
-        <div class="card chart-card">
-            <div class="bar-chart" id="chart-custody-state">
-                <div class="empty-state">
-                    <span class="spinner"></span>
-                </div>
-            </div>
-        </div>
-    </section>
+  </div>
 
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/pages/stats.js' %}"></script>
 {% endblock %}

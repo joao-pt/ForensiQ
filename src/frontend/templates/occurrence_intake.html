@@ -1,176 +1,124 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Recepção: {{ occurrence.code }}{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/occurrences/">Ocorrências</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/occurrences/{{ occurrence.id }}/">{{ occurrence.code }}</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current">Recepção no laboratório</span>
-{% endblock %}
+{% block title %}Receção · {{ occurrence.code }} — ForensiQ{% endblock %}
 
 {% block extra_css %}
-<style nonce="{{ request.csp_nonce }}">
-    .intake-wrap { max-width: 880px; margin: 1rem auto; padding: 0 1rem; }
-    .intake-meta { background: #F5F5F5; padding: 1rem; border-radius: 6px;
-                   margin-bottom: 1.5rem; }
-    .intake-meta dt { font-size: .75rem; color: #6B7280;
-                      text-transform: uppercase; letter-spacing: .05em; }
-    .intake-meta dd { font-size: 1.1rem; margin: 0 0 .5rem; color: #0F1115; }
-    .intake-list { list-style: none; padding: 0; margin: 0;
-                   border: 1px solid #E0E0E0; border-radius: 6px; }
-    .intake-row { display: flex; align-items: center; gap: 1rem;
-                  padding: .75rem 1rem; border-bottom: 1px solid #E0E0E0; }
-    .intake-row:last-child { border-bottom: none; }
-    .intake-row.received { background: #F0F9F7; }
-    .intake-row input[type=checkbox] { width: 1.4rem; height: 1.4rem; flex: none; }
-    .intake-info { flex: 1; }
-    .intake-info .code { font-family: 'Courier New', monospace; font-weight: 600; }
-    .intake-info .type { color: #6B7280; font-size: .85rem; margin-left: .5rem; }
-    .intake-info .desc { font-size: .85rem; color: #6B7280; margin-top: .15rem; }
-    .intake-state { font-size: .75rem; padding: .25rem .5rem; border-radius: 4px;
-                    background: #E6E8EC; color: #0F1115; }
-    .intake-state.transit { background: #FEF3C7; color: #92400E; }
-    .intake-state.received { background: #D1FAE5; color: #065F46; }
-    .intake-actions { display: flex; gap: .75rem; margin-top: 1.5rem; }
-    .intake-btn { padding: .75rem 1.25rem; border: 0; border-radius: 4px;
-                  font-weight: 600; cursor: pointer; }
-    .intake-btn-primary { background: #0F1115; color: #fff; }
-    .intake-btn-secondary { background: #E0E0E0; color: #0F1115; }
-    .intake-msg { padding: .75rem 1rem; border-radius: 4px; margin-top: 1rem;
-                  display: none; }
-    .intake-msg.ok { background: #D1FAE5; color: #065F46; display: block; }
-    .intake-msg.err { background: #FEE2E2; color: #991B1B; display: block; }
-    .intake-warn { font-size: .85rem; color: #92400E; margin-top: .75rem; }
-</style>
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
-{% block content %}
-<div class="page intake-wrap">
-    <h1>Recepção no laboratório</h1>
-    <p class="intake-warn">
-        Confirma cada item recebido. Os itens marcados transitam
-        atomicamente para o estado <strong>{{ target_state }}</strong>.
-        Itens já recebidos aparecem desactivados.
-    </p>
-
-    <dl class="intake-meta">
-        <dt>Ocorrência</dt>
-        <dd>{{ occurrence.code }}{% if occurrence.number %} · {{ occurrence.number }}{% endif %}</dd>
-        <dt>Itens esperados</dt>
-        <dd>{{ evidence_count }}</dd>
-    </dl>
-
-    <form id="intake-form" data-occurrence-id="{{ occurrence.id }}"
-          data-target-state="{{ target_state }}">
-        <ul class="intake-list">
-            {% for row in rows %}
-            <li class="intake-row {% if row.already_received %}received{% endif %}">
-                <input type="checkbox"
-                       name="evidence_id"
-                       value="{{ row.evidence.id }}"
-                       id="ev-{{ row.evidence.id }}"
-                       {% if row.already_received %}disabled checked{% endif %}>
-                <div class="intake-info">
-                    <label for="ev-{{ row.evidence.id }}">
-                        <span class="code">{{ row.evidence.code }}</span>
-                        <span class="type">· {{ row.evidence.get_type_display }}</span>
-                    </label>
-                    <div class="desc">{{ row.evidence.description|truncatechars:80 }}</div>
-                </div>
-                <span class="intake-state
-                    {% if row.already_received %}received
-                    {% elif row.current_state == 'EM_TRANSPORTE' %}transit
-                    {% endif %}">
-                    {{ row.current_state|default:'—' }}
-                </span>
-            </li>
-            {% endfor %}
-        </ul>
-
-        <div class="intake-actions">
-            <button type="button" class="intake-btn intake-btn-secondary" id="select-all">
-                Marcar todos pendentes
-            </button>
-            <button type="submit" class="intake-btn intake-btn-primary" id="submit-btn">
-                Confirmar recepção dos marcados
-            </button>
-        </div>
-        <div class="intake-msg" id="intake-msg" role="status" aria-live="polite"></div>
-    </form>
-</div>
+{% block breadcrumb %}
+  <a href="/occurrences/{{ occurrence.id }}/" class="mono">{{ occurrence.code }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Receção</span>
 {% endblock %}
 
 {% block extra_js %}
-<script nonce="{{ request.csp_nonce }}">
-(function () {
-    'use strict';
-    const form = document.getElementById('intake-form');
-    const msg = document.getElementById('intake-msg');
-    const submitBtn = document.getElementById('submit-btn');
-    const selectAll = document.getElementById('select-all');
-    const targetState = form.dataset.targetState;
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/components/nearby-pois.js' %}"></script>
+{% endblock %}
 
-    function csrfToken() {
-        const m = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
-        return m ? decodeURIComponent(m[1]) : '';
-    }
+{% block content %}
+<article class="detail fullbleed" aria-labelledby="in-title">
 
-    selectAll.addEventListener('click', function () {
-        form.querySelectorAll('input[type=checkbox]:not(:disabled)').forEach(function (cb) {
-            cb.checked = true;
-        });
-    });
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="in-title">Receção no laboratório</h1>
+      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} ite{{ evidence_count|pluralize:"m,ns" }} · regista <strong>Transferência → Laboratório público</strong></p>
+    </div>
+  </header>
 
-    form.addEventListener('submit', async function (e) {
-        e.preventDefault();
-        msg.className = 'intake-msg';
-        msg.textContent = '';
+  {% if intake_errors %}
+  <div class="section" role="alert"><div class="section__body">
+    {% for e in intake_errors %}<p class="form-error">{{ e }}</p>{% endfor %}
+  </div></div>
+  {% endif %}
 
-        const ids = Array.from(form.querySelectorAll('input[name=evidence_id]:checked:not(:disabled)'))
-            .map(function (cb) { return parseInt(cb.value, 10); });
+  <section class="section">
+    <div class="section__body">
+      <form method="post" action="/occurrences/{{ occurrence.id }}/intake/">
+        {% csrf_token %}
 
-        if (ids.length === 0) {
-            msg.className = 'intake-msg err';
-            msg.textContent = 'Marca pelo menos um item para confirmar recepção.';
-            return;
-        }
+        <table class="grid" role="grid" aria-label="Itens a receber">
+          <thead><tr role="row">
+            <th role="columnheader" scope="col" class="grid__th--pri"></th>
+            <th role="columnheader" scope="col">Código</th>
+            <th role="columnheader" scope="col">Tipo</th>
+            <th role="columnheader" scope="col">Estado atual</th>
+          </tr></thead>
+          <tbody>
+            {% for row in rows %}
+            <tr role="row">
+              <td role="gridcell">
+                {% if row.already_received %}
+                  <span title="Já recebida no laboratório">✓</span>
+                {% else %}
+                  <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" checked
+                         aria-label="Receber {{ row.evidence.code }}">
+                {% endif %}
+              </td>
+              <td role="gridcell" class="mono grid__code">{{ row.evidence.code }}</td>
+              <td role="gridcell" class="grid__ellipsis">{{ row.evidence.get_type_display }}</td>
+              <td role="gridcell">
+                {% if row.already_received %}
+                  <span class="state state--ok">Já recebida</span>
+                {% else %}
+                  <span class="state state--info">{{ row.current_state|default:'sem custódia' }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
 
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'A processar...';
+        <div class="form-grid intake-meta">
 
-        try {
-            const resp = await fetch('/api/custody/cascade/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': csrfToken(),
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    evidence_ids: ids,
-                    new_state: targetState,
-                    observations: 'Recepção no laboratório (intake check-list)',
-                }),
-            });
-            if (!resp.ok) {
-                const errBody = await resp.json().catch(function () { return {}; });
-                throw new Error(errBody.detail || ('HTTP ' + resp.status));
-            }
-            msg.className = 'intake-msg ok';
-            msg.textContent = 'Recepção confirmada para ' + ids.length + ' item(ns). A recarregar...';
-            setTimeout(function () { window.location.reload(); }, 1500);
-        } catch (err) {
-            msg.className = 'intake-msg err';
-            msg.textContent = 'Falha: ' + err.message;
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Confirmar recepção dos marcados';
-        }
-    });
-})();
-</script>
+          <input type="hidden" id="f-lat" name="gps_lat">
+          <input type="hidden" id="f-lng" name="gps_lng">
+          <input type="hidden" id="f-acc" name="gps_accuracy_m">
+
+          <div class="form-field form-field--full">
+            <label>Geolocalização da receção (opcional)</label>
+            <div class="form-inline">
+              <button type="button" class="btn-ghost" data-geo-capture
+                      data-lat-target="#f-lat" data-lng-target="#f-lng" data-acc-target="#f-acc" data-decimals="4">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
+                Capturar GPS
+              </button>
+              <button type="button" class="btn-ghost" data-nearby-pois
+                      data-lat-target="#f-lat" data-lng-target="#f-lng" data-pois-target="#intake-pois" data-radius="500">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                POIs próximos
+              </button>
+              <span class="mono facts__src" data-geo-acc></span>
+              <span class="mono facts__src" data-nearby-pois-status></span>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="f-loc">Local de receção</label>
+            <input type="text" id="f-loc" name="location_name" list="intake-pois"
+                   placeholder="Ex.: Laboratório de Informática Forense, LPC" autocomplete="off">
+            <datalist id="intake-pois"></datalist>
+          </div>
+          <div class="form-field">
+            <label for="f-storage">Armazenamento interno</label>
+            <input type="text" id="f-storage" name="storage_location"
+                   placeholder="Ex.: Armário A3, Prateleira 2" autocomplete="off">
+          </div>
+          <div class="form-field form-field--full">
+            <label for="f-obs">Observações</label>
+            <textarea id="f-obs" name="observations" placeholder="Notas da receção (estado das embalagens, selos, etc.)"></textarea>
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <a class="btn-ghost" href="/occurrences/{{ occurrence.id }}/">Cancelar</a>
+          <button type="submit" class="btn-accent">Registar receção</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+</article>
 {% endblock %}

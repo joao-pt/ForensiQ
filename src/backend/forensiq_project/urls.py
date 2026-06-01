@@ -22,6 +22,7 @@ import os
 
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import TemplateView
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -95,6 +96,21 @@ urlpatterns = [
     path('', login_view, name='home'),
     path('login/', login_view, name='login'),
     path('dashboard/', dashboard_view, name='dashboard'),
+
+    # PWA — service worker (scope raiz) + manifest. Servidos por template para
+    # que {% static %} resolva os caminhos com hashing (WhiteNoise) em produção.
+    path(
+        'sw.js',
+        TemplateView.as_view(template_name='sw.js', content_type='application/javascript'),
+        name='service_worker',
+    ),
+    path(
+        'manifest.webmanifest',
+        TemplateView.as_view(
+            template_name='manifest.webmanifest', content_type='application/manifest+json'
+        ),
+        name='manifest',
+    ),
 
     # Ocorrências
     path('occurrences/', occurrences_view, name='occurrences'),
