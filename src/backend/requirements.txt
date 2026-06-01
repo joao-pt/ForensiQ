@@ -26,7 +26,7 @@ gunicorn>=26.0.0,<27.0
 whitenoise>=6.12.0,<7.0
 
 # PDF export (ReportLab — ISO/IEC 27037; PDF é guia de transporte — ADR-0012)
-reportlab>=4.0,<5.0
+reportlab>=4.5.1,<5.0
 # QR codes embebidos no PDF + endpoint público de verificação (ADR-0012 Vaga 1)
 qrcode[pil]>=7.4,<8.0
 
