@@ -107,6 +107,7 @@ markers = [
     "integration: testes de integração que tocam múltiplas camadas",
     "security: testes focados em segurança (CSRF, JWT, IDOR, ...)",
     "e2e: testes end-to-end de browser (Playwright + live_server)",
+    "visual: regressão visual por screenshot (baseline específica do ambiente; excluída do CI)",
 ]
 filterwarnings = [
     # Silenciar avisos de terceiros que não controlamos
