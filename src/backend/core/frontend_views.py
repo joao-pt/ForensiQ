@@ -828,9 +828,13 @@ def evidences_new_view(request):
                         'evidence_types': Evidence.EvidenceType.choices,
                         'transversal_fields': transversal_fields,
                         'type_fields': type_fields,
-                        'preselect': request.POST.get('occurrence', ''),
+                        # Input cru (não validated_data) é intencional: repopula
+                        # o <select> com a PK em string (casa com o value da opção);
+                        # é um serializer DRF, não um Form, e o re-render mostra o
+                        # que o utilizador submeteu.
+                        'preselect': request.POST.get('occurrence', ''),  # nosemgrep
                         'errors': {'geral': exc.messages},
-                        'data': request.POST,
+                        'data': request.POST,  # nosemgrep
                     },
                     status=400,
                 )
