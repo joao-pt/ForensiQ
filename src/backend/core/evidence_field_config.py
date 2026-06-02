@@ -122,11 +122,6 @@ def fields_for(evidence_type: str) -> list[dict]:
     return EVIDENCE_TYPE_FIELDS.get(evidence_type, [])
 
 
-def all_fields_for(evidence_type: str) -> list[dict]:
-    """Transversais + específicos, na ordem de apresentação."""
-    return TRANSVERSAL_FIELDS + fields_for(evidence_type)
-
-
 def all_keys() -> set[str]:
     """Todas as chaves conhecidas de type_specific_data (transversais + tipos)."""
     keys = {f['key'] for f in TRANSVERSAL_FIELDS}
