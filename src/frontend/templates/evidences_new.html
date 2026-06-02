@@ -88,9 +88,16 @@
           </div>
 
           {% for f in transversal_fields %}
-          <div class="form-field">
+          <div class="form-field{% if f.input == 'select' %} form-field--full{% endif %}">
             <label for="f-tsd-{{ f.key }}">{{ f.label }}</label>
+            {% if f.input == 'select' %}
+            <select id="f-tsd-{{ f.key }}" name="{{ f.key }}">
+              <option value="">— selecionar —</option>
+              {% for opt in f.options %}<option value="{{ opt }}"{% if f.value == opt %} selected{% endif %}>{{ opt }}</option>{% endfor %}
+            </select>
+            {% else %}
             <input type="text" id="f-tsd-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off">
+            {% endif %}
           </div>
           {% endfor %}
 

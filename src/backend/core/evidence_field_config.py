@@ -41,6 +41,11 @@ from __future__ import annotations
 TRANSVERSAL_FIELDS = [
     {'key': 'marca', 'label': 'Marca / Fabricante', 'input': 'text'},
     {'key': 'modelo', 'label': 'Modelo', 'input': 'text'},
+    # Estado de energia na apreensão — dado VOLÁTIL (ISO/IEC 27037; princípio
+    # ACPO 1). Tem de ser capturado no momento: ligado/desligado/modo de avião
+    # condiciona todo o exame posterior e pode não ser recuperável no laboratório.
+    {'key': 'estado_energia', 'label': 'Estado de energia na apreensão', 'input': 'select',
+     'options': ['Ligado', 'Desligado', 'Modo de avião', 'Não aplicável', 'Desconhecido']},
 ]
 
 # Campos específicos por tipo (LEAN — identificadores + poucos críticos).

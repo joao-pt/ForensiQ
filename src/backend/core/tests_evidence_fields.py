@@ -15,9 +15,19 @@ from core.models import Evidence
 class EvidenceFieldConfigShapeTest(SimpleTestCase):
     """A config tem a forma esperada (não precisa de BD)."""
 
-    def test_transversal_has_marca_e_modelo(self):
+    def test_transversais(self):
         keys = {f['key'] for f in evidence_field_config.TRANSVERSAL_FIELDS}
-        self.assertEqual(keys, {'marca', 'modelo'})
+        self.assertEqual(keys, {'marca', 'modelo', 'estado_energia'})
+
+    def test_estado_energia_e_select_com_estados_volateis(self):
+        campo = next(
+            f for f in evidence_field_config.TRANSVERSAL_FIELDS if f['key'] == 'estado_energia'
+        )
+        self.assertEqual(campo['input'], 'select')
+        for estado in ('Ligado', 'Desligado', 'Modo de avião'):
+            self.assertIn(estado, campo['options'])
+        # tem de estar em all_keys() para a view o recolher do POST
+        self.assertIn('estado_energia', evidence_field_config.all_keys())
 
     def test_all_keys_inclui_transversais_e_identificadores(self):
         keys = evidence_field_config.all_keys()
@@ -57,3 +67,9 @@ class EvidenceTypeValidationTest(TestCase):
         ev = self._ev(Evidence.EvidenceType.VEHICLE, {'vin': 'curto'})
         with self.assertRaises(ValidationError):
             ev._validate_type_specific_data()
+
+    def test_estado_energia_aceite_em_qualquer_tipo(self):
+        # Transversal, sem validador de formato — deve passar mesmo num tipo
+        # sem campos específicos (não é "não aplicável" que bloqueia o registo).
+        ev = self._ev(Evidence.EvidenceType.DIGITAL_FILE, {'estado_energia': 'Desligado'})
+        ev._validate_type_specific_data()  # não deve levantar
