@@ -41,11 +41,12 @@ from core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME  # noqa: E402
 # Lisboa — Marquês de Pombal (coincide com OccurrenceFactory / EvidenceFactory).
 E2E_GEO = {"latitude": 38.7223340, "longitude": -9.1393366, "accuracy": 12.0}
 
-# Origens externas PERMITIDAS no browser de teste: as fontes do Google Fonts,
-# que estão na allowlist da própria CSP da app (style-src ... fonts.googleapis.com)
-# e são necessárias para um render fiel do IBM Plex. Tudo o resto (tiles de mapa,
-# etc.) é abortado para os testes correrem offline e sem flakiness.
-_ALLOWED_EXTERNAL = ("fonts.googleapis.com", "fonts.gstatic.com")
+# Origens externas permitidas no browser de teste: NENHUMA. O IBM Plex passou a
+# self-hosted (css/fonts.css), por isso os testes correm totalmente offline.
+# Pedidos externos (ex.: tiles de mapa) são abortados — sem flakiness. Se algum
+# template ainda referenciar fontes externas, a CSP apertada (font-src 'self')
+# dispara uma violação que o test_no_csp_violations apanha.
+_ALLOWED_EXTERNAL = ()
 
 # Mensagens de consola a IGNORAR como "erro de JS": resultam do bloqueio
 # deliberado de recursos externos (tiles de mapa), não de defeitos da aplicação.

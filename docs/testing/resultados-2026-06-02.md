@@ -49,11 +49,24 @@ Como o `.form-hint` usa `--text-subtle`, isto resolve diretamente a dificuldade
 de ler **o que inserir nos campos**. O gate de a11y passou a **exigir** contraste
 (sem exclusões) e está verde nos dois temas.
 
-### F3 — Dashboard é a página mais pesada *(OBSERVAR)*
-LCP local de ≈5,3 s no dashboard (vs. 2,7 s no login), dominado pelo hero map e
-pelos tiles externos do OpenStreetMap. São números de servidor **local** (DEBUG,
-sem compressão WhiteNoise/CDN), não de produção — mas confirmam onde está o peso.
-Sem regressão de layout (CLS 0) nem bloqueio de JS (TBT 0 ms) em lado nenhum.
+### F3 — Dashboard é a página mais pesada / dependências externas *(PARCIAL)*
+LCP local de ≈5,3 s no dashboard (vs. 2,7 s no login), dominado por (a) o IBM
+Plex carregado via Google Fonts — CSS externo **render-blocking** e fuga de IP,
+incoerente com o geocoding já ser server-side por RGPD — e (b) os tiles do mapa
+direto do OpenStreetMap. São números de servidor **local** (DEBUG, sem
+compressão/CDN), não de produção; sem regressão de layout (CLS 0) nem bloqueio
+de JS (TBT 0 ms) em lado nenhum.
+
+**Resolvido (a):** o IBM Plex passou a **self-hosted** (`static/fonts/*.woff2` +
+`css/fonts.css`, subset latin, pesos 400/500/600/700, `font-display: swap`).
+Removidas as `<link>`/preconnect do Google nos 4 templates e **apertada a CSP**
+(`style-src`/`font-src` deixaram de permitir `fonts.googleapis.com`/`gstatic.com`).
+Validado: `collectstatic` (manifest) reescreve os `url()` para os ficheiros com
+hash; os 28 testes E2E mantêm-se verdes (incl. 0 violações de CSP).
+
+**Em aberto (b):** os tiles do mapa continuam a vir do OSM no cliente (mesma
+fuga de IP). Mitigar exige um proxy de tiles server-side ou tiles self-hosted —
+item mais pesado, adiado.
 
 ## Lighthouse — linha de base (servidor local, não produção)
 
