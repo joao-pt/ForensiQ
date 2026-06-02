@@ -32,8 +32,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
-from core import access
-from core import evidence_field_config
+from core import access, evidence_field_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.models import (

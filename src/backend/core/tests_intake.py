@@ -182,7 +182,7 @@ class OccurrenceIntakeRenderTest(TestCase):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
         # O cabeçalho da receção mostra a contagem em texto livre
         # (`{{ evidence_count }} ite{{ ...|pluralize }}`). 3 evidências no setup.
-        self.assertIn('3 itens'.encode(), response.content)
+        self.assertIn(b'3 itens', response.content)
 
     def test_template_recebidas_nao_tem_checkbox(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')

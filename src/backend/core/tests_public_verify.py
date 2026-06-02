@@ -121,9 +121,9 @@ class PublicVerifyEndpointTest(TestCase):
         self.assertEqual(response.status_code, 200)
         # Mostra código da ocorrência (OC-2026-...) e contagem de itens.
         self.assertIn(self.occurrence.code.encode(), response.content)
-        self.assertIn('item de prova'.encode(), response.content)
+        self.assertIn(b'item de prova', response.content)
         # Cabeçalho da secção de itens e integridade.
-        self.assertIn('Itens e integridade (SHA-256)'.encode(), response.content)
+        self.assertIn(b'Itens e integridade (SHA-256)', response.content)
         # Mostra integrity_hash (defesa em profundidade).
         self.assertIn(self.evidence.integrity_hash.encode(), response.content)
 
