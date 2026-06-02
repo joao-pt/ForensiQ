@@ -24,16 +24,16 @@ FROM python:3.12-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     libjpeg62-turbo \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Utilizador não-root por segurança
 RUN useradd --create-home forensiq
 
-# Pre-criar /data/media com ownership `forensiq` antes do USER switch.
-# Fly.io copia o conteúdo deste path para o volume na primeira
-# inicialização, preservando ownership. Para volumes JÁ existentes é
-# preciso correr uma vez:
-#   fly ssh console -C 'chown -R forensiq:forensiq /data/media'
+# Pre-criar /data/media com ownership `forensiq`. Em volume NOVO o Fly preserva
+# este ownership; em volume JÁ existente o mount sobrepõe-no com root:root — por
+# isso o docker-entrypoint.sh volta a fazer o chown no arranque (runtime), o que
+# resolve de forma durável o upload de fotos (PermissionError em /data/media).
 RUN mkdir -p /data/media && chown -R forensiq:forensiq /data
 
 USER forensiq
@@ -72,10 +72,19 @@ RUN DATABASE_URL="sqlite:///tmp/build-dummy.db" \
     ALLOWED_HOSTS="localhost" \
     python manage.py collectstatic --noinput
 
+# O contentor arranca como root apenas para o entrypoint poder fazer chown do
+# volume montado em runtime; o entrypoint larga logo privilégios para `forensiq`
+# (gosu) antes de executar a aplicação.
+USER root
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Expor porta
 EXPOSE 8000
 
-# Gunicorn — 2 workers para VM pequena
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Gunicorn — 2 workers para VM pequena (corre como forensiq via gosu)
 CMD ["gunicorn", "forensiq_project.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "2", \
