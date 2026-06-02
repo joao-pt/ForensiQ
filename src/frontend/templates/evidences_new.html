@@ -36,6 +36,9 @@
         {% csrf_token %}
         <div class="form-grid">
 
+          {# --- Secção 1: contexto (a que caso/item pertence) --- #}
+          <div class="form-field form-field--full"><h3 class="subhead">Contexto</h3></div>
+
           <div class="form-field">
             <label for="f-occ">Ocorrência *</label>
             <select id="f-occ" name="occurrence" required{% if errors.occurrence %} aria-invalid="true" aria-describedby="f-occ-err"{% endif %}>
@@ -48,35 +51,6 @@
           </div>
 
           <div class="form-field">
-            <label for="f-type">Tipo *</label>
-            <select id="f-type" name="type" required{% if errors.type %} aria-invalid="true" aria-describedby="f-type-err"{% endif %}>
-              <option value="">— selecionar —</option>
-              {% for val, label in evidence_types %}
-              <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-            {% if errors.type %}<span class="form-error visible" id="f-type-err">{{ errors.type.0 }}</span>{% endif %}
-          </div>
-
-          <div class="form-field form-field--full">
-            <label for="f-desc">Descrição *</label>
-            <textarea id="f-desc" name="description" required placeholder="Descrição do item apreendido…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
-            {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
-          </div>
-
-          <div class="form-field">
-            <label for="f-serial">Número de série</label>
-            <input class="mono" type="text" id="f-serial" name="serial_number" value="{{ data.serial_number }}">
-          </div>
-
-          {% for f in transversal_fields %}
-          <div class="form-field">
-            <label for="f-tsd-{{ f.key }}">{{ f.label }}</label>
-            <input type="text" id="f-tsd-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off">
-          </div>
-          {% endfor %}
-
-          <div class="form-field">
             <label for="f-parent">Sub-componente de (opcional)</label>
             <select id="f-parent" name="parent_evidence"{% if errors.parent_evidence %} aria-invalid="true" aria-describedby="f-parent-err"{% endif %}>
               <option value="">— nenhum (item raiz) —</option>
@@ -87,36 +61,49 @@
             {% if errors.parent_evidence %}<span class="form-error visible" id="f-parent-err">{{ errors.parent_evidence.0 }}</span>{% endif %}
           </div>
 
+          {# --- Secção 2: identificação do item (foto sobe — documenta o item como encontrado) --- #}
+          <div class="form-field form-field--full"><h3 class="subhead">Identificação do item</h3></div>
+
+          <div class="form-field">
+            <label for="f-type">Tipo *</label>
+            <select id="f-type" name="type" required{% if errors.type %} aria-invalid="true" aria-describedby="f-type-err"{% endif %}>
+              <option value="">— selecionar —</option>
+              {% for val, label in evidence_types %}
+              <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.type %}<span class="form-error visible" id="f-type-err">{{ errors.type.0 }}</span>{% endif %}
+          </div>
+
           <div class="form-field">
             <label for="f-photo">Fotografia</label>
             <input type="file" id="f-photo" name="photo" accept="image/*" capture="environment"{% if errors.photo %} aria-invalid="true" aria-describedby="f-photo-err"{% endif %}>
             {% if errors.photo %}<span class="form-error visible" id="f-photo-err">{{ errors.photo.0 }}</span>{% endif %}
           </div>
 
+          <div class="form-field form-field--full">
+            <label for="f-desc">Descrição *</label>
+            <textarea id="f-desc" name="description" required placeholder="Descrição do item apreendido…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
+            {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
+          </div>
+
+          {% for f in transversal_fields %}
           <div class="form-field">
-            <label for="f-lat">Latitude (apreensão)</label>
-            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
-            {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
+            <label for="f-tsd-{{ f.key }}">{{ f.label }}</label>
+            <input type="text" id="f-tsd-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off">
           </div>
+          {% endfor %}
+
           <div class="form-field">
-            <label for="f-lng">Longitude (apreensão)</label>
-            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
-            {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
+            <label for="f-serial">Número de série</label>
+            <input class="mono" type="text" id="f-serial" name="serial_number" value="{{ data.serial_number }}">
           </div>
-          <div class="form-field form-field--full" role="group" aria-labelledby="en-geo-label">
-            <span class="subhead" id="en-geo-label">Geolocalização da apreensão</span>
-            <div class="form-inline">
-              <button type="button" class="btn-ghost" data-geo-capture data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
-                Capturar GPS
-              </button>
-              <span class="mono facts__src" data-geo-acc></span>
-            </div>
-          </div>
+
         </div>
 
+        {# --- Secção 3: identificadores e estado do dispositivo (antes "opcional") --- #}
         <div class="id-section" data-id-section>
-          <h3 class="subhead">Dados específicos do tipo (opcional)</h3>
+          <h3 class="subhead">Identificadores e estado do dispositivo</h3>
           {% if errors.type_specific_data %}<p class="form-error visible" role="alert">{{ errors.type_specific_data.0 }}</p>{% endif %}
           <div class="form-grid">
             {% for f in type_fields %}
@@ -142,6 +129,31 @@
               {% endif %}
             </div>
             {% endfor %}
+          </div>
+        </div>
+
+        {# --- Secção 4: local da apreensão (botão de captura primeiro) --- #}
+        <div class="form-grid">
+          <div class="form-field form-field--full" role="group" aria-labelledby="en-geo-label">
+            <span class="subhead" id="en-geo-label">Local da apreensão</span>
+            <div class="form-inline">
+              <button type="button" class="btn-ghost" data-geo-capture data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
+                Capturar GPS
+              </button>
+              <span class="mono facts__src" data-geo-acc></span>
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="f-lat">Latitude (apreensão)</label>
+            <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
+            {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="f-lng">Longitude (apreensão)</label>
+            <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
+            {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
           </div>
         </div>
 
