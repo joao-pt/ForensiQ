@@ -17,6 +17,7 @@
   <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/components/nearby-pois.js' %}"></script>
+  <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}
 
 {% block content %}
@@ -25,7 +26,7 @@
   <header class="detail__head">
     <div>
       <h1 class="detail__title" id="in-title">Receção no laboratório</h1>
-      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} ite{{ evidence_count|pluralize:"m,ns" }} · regista <strong>Transferência → Laboratório público</strong></p>
+      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} · regista <strong>Transferência → Laboratório público</strong></p>
     </div>
   </header>
 
@@ -50,12 +51,12 @@
           <tbody>
             {% for row in rows %}
             <tr role="row">
-              <td role="gridcell">
+              <td role="gridcell" class="grid__check">
                 {% if row.already_received %}
                   <span aria-hidden="true" title="Já recebida no laboratório">✓</span>
                   <span class="visually-hidden">Já recebida no laboratório</span>
                 {% else %}
-                  <label class="form-check" title="Receber {{ row.evidence.code }}">
+                  <label class="form-check grid__check-label" title="Receber {{ row.evidence.code }}">
                     <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" checked
                            aria-label="Receber {{ row.evidence.code }}">
                   </label>

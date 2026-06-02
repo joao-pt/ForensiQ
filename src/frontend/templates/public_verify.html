@@ -4,10 +4,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0F1115" id="meta-theme-color">
+  <meta name="theme-color" content="#0F1115">
   <meta name="robots" content="noindex">
   <title>Verificação · {{ occurrence_code }} — ForensiQ</title>
-  <script src="{% static 'js/theme-init.js' %}"></script>
   <link rel="stylesheet" href="{% static 'css/main.css' %}">
   <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,13 +26,14 @@
     <span class="state state--info">Verificação pública de integridade</span>
     <h1 class="pubdoc__title">{{ occurrence_code }}</h1>
     <p class="pubdoc__sub">
-      {% if occurrence_number %}NUIPC {{ occurrence_number }} · {% endif %}{{ evidence_count }} ite{{ evidence_count|pluralize:"m,ns" }} de prova
+      {% if occurrence_number %}NUIPC {{ occurrence_number }} · {% endif %}{{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} de prova
     </p>
 
     <section class="section">
       <header class="section__head"><h2 class="section__title">Itens e integridade (SHA-256)</h2></header>
       <div class="section__body section__body--flush">
         {% if evidences %}
+        <div class="gridwrap">
         <table class="grid" role="table" aria-label="Itens e hashes de integridade">
           <thead>
             <tr role="row">
@@ -59,6 +59,7 @@
             {% endfor %}
           </tbody>
         </table>
+        </div>
         {% else %}
         <div class="empty"><p class="empty__hint">Sem itens de prova associados.</p></div>
         {% endif %}

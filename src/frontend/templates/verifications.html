@@ -19,21 +19,17 @@
     </div>
   </header>
 
-  <section class="section">
-    <div class="section__body">
-      <form class="toolbar" role="search" action="/verificacoes/" method="get">
-        <div class="toolbar__search">
-          <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
-          </svg>
-          <input type="search" name="q" value="{{ q }}" inputmode="latin"
-                 placeholder="Hash do QR ou código (ex.: OC-2026-0001)…"
-                 autocomplete="off" aria-label="Hash do QR ou código da ocorrência">
-        </div>
-        <button type="submit" class="btn-accent">Resolver</button>
-      </form>
+  <form class="toolbar" role="search" action="/verificacoes/" method="get">
+    <div class="toolbar__search">
+      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="search" name="q" value="{{ q }}" inputmode="latin"
+             placeholder="Hash do QR ou código (ex.: OC-2026-0001)…"
+             autocomplete="off" aria-label="Hash do QR ou código da ocorrência">
     </div>
-  </section>
+    <button type="submit" class="btn-accent">Resolver</button>
+  </form>
 
   {% if result %}
   <section class="section">

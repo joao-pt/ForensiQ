@@ -89,7 +89,7 @@
 
           <div class="form-field">
             <label for="f-photo">Fotografia</label>
-            <input type="file" id="f-photo" name="photo" accept="image/*"{% if errors.photo %} aria-invalid="true" aria-describedby="f-photo-err"{% endif %}>
+            <input type="file" id="f-photo" name="photo" accept="image/*" capture="environment"{% if errors.photo %} aria-invalid="true" aria-describedby="f-photo-err"{% endif %}>
             {% if errors.photo %}<span class="form-error visible" id="f-photo-err">{{ errors.photo.0 }}</span>{% endif %}
           </div>
 
@@ -160,4 +160,5 @@
   <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/components/identifier-lookup.js' %}"></script>
+  <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}
