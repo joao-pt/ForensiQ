@@ -74,7 +74,12 @@
 .btn-accent:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-accent svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 
-/* Botão secundário/neutro */
+/* Botão secundário/neutro.
+   Auto-contido: declara todas as suas propriedades (background, color, border,
+   padding...) para não herdar nada da .btn-ghost legada do main.css, que é uma
+   modificadora de .btn. O hover usa :not(:disabled) para igualar a
+   especificidade do .btn-ghost:hover:not(:disabled) do main.css e, carregando
+   depois, vencer a cascata independentemente da ordem de import na página. */
 .btn-ghost {
     display: inline-flex;
     align-items: center;
@@ -90,7 +95,7 @@
     cursor: pointer;
     transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
-.btn-ghost:hover { background: var(--surface-hover); border-color: var(--accent); }
+.btn-ghost:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--accent); }
 .btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-ghost svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 /* Alvo de toque >=44px nas ações de página em mobile (uso de campo, luvas) */
@@ -193,6 +198,56 @@
 .toolbar__busy.htmx-request { opacity: 1; animation: fq-spin 0.6s linear infinite; }
 @keyframes fq-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .toolbar__busy.htmx-request { animation: none; } }
+
+/* Disclosure "Filtros" (custody_list) — em desktop os filtros ficam sempre
+   inline na toolbar (o summary é escondido e o <details> comporta-se como um
+   contentor flex transparente); em mobile colapsam atrás de um botão "Filtros"
+   para a toolbar sticky não ocupar 6-7 linhas antes da grelha. */
+.toolbar__filters { display: contents; }
+.toolbar__filters-summary { display: none; }
+/* content-visibility:visible anula a regra UA que esconde os filhos de um
+   <details> fechado, para os filtros ficarem sempre inline em desktop mesmo
+   quando o <details> não está [open]. */
+.toolbar__filters-body { display: contents; content-visibility: visible; }
+@media (max-width: 767px) {
+    .toolbar__filters {
+        display: block;
+        flex: 1 1 100%;
+        margin: 0;
+        border: 1px solid var(--border-input);
+        border-radius: var(--r-2);
+        background: var(--bg-inset);
+    }
+    .toolbar__filters-summary {
+        display: flex;
+        align-items: center;
+        gap: var(--sp-2);
+        min-height: var(--min-touch);
+        padding: 0 var(--sp-3);
+        font-family: var(--font-sans);
+        font-size: var(--fs-sm);
+        color: var(--text-muted);
+        cursor: pointer;
+        list-style: none;
+    }
+    .toolbar__filters-summary::-webkit-details-marker { display: none; }
+    .toolbar__filters-summary::after {
+        content: "+";
+        margin-left: auto;
+        font-family: var(--font-mono);
+        color: var(--text-subtle);
+    }
+    .toolbar__filters[open] > .toolbar__filters-summary::after { content: "−"; }
+    .toolbar__filters-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .toolbar__filters-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--sp-2);
+        padding: var(--sp-2) var(--sp-3) var(--sp-3);
+    }
+    .toolbar__filters-body .toolbar__date,
+    .toolbar__filters-body select { max-width: none; width: 100%; }
+}
 
 /* ============================================================
    Grelha densa (role=grid)
@@ -526,9 +581,14 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    omissão e só aparece com .visible (os spans server-rendered emitem ambas). */
 .form-error { font-size: var(--fs-xs); color: var(--danger); min-height: 0; display: none; }
 .form-error.visible { display: block; }
+/* Auto-contido: redeclara family/size/color/margin para não depender da
+   .form-hint do main.css (sans + --text-muted, sem margin). Aqui é mono denso. */
 .form-hint { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 2px; }
 .pri-hint--p1 { color: var(--danger); }
-.form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
+/* Auto-contido: a .form-actions do main.css (carrega antes) acrescenta
+   padding-top + border-top (separador) que vazariam para estas fichas densas.
+   Anula-os explicitamente — aqui as ações ficam encostadas à direita sem régua. */
+.form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); padding-top: 0; border-top: 0; }
 /* Modo terreno: a barra de ações acompanha o teclado virtual no telemóvel
    (queixa do João: o teclado tapava os botões). --kb é medido por
    field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal. */
@@ -549,6 +609,19 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-inline { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .form-check { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text); text-transform: none; letter-spacing: 0; cursor: pointer; }
 .form-check input { width: auto; }
+
+/* Coluna de seleção por linha (occurrence_intake) — toda a célula é tocável,
+   para marcar/desmarcar itens com luvas em operação de campo em lote. */
+.grid__check { padding: 0; text-align: center; }
+.grid__check-label {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--min-touch);
+    min-width: var(--min-touch);
+    margin: 0;
+    padding: 0 var(--sp-2);
+}
 .geo-acc--flag { color: var(--danger); }
 .geo-acc--error { color: var(--danger); }
 .intake-meta { margin-top: var(--sp-4); }
@@ -670,6 +743,12 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 
 @media (max-width: 767px) {
     .form-grid { grid-template-columns: 1fr; }
+    /* Alvo de toque >=44px nos campos dos formulários de terreno (uso com luvas,
+       exterior). Exclui checkbox/radio (alvo aplicado ao .form-check); a textarea
+       já tem min-height:88px, acima do mínimo. */
+    .form-field input:not([type="checkbox"]):not([type="radio"]),
+    .form-field select,
+    .form-field textarea { min-height: var(--min-touch); }
 }
 
 /* ============================================================
