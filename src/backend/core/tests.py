@@ -19,6 +19,7 @@ import hashlib
 import unittest
 from datetime import UTC, timedelta
 from decimal import Decimal
+from unittest import mock
 
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, connection
@@ -220,12 +221,13 @@ class ChainOfCustodyModelTest(TestCase):
 
     def test_validacao_fora_de_prazo_aceite_mas_assinalada(self):
         """VALIDACAO_APREENSAO >72h após apreensão é aceite, mas validation_overdue=True."""
-        apre = self._evento(EventType.APREENSAO_OBJETO)
-        # Recuar o timestamp da apreensão >72h (UPDATE directo na BD; o trigger
-        # PG bloqueia, mas em SQLite-de-teste passa — só precisamos do estado).
-        ChainOfCustody.objects.filter(pk=apre.pk).update(
-            timestamp=timezone.now() - timedelta(hours=80)
-        )
+        # A apreensão tem de ficar >72h no passado. O ledger é imutável (o
+        # trigger PostgreSQL bloqueia qualquer UPDATE), por isso não se retrodata
+        # com .update(); congela-se o relógio do servidor só durante a criação
+        # da apreensão — o save() força timestamp = timezone.now().
+        backdated = timezone.now() - timedelta(hours=80)
+        with mock.patch('core.models.timezone.now', return_value=backdated):
+            self._evento(EventType.APREENSAO_OBJETO)
         record = self._evento(EventType.VALIDACAO_APREENSAO)
         self.assertTrue(record.validation_overdue)
 
