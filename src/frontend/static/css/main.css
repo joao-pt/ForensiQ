@@ -52,9 +52,12 @@
     --min-touch: 44px;          /* Apple HIG / uso com luvas */
     --min-touch-lg: 52px;       /* acções primárias */
 
-    /* Navbar — tokens para alinhamento sticky (sidebar, wizards, etc) */
-    --navbar-h:          56px;  /* mobile */
-    --navbar-h-desktop:  60px;  /* >=768px */
+    /* Navbar — tokens para alinhamento sticky (sidebar, wizards, etc).
+       Aliasados ao token único da casca (--app-top-h, definido em app-shell.css)
+       para que os offsets sticky herdem a altura real do header (52px) em vez
+       de assumirem 56/60px. O fallback cobre páginas que não carregam a casca. */
+    --navbar-h:          var(--app-top-h, 52px);  /* mobile */
+    --navbar-h-desktop:  var(--app-top-h, 52px);  /* >=768px */
 
     /* ---- Tipografia ---- */
     --font-sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI',
@@ -758,6 +761,14 @@ hr {
     background: var(--surface-active);
 }
 
+/* Foco próprio, alinhado com os restantes controlos da casca
+   (.app-top__nav-toggle, .app-drawer__btn): outline-offset negativo para o
+   anel ficar contido dentro do strip sticky e não ser cortado. */
+.icon-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+
 .icon-btn svg {
     width: 18px;
     height: 18px;
@@ -783,6 +794,19 @@ hr {
 
 .user-menu-trigger:hover {
     background: var(--surface-hover);
+}
+
+/* Alvo de toque mínimo (44px, HIG / uso com luvas) em apontadores grosseiros —
+   alinha o theme-toggle e o trigger de utilizador com os irmãos da casca
+   (.app-top__nav-toggle, .app-drawer__btn) que já recebem este upgrade. */
+@media (pointer: coarse) {
+    .icon-btn {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
+    .user-menu-trigger {
+        min-height: var(--min-touch);
+    }
 }
 
 .user-avatar {
@@ -1114,21 +1138,30 @@ textarea.form-control::placeholder {
     box-shadow: 0 0 0 3px var(--danger-tint);
 }
 
-/* Chevron do select em data-URI. NOTA: data-URIs não aceitam var(--...),
-   portanto as cores estão hardcoded. Se --text-muted mudar, actualizar aqui:
-   - dark:  #9AA0A6  (= --text-muted)
-   - light: #6E6D6A  (= --text-muted) */
+/* Chevron do select. Um <select> nativo não aceita pseudo-elementos fiáveis nem
+   recoloração da seta por mask (a mask recortaria também o texto/superfície do
+   campo), por isso a seta continua a ser um background-image data-URI. Para
+   eliminar o drift de cor (data-URIs não aceitam var()), a cor passa a estar
+   centralizada num único token por tema — --select-arrow — derivado de
+   --text-muted. Há só UM sítio a actualizar por tema se o token mudar, em vez de
+   dois hex espalhados pela regra. */
+:root,
+[data-theme="dark"] {
+    /* seta = --text-muted (#9AA0A6) */
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239AA0A6' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+}
+
+[data-theme="light"] {
+    /* seta = --text-muted (#6E6D6A) */
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236E6D6A' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+}
+
 select.form-input,
 select.form-control {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239AA0A6' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-image: var(--select-arrow);
     background-repeat: no-repeat;
     background-position: right var(--sp-3) center;
     padding-right: var(--sp-10);
-}
-
-[data-theme="light"] select.form-input,
-[data-theme="light"] select.form-control {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236E6D6A' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
 }
 
 textarea.form-input,
