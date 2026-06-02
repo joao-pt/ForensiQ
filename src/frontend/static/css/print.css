@@ -44,7 +44,6 @@
     .grid th,
     .grid td,
     .section,
-    .card,
     .detail {
         border-color: #ccc !important;
     }
@@ -52,7 +51,6 @@
     /* Não partir blocos coesos entre páginas. */
     .section,
     .detail,
-    .card,
     .grid tr {
         break-inside: avoid;
     }

@@ -45,12 +45,9 @@
     color: var(--text-subtle);
     white-space: nowrap;
 }
-.page-head__actions { display: flex; align-items: center; gap: var(--sp-2); }
-/* Em mobile o título/contador e a ação primária deixam de competir na mesma
-   linha — empilham e a ação ocupa a largura toda. */
+/* Em mobile o título e o contador deixam de competir na mesma linha — empilham. */
 @media (max-width: 767px) {
     .page-head { flex-direction: column; align-items: stretch; }
-    .page-head__actions { justify-content: flex-end; }
 }
 
 /* Botão de ação primária (accent) */
