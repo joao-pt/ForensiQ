@@ -163,30 +163,6 @@
     text-overflow: ellipsis;
 }
 
-.cs-tile__delta {
-    grid-row: 1;
-    grid-column: 3;
-    font-family: var(--font-mono);
-    font-feature-settings: "tnum" 1, "zero" 1;
-    font-size: 10px;
-    font-weight: var(--fw-semi);
-    color: var(--text-subtle);
-    line-height: 1;
-    white-space: nowrap;
-}
-.cs-tile__delta[data-trend="up"]   { color: var(--success); }
-.cs-tile__delta[data-trend="down"] { color: var(--danger); }
-.cs-tile__delta[data-trend="flat"] { color: var(--text-subtle); }
-
-.cs-tile__spark {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    height: 14px;
-    width: 100%;
-    opacity: 0.5;
-    color: var(--text-muted);
-}
-
 /* =====================================================================
    Coluna 2 — Mapa continental + legenda de prioridade
    ===================================================================== */

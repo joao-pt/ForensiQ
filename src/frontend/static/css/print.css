@@ -20,7 +20,6 @@
     .skip-link,
     .breadcrumb,
     .form-actions,
-    .filter-bar,
     .toast-container {
         display: none !important;
     }

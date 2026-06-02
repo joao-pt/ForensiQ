@@ -39,13 +39,6 @@ body.app-body {
     min-height: 100vh;
 }
 
-.app-shell-root {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
 /* Skip-link (a11y) */
 .skip-link {
     position: absolute;
@@ -219,9 +212,6 @@ body.app-body {
 
 /* Em < 768px, esconde chips secundárias (mantém role + name) */
 @media (max-width: 767px) {
-    .app-top__chip[data-priority="low"] {
-        display: none;
-    }
     .app-top__brand-name {
         display: none;
     }
@@ -417,17 +407,6 @@ body.app-body {
 .app-sidebar__label {
     flex: 1;
     min-width: 0;
-}
-
-.app-sidebar__kbd {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--text-subtle);
-    padding: 1px 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--r-1);
-    background: var(--bg-inset);
-    white-space: nowrap;
 }
 
 /* =====================================================================
