@@ -100,3 +100,7 @@ _cowork/
 Lei n*Agosto*
 *51_2023*
 tabela-crimes.pdf
+
+# Relatórios Lighthouse — regeneráveis via scripts/run_lighthouse.ps1; as
+# métricas-chave ficam em docs/testing/resultados-*.md (não versionar os HTML/JSON).
+docs/testing/reports/

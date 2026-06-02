@@ -97,8 +97,13 @@ class ContentSecurityPolicyMiddleware:
       'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79). O Leaflet é
       self-hosted (sem CDN externo; cdnjs removido no T08).
     - style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com: <style>
-      blocks (Leaflet runtime injecta um) precisam de nonce; o setter
-      element.style.X = ... do DOM API não é controlado pelo style-src.
+      blocks injetados em runtime precisam de nonce. NOTA: o HTMX injetava um
+      <style> com os estilos de indicador (bloqueado por esta CSP em todas as
+      páginas com HTMX); está desligado via <meta name="htmx-config"
+      includeIndicatorStyles:false> no base.html — a app usa indicadores
+      próprios (.toolbar__busy.htmx-request). O Leaflet NÃO injeta <style>
+      (traz a CSS por <link>). O setter element.style.X = ... do DOM API não é
+      controlado pelo style-src.
     - connect-src: AJAX ao próprio domínio e geocoding OSM (Nominatim)
     - img-src: imagens do domínio, data URIs e tiles OSM
     - font-src: fontes do domínio e Google Fonts (IBM Plex)

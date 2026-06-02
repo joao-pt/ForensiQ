@@ -90,6 +90,13 @@ extend-exclude = '''
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "forensiq_project.test_settings"
 python_files = ["tests.py", "test_*.py", "tests_*.py"]
+# `pytest` (sem argumentos) recolhe SÓ core/ — a suite unitária/integração com
+# test_settings (SQLite :memory:). Os testes E2E de browser vivem em e2e/ e
+# correm em separado, com o seu próprio settings e o browser instalado:
+#     pytest e2e/ --ds=forensiq_project.e2e_settings
+# Assim o `manage.py test core` do CI e um `pytest` simples nunca tentam
+# arrancar o Playwright. Ver docs/testing/.
+testpaths = ["core"]
 addopts = [
     "--strict-markers",
     "--tb=short",
@@ -99,6 +106,7 @@ markers = [
     "slow: marca testes lentos (excluídos em CI rápido com -m 'not slow')",
     "integration: testes de integração que tocam múltiplas camadas",
     "security: testes focados em segurança (CSRF, JWT, IDOR, ...)",
+    "e2e: testes end-to-end de browser (Playwright + live_server)",
 ]
 filterwarnings = [
     # Silenciar avisos de terceiros que não controlamos

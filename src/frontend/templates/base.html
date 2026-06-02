@@ -11,6 +11,13 @@
     <!-- Mobile-first: prevenir zoom em inputs (iOS) -->
     <meta name="format-detection" content="telephone=no">
 
+    <!-- HTMX: NÃO injetar o <style> de indicadores. Sob a CSP estrita
+         (style-src 'self' 'nonce-…', sem unsafe-inline) esse <style> sem nonce
+         é bloqueado em todas as páginas com HTMX. A app tem os seus próprios
+         indicadores (.toolbar__busy.htmx-request em forensic.css, via <link>),
+         logo desligá-lo é seguro. Config lida pelo HTMX ao inicializar. -->
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
+
     <!-- Favicon — cadeia de custódia (aros entrelaçados) -->
     <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
 

@@ -185,7 +185,7 @@ body.app-body {
 }
 
 .app-top__chip[data-variant="role"] {
-    color: var(--accent);
+    color: var(--accent-on-tint);
     border-color: var(--accent-tint);
     background: var(--accent-tint);
 }
@@ -392,7 +392,7 @@ body.app-body {
 }
 .app-sidebar__link[aria-current="page"] {
     background: var(--accent-tint);
-    color: var(--accent);
+    color: var(--accent-on-tint);  /* âmbar legível sobre a tinta (AA) */
     border-left-color: var(--accent);
     font-weight: var(--fw-medium);
 }

@@ -119,7 +119,9 @@
     --text:            #E6E8EC;
     --text-emphasis:   #F4F5F7;
     --text-muted:      #9AA0A6;
-    --text-subtle:     #6E737C;
+    /* clareado de #6E737C (≈3.9:1 sobre as superfícies escuras, abaixo de AA)
+       para ≈5.2:1 sobre --surface, mantendo-se mais discreto que --text-muted. */
+    --text-subtle:     #8A8F98;
     --text-placeholder:#52575E;
     --text-inverse:    #0F1115;
 
@@ -136,6 +138,9 @@
     --accent-tint:     rgba(246, 173, 85, 0.14);
     --accent-tint-hover: rgba(246, 173, 85, 0.20);
     --on-accent:       #1A1004;
+    /* Texto âmbar SOBRE a tinta âmbar (chips, avatar). No escuro o âmbar vivo
+       já contrasta de sobra com a tinta; no claro é escurecido (ver tema dia). */
+    --accent-on-tint:  #F6AD55;
 
     --warning:         #F59E0B;
     --warning-strong:  #D97706;
@@ -203,9 +208,14 @@
 
     --text:            #37352F;
     --text-emphasis:   #1F1E1A;
-    --text-muted:      #6E6D6A;   /* escurecido (ratio 5.6:1 sobre #FAFAF9) — antes #787774 ficava no limite WCAG AA em pequeno texto */
-    --text-subtle:     #9B9A97;
-    --text-placeholder:#B4B0A8;
+    /* Dois níveis de texto secundário, AMBOS ≥4.5:1 (WCAG AA), também sobre os
+       fundos tintados (--bg-subtle/--bg-inset). A hierarquia mantém-se por
+       muted ser mais escuro que subtle (e por tamanho/peso), não por descer
+       abaixo de AA. Antes: muted #6E6D6A ficava no limite em fundos tintados e
+       subtle #9B9A97 falhava (≈2.6:1) — usado por .form-hint, contagens, etc. */
+    --text-muted:      #5C5A55;   /* ≈6:1 sobre #FAFAF9; AA mesmo em --bg-inset */
+    --text-subtle:     #6B6A64;   /* ≈4.9:1 sobre #FAFAF9; ≈4.6:1 em --bg-subtle */
+    --text-placeholder:#8C887F;   /* legível (≈3:1) sem parecer campo preenchido */
     --text-inverse:    #FAFAF9;
 
     --border:          rgba(55, 53, 47, 0.09);
@@ -220,6 +230,9 @@
     --accent-tint:     rgba(180, 83, 9, 0.10);
     --accent-tint-hover: rgba(180, 83, 9, 0.14);
     --on-accent:       #FFFFFF;
+    /* Texto âmbar SOBRE a tinta âmbar: o --accent (#B45309) só dá ≈3.97:1 sobre
+       a tinta (chips/avatar). Este tom escurecido dá ≈5.6:1 e mantém o âmbar. */
+    --accent-on-tint:  #92400E;
 
     /* Warning destacado do accent (amber-600 #D97706) para que P2/aviso não
        colida com botões/marca (--accent #B45309) nem com --state-em-transporte. */
@@ -617,7 +630,7 @@ hr {
     height: 26px;
     border-radius: var(--r-pill);
     background: var(--accent-tint);
-    color: var(--accent);
+    color: var(--accent-on-tint);
     font-size: var(--fs-xs);
     font-weight: var(--fw-semi);
     letter-spacing: 0.02em;
