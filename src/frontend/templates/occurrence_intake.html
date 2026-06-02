@@ -76,6 +76,7 @@
           </tbody>
         </table>
 
+        <h3 class="subhead">Dados da receção</h3>
         <div class="form-grid intake-meta">
 
           <input type="hidden" id="f-lat" name="gps_lat">
@@ -105,6 +106,7 @@
             <label for="f-loc">Local de receção</label>
             <input type="text" id="f-loc" name="location_name" list="intake-pois"
                    placeholder="Ex.: Laboratório de Informática Forense, LPC" autocomplete="off">
+            <span class="form-hint">Onde a prova foi entregue (laboratório/posto).</span>
             <datalist id="intake-pois"></datalist>
             <div id="intake-pois-list" class="poi-picker" role="group" aria-label="POIs próximos" hidden></div>
           </div>
@@ -112,6 +114,7 @@
             <label for="f-storage">Armazenamento interno</label>
             <input type="text" id="f-storage" name="storage_location"
                    placeholder="Ex.: Armário A3, Prateleira 2" autocomplete="off">
+            <span class="form-hint">Onde fica guardada (armário/prateleira).</span>
           </div>
           <div class="form-field form-field--full">
             <label for="f-obs">Observações</label>
