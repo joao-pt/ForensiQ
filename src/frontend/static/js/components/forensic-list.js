@@ -67,20 +67,14 @@
     }
     function clearGridBusy() { markGridBusy(false); }
 
-    // Reflecte o fragmento recém-trocado no título do drawer. O fragmento
-    // pode declará-lo em [data-drawer-title]; caso contrário usa-se o código
-    // (.dd__code), que é o identificador forense que rotula o painel. Não se
-    // recorre a cabeçalhos internos (ex.: "Descrição") para não rotular mal.
+    // Reflecte o fragmento recém-trocado no título do drawer: usa o código
+    // (.dd__code), o identificador forense que rotula o painel. Não se recorre a
+    // cabeçalhos internos (ex.: "Descrição") para não rotular mal.
     function updateDrawerTitle(body) {
         var title = document.getElementById('app-drawer-title');
         if (!title) return;
-        var src = body.querySelector('[data-drawer-title]');
-        var text = src ? src.getAttribute('data-drawer-title') : '';
-        if (!text) {
-            var code = body.querySelector('.dd__code');
-            if (code) text = code.textContent.trim();
-        }
-        if (text) title.textContent = text;
+        var code = body.querySelector('.dd__code');
+        if (code && code.textContent.trim()) title.textContent = code.textContent.trim();
     }
 
     // Acessibilidade do drawer: ao abrir, lembra a linha que o despoletou,

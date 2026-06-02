@@ -148,21 +148,4 @@
                 if (out) out.removeAttribute('aria-busy');
             });
     });
-
-    // --- Pista de formato MAC (não bloqueante) ---
-    var macInput = document.getElementById('f-mac');
-    var macStatus = document.querySelector('[data-mac-status]');
-    if (macInput && macStatus) {
-        // Anuncia a mudança de validade a leitores de ecrã (defensivo se o template
-        // não trouxer os atributos).
-        if (!macStatus.getAttribute('role')) macStatus.setAttribute('role', 'status');
-        macStatus.setAttribute('aria-live', 'polite');
-        macInput.addEventListener('input', function () {
-            var v = macInput.value.trim();
-            if (!v) { macStatus.textContent = ''; macStatus.className = 'facts__src'; return; }
-            var ok = /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$|^[0-9A-Fa-f]{12}$/.test(v);
-            macStatus.textContent = ok ? '✓ formato válido' : '✗ formato inválido';
-            macStatus.className = ok ? 'facts__src geo-ok' : 'facts__src geo-bad';
-        });
-    }
 })();

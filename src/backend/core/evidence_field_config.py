@@ -141,8 +141,3 @@ def sensitive_keys() -> set[str]:
     for fields in EVIDENCE_TYPE_FIELDS.values():
         keys.update(f['key'] for f in fields if f.get('sensitive'))
     return keys
-
-
-def field_map(evidence_type: str) -> dict[str, dict]:
-    """``{key: field}`` dos campos (transversais + do tipo) — lookup rápido."""
-    return {f['key']: f for f in all_fields_for(evidence_type)}

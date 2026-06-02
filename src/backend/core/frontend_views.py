@@ -1457,15 +1457,6 @@ def server_error_view(request):
 # ---------------------------------------------------------------------------
 
 
-def _redirect_permanent(path):
-    """Factory para redirects 301 simples (sem kwargs)."""
-
-    def view(_request):
-        return HttpResponsePermanentRedirect(path)
-
-    return view
-
-
 def occurrence_singular_redirect(_request):
     """/occurrence/ → /occurrences/"""
     return HttpResponsePermanentRedirect('/occurrences/')

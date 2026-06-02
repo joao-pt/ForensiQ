@@ -17,7 +17,7 @@ PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 
 import hashlib
 import unittest
-from datetime import UTC, timedelta, timezone as dt_timezone
+from datetime import UTC, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError

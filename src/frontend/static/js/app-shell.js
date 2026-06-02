@@ -148,22 +148,7 @@
     }
 
     // -------------------------------------------------------------------
-    // 4. Detecção de plataforma para kbd hints
-    // -------------------------------------------------------------------
-    function applyPlatformHints() {
-        const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '');
-        if (!isMac) return;
-        document.querySelectorAll('[data-kbd]').forEach(function (el) {
-            const win = el.dataset.kbd;
-            // Substitui "Ctrl+" por "⌘"; "Alt+" por "⌥"
-            el.textContent = win
-                .replace(/Ctrl\+/g, '⌘')
-                .replace(/Alt\+/g, '⌥');
-        });
-    }
-
-    // -------------------------------------------------------------------
-    // 5. Navegação móvel — off-canvas da sidebar (<1024px)
+    // 4. Navegação móvel — off-canvas da sidebar (<1024px)
     // -------------------------------------------------------------------
     const FOCUSABLE =
         'a[href], button:not([disabled]), input:not([disabled]), ' +
@@ -270,7 +255,6 @@
         bindDrawerActions();
         bindNavOffcanvas();
         highlightSidebar();
-        applyPlatformHints();
         flushServerMessages();
     }
 
