@@ -2213,33 +2213,10 @@ main {
     }
 }
 
-/* Toolbar genérica (pesquisa + acções) — partilhada por occurrences,
-   evidences, custody. Em mobile empilha; em desktop alinha em linha. */
-.toolbar {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-3);
-    padding: 0 var(--sp-4);
-    margin-bottom: var(--sp-4);
-}
-@media (min-width: 768px) {
-    .toolbar {
-        padding: 0;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-    }
-}
-.toolbar-search {
-    flex: 1;
-    max-width: 480px;
-}
-.toolbar-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--sp-2);
-}
+/* NOTA: a .toolbar legada v1 (flex-direction:column + .toolbar-search/.toolbar-actions)
+   foi removida — colidia com a .toolbar densa de components/forensic.css (mesma
+   especificidade, resultado dependente da ordem de carregamento). Nenhum template
+   usa as classes legadas; a toolbar real é a de forensic.css. */
 
 /* Ocorrências sem GPS — secção colapsável debaixo do mapa. */
 .no-gps-section {

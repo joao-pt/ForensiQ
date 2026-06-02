@@ -39,17 +39,17 @@
   <section class="section">
     <header class="section__head"><h2 class="section__title">Ocorrência resolvida</h2></header>
     <div class="section__body">
-      <div class="facts">
-        <div class="facts__row"><span class="facts__label">Código</span><span class="facts__val mono">{{ result.code }}</span></div>
-        <div class="facts__row"><span class="facts__label">NUIPC</span><span class="facts__val mono">{{ result.number }}</span></div>
-        <div class="facts__row"><span class="facts__label">Hash do QR</span><span class="facts__val mono">{{ result.short_hash }}</span></div>
+      <dl class="facts">
+        <div class="facts__row"><dt>Código</dt><dd class="mono">{{ result.code }}</dd></div>
+        <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ result.number }}</dd></div>
+        <div class="facts__row"><dt>Hash do QR</dt><dd class="mono">{{ result.short_hash }}</dd></div>
         <div class="facts__row">
-          <span class="facts__label">URL de verificação</span>
-          <span class="facts__val mono">{{ result.verify_url }}
+          <dt>URL de verificação</dt>
+          <dd class="mono">{{ result.verify_url }}
             <button type="button" class="copy-btn" data-copy="{{ result.verify_url }}" aria-label="Copiar URL" title="Copiar URL">⧉</button>
-          </span>
+          </dd>
         </div>
-      </div>
+      </dl>
       <div class="form-actions">
         <a class="btn-accent" href="/occurrences/{{ result.id }}/">Abrir ocorrência</a>
       </div>

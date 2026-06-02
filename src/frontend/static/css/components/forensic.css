@@ -103,9 +103,8 @@
    ============================================================ */
 .toolbar {
     display: flex;
-    /* flex-direction:row e margin:0 anulam EXPLICITAMENTE a .toolbar legada do
-       main.css (flex-direction:column + margin-bottom), que de outro modo vazava
-       para aqui (esta regra não os declarava) e empurrava o cabeçalho sticky. */
+    /* flex-direction:row e margin:0 explícitos (auto-contido). A antiga .toolbar
+       legada do main.css, que colidia com esta, foi removida. */
     flex-direction: row;
     align-items: center;
     gap: var(--sp-2);
@@ -522,7 +521,11 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-field input:focus-visible, .form-field select:focus-visible, .form-field textarea:focus-visible {
     outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent;
 }
-.form-error { font-size: var(--fs-xs); color: var(--danger); min-height: 0; }
+/* Auto-contido (não depender do display:none do main.css, que carrega antes e
+   pode não estar presente em todas as páginas): o erro está escondido por
+   omissão e só aparece com .visible (os spans server-rendered emitem ambas). */
+.form-error { font-size: var(--fs-xs); color: var(--danger); min-height: 0; display: none; }
+.form-error.visible { display: block; }
 .form-hint { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 2px; }
 .pri-hint--p1 { color: var(--danger); }
 .form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
