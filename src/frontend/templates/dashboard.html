@@ -40,7 +40,7 @@
       </div>
     </article>
 
-    <!-- Coluna 2 — Mapa continental + colorbar -->
+    <!-- Coluna 2 — Mapa continental + legenda de prioridade -->
     <article class="geo-hero__col geo-hero__continental" aria-label="Mapa de ocorrências em Portugal continental">
       <header class="geo-hero__header">
         <h2 class="geo-hero__title">Portugal continental</h2>
@@ -48,11 +48,20 @@
       </header>
       <div class="geo-hero__map" data-static-map data-fixed
            data-points="{{ points_continental }}" data-bounds="{{ bounds_continental }}"
-           role="application" aria-label="Mapa de Portugal continental"></div>
-      <div class="geo-hero__colorbar" role="img" aria-label="Gradiente de prioridade">
-        <span class="geo-hero__colorbar-label-left">menor prioridade</span>
-        <span class="geo-hero__colorbar-track" aria-hidden="true"></span>
-        <span class="geo-hero__colorbar-label-right">maior prioridade</span>
+           role="img" aria-label="Mapa de Portugal continental"></div>
+      <div class="geo-hero__legend" role="group" aria-label="Legenda de prioridade dos pontos">
+        <span class="geo-hero__legend-chip">
+          <span class="geo-hero__legend-dot geo-hero__legend-dot--p1" aria-hidden="true"></span>
+          <span class="geo-hero__legend-label">P1</span>
+        </span>
+        <span class="geo-hero__legend-chip">
+          <span class="geo-hero__legend-dot geo-hero__legend-dot--p2" aria-hidden="true"></span>
+          <span class="geo-hero__legend-label">P2</span>
+        </span>
+        <span class="geo-hero__legend-chip">
+          <span class="geo-hero__legend-dot geo-hero__legend-dot--normal" aria-hidden="true"></span>
+          <span class="geo-hero__legend-label">Normal</span>
+        </span>
       </div>
     </article>
 
@@ -61,12 +70,12 @@
       <div class="geo-hero__inset-row">
         <div class="geo-hero__inset" data-static-map data-fixed
              data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
-             role="application" aria-label="Mapa da Madeira">
+             role="img" aria-label="Mapa da Madeira">
           <span class="geo-hero__inset-label">Madeira</span>
         </div>
         <div class="geo-hero__inset" data-static-map data-fixed
              data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
-             role="application" aria-label="Mapa dos Açores">
+             role="img" aria-label="Mapa dos Açores">
           <span class="geo-hero__inset-label">Açores</span>
         </div>
       </div>

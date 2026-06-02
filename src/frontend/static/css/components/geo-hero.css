@@ -6,8 +6,8 @@
  *   ┌──────┬──────────────────────┬─────────────────┐
  *   │ 220px│ 1fr                  │ 300px           │
  *   │ Cad. │ Mapa continental     │ Madeira         │
- *   │ vert.│ + colorbar           │ Açores          │
- *   │      │                      │ [Nova ⌘N]       │
+ *   │ vert.│ + legenda prioridade │ Açores          │
+ *   │      │                      │                 │
  *   └──────┴──────────────────────┴─────────────────┘
  *                  altura comum: 400px
  *
@@ -15,11 +15,14 @@
  * sem cor por estado (regra V19: estado é informacional, não classifica).
  *
  * Coluna 2 — Leaflet com OSM tiles (CSP já permite), bounds fixos a
- * Portugal continental. Colorbar (legenda de prioridade) ABAIXO do mapa,
- * em banner horizontal (V17 — não sobrepõe o mapa).
+ * Portugal continental. Legenda de prioridade ABAIXO do mapa, em banner
+ * horizontal (V17 — não sobrepõe o mapa). A legenda é discreta (3 chips
+ * P1/P2/Normal) e casa EXATAMENTE com priColors() do forensic-list.js:
+ * P1 vermelho (--state-destruida), P2 âmbar (--state-em-transporte),
+ * Normal azul (--state-apreendida). Cor só semântica, sem gradiente
+ * decorativo.
  *
- * Coluna 3 — Insets de Madeira/Açores (não-arrastáveis), seguidos do
- * CTA "Nova ocorrência" (V19: aproveita o espaço entre legenda e Açores).
+ * Coluna 3 — Insets de Madeira/Açores (não-arrastáveis).
  *
  * Em <1280px, hero colapsa para empilhamento vertical.
  *
@@ -44,7 +47,7 @@
         grid-template-rows: 400px;
     }
     /* Dentro da linha fixa de 400px, o mapa volta a poder encolher (flex:1)
-       sem que o piso responsivo o force a transbordar e a cortar a colorbar. */
+       sem que o piso responsivo o force a transbordar e a cortar a legenda. */
     .geo-hero__map { min-height: 0; }
 }
 
@@ -83,7 +86,9 @@
 .geo-hero__meta {
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--text-subtle);
+    /* --text-muted (não --text-subtle) para garantir contraste AA do texto
+       pequeno a 10px sobre --bg-subtle (claro ~5.6:1 / escuro suficiente). */
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
 }
@@ -183,11 +188,11 @@
 }
 
 /* =====================================================================
-   Coluna 2 — Mapa continental + colorbar
+   Coluna 2 — Mapa continental + legenda de prioridade
    ===================================================================== */
 
 .geo-hero__continental {
-    /* contém Leaflet com isolation; colorbar fica abaixo */
+    /* contém Leaflet com isolation; legenda de prioridade fica abaixo */
 }
 
 .geo-hero__map {
@@ -207,44 +212,46 @@
     background: var(--bg-inset);
 }
 
-.geo-hero__colorbar {
+/* Legenda de prioridade — chips discretos que mapeiam 1:1 para os pins do
+   mapa (priColors() em forensic-list.js). Cor só semântica: nenhum gradiente
+   decorativo. Cada chip tem um ponto colorido + rótulo textual, pelo que a
+   distinção não depende exclusivamente da cor. */
+.geo-hero__legend {
     flex-shrink: 0;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--sp-2);
+    gap: var(--sp-2) var(--sp-3);
     padding: var(--sp-2) var(--sp-3);
     border-top: 1px solid var(--border);
     background: var(--bg-subtle);
+}
+.geo-hero__legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+.geo-hero__legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+/* As cores TÊM de casar com priColors() do forensic-list.js:
+   P1 → --state-destruida, P2 → --state-em-transporte, Normal → --state-apreendida. */
+.geo-hero__legend-dot--p1     { background: var(--state-destruida); }
+.geo-hero__legend-dot--p2     { background: var(--state-em-transporte); }
+.geo-hero__legend-dot--normal { background: var(--state-apreendida); }
+.geo-hero__legend-label {
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--text-subtle);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
 }
-.geo-hero__colorbar-label-left  { text-align: right; }
-.geo-hero__colorbar-label-right { text-align: left;  }
-.geo-hero__colorbar-track {
-    width: 220px;
-    max-width: 100%;
-    height: 8px;
-    border-radius: var(--r-pill);
-    /* Escala construída só com tokens semânticos — o accent (marca/ações)
-       fica fora de legendas de dados para não diluir o seu papel. O ponto a
-       75% usa --warning-strong (amber distinto do accent) para progressão
-       cromática legível: neutro → azul → teal → amber → vermelho. */
-    background: linear-gradient(
-        90deg,
-        var(--state-devolvida)   0%,
-        var(--state-apreendida)  25%,
-        var(--state-em-pericia)  50%,
-        var(--warning-strong)    75%,
-        var(--state-destruida)  100%
-    );
-}
 
 /* =====================================================================
-   Coluna 3 — Insets + CTA
+   Coluna 3 — Insets (Madeira / Açores)
    ===================================================================== */
 
 .geo-hero__insets {

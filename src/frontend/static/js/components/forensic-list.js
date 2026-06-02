@@ -266,6 +266,34 @@
         try { var b = JSON.parse(raw); return (b && b.length === 2) ? b : null; } catch (e) { return null; }
     }
 
+    // Conta os pontos de um payload [data-points] (silencioso em caso de erro).
+    function countPoints(raw) {
+        if (!raw) return 0;
+        try { var p = JSON.parse(raw); return (p && p.length) ? p.length : 0; } catch (e) { return 0; }
+    }
+
+    // Acessibilidade dos mapas fixos (insets/hero): são imagens, não aplicações.
+    // Força role=img e anexa um resumo textual ('N ocorrências') via
+    // aria-describedby, dando a quem usa leitor de ecrã a informação que os
+    // tooltips Leaflet (só hover/foco) não oferecem num mapa não-focável.
+    function describeFixedMap(el) {
+        el.setAttribute('role', 'img');
+        el.removeAttribute('aria-haspopup');
+        var n = countPoints(el.dataset.points);
+        var noun = n === 1 ? 'ocorrência' : 'ocorrências';
+        var summary = n + ' ' + noun + ' neste mapa';
+        var descId = (el.id || 'fqmap-' + Math.random().toString(36).slice(2, 8)) + '-desc';
+        var desc = document.getElementById(descId);
+        if (!desc) {
+            desc = document.createElement('span');
+            desc.id = descId;
+            desc.className = 'visually-hidden';
+            el.appendChild(desc);
+        }
+        desc.textContent = summary;
+        el.setAttribute('aria-describedby', descId);
+    }
+
     // Mapas estáticos embebidos ([data-static-map]): pin único (data-lat/lng),
     // cadeia (data-chain), ou conjunto de pontos (data-points) com bounds fixos
     // (data-bounds) e opcionalmente sem interação (data-fixed, para insets).
@@ -286,6 +314,12 @@
             var bounds = parseBounds(el.dataset.bounds);
             var drewPoints = drawPoints(m, el.dataset.points);
             var drewChain = !drewPoints && drawChainOn(m, el.dataset.chain);
+
+            // Mapas fixos são figuras, não widgets: garante role=img (o template
+            // já o declara, isto cobre fragmentos antigos) e um resumo textual
+            // do nº de pontos via aria-describedby, já que os pins/tooltips
+            // Leaflet são inacessíveis num mapa não-focável.
+            if (fixed) describeFixedMap(el);
 
             if (bounds) {
                 m.fitBounds(bounds);

@@ -19,7 +19,11 @@
         ev.preventDefault();
 
         var Geo = window.ForensiQGeo;
-        var acc = document.querySelector('[data-geo-acc]');
+        // Resolve o indicador de precisão relativamente ao botão clicado: cada
+        // bloco de geolocalização (.form-inline) tem o seu próprio [data-geo-acc].
+        // Fallback global para layouts que não embrulhem o botão num .form-inline.
+        var scope = btn.closest('.form-inline');
+        var acc = (scope && scope.querySelector('[data-geo-acc]')) || document.querySelector('[data-geo-acc]');
         if (!Geo) { if (acc) acc.textContent = 'Geolocalização indisponível.'; return; }
 
         var latEl = document.querySelector(btn.getAttribute('data-lat-target'));
