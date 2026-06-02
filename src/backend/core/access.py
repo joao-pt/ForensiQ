@@ -195,11 +195,15 @@ def can_append_custody(user, evidence, event_type=None):
     inst_ids = set(_active_institution_ids(user))
     if holder_user is None and holder_inst is not None and holder_inst in inst_ids:
         return True  # custódia institucional → membro pode assumir (claim/pull)
-    if holder_user is None and holder_inst is None:
-        # Génese: o titular/recolhedor abre a cadeia.
-        if evidence.agent_id == user.id or evidence.occurrence.agent_id == user.id:
-            return True
-    if profile == User.Profile.CASE_AUTHORITY and event_type in CASE_AUTHORITY_EVENTS:
-        if can_access_occurrence(user, evidence.occurrence):
-            return True
-    return False
+    # Génese (o titular/recolhedor abre a cadeia): só quando não há detentor.
+    if (
+        holder_user is None
+        and holder_inst is None
+        and (evidence.agent_id == user.id or evidence.occurrence.agent_id == user.id)
+    ):
+        return True
+    return (
+        profile == User.Profile.CASE_AUTHORITY
+        and event_type in CASE_AUTHORITY_EVENTS
+        and can_access_occurrence(user, evidence.occurrence)
+    )

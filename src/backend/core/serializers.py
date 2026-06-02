@@ -563,15 +563,17 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             )
         request = self.context.get('request')
         evidence = attrs.get('evidence')
-        if request is not None and request.user.is_authenticated and evidence is not None:
-            if not access.can_append_custody(
-                request.user, evidence, attrs.get('event_type')
-            ):
-                raise serializers.ValidationError(
-                    'Não tem permissão para registar eventos de custódia neste item '
-                    '(ADR-0017): só o custódio atual, um membro da instituição que o '
-                    'detém, o perito ou a autoridade do caso.'
-                )
+        if (
+            request is not None
+            and request.user.is_authenticated
+            and evidence is not None
+            and not access.can_append_custody(request.user, evidence, attrs.get('event_type'))
+        ):
+            raise serializers.ValidationError(
+                'Não tem permissão para registar eventos de custódia neste item '
+                '(ADR-0017): só o custódio atual, um membro da instituição que o '
+                'detém, o perito ou a autoridade do caso.'
+            )
         return attrs
 
 
