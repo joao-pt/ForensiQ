@@ -1,0 +1,59 @@
+"""
+ForensiQ — Testes da configuração de campos por tipo de evidência (#59).
+
+Cobre a fonte única ``core.evidence_field_config`` e a validação generalizada
+em ``Evidence._validate_type_specific_data`` (que passou a derivar da config).
+"""
+
+from django.core.exceptions import ValidationError
+from django.test import SimpleTestCase, TestCase
+
+from core import evidence_field_config
+from core.models import Evidence
+
+
+class EvidenceFieldConfigShapeTest(SimpleTestCase):
+    """A config tem a forma esperada (não precisa de BD)."""
+
+    def test_transversal_has_marca_e_modelo(self):
+        keys = {f['key'] for f in evidence_field_config.TRANSVERSAL_FIELDS}
+        self.assertEqual(keys, {'marca', 'modelo'})
+
+    def test_all_keys_inclui_transversais_e_identificadores(self):
+        keys = evidence_field_config.all_keys()
+        for k in ('marca', 'modelo', 'imei', 'imsi', 'iccid', 'vin', 'mac'):
+            self.assertIn(k, keys)
+
+    def test_sensitive_keys_marcados(self):
+        self.assertIn('passcode', evidence_field_config.sensitive_keys())
+        self.assertIn('pin_code', evidence_field_config.sensitive_keys())
+
+    def test_fields_for_tipo_desconhecido_vazio(self):
+        self.assertEqual(evidence_field_config.fields_for('TIPO_INEXISTENTE'), [])
+
+
+class EvidenceTypeValidationTest(TestCase):
+    """A validação por tipo corre a partir da config."""
+
+    def _ev(self, etype, tsd):
+        return Evidence(type=etype, type_specific_data=tsd)
+
+    def test_marca_modelo_passam_sem_validador(self):
+        ev = self._ev(Evidence.EvidenceType.MOBILE_DEVICE, {'marca': 'Apple', 'modelo': 'iPhone 14'})
+        ev._validate_type_specific_data()  # não deve levantar
+
+    def test_imei_invalido_rejeitado(self):
+        ev = self._ev(Evidence.EvidenceType.MOBILE_DEVICE, {'imei': '123'})
+        with self.assertRaises(ValidationError):
+            ev._validate_type_specific_data()
+
+    def test_iot_mac_passa_a_ser_validado(self):
+        # Cobertura nova face ao hardcoded antigo (só NETWORK_DEVICE validava MAC).
+        ev = self._ev(Evidence.EvidenceType.IOT_DEVICE, {'mac': 'isto-nao-e-mac'})
+        with self.assertRaises(ValidationError):
+            ev._validate_type_specific_data()
+
+    def test_vin_invalido_rejeitado(self):
+        ev = self._ev(Evidence.EvidenceType.VEHICLE, {'vin': 'curto'})
+        with self.assertRaises(ValidationError):
+            ev._validate_type_specific_data()

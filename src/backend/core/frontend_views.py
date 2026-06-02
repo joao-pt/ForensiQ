@@ -33,6 +33,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
 from core import access
+from core import evidence_field_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.models import (
@@ -761,9 +762,26 @@ def evidences_view(request):
     return render(request, 'evidences.html', ctx)
 
 
-# Identificadores específicos do tipo recolhidos no formulário e empacotados
-# em type_specific_data (os validadores de formato correm no serializer).
-_TSD_KEYS = ['imei', 'imsi', 'iccid', 'vin', 'mac']
+# Chaves de type_specific_data recolhidas no formulário (transversais + por
+# tipo), derivadas da fonte única evidence_field_config. Os validadores de
+# formato correm no modelo/serializer, também a partir da config.
+_TSD_KEYS = sorted(evidence_field_config.all_keys())
+
+
+def _evd_field_ctx(post):
+    """(transversais, por-tipo) para o formulário de evidência, cada campo com o
+    valor atual (re-preenche após erro). A lista por-tipo é plana, marcada com o
+    tipo para o JS mostrar/esconder; os transversais aparecem sempre."""
+    def _v(field):
+        return (post.get(field['key']) or '').strip() if hasattr(post, 'get') else ''
+
+    transversal = [{**f, 'value': _v(f)} for f in evidence_field_config.TRANSVERSAL_FIELDS]
+    type_fields = [
+        {**f, 'type': etype, 'value': _v(f)}
+        for etype, fields in evidence_field_config.EVIDENCE_TYPE_FIELDS.items()
+        for f in fields
+    ]
+    return transversal, type_fields
 
 
 @jwt_cookie_user
@@ -781,6 +799,9 @@ def evidences_new_view(request):
 
     occurrences = _scope_occurrences(user).order_by('-date_time')
     parents = _scope_evidences(user).order_by('occurrence__number', 'code')
+    transversal_fields, type_fields = _evd_field_ctx(
+        request.POST if request.method == 'POST' else {}
+    )
 
     if request.method == 'POST':
         data = {
@@ -806,6 +827,8 @@ def evidences_new_view(request):
                         'occurrences': occurrences,
                         'parents': parents,
                         'evidence_types': Evidence.EvidenceType.choices,
+                        'transversal_fields': transversal_fields,
+                        'type_fields': type_fields,
                         'preselect': request.POST.get('occurrence', ''),
                         'errors': {'geral': exc.messages},
                         'data': request.POST,
@@ -828,6 +851,8 @@ def evidences_new_view(request):
                 'occurrences': occurrences,
                 'parents': parents,
                 'evidence_types': Evidence.EvidenceType.choices,
+                'transversal_fields': transversal_fields,
+                'type_fields': type_fields,
                 'preselect': request.POST.get('occurrence', ''),
                 'errors': serializer.errors,
                 'data': request.POST,
@@ -842,6 +867,8 @@ def evidences_new_view(request):
             'occurrences': occurrences,
             'parents': parents,
             'evidence_types': Evidence.EvidenceType.choices,
+            'transversal_fields': transversal_fields,
+            'type_fields': type_fields,
             'preselect': request.GET.get('occurrence', ''),
             'errors': {},
             'data': {},

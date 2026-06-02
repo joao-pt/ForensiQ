@@ -1252,53 +1252,38 @@ class Evidence(models.Model):
         self._validate_type_specific_data()
 
     def _validate_type_specific_data(self):
-        """Valida campos em `type_specific_data` conforme o tipo de evidência."""
+        """Valida os campos de ``type_specific_data`` conforme o tipo.
+
+        Fonte única: :mod:`core.evidence_field_config`. Para cada campo do tipo
+        com validador de formato e valor presente, aplica-o. Não rejeita chaves
+        extra (campos novos da config — marca, capacidade, etc. — passam sem
+        validação estrita). Substitui os ``if`` por tipo hardcoded, alargando a
+        cobertura (imei_2, associated_vin, mac de IoT, imei/imsi de GPS…)."""
         data = self.type_specific_data or {}
         if not isinstance(data, dict):
             raise ValidationError({'type_specific_data': 'Deve ser um objecto JSON (dicionário).'})
 
-        errors = {}
+        from core import evidence_field_config
 
-        if self.type == self.EvidenceType.MOBILE_DEVICE:
-            imei = data.get('imei')
-            if imei:
+        validators = {
+            'imei': validate_imei,
+            'imsi': validate_imsi,
+            'iccid': validate_iccid,
+            'vin': validate_vin,
+            'mac': validate_mac,
+        }
+        problems = []
+        for field in evidence_field_config.fields_for(self.type):
+            name = field.get('validator')
+            value = data.get(field['key'])
+            if name and value:
                 try:
-                    validate_imei(imei)
+                    validators[name](value)
                 except ValidationError as exc:
-                    errors['type_specific_data'] = f'imei: {"; ".join(exc.messages)}'
+                    problems.append(f'{field["key"]}: {"; ".join(exc.messages)}')
 
-        if self.type == self.EvidenceType.VEHICLE:
-            vin = data.get('vin')
-            if vin:
-                try:
-                    validate_vin(vin)
-                except ValidationError as exc:
-                    errors['type_specific_data'] = f'vin: {"; ".join(exc.messages)}'
-
-        if self.type == self.EvidenceType.SIM_CARD:
-            imsi = data.get('imsi')
-            if imsi:
-                try:
-                    validate_imsi(imsi)
-                except ValidationError as exc:
-                    errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
-            iccid = data.get('iccid')
-            if iccid:
-                try:
-                    validate_iccid(iccid)
-                except ValidationError as exc:
-                    errors['type_specific_data'] = f'iccid: {"; ".join(exc.messages)}'
-
-        if self.type == self.EvidenceType.NETWORK_DEVICE:
-            mac = data.get('mac')
-            if mac:
-                try:
-                    validate_mac(mac)
-                except ValidationError as exc:
-                    errors['type_specific_data'] = f'mac: {"; ".join(exc.messages)}'
-
-        if errors:
-            raise ValidationError(errors)
+        if problems:
+            raise ValidationError({'type_specific_data': ' | '.join(problems)})
 
 
 # ---------------------------------------------------------------------------

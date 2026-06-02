@@ -27,11 +27,14 @@
         fields.forEach(function (f) {
             var on = f.getAttribute('data-id-type') === t;
             f.classList.toggle('is-on', on);
+            // Desativar (não só esconder) os campos dos outros tipos: inputs/selects
+            // disabled não são submetidos, evitando colisão de nomes entre tipos
+            // (ex.: 'imei' existe em MOBILE_DEVICE e GPS_TRACKER; 'mac' em
+            // NETWORK_DEVICE e IOT_DEVICE). Assim só o tipo escolhido é persistido.
+            f.querySelectorAll('input, select').forEach(function (i) { i.disabled = !on; });
             if (on) {
                 any = true;
             } else {
-                // Não persistir identificadores que não pertencem ao tipo escolhido.
-                f.querySelectorAll('input').forEach(function (i) { i.value = ''; });
                 var r = f.querySelector('.lookup-result');
                 if (r) { r.hidden = true; r.innerHTML = ''; }
             }

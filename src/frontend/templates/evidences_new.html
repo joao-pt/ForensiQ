@@ -69,6 +69,13 @@
             <input class="mono" type="text" id="f-serial" name="serial_number" value="{{ data.serial_number }}">
           </div>
 
+          {% for f in transversal_fields %}
+          <div class="form-field">
+            <label for="f-tsd-{{ f.key }}">{{ f.label }}</label>
+            <input type="text" id="f-tsd-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off">
+          </div>
+          {% endfor %}
+
           <div class="form-field">
             <label for="f-parent">Sub-componente de (opcional)</label>
             <select id="f-parent" name="parent_evidence"{% if errors.parent_evidence %} aria-invalid="true" aria-describedby="f-parent-err"{% endif %}>
@@ -112,45 +119,29 @@
           <h3 class="subhead">Dados específicos do tipo (opcional)</h3>
           {% if errors.type_specific_data %}<p class="form-error visible" role="alert">{{ errors.type_specific_data.0 }}</p>{% endif %}
           <div class="form-grid">
-
-            <div class="form-field form-field--full id-field" data-id-field data-id-type="MOBILE_DEVICE">
-              <label for="f-imei">IMEI <span class="facts__src">(15 dígitos · Luhn)</span></label>
+            {% for f in type_fields %}
+            <div class="form-field{% if f.input == 'select' %} form-field--full{% endif %} id-field" data-id-field data-id-type="{{ f.type }}">
+              <label for="f-tsd-{{ f.type }}-{{ f.key }}">{{ f.label }}</label>
+              {% if f.input == 'select' %}
+              <select id="f-tsd-{{ f.type }}-{{ f.key }}" name="{{ f.key }}">
+                <option value="">— selecionar —</option>
+                {% for opt in f.options %}<option value="{{ opt }}"{% if f.value == opt %} selected{% endif %}>{{ opt }}</option>{% endfor %}
+              </select>
+              {% elif f.lookup %}
               <div class="form-inline">
-                <input class="mono" type="text" inputmode="numeric" id="f-imei" name="imei" value="{{ data.imei }}" placeholder="123456789012345" autocomplete="off">
-                <button type="button" class="btn-ghost" data-lookup="imei" data-target="#f-imei" data-result="#imei-enrich">
+                <input class="mono{% if f.lookup == 'vin' %} upper{% endif %}" type="text"{% if f.validator == 'imei' %} inputmode="numeric"{% endif %} id="f-tsd-{{ f.type }}-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off">
+                <button type="button" class="btn-ghost" data-lookup="{{ f.lookup }}" data-target="#f-tsd-{{ f.type }}-{{ f.key }}"{% if f.lookup == 'imei' %} data-result="#enrich-{{ f.type }}-{{ f.key }}"{% endif %}>
                   <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-                  Consultar imeidb.xyz
+                  Consultar
                 </button>
               </div>
-              <div id="imei-enrich" class="lookup-result" role="status" aria-live="polite" aria-atomic="true" hidden></div>
+              {% if f.lookup == 'imei' %}<div id="enrich-{{ f.type }}-{{ f.key }}" class="lookup-result" role="status" aria-live="polite" aria-atomic="true" hidden></div>{% endif %}
+              {% else %}
+              <input class="mono" type="{% if f.sensitive %}password{% else %}text{% endif %}"{% if f.input == 'number' or f.validator == 'imsi' or f.validator == 'iccid' %} inputmode="numeric"{% endif %} id="f-tsd-{{ f.type }}-{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" autocomplete="off">
+              {% if f.sensitive %}<span class="form-hint">Mascarado — guardado de forma protegida.</span>{% endif %}
+              {% endif %}
             </div>
-
-            <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
-              <label for="f-imsi">IMSI <span class="facts__src">(14–15 dígitos)</span></label>
-              <input class="mono" type="text" inputmode="numeric" id="f-imsi" name="imsi" value="{{ data.imsi }}" placeholder="268xxxxxxxxxxxx" autocomplete="off">
-            </div>
-            <div class="form-field id-field" data-id-field data-id-type="SIM_CARD">
-              <label for="f-iccid">ICCID <span class="facts__src">(18–22 dígitos · Luhn)</span></label>
-              <input class="mono" type="text" inputmode="numeric" id="f-iccid" name="iccid" value="{{ data.iccid }}" placeholder="8935101…" autocomplete="off">
-            </div>
-
-            <div class="form-field form-field--full id-field" data-id-field data-id-type="VEHICLE">
-              <label for="f-vin">VIN <span class="facts__src">(17 caracteres · ISO 3779)</span></label>
-              <div class="form-inline">
-                <input class="mono upper" type="text" id="f-vin" name="vin" value="{{ data.vin }}" placeholder="WVWZZZ1JZXW000001" autocomplete="off">
-                <button type="button" class="btn-ghost" data-lookup="vin" data-target="#f-vin">
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>
-                  Abrir vindecoder.eu
-                </button>
-              </div>
-            </div>
-
-            <div class="form-field id-field" data-id-field data-id-type="NETWORK_DEVICE">
-              <label for="f-mac">MAC <span class="facts__src">(IEEE 802)</span></label>
-              <input class="mono" type="text" id="f-mac" name="mac" value="{{ data.mac }}" placeholder="00:1A:2B:3C:4D:5E" autocomplete="off">
-              <span class="facts__src" data-mac-status role="status" aria-live="polite"></span>
-            </div>
-
+            {% endfor %}
           </div>
         </div>
 
