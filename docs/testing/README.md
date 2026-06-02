@@ -196,25 +196,19 @@ Conhecimento ganho a montar isto — poupa horas a quem voltar ao tema.
 
 ---
 
-## 7. Integração contínua (opcional)
+## 7. Integração contínua
 
-A suite E2E **não** está no CI por defeito (precisa de descarregar o browser
-≈110 MB e leva ≈1 min). Para a acrescentar ao `.github/workflows/ci.yml`:
+A suite E2E corre no CI no **job `e2e`** de `.github/workflows/ci.yml` (a par dos
+jobs `test`, `lint` e `test-postgres`), em cada push/PR para `main`. O job instala
+o browser do Playwright (`playwright install --with-deps chromium`) e corre:
 
-```yaml
-  e2e:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: '3.12' }
-      - run: pip install -r src/backend/requirements.txt -r src/backend/requirements-dev.txt
-      - run: python -m playwright install --with-deps chromium
-        working-directory: src/backend
-      - run: pytest e2e/ --ds=forensiq_project.e2e_settings
-        working-directory: src/backend
-        env:
-          SECRET_KEY: ci-dummy-secret-key
+```bash
+pytest e2e/ --ds=forensiq_project.e2e_settings -m "not visual"
 ```
 
-O Lighthouse fica fora do CI (pesado; o Fly é scale-to-zero).
+Fica de fora do CI (por desenho):
+- **`-m "not visual"`** — a regressão visual usa uma baseline de screenshot
+  específica do ambiente de render; correria com falsos positivos noutra máquina.
+  Corre-se localmente (`pytest e2e/`).
+- **Lighthouse** — pesado e precisa de servidor a correr; o Fly é scale-to-zero.
+  Corre-se à mão (§3.3).
