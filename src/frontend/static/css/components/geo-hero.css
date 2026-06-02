@@ -273,23 +273,6 @@
     pointer-events: none;
 }
 
-/* =====================================================================
-   Estilos do marcador de ocorrência sobre o mapa
-   ===================================================================== */
-
-.fq-geohero-marker {
-    background: transparent;
-    border: none;
-}
-.fq-geohero-marker__dot {
-    display: block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--accent);
-    box-shadow: 0 0 0 2px var(--bg-inset),
-                0 0 0 3px var(--accent-tint);
-}
 
 /* Em mobile, esconde o hero (será reactivado em mobile-first commit) */
 @media (max-width: 767px) {
