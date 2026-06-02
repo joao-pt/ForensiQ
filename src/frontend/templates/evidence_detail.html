@@ -14,6 +14,11 @@
   <span class="breadcrumb-current mono">{{ ev.code }}</span>
 {% endblock %}
 
+{% block drawer_title %}Item de prova{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione um sub-componente para ver a ficha (estado, hash, localização).</p>
+{% endblock %}
+
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="ev-title">
 
@@ -23,10 +28,14 @@
       <p class="detail__sub">{{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></p>
     </div>
     <div class="detail__actions">
+      {% with last_event=events|last %}
+      {% if last_event.event_type != 'RESTITUICAO' and last_event.event_type != 'DESTRUICAO' %}
       <a class="btn-accent" href="/evidences/{{ ev.id }}/custody/#custody-register">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         Registar evento
       </a>
+      {% endif %}
+      {% endwith %}
       <a class="btn-ghost" href="/evidences/{{ ev.id }}/custody/">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="12" r="4"/><circle cx="15" cy="12" r="4"/></svg>
         Cadeia de custódia
@@ -143,7 +152,7 @@
         {% if ev.gps_lat is not None or chain_json != '[]' %}
         <div class="map-box" data-static-map
              data-chain="{{ chain_json }}"
-             data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"
+             {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
              data-label="{{ ev.code }}"></div>
         {% if ev.gps_lat is not None and chain_json == '[]' %}
         <p class="dd__nogeo">Sem georreferência nos eventos de custódia.</p>
@@ -188,22 +197,7 @@
     <div class="section__body">
       {% if events %}
       <ol class="timeline">
-        {% for r in events %}
-        <li class="timeline__item">
-          <span class="timeline__dot"></span>
-          <div class="timeline__head">
-            <span class="timeline__seq mono">#{{ r.sequence }}</span>
-            <span class="timeline__event">{{ r.event_label }}</span>
-            <span class="timeline__time mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span>
-          </div>
-          <div class="timeline__meta">
-            <span>Custódio: {{ r.custodian_label }}</span>
-            <span>Responsável: {{ r.agent_label }}</span>
-            {% if r.gps_accuracy_m %}<span class="mono {% if r.gps_accuracy_m > 50 %}timeline__acc--flag{% endif %}">±{{ r.gps_accuracy_m }}m</span>{% endif %}
-            <span class="mono" title="Hash do registo">{{ r.hash_short }}…</span>
-          </div>
-        </li>
-        {% endfor %}
+        {% for r in events %}{% include 'partials/_timeline_event.html' %}{% endfor %}
       </ol>
       {% else %}
       <div class="empty"><p class="empty__hint">Esta evidência ainda não tem eventos de custódia.</p></div>

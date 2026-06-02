@@ -7,7 +7,7 @@
 <article class="dd" data-occ-detail>
 
   <div class="dd__top" tabindex="-1" data-drawer-head>
-    {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
+    {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" role="img" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
     <span class="dd__code mono">{{ occ.code|default:occ.number }}</span>
     <button type="button" class="copy-btn" data-copy="{{ occ.code|default:occ.number }}"
             aria-label="Copiar código" title="Copiar código">⧉</button>
@@ -38,7 +38,7 @@
   {% endif %}
 
   {% if occ.gps_lat is not None %}
-  <h3 class="subhead">Local <span class="facts__src" title="Disponível com a cadeia de custódia (próxima fase)">— cadeia na próxima fase</span></h3>
+  <h3 class="subhead">Local da ocorrência</h3>
   <div class="dd__map" id="drawer-map"
        data-lat="{{ occ.gps_lat|unlocalize }}" data-lng="{{ occ.gps_lng|unlocalize }}"
        data-label="{{ occ.code|default:occ.number }}"></div>
@@ -46,6 +46,8 @@
   <p class="dd__nogeo">Sem georreferência registada.</p>
   {% endif %}
 
-  <a class="dd__full" href="/occurrences/{{ occ.id }}/">Abrir caso completo →</a>
+  <div class="dd__links">
+    <a class="dd__full" href="/occurrences/{{ occ.id }}/">Abrir caso completo →</a>
+  </div>
 
 </article>

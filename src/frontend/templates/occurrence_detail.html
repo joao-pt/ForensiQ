@@ -25,7 +25,7 @@
   <header class="detail__head">
     <div>
       <h1 class="detail__title" id="occ-title">
-        {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
+        {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" role="img" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
         {{ occ.code|default:occ.number }}
       </h1>
       <p class="detail__sub">{{ occ.crime_label }}</p>

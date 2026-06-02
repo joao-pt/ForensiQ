@@ -11,9 +11,9 @@
   <dl class="facts">
     <div class="facts__row"><dt>Tipo</dt><dd>{{ ev.type_label }}</dd></div>
     <div class="facts__row"><dt>Estado</dt><dd><span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></dd></div>
-    <div class="facts__row"><dt>Ocorrência</dt><dd class="mono">{{ ev.occ_label }}</dd></div>
+    <div class="facts__row"><dt>Ocorrência</dt><dd class="mono"><a class="grid__link" href="/occurrences/{{ ev.occurrence_id }}/">{{ ev.occ_label }}</a></dd></div>
     {% if ev.parent_evidence %}
-    <div class="facts__row"><dt>Pertence a</dt><dd class="mono">{{ ev.parent_evidence.code }}</dd></div>
+    <div class="facts__row"><dt>Pertence a</dt><dd class="mono"><a class="grid__link" href="/evidences/{{ ev.parent_evidence_id }}/">{{ ev.parent_evidence.code }}</a></dd></div>
     {% endif %}
     <div class="facts__row"><dt>Nº série</dt><dd class="mono">{{ ev.serial_number|default:'—' }}</dd></div>
     <div class="facts__row"><dt>Apreensão</dt><dd class="mono">{{ ev.timestamp_seizure|date:'Y-m-d H:i' }}</dd></div>

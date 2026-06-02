@@ -1,35 +1,39 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Auditoria (legacy v1) — ForensiQ{% endblock %}
+{% block title %}Auditoria — ForensiQ{% endblock %}
 
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
-{% block breadcrumb %}<span class="breadcrumb-current">Auditoria (legacy v1)</span>{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">Auditoria</span>{% endblock %}
 
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="ir-title">
   <header class="detail__head">
     <div>
-      <h1 class="detail__title" id="ir-title">Auditoria (legacy v1)</h1>
-      <p class="detail__sub">Relatório estático de revisão (v1) — fora do âmbito da reconstrução v2</p>
+      <h1 class="detail__title" id="ir-title">Auditoria</h1>
+      <p class="detail__sub">Registo imutável de acessos e operações</p>
     </div>
   </header>
 
   <section class="section">
     <div class="section__body">
-      <p class="detail__desc">
-        Esta vista era um relatório editorial estático de uma revisão de código anterior. Ficou
-        <strong>congelada</strong> na reinvenção do frontend (Fase 3): o seu conteúdo não acompanha
-        o estado atual da aplicação e será removido ou substituído por uma vista de auditoria
-        dinâmica (sobre o <span class="mono">AuditLog</span> append-only) numa fase posterior.
-      </p>
-      <p class="detail__desc">
-        Para o registo de acessos e operações em tempo real, a fonte de verdade é o
-        <span class="mono">AuditLog</span> imutável do backend.
-      </p>
+      <div class="empty">
+        <p class="empty__title">Vista de auditoria em preparação</p>
+        <p class="empty__hint">
+          O registo de acessos e operações é encadeado e imutável. A consulta na aplicação está
+          a ser preparada. Entretanto, cada item de prova mantém a sua cadeia de custódia
+          rastreável e exportável.
+        </p>
+        <div class="detail__actions justify-center">
+          <a class="btn-accent" href="/evidences/">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="12" r="4"/><circle cx="15" cy="12" r="4"/></svg>
+            Itens de prova
+          </a>
+        </div>
+      </div>
     </div>
   </section>
 </article>

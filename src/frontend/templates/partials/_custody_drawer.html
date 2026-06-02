@@ -10,8 +10,8 @@
   <dl class="facts">
     <div class="facts__row"><dt>Evento</dt><dd>{{ r.event_label }}</dd></div>
     <div class="facts__row"><dt>Custódio</dt><dd>{{ r.custodian_label }}</dd></div>
-    <div class="facts__row"><dt>Item</dt><dd class="mono"><a class="dd__full" href="/evidences/{{ r.evidence_id }}/">{{ r.evidence.code }}</a></dd></div>
-    <div class="facts__row"><dt>Ocorrência</dt><dd class="mono">{{ r.evidence.occurrence.number }}</dd></div>
+    <div class="facts__row"><dt>Item</dt><dd class="mono"><a class="grid__link" href="/evidences/{{ r.evidence_id }}/">{{ r.evidence.code }}</a></dd></div>
+    <div class="facts__row"><dt>Ocorrência</dt><dd class="mono"><a class="grid__link" href="/occurrences/{{ r.evidence.occurrence_id }}/">{{ r.evidence.occurrence.number }}</a></dd></div>
     <div class="facts__row"><dt>Sequência</dt><dd class="mono">#{{ r.sequence }}</dd></div>
     <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</dd></div>
     <div class="facts__row"><dt>Responsável</dt><dd>{{ r.agent_label }}</dd></div>

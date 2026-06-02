@@ -16,6 +16,11 @@
   <span class="breadcrumb-current">Cadeia</span>
 {% endblock %}
 
+{% block drawer_title %}Item de prova{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">A ficha do item está aberta. O ledger abaixo regista cada evento de custódia.</p>
+{% endblock %}
+
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="ct-title">
 
@@ -38,7 +43,7 @@
       {% if chain_json != '[]' or ev.gps_lat is not None %}
       <div class="map-box map-box--tall" data-static-map
            data-chain="{{ chain_json }}"
-           data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"
+           {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
            data-label="{{ ev.code }}"></div>
       {% else %}
       <p class="dd__nogeo">Sem georreferência registada nos eventos desta evidência.</p>
@@ -97,8 +102,7 @@
           <div class="form-field">
             <label for="r-loc">Local (POI)</label>
             <input type="text" id="r-loc" name="location_name" value="{{ register_data.location_name }}"
-                   list="r-pois" placeholder="Ex.: Laboratório de Informática Forense" autocomplete="off">
-            <datalist id="r-pois"></datalist>
+                   placeholder="Ex.: Laboratório de Informática Forense" autocomplete="off">
             <div id="r-pois-list" class="poi-picker" role="group" aria-label="POIs próximos" hidden></div>
           </div>
 
@@ -115,7 +119,9 @@
           <div class="form-field">
             <label for="r-lng">Longitude</label>
             <input class="mono" type="text" inputmode="decimal" id="r-lng" name="gps_lng" value="{{ register_data.gps_lng }}" placeholder="-9.1467" aria-describedby="r-gps-hint">
-            <span class="form-hint" id="r-gps-hint">Use ponto decimal (ex.: 38.7197)</span>
+          </div>
+          <div class="form-field form-field--full">
+            <span class="form-hint" id="r-gps-hint">Latitude e longitude com ponto decimal (ex.: 38.7197, -9.1467)</span>
           </div>
           <input type="hidden" id="r-acc" name="gps_accuracy_m" value="{{ register_data.gps_accuracy_m }}">
 
@@ -128,7 +134,7 @@
                 Capturar GPS
               </button>
               <button type="button" class="btn-ghost" data-nearby-pois
-                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-pois-target="#r-pois"
+                      data-lat-target="#r-lat" data-lng-target="#r-lng"
                       data-input-target="#r-loc" data-pois-list-target="#r-pois-list" data-radius="500">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
                 POIs próximos
@@ -186,29 +192,7 @@
     <div class="section__body">
       {% if events %}
       <ol class="timeline">
-        {% for r in events %}
-        <li class="timeline__item">
-          <span class="timeline__dot"></span>
-          <div class="timeline__head">
-            <span class="timeline__seq mono">#{{ r.sequence }}</span>
-            <span class="timeline__event">{{ r.event_label }}</span>
-            <span class="timeline__time mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span>
-          </div>
-          <div class="timeline__meta">
-            <span>Custódio: <strong>{{ r.custodian_label }}</strong></span>
-            <span>Responsável: {{ r.agent_label }}</span>
-            {% if r.location_name %}<span>Local: {{ r.location_name }}</span>{% endif %}
-            {% if r.storage_location %}<span>Armazenamento: {{ r.storage_location }}</span>{% endif %}
-            {% if r.gps_lat is not None %}<span class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}</span>{% endif %}
-            {% if r.gps_accuracy_m %}<span class="mono {% if r.gps_accuracy_m > 50 %}timeline__acc--flag{% endif %}">±{{ r.gps_accuracy_m }}m</span>{% endif %}
-          </div>
-          <div class="timeline__meta">
-            <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…
-              <button type="button" class="copy-btn" data-copy="{{ r.record_hash }}" aria-label="Copiar hash" title="Copiar hash do registo">⧉</button></span>
-          </div>
-          {% if r.observations %}<p class="detail__desc">{{ r.observations }}</p>{% endif %}
-        </li>
-        {% endfor %}
+        {% for r in events %}{% include 'partials/_timeline_event.html' %}{% endfor %}
       </ol>
       {% else %}
       <div class="empty"><p class="empty__hint">Esta evidência ainda não tem eventos de custódia.</p></div>
