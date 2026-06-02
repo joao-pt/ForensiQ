@@ -176,6 +176,19 @@ body.app-body {
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
+    /* Nome/papel longo em ecrã estreito: trunca com reticências em vez de
+       cortar o texto a meio do glifo (perde-se contexto operacional). */
+    min-width: 0;
+    max-width: 22ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Em <480px o chip de nome encolhe ainda mais, mantendo o papel legível. */
+@media (max-width: 479px) {
+    #ctx-name {
+        max-width: 12ch;
+    }
 }
 
 .app-top__chip[data-variant="role"] {
@@ -437,6 +450,14 @@ body.app-body {
     border-bottom: 1px solid var(--border);
     background: var(--bg);
     flex-shrink: 0;
+}
+
+/* Páginas raiz (ex.: /dashboard/) só emitem o rótulo `Início` (sem <a> de
+   navegação). Em mobile o `.breadcrumb-current` é escondido, deixando uma
+   faixa fantasma com padding + borda inferior. Quando o strip não tem
+   navegação real (nenhum <a>), oculta o contentor por inteiro. */
+.app-main > .app-breadcrumb:not(:has(a)) {
+    display: none;
 }
 
 /* =====================================================================

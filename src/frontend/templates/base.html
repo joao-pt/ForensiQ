@@ -168,8 +168,10 @@
     <div class="app-grid" id="app-grid" data-drawer="closed">
 
         {% block app_sidebar %}
-        <!-- Fundo do off-canvas de navegação (só visível <1024px) -->
-        <div class="nav-backdrop" id="nav-backdrop" hidden></div>
+        <!-- Fundo do off-canvas de navegação (só visível <1024px).
+             Decorativo: o fecho real é via Escape ou botão, por isso é
+             ocultado a leitores de ecrã. -->
+        <div class="nav-backdrop" id="nav-backdrop" hidden aria-hidden="true"></div>
         <aside class="app-sidebar" id="nav-offcanvas" aria-label="Navegação principal">
             <div class="app-sidebar__head">
                 <span class="app-sidebar__head-title">Navegação</span>
