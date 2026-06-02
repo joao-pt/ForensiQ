@@ -24,6 +24,7 @@ instrumentação de teste para datar registos.
 
 from datetime import timedelta
 
+from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -258,6 +259,25 @@ class ActivityFeedTest(DashboardBaseTestCase):
 
 class DashboardEnrichmentTest(DashboardBaseTestCase):
     """Testes das chaves aditivas de /api/stats/dashboard/ (T07)."""
+
+    # Estes testes posicionam registos no tempo com .update(created_at=...). Em
+    # PostgreSQL os triggers de imutabilidade (migração 0013, ISO/IEC 27037)
+    # bloqueiam qualquer UPDATE — desligamo-los SÓ durante o teste (o utilizador
+    # de testes é dono das tabelas, logo não precisa de superuser) para a
+    # instrumentação temporal. Não é caminho de produção; em SQLite é no-op.
+    _IMMUTABLE_TABLES = ('core_occurrence', 'core_evidence', 'core_chainofcustody')
+
+    def setUp(self):
+        # Desligar os triggers ANTES de criar qualquer dado: a transação do
+        # TestCase está vazia, logo não há eventos de trigger pendentes que
+        # bloqueiem o ALTER TABLE. O rollback do TestCase no fim do teste
+        # restaura o estado (o ALTER é DDL transacional), por isso não é preciso
+        # reativar explicitamente.
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                for table in self._IMMUTABLE_TABLES:
+                    cursor.execute(f'ALTER TABLE {table} DISABLE TRIGGER USER')
+        super().setUp()
 
     def _dashboard(self, user):
         self.authenticate_as(user)
