@@ -1,5 +1,12 @@
 %% ForensiQ — Máquina de Estados da Cadeia de Custódia
 %% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i state-machine-custody.mmd -o state-machine-custody.png -b transparent -w 1600
+%%
+%% OBSOLETO (ADR-0015) — artefacto histórico do relatório intercalar.
+%% A custódia deixou de ser uma máquina de estados linear: passou a um ledger
+%% de eventos append-only (event_type + custódio + local), com o estado legal
+%% DERIVADO da leitura do log por derive_legal_state() — ver src/backend/core/
+%% models.py e docs/architecture/adr/ADR-0015-custodia-ledger-eventos.md.
+%% Mantido apenas como registo da v0.1; não reflete o modelo atual.
 
 stateDiagram-v2
     direction LR

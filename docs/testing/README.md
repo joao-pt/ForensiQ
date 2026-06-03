@@ -132,8 +132,11 @@ dados cometidos) e isola o `MEDIA_ROOT`.
 - `js_errors`, `csp_violations`, `failed_static` — diagnóstico por página;
 - configuração do browser: locale pt-PT, fuso de Lisboa, **geolocalização fixa**
   com permissão, e **bloqueio de pedidos externos** (tiles de mapa) para os
-  testes correrem offline e sem flakiness (as fontes do Google, que estão na
-  allowlist da CSP, são permitidas).
+  testes correrem offline e sem flakiness. O IBM Plex é self-hosted
+  (`css/fonts.css`), por isso não há origens externas na allowlist
+  (`_ALLOWED_EXTERNAL = ()`) e a CSP apertada (`font-src 'self'`) dispara uma
+  violação (apanhada por `test_no_csp_violations`) se algum template voltar a
+  referenciar fontes externas.
 
 A suite E2E vive **fora de `core/`** e tem o seu próprio settings, por isso o
 `manage.py test core` do CI e um `pytest` simples nunca tentam arrancar o

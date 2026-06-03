@@ -1,7 +1,17 @@
 # ADR-0004: Arquitectura do Frontend — HTML/CSS/JS Vanilla com Django Templates
 
 ## Status
-Accepted
+Superseded
+
+> **Nota de superseding (Fase 3 — reconstrução do frontend):**
+> Esta decisão foi substituída. O frontend deixou de ser uma camada vanilla que consome a API REST via JWT a partir do browser e passou a ser **server-rendered** com **Django Templates + HTMX + Alpine + Leaflet**, com autenticação por **cookies HttpOnly** servidos pelo Django (ver ADR-0009). A renderização passou a ser feita no servidor (ORM → template), eliminando o *drift* entre o contrato da API e a UI.
+>
+> Em concreto:
+> - A **alternativa 2** considerada abaixo (Django Templates com HTMX), na altura rejeitada por adicionar dependência, foi precisamente a adoptada na reconstrução.
+> - A organização "um CSS/JS por página" (`src/frontend/static/css/pages/*` e `src/frontend/static/js/pages/*`) foi descontinuada; os módulos por página foram removidos. A organização e a direcção de arte do novo frontend estão especificadas em `docs/refactor/art-direction.md`.
+> - A **API DRF** mantém-se, mas para PWA, acesso público (verificação) e mobile — não como camada de consumo do frontend web.
+>
+> O corpo seguinte preserva-se como registo histórico da decisão original.
 
 ## Context
 O ForensiQ precisa de uma interface web mobile-first para first responders (agentes) e peritos forenses. Os utilizadores podem estar no terreno (cenas de crime), com luvas, em condições de iluminação adversa, a operar com uma só mão. Não é necessário um SPA complexo — a prioridade é robustez, velocidade de carregamento e usabilidade em condições difíceis.

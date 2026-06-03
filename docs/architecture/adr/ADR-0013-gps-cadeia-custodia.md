@@ -86,10 +86,12 @@ Por fim, o hash. Como cada registo do ledger fica imutável ao gravar (triggers 
 
 - **`docs/architecture/adr/ADR-0015-*.md`** (ledger de eventos): define a semântica de `event_type`, `custodian_type`, `location_name`, `storage_location` (enums, fonte OSM, guardas mínimas no `clean()` e estado legal derivado do log). A **serialização desses campos no hash é a fixada aqui** — o ADR-0015 referencia esta fórmula; não a redefine.
 - **`docs/scope/iso27037-traceability.tex`** / matriz documental de imutabilidade: acrescentar `gps_lat`, `gps_lng`, `gps_accuracy_m` da `ChainOfCustody` à lista de campos cobertos por `trg_custody_no_update`.
-- **`core/pdf_export.py`**: o `_fmt_gps` (`core/pdf_export.py:338-341`) tem um bug de hemisfério pré-existente — imprime sempre `°N, °E`, e Portugal continental é longitude W. Corrigir o sinal antes de o GPS do ledger aparecer no PDF. Fora do âmbito de aceitação deste ADR, mas a renomeação do call-site para `gps_lng` cruza com ele.
+- **`core/pdf_export.py`**: o `_fmt_gps` (`core/pdf_export.py:338-349`) já corrige o hemisfério (N/S, E/W); o bug pré-existente de imprimir sempre `°N/°E` — Portugal continental é longitude W — foi sanado em conjunto com o rename para `gps_lng`.
 - **`README.md`** / spec de frontend (`a especificação de art direction`): convenção de longitude passa a `gps_lng` em todas as referências.
 
 ## Implementação
+
+> **Nota sobre as âncoras de linha.** Os números de linha desta secção (e das Referências) refletem o estado do `models.py` à data da decisão, pré-implementação. Concluída a Fase 2 — com a taxonomia (`0019`), o ledger (`0021`) e o modelo v2 (`0023`) já gravados —, o ficheiro cresceu: `compute_record_hash` está hoje em `core/models.py:1801`, `ChainOfCustody.save()` em `:1873`, `Evidence.compute_integrity_hash` em `:1100` (o GPS entra em `:1123`), e os três campos GPS da `ChainOfCustody` em `:1550-1574` (`gps_lat` `:1550`, `gps_lng` `:1558`, `gps_accuracy_m` `:1566`). Mantenho as âncoras originais no corpo como registo da decisão; é só a esta nota que se deve recorrer para localizar o código atual.
 
 ### Campos novos (`ChainOfCustody`, `core/models.py`)
 
@@ -176,10 +178,12 @@ O `clean()` corre via `full_clean()` já invocado em `save()` (`core/models.py:1
 
 ### Migrations
 
-Cabeça actual da migration chain: `0017_alter_auditlog_options_auditlog_sequence`. Duas migrations novas, separadas para clareza de revisão:
+À data da decisão a cabeça da chain era `0017_alter_auditlog_options_auditlog_sequence`. A implementação acabou repartida por duas frentes:
 
-1. **`0018_rename_gps_lon_to_gps_lng`** — `migrations.RenameField` em `Occurrence` (`gps_lon`→`gps_lng`) e em `Evidence` (`gps_lon`→`gps_lng`). Operação de metadados de schema; não toca dados nem hashes. O `integrity_hash` da `Evidence` é invariante ao rename (usa o valor, `core/models.py:626`).
-2. **`0019_chainofcustody_gps`** — `AddField` dos três campos (`gps_lat`, `gps_lng`, `gps_accuracy_m`) à `ChainOfCustody`. Sem trigger novo: `trg_custody_no_update` (`BEFORE UPDATE FOR EACH ROW`, `core/migrations/0002_add_immutability_triggers.py:73-77`) já cobre as colunas adicionadas. Documentar isto no docstring da migration.
+1. **`0018_rename_gps_lon_gps_lng`** — `migrations.RenameField` em `Occurrence` (`gps_lon`→`gps_lng`) e em `Evidence` (`gps_lon`→`gps_lng`). Operação de metadados de schema; não toca dados nem hashes. O `integrity_hash` da `Evidence` é invariante ao rename (usa o valor, `core/models.py:626`).
+2. **`0021_chainofcustody_ledger`** — os três campos GPS da `ChainOfCustody` (`gps_lat`, `gps_lng`, `gps_accuracy_m`) entram aqui, junto da reforma do ledger, não numa migração GPS isolada. Sem trigger novo: `trg_custody_no_update` (`BEFORE UPDATE FOR EACH ROW`, `core/migrations/0002_add_immutability_triggers.py:73-77`) já cobre as colunas adicionadas.
+
+A `0019` ficou para a taxonomia (`0019_taxonomia_crimes_prioridade`); a cabeça da chain é hoje `0023_modelo_v2_genese_aquisicao_selagem`.
 
 ### Serializer / write-path
 

@@ -5,6 +5,8 @@
 **Ambiente:** Django 5.0 + DRF + PostgreSQL / Fly.io (Frankfurt) _(→ 6.0.5 desde mai 2026, ver ADR-0011)_
 **Domínio:** forensiq.pt
 
+> **Nota (registo histórico — não atualizar).** Este documento é a fotografia da revisão de código da v0.1.0 (11 de abril de 2026) e a mais antiga da série de auditorias. Mantenho-o intacto como registo: os achados e a sua numeração não são reescritos. O estado corrente da arquitectura vive nas auditorias posteriores e nos ADRs. Em particular, a máquina de estados da cadeia de custódia (`VALID_TRANSITIONS`) foi entretanto substituída por um ledger de eventos (ver ADR-0015), pelo que as referências a transições/FSM aqui descritas deixaram de se aplicar; e o modelo `DigitalDevice` foi absorvido por `Evidence` (ver ADR-0010), pelo que os achados sobre `DigitalDeviceViewSet` e os CASCADE associados já não têm correspondência no código.
+
 ---
 
 ## Resumo Executivo

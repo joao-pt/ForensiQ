@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — 2026-06-01
+Accepted — 2026-06-01
 
 Complementa o **ADR-0016** (modelo de identificação e génese da prova/custódia) e supera o ponto em aberto #1 desse ADR (papéis). A nomenclatura dos `EventType` é a definida no ADR-0016. Substitui o modelo de **2 perfis** (`AGENT`/`EXPERT`) por um modelo de **função + credencial + instituições**, com controlo de acesso *need-to-know* **derivado do ledger** de custódia. Sem retrocompatibilidade (princípio da Fase 2); a demo é regerada.
 
@@ -110,7 +110,7 @@ Ao **submeter a apreensão para validação**, o caso é **atribuído a um servi
 ## Consequências
 
 - **Entidades novas:** `Institution`, `InstitutionMembership`; campos `ChainOfCustody.custodian_institution` + `ChainOfCustody.custodian_user`; `User.profile` expandido (inclui `CHEFE_SERVICO`) + `User.clearance`; novo `EventType` `ASSUNCAO_CUSTODIA`; atribuição da ocorrência a serviço do MP na validação.
-- **Permissões:** substituir `IsAgent`/`IsExpert` por permissões **ao nível do objeto** — `CanViewEvidenceItem` e `CanAppendCustodyEvent` — e reescrever o *scoping* (`_scope_occurrences`/`_scope_evidences`/`_scope_custody`/`_user_can_access_occurrence`) para o modelo derivado do ledger.
+- **Permissões:** o controlo *need-to-know* foi materializado em `core/access.py` como funções puras de módulo — `scope_evidences`/`scope_occurrences`/`scope_custody` (leitura/*scoping* de querysets) e `can_view_evidence`/`can_access_occurrence`/`can_append_custody` (verificação ao nível do objeto). As classes DRF `IsAgent`/`IsExpert`/`IsAgentOrExpert` mantêm-se em `permissions.py` para o *gating* grosseiro; não se criaram classes `CanViewEvidenceItem`/`CanAppendCustodyEvent` — a lógica vive nas funções de `access.py`.
 - **Migração:** derivar `custodian_institution` do `custodian_type` nos dados; criar instituições básicas; mapear utilizadores demo para papéis+credencial+instituição. **Regerar a demo.**
 - **Frontend:** o formulário de transferência ganha `custodian_institution` + o fluxo de *claim*; as listas/o detalhe passam a respeitar o *scoping* item-level; ecrã básico de gestão de instituições/membros.
 - **Testes (acrescem às 5 famílias do ADR-0016):**
@@ -122,9 +122,9 @@ Ao **submeter a apreensão para validação**, o caso é **atribuído a um servi
 
 Resolvidos: janela de leitura/escrita; entrega em pessoa (*push*) vs assunção de item armazenado (*pull*); `CASE_AUTHORITY` por atribuição ao serviço do MP; `CHEFE_SERVICO` como papel próprio só-leitura.
 
-A afinar **na implementação**:
-1. Como se materializa "submeter para validação" (o ato que atribui o caso ao serviço do MP) — `EventType`/transição próprio ou campo de atribuição na ocorrência.
-2. Se o **armazenamento institucional** (`custodian_user` → *null*) é um `EventType` próprio (ex.: `ARMAZENAMENTO`) ou um atributo de um evento de transferência/depósito.
+Resolvidos **na implementação** — ambos por derivação do ledger, sem coluna mutável nem `EventType` dedicado:
+1. A autoridade do caso ("submeter para validação") **deduz-se da `Institution` do tipo `MP` presente na cadeia** de custódia (`core/access.py`, resolução da autoridade do caso em `can_access_occurrence`/`can_append_custody`), em vez de um `EventType` próprio ou campo de atribuição mutável na ocorrência.
+2. O **armazenamento institucional** é o estado `custodian_user` *null* num evento de custódia (`ChainOfCustody.custodian_institution` preenchida, `custodian_user` *null*), não um `EventType` `ARMAZENAMENTO` próprio; o *claim* faz-se via `ASSUNCAO_CUSTODIA` por um membro da `custodian_institution` (`can_append_custody` trata a assunção).
 
 ## Referências
 

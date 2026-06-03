@@ -48,13 +48,13 @@ CACHES = {
 }
 ```
 
-A tabela `forensiq_cache` é criada via `manage.py createcachetable` (executado uma única vez em cada ambiente) e versionada como data migration `core/migrations/0006_create_cache_table.py` para garantir idempotência.
+A tabela `forensiq_cache` é criada via `manage.py createcachetable` (executado uma única vez em cada ambiente) e versionada como data migration `core/migrations/0007_create_cache_table.py` para garantir idempotência.
 
-Chaves de cache seguem o padrão `lookup:<source>:<identifier>` (ex: `lookup:imei:353893101224013`, `lookup:vin:WBA3A5C51EF123456`). TTL específico por fonte:
+O único lookup que assenta neste cache é o IMEI, com chave no padrão `lookup:<source>:<identifier>` (ex: `lookup:imei:353893101224013`) e TTL de 30 dias — hardware specs estáveis.
 
-- IMEI (imeidb.xyz): 30 dias — hardware specs estáveis
-- VIN (NHTSA/VinCheck): 180 dias — specs de veículo praticamente imutáveis
-- Balance check (imeidb.xyz): 5 minutos — para não poluir admin dashboard
+O VIN não passa por este cache: deixou de haver integração de API e passou a ser um redirect externo para `vindecoder.eu`, com confirmação visual e preenchimento manual pelo agente (ver ADR-0010, `core/services/vin_lookup.py`).
+
+A monitorização de consumo da imeidb.xyz não usa este padrão de chave: é um contador `imeidb:calls_24h` (TTL 24h), que dá visibilidade operacional do número de chamadas nas últimas 24 horas.
 
 Em caso de falha do cache (erro de DB, timeout), o código de lookup **continua** — faz a chamada directa à API, devolve o resultado ao utilizador, e apenas loga o erro de cache. O cache é uma optimização, nunca um caminho crítico.
 
@@ -106,12 +106,11 @@ Spawn de um contentor Redis no Fly.io (deixou de ter plano gratuito desde 2024).
 
 - **Latência** — cada leitura de cache é uma query PostgreSQL (tipicamente 5–20ms em rede Fly.io↔Neon Frankfurt), vs <1ms em LocMem ou Redis. Para o uso expectável (1–2 lookups por submissão de evidência), irrelevante.
 - **Carga na DB** — cada lookup adiciona uma query à DB. Com MAX_ENTRIES=10000 e o índice automático criado pelo Django na coluna `cache_key`, a query é O(log n). Não se antecipa impacto.
-- **Limpeza** — a limpeza automática ocorre em writes (`CULL_FREQUENCY=3` → a cada 3 writes, elimina 1/3 das entradas expiradas). Para garantir limpeza regular mesmo sem escritas, adiciona-se management command `manage.py clearexpiredcache` executado semanalmente via cron.
+- **Limpeza** — a limpeza automática ocorre em writes (`CULL_FREQUENCY=3` → a cada 3 writes, elimina 1/3 das entradas expiradas). Não há limpeza agendada à parte; ao volume actual, o cull em escrita é suficiente.
 
 ### Mitigações
 
-- **Index explícito** — a migration cria `CREATE INDEX CONCURRENTLY IF NOT EXISTS forensiq_cache_key_idx ON forensiq_cache (cache_key);` (complementar ao índice UNIQUE default).
-- **Monitorização de tamanho** — management command `manage.py cache_stats` reporta nº de entradas, tamanho médio, hit rate (se vier a existir instrumentação), para decidir migração para Redis se o volume crescer.
+- **Índice da chave** — a tabela é criada via `createcachetable`, que define a coluna `cache_key` como chave primária (índice único do schema canónico do Django), suficiente para o lookup por chave. Não há índice adicional explícito na migration.
 - **Fallback silencioso** — o serviço de lookup trata excepções de cache (`cache.get()`, `cache.set()`) como warnings e continua a fazer a chamada à API, garantindo que uma falha de cache nunca impede o registo de prova.
 
 ## Revisão futura

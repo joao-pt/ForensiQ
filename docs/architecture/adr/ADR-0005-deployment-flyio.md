@@ -25,11 +25,12 @@ Requisitos de infraestrutura:
 **Fly.io** com região Frankfurt (fra), a única plataforma PaaS avaliada com data center em Frankfurt.
 
 ### Arquitectura de produção
-1. **Aplicação Django** no Fly.io (Frankfurt) — VM shared-cpu-1x, 256MB RAM
+1. **Aplicação Django** no Fly.io (Frankfurt) — VM shared-cpu-1x, 512 MB RAM (`[[vm]]` no fly.toml)
 2. **Base de dados PostgreSQL** no Neon.tech (Frankfurt) — mantida separada, não migrada
 3. **Ficheiros estáticos** servidos via WhiteNoise (sem CDN externo no MVP)
-4. **Domínio** `forensiq.pt` com DNS gerido no dominios.pt, registos A/AAAA a apontar para IPs dedicados do Fly.io
-5. **HTTPS** via Let's Encrypt, gerido automaticamente pelo Fly.io
+4. **Media (fotos de prova)** num volume persistente Fly (`forensiq_media` montado em `/data/media`; o entrypoint reafirma o ownership `forensiq:forensiq` no arranque). Não é servida pelo WhiteNoise nem por `static()`: o acesso passa por uma view autenticada (`MediaServeView`) com verificação de ownership e registo de auditoria
+5. **Domínio** `forensiq.pt` com DNS gerido no dominios.pt, registos A/AAAA a apontar para IPs dedicados do Fly.io
+6. **HTTPS** via Let's Encrypt, gerido automaticamente pelo Fly.io
 
 ### Configuração de deploy
 - **Dockerfile multi-stage:** builder (compilação psycopg2, Pillow) + runtime (python:3.12-slim, user não-root)
@@ -46,11 +47,12 @@ Requisitos de infraestrutura:
 
 ### Workflow de deploy
 ```bash
-# Actualizar aplicação
+# Actualizar aplicação (as migrações correm automaticamente:
+# o fly.toml define [deploy] release_command = "python manage.py migrate --noinput")
 fly deploy
 
-# Aplicar migrações de base de dados
-fly ssh console -C "cd backend && python manage.py migrate"
+# Inspeção pontual via SSH (não é necessário para migrar — só para diagnóstico)
+fly ssh console -C "python manage.py showmigrations"
 
 # Rollback se necessário
 fly releases rollback

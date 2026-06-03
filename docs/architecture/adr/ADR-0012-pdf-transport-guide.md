@@ -43,14 +43,15 @@ Atacar N2 conforme proposto seria construir tecnologia (assinatura X.509, PDF/A-
    > O PDF **não é** prova juridicamente auto-contida. A prova autoritativa vive no sistema: `Evidence.integrity_hash`, `ChainOfCustody` append-only com hash chain, triggers PostgreSQL de imutabilidade, bloqueio admin/API em três camadas (ADR-0009, ADR-0010, migrações `0002_add_immutability_triggers` + `0008_extend_immutability`).
 
 3. **Re-estruturar o PDF para reflectir o intent**, em duas vagas (ver detalhe na *Implementação* desta ADR):
-   - **Vaga 1** (Sem.12): adicionar **QR codes** (1 grande na folha de rosto da ocorrência + 1 menor em cada secção de evidência, sujeito a revisão visual conjunta para evitar layout sobrecarregado) e criar endpoint público adaptativo `/v/<short-hash>`. O `evidence.code` (ITM-YYYY-NNNNN) e o `occurrence.code` (OCC-YYYY-NNNNN) continuam impressos em texto — são human-readable e suficientes para entrada manual em casos de QR ilegível.
-   - **Vaga 2** (Sem.13): criar página de **check-list de intake** em `/occurrence/<code>/intake/`, acessível apenas a perfil EXPERT, com checkbox por evidência esperada. Ao confirmar todas as recepções, transição automática da `ChainOfCustody` de cada item para `RECEBIDA_LABORATORIO` em batch (reaproveita `/api/custody/cascade/` já existente).
+   - **Vaga 1** (Sem.12): adicionar **QR codes** (1 grande na folha de rosto da ocorrência + 1 menor em cada secção de evidência, sujeito a revisão visual conjunta para evitar layout sobrecarregado) e criar endpoint público adaptativo `/v/<short-hash>`. O `occurrence.code` (OC-YYYY-NNNN, ex.: `OC-2026-0001`) e o `evidence.code` (código hierárquico derivado, ex.: `OC-2026-0001.1.1`, ADR-0016) continuam impressos em texto — são human-readable e suficientes para entrada manual em casos de QR ilegível.
+   - **Vaga 2** (Sem.13): criar página de **check-list de intake** em `/occurrences/<int:occurrence_id>/intake/`, acessível apenas a perfil FORENSIC_EXPERT (ou staff/superuser), com checkbox por evidência esperada. Ao confirmar todas as recepções, regista-se em batch para cada item um evento de ledger `TRANSFERENCIA` → `LAB_PUBLICO` (ADR-0015), reaproveitando `/api/custody/cascade/` já existente.
 
 4. **Modelo de autorização do scan**: o QR contém uma URL única `/v/<short-hash>`. Vista adaptativa segundo cookie de autenticação:
    - **Sem login**: mostra metadata pública mínima — `occurrence.code`, número de itens esperados, hashes de integridade (verificáveis externamente). Não revela descrições, GPS, agentes, ou tipos específicos de evidência.
-   - **Com login + perfil EXPERT** (ou staff): redirect para `/occurrence/<code>` (vista completa actual).
-   - **Com login + perfil AGENT** que **não é** o dono da ocorrência: redirect para o ecrã "sem permissão" actual (consistente com IDOR já documentado em ADR-0009 e fix B13 do audit).
-   - O intake é, por desenho, EXPERT-only. AGENTs em campo entregam; não fazem intake. Esta divisão alinha com a separação de papéis já existente.
+   - **Com login + perfil FORENSIC_EXPERT** (ou staff): redirect para `/occurrences/<id>/` (vista completa actual).
+   - **Com login + perfil FIRST_RESPONDER** que **é** o dono da ocorrência: redirect para `/occurrences/<id>/`.
+   - **Com login + perfil FIRST_RESPONDER** que **não é** o dono: cai na vista pública mínima (não num 403) — não vê detalhe da ocorrência alheia, em linha com o modelo de ownership já documentado em ADR-0009 e fix B13 do audit.
+   - O intake é, por desenho, FORENSIC_EXPERT-only. FIRST_RESPONDERs em campo entregam; não fazem intake. Esta divisão alinha com a separação de papéis já existente.
 
 5. **Não introduzir** PyHanko, certificados X.509, PDF/A-3u, timestamping qualificado, ou qualquer infra-estrutura de assinatura digital. O `integrity_hash` continua impresso no PDF para verificação pontual, mas o PDF em si permanece intencionalmente um PDF "comum" gerado por ReportLab.
 
@@ -105,8 +106,8 @@ Atacar N2 conforme proposto seria construir tecnologia (assinatura X.509, PDF/A-
 
 - Biblioteca: `qrcode` (PyPI, MIT) ou `reportlab.graphics.qrencoder`. Avaliar qual integra melhor com o `flow` do ReportLab actual; preferir `qrcode` se a integração com `Drawing`/`Flowable` for trivial.
 - Geração do hash curto: `hmac.new(settings.QR_VERIFY_SECRET, str(occurrence.id).encode(), hashlib.sha256).hexdigest()[:12]`. Nova env var `QR_VERIFY_SECRET` (independente de `SECRET_KEY`) para isolar revogação.
-- Endpoint público: `core/views.py` nova `PublicEvidenceVerifyView(APIView)` com `permission_classes = [AllowAny]`, `throttle_classes = [ScopedRateThrottle]`, `throttle_scope = 'verify_public'` (rate `30/minute` em produção, mirror `10000/minute` em TESTING — padrão estabelecido em N8). URL `/v/<str:short_hash>/`.
-- Vista adaptativa: se `request.user.is_authenticated and request.user.profile in ('EXPERT', 'AGENT')` → redirect HTTP 302 para `/occurrence/<code>`. Senão → template `public_verify.html` com dados mínimos (código, contagem, integrity_hashes em mono-text).
+- Endpoint público: função Django pura `public_verify_view` em `core/frontend_views.py` (não uma `APIView` DRF), registada em `urls.py` como `path('v/<str:short_hash>/', ...)`. O rate-limit do scope DRF `verify_public` (`30/minute` em produção, mirror `10000/minute` em TESTING — padrão estabelecido em N8) é aplicado pelo helper `_throttle_public_verify`, que reusa o `ScopedRateThrottle` do DRF sobre o request Django, complementado por lockout por IP escalado (`_verify_is_locked`).
+- Vista adaptativa: dá-se a vista completa (redirect HTTP 302 para `/occurrences/<id>/`) apenas se o utilizador for `is_staff` **ou** tiver perfil `FORENSIC_EXPERT` **ou** for `FIRST_RESPONDER` **e** dono da ocorrência (`occurrence.agent_id == user.id`). Em todos os outros casos — incluindo `FIRST_RESPONDER` não-dono — renderiza-se o template `public_verify.html` com dados mínimos (código, contagem, integrity_hashes em mono-text), não um 403.
 - Posicionamento dos QRs no PDF: revisão visual conjunta na primeira iteração. Hipóteses iniciais:
   - QR da ocorrência no cabeçalho (canto superior direito, ~3×3 cm).
   - QR de cada evidência ao lado do título da secção (~1.5×1.5 cm). Risco de sobrecarregar — avaliar; se sim, mover para tabela de índice na folha de rosto.
@@ -114,9 +115,9 @@ Atacar N2 conforme proposto seria construir tecnologia (assinatura X.509, PDF/A-
 
 ### Vaga 2 — Check-list de intake (Sem.13)
 
-- Modelo: sem novas tabelas. A check-list é UI sobre `ChainOfCustody` existente — "recebido" significa `new_state = RECEBIDA_LABORATORIO` para essa evidência.
-- View: `core/frontend_views.py` nova `OccurrenceIntakeView` com `permission_classes = [IsAuthenticated, IsExpert]`. URL `/occurrence/<str:code>/intake/`.
-- Template: lista de evidências esperadas (`occurrence.evidences.all()`) com checkbox por item; ao submeter, POST para `/api/custody/cascade/` (já existente) com `new_state=RECEBIDA_LABORATORIO` para todos os itens marcados.
+- Modelo: sem novas tabelas. A check-list é UI sobre `ChainOfCustody` existente — "recebido" significa registar para essa evidência um evento de ledger `TRANSFERENCIA` → `LAB_PUBLICO` (ADR-0015); o estado legal é derivado da sequência de eventos, não um campo de FSM.
+- View: função `occurrence_intake_view` em `core/frontend_views.py` que valida o JWT em cookie, exige perfil `FORENSIC_EXPERT` (ou staff/superuser) e devolve `403_intake.html` caso contrário. URL `/occurrences/<int:occurrence_id>/intake/` (name `occurrence_intake`).
+- Template: lista de evidências esperadas (`occurrence.evidences.all()`) com checkbox por item; ao submeter, POST para `/api/custody/cascade/` (já existente) que regista para todos os itens marcados um evento `TRANSFERENCIA` → `LAB_PUBLICO`.
 - Detecção de "faltas": se utilizador submete sem todos os checkboxes marcados, mostrar warning amarelo "Itens não confirmados: X, Y, Z. Continuar mesmo assim?" — opcionalmente registar `ChainOfCustody.observations` com a nota "Item ausente na recepção".
 - Trigger automático opcional: se *todos* os itens forem marcados, render botão "Receber tudo" que faz transição em batch sem requerer click individual.
 - Testes: cobrir EXPERT pode aceder; AGENT recebe 403; submit parcial; submit total; concorrência entre dois EXPERTs.

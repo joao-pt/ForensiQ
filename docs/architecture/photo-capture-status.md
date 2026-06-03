@@ -2,18 +2,21 @@
 
 ## Implementado (Fase 2)
 
-`src/frontend/templates/evidences_new.html` — passo 5 do wizard
+`src/frontend/templates/evidences_new.html` — campo Fotografia no formulário
+único de registo (server-rendered, HTMX, POST `/evidences/new/`)
 
 - **Câmara nativa em mobile** via `<input type="file" accept="image/*" capture="environment">`
   — abre directamente a câmara traseira (mais útil para fotografar evidências
   pousadas em superfície)
 - **Upload de ficheiro** alternativo para desktop ou re-uso de fotos pré-existentes
-- **Pré-visualização** com `FileReader` (sem upload prematuro ao servidor)
-- **Botão Remover** que reinicia o estado
-- **Saltar passo** — fotografia é opcional (existem evidências sem
+- **Fotografia opcional** — o input não tem `required` (existem evidências sem
   representação visual útil, ex.: contas cloud, chaves de licença)
-- **Tamanho máximo 10 MB** (validado no backend; 25 MB hard limit no
-  Django para impedir DoS)
+- O wizard multi-passo, a pré-visualização `FileReader` e os botões
+  Remover/Saltar foram removidos na reconstrução do frontend (branch
+  `refactor/frontend-rebuild`)
+- **Tamanho máximo 25 MB**, validado no backend em `validate_image_max_size`
+  (`core/models.py:109`), que também confirma o formato real via `Pillow.verify()`
+  (whitelist JPEG/PNG/WEBP, anti-polyglot)
 - **Remove EXIF/IPTC/XMP** no `Evidence.save()` via helper `_strip_exif()`
   em `core/models.py` (auditoria 2026-05-18 §2 S9). Postura revista em
   2026-05-27: o trade-off "metadata = prova" foi substituído por
@@ -25,9 +28,14 @@
   no modelo `Evidence` e no `ChainOfCustody`. Formato e dados de pixel
   preservados (JPEG/PNG/WEBP).
 
-`backend/core/views.py` — endpoint `/api/evidences/`
-- Recebe multipart/form-data com `photo`
-- Guarda em `MEDIA_ROOT/<volume>/evidences/YYYY/MM/`
+`core/frontend_views.py` — vista `evidences_new_view` (POST `/evidences/new/`)
+- Recebe multipart/form-data com `photo` (`request.FILES.get("photo")`,
+  `core/frontend_views.py:814-815`), reusa o `EvidenceSerializer` e guarda via
+  `Evidence.photo` (`upload_to=evidence_photo_path`, `core/models.py:737`). A API
+  DRF `/api/evidences/` mantém-se para consulta, PDF e lookups.
+- Guarda em `MEDIA_ROOT/evidencias/<codigo_da_ocorrencia>/<uuid8>_<ficheiro>`
+  (`core/models.py:737` `evidence_photo_path`). Sem segmento `<volume>`, sem
+  `YYYY/MM`; a pasta chama-se `evidencias` (com a).
 - O hash SHA-256 da evidência **inclui os bytes da fotografia** (S6 da
   auditoria 2026-04-16) — qualquer alteração ao ficheiro detecta-se na
   verificação. Os bytes hasheados são os bytes **pós-strip** (`Evidence.save`

@@ -45,7 +45,10 @@ características próprias:
 - Debounce de redimensionamento com `setTimeout`
 - Pausa automática em `visibilitychange` (poupança de CPU/bateria)
 - Fallback estático de uma única frame quando `prefers-reduced-motion: reduce`
-- Cores alinhadas com os tokens `--lp-*` do design system ForensiQ
+- Cor de realce ao cursor alinhada com o token `--accent` (âmbar
+  `#F6AD55`), lido em runtime via `getComputedStyle` (`resolveAccentRgbPrefix`),
+  com fallback `rgba(246,173,85)`; nós e ligações em repouso num azul-acinzentado
+  discreto. Não usa tokens `--lp-*` (removidos no refactor v2)
 - Parâmetros (densidade, raio de cursor, velocidade) calibrados para o
   painel esquerdo do login
 
@@ -71,38 +74,41 @@ entrelaçamento visual correto na zona de sobreposição dos dois círculos.
 
 **Conclusão:** técnica de domínio público, **implementação original**.
 
-### 2.3 Estilo visual "Notion-dark" do formulário
+### 2.3 Estilo visual do formulário (primitivas globais)
 
-O cartão do formulário (fundo `#111624`, inputs com `1px` de borda ténue,
-botão com gradiente subtil, spinner teal) segue o vocabulário visual
-popularizado por:
+O cartão do formulário reutiliza as primitivas globais do design system
+(`.card`, `.form-input`, `.btn-primary`) com os tokens v2: superfície
+`--surface` (`#181B21` no tema noite), realce âmbar `--accent` (`#F6AD55`) e
+bordas ténues. Não há um vocabulário próprio do login — o ecrã herda o mesmo
+tratamento visual do resto da aplicação.
 
-- **Notion** (notion.so) — cartões dark-mode com bordas muito suaves
-- **Linear** (linear.app) — botões com highlight luminoso ao hover
-- **Vercel** dashboard — paleta `#05070D` / `#0B0F1A` / `#111624`
+A linguagem "Notion-dark" / Linear / Vercel que servira a v1 (paleta escura
+arroxeada, realce teal) foi abandonada por comunicar mal o domínio: o produto
+é uma ferramenta forense, não um SaaS genérico. A art direction v2 segue uma
+densidade de instrumento profissional (referências Bloomberg/Cellebrite), não
+o registo de dashboard de produto.
 
-Não há código copiado nem componentes reutilizados destas plataformas. A
-ForensiQ reconstrói o **vocabulário visual** (não os componentes) com os
-tokens `--lp-*` locais, adaptados à paleta institucional do projeto
-(teal `#2DD4BF`, âmbar `#F59E0B`).
-
-**Conclusão:** vocabulário estético do setor, **implementação original**.
+**Conclusão:** o login não traz estética emprestada — assenta nas primitivas
+e tokens globais do ForensiQ.
 
 ---
 
 ## 3. Tipografia
 
-Os ficheiros CSS/HTML referenciam as famílias tipográficas **Inter** e
-**JetBrains Mono**, carregadas globalmente em `base.html`:
+Os ficheiros CSS/HTML referenciam as famílias tipográficas **IBM Plex Sans**
+(interface, `--font-sans`) e **IBM Plex Mono** (hashes, IDs, timestamps e
+coordenadas, `--font-mono`), carregadas globalmente em `base.html`:
 
 | Família | Autor | Licença | Onde |
 |---|---|---|---|
-| [Inter](https://rsms.me/inter/) | Rasmus Andersson (rsms) | SIL Open Font License 1.1 | `--font-sans` |
-| [JetBrains Mono](https://www.jetbrains.com/lp/mono/) | JetBrains s.r.o. | SIL Open Font License 1.1 | `--font-mono` |
+| [IBM Plex Sans](https://www.ibm.com/plex/) | Mike Abbink / IBM | SIL Open Font License 1.1 | `--font-sans` |
+| [IBM Plex Mono](https://www.ibm.com/plex/) | Mike Abbink / IBM | SIL Open Font License 1.1 | `--font-mono` |
 
 Ambas são **livres para uso comercial e privado** sob a licença SIL OFL 1.1.
-Não carecem de atribuição obrigatória no produto, mas este documento
-reconhece a autoria.
+São servidas localmente (self-hosting) em `css/fonts.css` — `woff2`, subset
+latino — sem recurso a Google Fonts ou a qualquer CDN, o que evita fugas do IP
+do utilizador e cumpre a CSP estrita do projeto. Não carecem de atribuição
+obrigatória no produto, mas este documento reconhece a autoria.
 
 ---
 
@@ -126,13 +132,14 @@ dezenas de implementações compatíveis.
 Nenhuma. O login carrega apenas:
 
 - `base.html` (template Django do próprio ForensiQ)
-- `toast.js` (script utilitário interno do ForensiQ)
-- `login.js` (script interno)
-- `login.css` (folha de estilos interna)
-- CSS de `main.css` (tokens globais do ForensiQ)
+- `css/fonts.css` (IBM Plex self-hosted)
+- `css/main.css` (tokens globais do ForensiQ)
+- `css/components/app-shell.css` (casca da aplicação)
+- `css/pages/login.css` (estilos do login)
+- os scripts internos `config.js`, `auth.js`, `toast.js` e `login.js`
 
-**Zero requests a CDNs externos, zero bibliotecas JavaScript, zero
-`<script>` inline (respeita a CSP estrita).**
+**Zero requests a CDNs externos, zero bibliotecas JavaScript de terceiros,
+zero `<script>` inline (respeita a CSP estrita).**
 
 ---
 
@@ -149,8 +156,9 @@ juridicamente adequada é:
 > de forma a respeitar a política de segurança de conteúdo (CSP) estrita e
 > evitar dependências externas. O logotipo usa a técnica SVG de máscara
 > para representar dois anéis entrelaçados (Hopf link), convenção padrão
-> da web sem autoria atribuível. As famílias tipográficas Inter (SIL OFL)
-> e JetBrains Mono (SIL OFL) são software livre."*
+> da web sem autoria atribuível. As famílias tipográficas IBM Plex Sans e
+> IBM Plex Mono (IBM, SIL OFL 1.1) são software livre e estão alojadas
+> localmente (self-hosting), eliminando pedidos a CDNs externos."*
 
 ---
 
@@ -159,3 +167,4 @@ juridicamente adequada é:
 | Data | Alteração |
 |---|---|
 | 2026-04-18 | Criação inicial após promoção do preview a login oficial. |
+| 2026-05 | Atualização para o refactor de art direction v2: login unificado com o design system global (IBM Plex Sans/Mono, accent âmbar, tokens de `main.css`). Removidos os créditos a Inter/JetBrains Mono e à paleta Notion-dark/Vercel, que descreviam a v1. |

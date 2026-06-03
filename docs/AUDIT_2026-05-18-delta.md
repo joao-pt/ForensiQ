@@ -1,5 +1,7 @@
 # Auditoria ForensiQ — Delta 2026-05-18
 
+> **Registo histórico imutável (congelado a 18 mai 2026).** Este documento é, ele próprio, um snapshot: reflecte o código tal como estava até à Sem.12 (mai 2026), **antes** do refactor das Fases 2/3 — ledger de custódia ([ADR-0015](architecture/adr/ADR-0015-custodia-ledger-eventos.md)), taxonomia digital-only ([ADR-0010](architecture/adr/ADR-0010-evidence-taxonomy-digital-only.md)) e IDs hierárquicos ([ADR-0016](architecture/adr/ADR-0016-identificacao-hierarquica-e-genese-custodia.md)). Achados, números de linha e referências a código que se seguem **não descrevem o estado corrente** do repositório (ver branch `refactor/frontend-rebuild`); preservam-se inalterados como registo da análise feita nessa data.
+
 **Escopo:** delta vs [`AUDIT_2026-04-16.md`](AUDIT_2026-04-16.md) (snapshot histórico imutável).
 **Stack (snapshot do commit `2183600`; updates de Sem.10/11 listados em §8.1; Sem.12 acrescentou ADR-0012 Vagas 1+2 + DR doc + B9/N9/N10/N12; bumps Dependabot pós-Sem.11 — whitenoise 6.12, psycopg2-binary 2.9.12, drf-spectacular 0.29):** Django 6.0.5 + DRF 3.17.1 + djangorestframework-simplejwt 5.5.1 + dj-database-url 3.1.2 + gunicorn 26 + qrcode[pil] 7.4 + PostgreSQL (Neon) + Fly.io. Dev: pytest-django 4.12. Frontend templates Django + JS vanilla.
 **Método:** revisão por dimensões (segurança · backend/arquitectura · frontend/testes/CI) + leitura directa de `models.py`, `serializers.py`, `views.py`, `auth.py`, `middleware.py`, `audit.py`, `pdf_export.py`, `services/{imei,vin}_lookup.py`, `migrations/0002,0008`. 3 sub-auditorias focadas: PDF export, triggers PG, services externos.
@@ -104,6 +106,8 @@ Cada item cita o ID original da auditoria de abr e a evidência exacta (`file:li
 - **Cleanup**: `buffer.close()` fora de `try/finally` (ver N14).
 
 ### 4.2 Triggers PostgreSQL (`migrations/0002`, `0008`)
+
+> **Nota de estado (DigitalDevice removido após esta auditoria):** a matriz de cobertura e os números de linha abaixo referem-se ao código de 18 mai 2026. O model `DigitalDevice` foi entretanto **removido** (taxonomia digital-only, [ADR-0010](architecture/adr/ADR-0010-evidence-taxonomy-digital-only.md); subsumido por `Evidence` no T05, `migrations/0020_delete_digitaldevice.py`). A coluna `DigitalDevice` da matriz, o bypass `from_migration=True` em `models.py:848-863` e as referências a `full_clean()` em `models.py:243,599,863` deixaram de corresponder ao código actual — preservam-se como registo da análise dessa data.
 
 - **SQL real** (extracto de `0002`):
   ```sql

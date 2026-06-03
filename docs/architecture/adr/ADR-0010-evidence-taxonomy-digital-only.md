@@ -82,7 +82,7 @@ Simultaneamente, um novo requisito entrou no Wave 2: **registos hierárquicos** 
 
 ### Positivas
 - **Triagem automatizável** — por tipo, a UI / backend aplica fluxos específicos (ex.: `MOBILE_DEVICE` → pedir IMEI; `VEHICLE` → pedir VIN).
-- **Lookups externos viáveis** — IMEI e VIN ganham sítio formal, ligando ao cache BD descrito em ADR-0008.
+- **Lookups externos viáveis** — IMEI e VIN ganham sítio formal no `type_specific_data`. O IMEI liga a um lookup externo cacheado (cache BD com TTL, descrito em ADR-0008); o VIN, por decisão posterior, não passa por backend nem cache — abre um redirect externo para `vindecoder.eu` com confirmação visual e preenchimento manual do resultado.
 - **Hierarquia explícita** — a cadeia de custódia de um telemóvel arrasta naturalmente os seus sub-componentes.
 - **Alinhamento doutrinal** — compatível com ISO/IEC 27037 e com formatos de exchange usados em peritagem digital.
 
@@ -93,7 +93,7 @@ Simultaneamente, um novo requisito entrou no Wave 2: **registos hierárquicos** 
 
 ### Impactos em outros documentos
 - **ADR-0002 §4** é superseded na parte do enum (modelos e relações continuam).
-- **ADR-0008 (lookups externos)** passa a depender directamente dos códigos aqui definidos.
+- **ADR-0008 (lookups externos)** passa a depender directamente dos códigos aqui definidos, no que toca ao lookup cacheado do IMEI (o VIN resolve-se por redirect externo, fora do âmbito do ADR-0008).
 - **ADR-0004 (frontend)** — o wizard de nova evidência (`templates/evidences_new.html`) agrupa os códigos em `optgroup`s reflectindo os dois grandes grupos.
 - **Documentação de peritagem** — os relatórios PDF (`core/pdf_export.py`) usam as descrições PT-PT da enum.
 

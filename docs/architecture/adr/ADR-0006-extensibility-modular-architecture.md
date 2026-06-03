@@ -25,8 +25,14 @@ A arquitectura assenta em cinco pilares:
 
 ### 1. Django Apps Reutilizáveis
 
+> **Estado atual:** o backend é uma **única** app Django (`core`); o resto de
+> `src/backend/` são `forensiq_project/` (projeto), `tests/` e `e2e/`. As apps
+> `forensics_bio`/`forensics_chem` e a estrutura multi-app abaixo são roadmap de
+> extensibilidade, ainda não implementado. Prevê-se que módulos futuros sejam
+> Django apps independentes que reutilizam `core` por FK (não por herança de modelo).
+
 Estrutura base em `src/backend/core/` com modelos agnósticos:
-- `User` — utilizador genérico com campo `profile` (AGENT, EXPERT, BIOLOGIST, CHEMIST, LAB_MANAGER)
+- `User` — utilizador genérico com campo `profile`. Os valores atuais (ADR-0017) são `FIRST_RESPONDER`, `FORENSIC_EXPERT`, `EVIDENCE_CUSTODIAN`, `CASE_AUTHORITY`, `CHEFE_SERVICO`, `AUDITOR`. Perfis de domínio biológico/químico (ex: `BIOLOGIST`, `CHEMIST`, `LAB_MANAGER`) são exemplos hipotéticos de extensão futura, ainda não implementados.
 - `Occurrence` — caso genérico (local, data, descrição)
 - `Evidence` — prova genérica (FK para Occurrence, type, description, integrity_hash SHA-256)
 - `ChainOfCustody` — cadeia append-only encadeada, agnóstica ao tipo de prova
@@ -46,14 +52,21 @@ src/backend/
 
 ### 2. Services Layer para Lógica Reutilizável
 
-Operações comuns (hashing, encadeamento, exportação, auditoria) implementar-se-ão em módulos de serviço:
+> **Estado atual:** `core/services/` contém apenas `imei_lookup.py` e
+> `vin_lookup.py` (mais `__init__.py`). A exportação PDF vive em `core/pdf_export.py`,
+> como módulo direto, não atrás de uma interface. A abstração `ExportService` e um
+> `hash_service.py` dedicado ainda **não** estão implementados — o que se segue é a
+> proposta de design para quando a variedade de exportadores/serviços o justificar.
+
+Operações comuns (hashing, encadeamento, exportação, auditoria) passariam a viver
+em módulos de serviço com interface estável:
 
 ```python
-# core/services/hash_service.py
+# core/services/hash_service.py  (proposto)
 def compute_evidence_hash(evidence: Evidence) -> str:
     """Calcula SHA-256 de um Evidence, independente do tipo."""
 
-# core/services/export_service.py
+# core/services/export_service.py  (proposto)
 class ExportService(ABC):
     @abstractmethod
     def export(self, evidence: Evidence) -> bytes:
@@ -126,6 +139,11 @@ class DNAProfileViewSet(viewsets.ModelViewSet):
 
 ## Pontos de Extensão Concretos
 
+> **Nota de estado:** os pontos A, B e C descrevem o caminho previsto para
+> domínios forenses adicionais (toxicologia, biologia, química) em apps próprias
+> com FK para `core`. Nenhum desses módulos existe hoje — o backend tem apenas a
+> app `core`. São apresentados como roadmap, não como código existente.
+
 ### A. Novos Tipos de Prova
 
 **Processo:**
@@ -193,14 +211,20 @@ class BiologicalMarkerViewSet(viewsets.ModelViewSet):
 3. Associar a viewsets específicos da app correspondente
 4. Atualizar Django Admin se necessário
 
-**Exemplo:** Novo perfil "Perito Químico"
+> **Estado atual (ADR-0017):** o enum `Profile` real em `core/models.py` tem seis
+> valores — `FIRST_RESPONDER`, `FORENSIC_EXPERT`, `EVIDENCE_CUSTODIAN`,
+> `CASE_AUTHORITY`, `CHEFE_SERVICO`, `AUDITOR`. O exemplo abaixo (`CHEMIST` e
+> companhia) é hipotético e ilustra como acrescentar um perfil de domínio futuro;
+> não existe hoje.
+
+**Exemplo (hipotético):** Novo perfil "Perito Químico"
 ```python
-# core/models.py
+# core/models.py — exemplo de extensão futura, não o enum atual
 class Profile(models.TextChoices):
-    AGENT = 'AGENT', 'Agente PSP'
-    EXPERT = 'EXPERT', 'Perito Forense'
-    BIOLOGIST = 'BIOLOGIST', 'Perito Biólogo'
-    CHEMIST = 'CHEMIST', 'Perito Químico'
+    FIRST_RESPONDER = 'FIRST_RESPONDER', 'Agente / Primeiro interveniente'
+    FORENSIC_EXPERT = 'FORENSIC_EXPERT', 'Perito forense digital'
+    # ... restantes valores atuais (ADR-0017) ...
+    CHEMIST = 'CHEMIST', 'Perito Químico'  # novo, a acrescentar
 
 # forensics_chem/permissions.py
 class IsChemist(BasePermission):
@@ -212,41 +236,50 @@ class ChemicalAnalysisViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsChemist]
 ```
 
-### D. Novos Estados de Custódia
+### D. Novos Actos de Custódia
+
+> **Estado atual (ADR-0015):** a custódia **não** é uma máquina de estados. Foi
+> substituída por um ledger de eventos append-only: cada evento tem um `EventType`
+> (acto processual) e um `CustodianType` (quem detém a prova após o evento), ambos
+> `TextChoices` em `core/models.py`. Não existe `STATUS_CHOICES` nem
+> `VALID_TRANSITIONS` — o estado legal é **derivado** da sequência de eventos, e as
+> regras de aceitação são guardas mínimas (génese única, eventos terminais que
+> fecham o ledger, etc.), não uma tabela de transições.
 
 **Processo:**
-1. Estender `VALID_TRANSITIONS` dict em `core/models.py`
-2. Testar transições com novas regras no `test_state_machine`
+1. Acrescentar o valor a `EventType` (e/ou `CustodianType`) — `TextChoices` em `core/models.py`
+2. Se o novo acto encerrar a cadeia, adicioná-lo a `TERMINAL_EVENTS`; se for génese, a `GENESIS_EVENTS`
+3. Acrescentar as guardas mínimas necessárias na validação do evento, sem reintroduzir uma tabela de transições
+4. Testar a derivação do estado legal e as guardas com novos casos
 
-**Exemplo:** Adicionar estado "Armazenamento Criogénico"
+**Exemplo:** Acrescentar acto "Armazenamento criogénico"
 ```python
 # core/models.py
-class ChainOfCustody(models.Model):
-    STATUS_CHOICES = [
-        ('SEIZED', 'Apreendida'),
-        ('IN_TRANSIT', 'Em Trânsito'),
-        ('IN_LAB', 'No Laboratório'),
-        ('CRYO_STORAGE', 'Armazenamento Criogénico'),
-        ('ARCHIVED', 'Arquivada'),
-    ]
-    
-    VALID_TRANSITIONS = {
-        'SEIZED': ['IN_TRANSIT'],
-        'IN_TRANSIT': ['IN_LAB', 'IN_CUSTODY'],
-        'IN_LAB': ['CRYO_STORAGE', 'ARCHIVED'],
-        'CRYO_STORAGE': ['IN_LAB', 'ARCHIVED'],
-        'ARCHIVED': [],
-    }
+class CustodianType(models.TextChoices):
+    # ... valores atuais ...
+    LAB_PUBLICO = 'LAB_PUBLICO', 'Laboratório público'
+    CRIO = 'CRIO', 'Armazenamento criogénico'  # novo custódio
+
+class EventType(models.TextChoices):
+    # ... actos atuais ...
+    ENTRADA_CRIO = 'ENTRADA_CRIO', 'Entrada em armazenamento criogénico'  # novo acto
+# Sem VALID_TRANSITIONS: o estado legal continua a derivar-se do ledger.
 ```
 
 ### E. Novos Formatos de Exportação
 
-**Processo:**
-1. Implementar `ExportService` (interface definida em `core/services/export_service.py`)
+> **Estado atual:** só existe exportação PDF, em `core/pdf_export.py` (módulo
+> direto). A interface `ExportService` em `core/services/export_service.py` ainda
+> não existe — o processo abaixo é o desenho previsto para o dia em que se
+> acrescentar um segundo formato (Excel, Word, XML) e fizer sentido fatorizar a
+> abstração.
+
+**Processo (proposto):**
+1. Implementar `ExportService` (interface a definir em `core/services/export_service.py`)
 2. Registar em factory ou router
 3. Expor via endpoint `/api/evidences/{id}/export/{format}/`
 
-**Exemplo:** Exportador Excel
+**Exemplo (proposto):** Exportador Excel
 ```python
 # core/services/export_service.py
 from abc import ABC, abstractmethod
@@ -344,7 +377,12 @@ log_access(
 - **Testes de integração complexos** — Apps interdependentes requerem testes E2E (core + bio + chem)
 
 ### Mitigações
-- Criar **template Django app** (`scripts/create_forensics_app.sh`) para consistência
-- Documentar **convenções de naming** e **estructura de ficheiros** neste ADR
-- Criar **testes de integração genéricos** que verifiquem contrato de `ExportService` para todas as apps
-- Guardar **exemples de implementação** em cada módulo novo como referência
+
+> Estas mitigações são o plano a executar quando o primeiro módulo de domínio for
+> criado; ainda não estão implementadas. Em particular, `scripts/create_forensics_app.sh`
+> não existe (em `scripts/` há apenas `run_lighthouse.ps1`) — é uma proposta.
+
+- Criar **template Django app** (proposto: `scripts/create_forensics_app.sh`) para consistência
+- Documentar **convenções de naming** e **estrutura de ficheiros** neste ADR
+- Criar **testes de integração genéricos** que verifiquem o contrato de `ExportService` para todas as apps
+- Guardar **exemplos de implementação** em cada módulo novo como referência

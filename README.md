@@ -23,7 +23,7 @@
 - Backend Django 6 + DRF com **≈500 testes** (494 a passar + 6 skip de triggers só-PostgreSQL, exercitados no job postgres do CI) e cobertura **~84%** (gate CI a 80%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
-- Frontend HTML/CSS/JS vanilla, mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
+- Frontend server-rendered (Django templates + HTMX + Alpine.js + Leaflet), mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
 - Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com 5 ocorrências PT realistas e fotos placeholder.
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
@@ -35,10 +35,12 @@ A instância em <https://forensiq.pt> está pré-populada para fins de avaliaç�
 Para correr uma instância local com dados realistas, há um único comando interactivo:
 
 ```bash
-# Modo interactivo (pede username/password para AGENT e EXPERT em prompts):
+# Modo interactivo (pede em prompt as credenciais do agente e do perito; provisiona
+# ainda 4 perfis com password de demonstração conhecida — custódio, MP, chefe de
+# serviço e auditor — cobrindo os 6 papéis do ADR-0017):
 python manage.py seed_demo --reset
 
-# Só (cria/actualiza) os 2 utilizadores demo, sem mexer em ocorrências:
+# Só (cria/actualiza) os 6 utilizadores demo, sem mexer em ocorrências:
 python manage.py seed_demo --users-only
 
 # Não-interactivo (CI/scripts) — exige todas as credenciais como flags:
@@ -58,7 +60,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 ## Funcionalidades implementadas
 
 ### Modelo de dados forense
-- `User` (perfis **AGENT** / **EXPERT**, badge_number, phone)
+- `User` — dois eixos independentes (ADR-0017): **função** (`profile`, 6 valores: Agente/Primeiro interveniente, Perito forense, Custódio/Fiel depositário, Autoridade judiciária (MP), Chefe de serviço, Auditor) + **credencial** (`clearance`: NORMAL / NACIONAL); mais `badge_number`, `phone`
 - `Occurrence` — caso/cena de crime (NUIPC, GPS, address, agent)
 - `Evidence` — item apreendido com taxonomia de **18 tipos digital-first** (ADR-0010): 14 raízes — `MOBILE_DEVICE`, `COMPUTER`, `STORAGE_MEDIA`, `GAMING_CONSOLE`, `GPS_TRACKER`, `SMART_TAG`, `CCTV_DEVICE`, `VEHICLE`, `DRONE`, `IOT_DEVICE`, `NETWORK_DEVICE`, `DIGITAL_FILE`, `RFID_NFC_CARD`, `OTHER_DIGITAL` — e 4 sub-componentes — `SIM_CARD`, `MEMORY_CARD`, `INTERNAL_DRIVE`, `VEHICLE_COMPONENT` — com hierarquia até 3 níveis via `parent_evidence`
 - `ChainOfCustody` — **ledger de eventos append-only** (ADR-0015): cada registo é um evento (`event_type` + `custodian_type` + local/GPS) com hash SHA-256 encadeado. O estado legal (à guarda do OPC, em perícia, restituída, perdida a favor do Estado, …) é **derivado** do log, não gravado. Substituiu a antiga máquina de estados linear.
@@ -75,9 +77,9 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - DatabaseCache (PostgreSQL Neon) para `/api/stats/dashboard/` e lookups
 - Throttling (5 req/min) em endpoints sensíveis
 
-### Frontend (HTML5/CSS3/JavaScript vanilla)
+### Frontend (Django templates + HTMX + Alpine)
 - Mobile-first, touch targets ≥48px (WCAG 2.1 AA)
-- Tipografia: Inter (UI) + JetBrains Mono (hashes/IDs/timestamps)
+- Tipografia: IBM Plex Sans (UI) + IBM Plex Mono (hashes/IDs/timestamps/coordenadas), self-hosted (woff2)
 - Tokens semânticos para estados forenses (`--state-apreendida` etc.)
 - **Páginas:**
   - `/login/` — autenticação JWT (cookie) com fallback de erro e Caps Lock detect
@@ -85,6 +87,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
   - `/occurrences/` — lista + mapa Leaflet com toggle, pesquisa client-side, paginação
   - `/occurrences/new/` — wizard 6-step com GPS automático + reverse geocoding (Nominatim)
   - `/occurrences/<id>/` — hub do caso (resumo, mapa multi-marker com GPS por item, custody summary, lista de itens)
+  - `/occurrences/<id>/intake/` — intake/receção formal do caso
   - `/evidences/` — lista com badges por tipo, GPS/foto/sub indicators
   - `/evidences/new/` — wizard com type selector visual, captura de foto (câmara nativa + upload), GPS, lookup IMEI/VIN, sub-componentes recursivos
   - `/evidences/<id>/` — detalhe com hash SHA-256, foto, metadados, sub-componentes integrantes, custódia actual
@@ -93,6 +96,9 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
   - `/stats/` — dashboard agregado
   - `/reports/` — relatórios PDF
   - `/settings/` — perfil, **tema dia/noite + tema automático ao entardecer (geolocation + sunset NOAA)**, terminar sessão
+  - `/audit/investigation/` — relatório de investigação de erros (auditoria)
+  - `/verificacoes/` — centro de verificação QR para operador (gestão, não pesquisa pública)
+  - `/v/<hash>/` — verificação pública via QR, sem autenticação
 
 ### Infraestrutura
 - Deploy em **Fly.io (Frankfurt)** com volume persistente para uploads
@@ -115,7 +121,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 | **IDOR** | `get_queryset()` filtra por `request.user`; ownership validado em writes |
 | **Rate limiting** | DRF throttling 5/min em login/refresh/logout |
 | **Logging seguro** | Sem PII; correlation_id por request via middleware |
-| **Permissões** | RBAC fino (AGENT cria; EXPERT consulta; staff vê tudo) |
+| **Permissões** | RBAC fino por função (ADR-0017): primeiro interveniente cria; perito e custódio operam a custódia; autoridade judiciária (MP), chefe de serviço e auditor em só-leitura; visibilidade modulada pela credencial (NORMAL/NACIONAL) |
 | **Trusted proxies** | `TRUSTED_PROXIES` env var (X-Forwarded-For audit integrity) |
 | **Admin** | URL com prefixo aleatório via `ADMIN_URL_PREFIX` env var |
 
@@ -143,6 +149,10 @@ Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real cor
 | `tests_dashboard.py` | dashboard | feed de actividade, deltas 24h, séries 7d, ownership |
 | `tests_coverage.py` | cobertura adicional | exception handler, edge cases serializers, PDF content (`pypdf`), throttles |
 | `tests_frontend_js_namespace.py` | namespace JS | identificadores top-level + colisões cross-template |
+| `tests_access.py` | acesso + receção | gate de receção e papéis/credenciais (ADR-0017) |
+| `tests_modelo_v2.py` | identificação v2 | IDs hierárquicos + génese por proveniência (ADR-0016) |
+| `tests_intake.py` | intake de ocorrência | fluxo de receção/abertura de caso |
+| `tests_public_verify.py` | verificação pública | resolução de hash/QR sem auth (`/v/<hash>/`) |
 | `tests_factories.py` | helpers | factory-boy (inclui `AuditLogFactory`); não conta para o total |
 
 ```bash
@@ -176,8 +186,8 @@ ForensiQ/
 │   │   ├── c4-context.png           # C4 nv 1
 │   │   ├── c4-containers.png        # C4 nv 2
 │   │   ├── data-model.png           # ER PostgreSQL
-│   │   ├── adr/                     # ADRs 0001-0010
-│   │   └── diagrams/                # C4 + ER + state machine + hash-chain-flow + immutability-3-layers (Mermaid)
+│   │   ├── adr/                     # ADRs 0001-0017
+│   │   └── diagrams/                # C4 + ER + custody event ledger + hash-chain-flow + immutability-3-layers (Mermaid)
 │   ├── design/                      # § 5 do guia: interface
 │   │   ├── wireframes.pdf           # Protótipo de navegação (pós-implementação, abordagem code-first justificada via § 7)
 │   │   ├── auditoria-de-design.html # Auditoria estruturada (34 achados, 18 abr 2026)
@@ -189,8 +199,8 @@ ForensiQ/
 │   ├── backend/                     # Django 6 + DRF
 │   │   ├── core/                    # App principal (models, views, serializers, tests)
 │   │   ├── forensiq_project/        # Settings, URLs raiz, test_settings
-│   │   └── manage.py                # + comando interactivo `seed_demo` (cria utilizadores e dados)
-│   └── frontend/                    # Templates Django + CSS/JS vanilla
+│   │   └── manage.py                # comandos `seed_demo` (utilizadores+dados), `seed_crime_taxonomy` (INE/Lei 51/2023, ADR-0014), `purge_audit_logs` (retenção)
+│   └── frontend/                    # Templates Django + HTMX + Alpine.js + Leaflet + CSS/JS
 ├── src_latex/                       # Fonte LaTeX (proposta, intercalar) + figuras
 ├── Dockerfile                       # Multi-stage build
 ├── fly.toml                         # Config Fly.io (region fra)
@@ -251,7 +261,7 @@ python manage.py runserver
 
 ```bash
 cd src/backend
-python -m pytest -q                   # 213 testes
+python -m pytest -q                   # ≈500 testes (494 a passar + 6 skip de triggers só-PostgreSQL)
 python -m pytest --cov=core           # com coverage
 ```
 
@@ -264,13 +274,20 @@ python -m pytest --cov=core           # com coverage
 | 0001 | Base de dados | Neon.tech (Frankfurt) — gerido, com connection pooling |
 | 0002 | Estrutura Django | Projecto `forensiq_project` + app `core` |
 | 0003 | API REST | DRF + ViewSets + permissões custom + Spectacular OpenAPI |
-| 0004 | Frontend | HTML/CSS/JS vanilla — sem build, mobile-first |
+| 0004 | Frontend | Server-rendered (Django templates + HTMX + Alpine.js + Leaflet), mobile-first |
 | 0005 | Deployment | Fly.io (Frankfurt), HTTPS automático, volume persistente |
 | 0006 | Sub-componentes | `Evidence.parent_evidence` self-FK; profundidade ≤3 |
 | 0007 | SRI + Referrer-Policy | Subresource Integrity em CDN; strict-origin-when-cross-origin |
 | 0008 | Cache | DatabaseCache em Neon (sem Redis adicional) |
 | 0009 | JWT cookies | HttpOnly cookies + CSRF (Wave 2d) — substitui Authorization Bearer + localStorage |
 | 0010 | Taxonomia | 18 tipos digitais hierárquicos (Wave 2c); IMEI/VIN lookups |
+| 0011 | Upgrade Django 6 | Migração para Django 6.x |
+| 0012 | PDF | PDF como guia de transporte (barcodes/QR), não prova autónoma |
+| 0013 | GPS na custódia | Captura de GPS nos eventos de cadeia de custódia |
+| 0014 | Taxonomia/prioridade | Tipos de crime (INE) + prioridade derivada da Lei 51/2023 |
+| 0015 | Custódia ledger | Ledger de eventos append-only — substitui a máquina de estados |
+| 0016 | IDs hierárquicos | Identificação hierárquica + génese por proveniência (aquisição/extração) |
+| 0017 | Papéis e acesso | Função + credencial; papéis, instituições e acesso à custódia |
 
 Detalhe completo em `docs/architecture/adr/`.
 

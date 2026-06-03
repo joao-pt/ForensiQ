@@ -7,9 +7,9 @@
 | Activo | Onde vive | Sensibilidade | Perda aceitável |
 |---|---|---|---|
 | Base de dados PostgreSQL | Neon (Frankfurt, `eu-central-1`) | **Crítico** — toda a prova, custody chain, AuditLog, integridade SHA-256 dos artefactos | RPO ≤ 24h (perda diária) |
-| Fotografias de evidência | `MEDIA_ROOT/` no volume Fly.io `forensiq_data` | **Crítico** — bytes da prova; o hash na BD remete para estes ficheiros | RPO ≤ 24h |
+| Fotografias de evidência | `MEDIA_ROOT/` no volume Fly.io `forensiq_media` | **Crítico** — bytes da prova; o hash na BD remete para estes ficheiros | RPO ≤ 24h |
 | Aplicação (código + config) | Repositório GitHub `joao-pt/ForensiQ` | Médio — reproduzível via `git pull` + `fly deploy` | RTO ≤ 1h |
-| Segredos (`SECRET_KEY`, `JWT_SIGNING_KEY`, `QR_VERIFY_SECRET`, `IMEIDB_API_TOKEN`, `AUDIT_LOG_RETENTION_DAYS`) | Fly secrets (vault gerido) | **Alto** — exposição compromete autenticação | Sem perda aceitável; rotação possível |
+| Segredos (`DATABASE_URL`, `SECRET_KEY`, `JWT_SIGNING_KEY`, `QR_VERIFY_SECRET`, `IMEIDB_API_TOKEN`) | Fly secrets (vault gerido) | **Alto** — exposição compromete autenticação | Sem perda aceitável; rotação possível |
 
 ## 2. Estratégia de backup
 
@@ -22,7 +22,7 @@
 
 ### 2.2 Ficheiros media (fotografias de evidência)
 
-- **Hoje:** persistidos no volume Fly `forensiq_data` montado em `/data/media/`. Fly faz snapshots diários automáticos dos volumes pagos; o plano académico actual usa volume gratuito (sem snapshot automático garantido).
+- **Hoje:** persistidos no volume Fly `forensiq_media` montado em `/data/media/`. Fly faz snapshots diários automáticos dos volumes pagos; o plano académico actual usa volume gratuito (sem snapshot automático garantido).
 - **Mitigação manual:** `fly ssh sftp shell` + `get /data/media` mensalmente para arquivo local cifrado. Documentar data e hash do dump.
 - **Plano futuro (RGPD Art. 32 c, roadmap pós-entrega):** migrar para object storage S3-compatible com SSE-KMS, snapshots versionados, e retention policy alinhada com `AUDIT_LOG_RETENTION_DAYS`.
 
@@ -51,7 +51,7 @@
 
 **Limitação:** se o incidente é > 7 dias antigo (fora da janela PITR Free), os dados são irrecuperáveis. **Não há fallback** para esse cenário — o ForensiQ académico não tem backup off-site da BD.
 
-### 3.2 Volume `forensiq_data` perdido (fotografias)
+### 3.2 Volume `forensiq_media` perdido (fotografias)
 
 **Sintomas:** PDFs geram sem fotos; `MediaServeView` retorna 404 para todos os paths; `Evidence.photo.size` levanta `FileNotFoundError`.
 
@@ -73,7 +73,7 @@
 1. Gerar novas chaves: `python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"` (2× — uma para SECRET_KEY, outra para JWT_SIGNING_KEY).
 2. `fly secrets set SECRET_KEY='...' JWT_SIGNING_KEY='...' -a forensiq` (atomic, restart automático).
 3. **Todas as sessões JWT são invalidadas** — utilizadores precisam de re-login.
-4. `git log --all --source -- '<ficheiro_suspeito>'` para confirmar exposição; se foi commitado, `git filter-repo --invert-paths --path <ficheiro>` + force-push + GitHub Support (ver `SUPPORT_TICKET.md` para o procedimento documentado).
+4. `git log --all --source -- '<ficheiro_suspeito>'` para confirmar exposição; se foi commitado, `git filter-repo --invert-paths --path <ficheiro>` + force-push + abrir pedido ao GitHub Support para invalidar caches de blobs expostos.
 5. Auditoria: criar `AuditLog SYSTEM_ALERT` com `details={'event': 'secret_rotation', 'reason': '...'}`.
 
 ### 3.4 Comprometimento de `QR_VERIFY_SECRET`
@@ -84,7 +84,7 @@
 
 1. `fly secrets set QR_VERIFY_SECRET='<novo>' -a forensiq`.
 2. **Todos os QR codes impressos perdem validade imediatamente** — vai aparecer 404 quando scaneados.
-3. Re-imprimir PDFs para todos os talões físicos ainda em trânsito (consultar `ChainOfCustody` com `new_state=EM_TRANSPORTE`).
+3. Re-imprimir PDFs para os talões ainda em trânsito (consultar `ChainOfCustody` com `event_type=TRANSFERENCIA_CUSTODIA` cujo evento subsequente de `ASSUNCAO_CUSTODIA`/conclusão ainda não foi registado — i.e., custódia em movimento no ledger; ADR-0015/0016).
 4. Comunicar a peritos no laboratório que talões antigos precisam de ser reemitidos.
 
 **Mitigação:** o `QR_VERIFY_SECRET` é deliberadamente separado de `SECRET_KEY` (decisão ADR-0012) para permitir rotação independente sem invalidar sessões JWT.
@@ -97,7 +97,7 @@
 
 1. Confirmar status global Fly em <https://status.flyio.net>.
 2. Se incidente regional: `fly scale count 0 -a forensiq` + `fly regions add ams -a forensiq` (Amsterdam, mais próximo) + `fly scale count 1 -a forensiq`.
-3. Verificar que o volume `forensiq_data` está disponível na nova região (se não estiver, ver §3.2).
+3. Verificar que o volume `forensiq_media` está disponível na nova região (se não estiver, ver §3.2).
 4. DNS: `forensiq.pt` aponta para `forensiq.fly.dev` (CNAME) — sem mudança DNS necessária.
 
 ## 4. Teste de DR

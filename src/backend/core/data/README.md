@@ -6,8 +6,8 @@ classificação do crime e a prioridade da `Occurrence` descritas no
 Não são `Evidence`/`ChainOfCustody`/`AuditLog`/`Occurrence`: são editáveis e
 versionáveis no admin e **não** levam os triggers de imutabilidade.
 
-O comando `seed_crime_taxonomy` (a criar no PASSO seguinte) semeia a base de
-dados a partir destes ficheiros, de forma idempotente.
+O comando `seed_crime_taxonomy` semeia a base de dados a partir destes
+ficheiros, de forma idempotente.
 
 ## Ficheiros
 
