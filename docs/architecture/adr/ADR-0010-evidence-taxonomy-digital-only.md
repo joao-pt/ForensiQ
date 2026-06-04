@@ -59,7 +59,7 @@ Simultaneamente, um novo requisito entrou no Wave 2: **registos hierárquicos** 
 | `INTERNAL_DRIVE`    | Disco interno (HDD / SSD / NVMe) |
 | `VEHICLE_COMPONENT` | Componente electrónico de veículo (ECU, dashcam, telemetry) |
 
-3. **Hierarquia explícita:** Adicionar `parent_evidence: ForeignKey('self', null=True)` com `MAX_TREE_DEPTH = 3` — permite cadeias até 3 níveis (ex.: "veículo → telemóvel → SIM (folha)") mas impede árvores patológicas. Os sub-componentes (SIM, cartão de memória, disco interno, componente de veículo) são **tipos-folha** (`EVIDENCE_LEAF_TYPES`) e não admitem filhos. Validação em `Evidence.clean()` via walk recursivo anti-ciclos.
+3. **Hierarquia explícita:** Adicionar `parent_evidence: ForeignKey('self', null=True)` com `MAX_TREE_DEPTH = 3` — permite cadeias até 3 níveis (ex.: "veículo → telemóvel → SIM (folha)") mas impede árvores patológicas. Os **tipos-folha** (`EVIDENCE_LEAF_TYPES`: cartão SIM, cartão de memória, cartão RFID/NFC e ficheiro digital) são, por natureza, indivisíveis e não admitem sub-componentes. Validação em `Evidence.clean()` via walk recursivo anti-ciclos.
 4. **Campos específicos via JSON:** Novo `type_specific_data: JSONField(default=dict)` recebe `imei`, `imsi`, `iccid`, `mac`, `vin`, `device_serial_number`, etc. conforme o tipo. Serializer e `Model.clean()` aplicam validadores dedicados (`validate_imei`, `validate_imsi`, `validate_iccid`, `validate_vin`, `validate_mac`) em defense-in-depth.
 5. **Mapa de migração (forward-only):**
    | Legacy | Substituto | Notas |
