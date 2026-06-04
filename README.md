@@ -177,11 +177,11 @@ cd src/backend
 ForensiQ/
 ├── docs/
 │   ├── scope/                       # § 5 do guia: âmbito + planeamento
-│   │   ├── proposta.md / .tex       # Sinopse, MVP, critérios de aceitação
-│   │   ├── requirements.md / .tex   # MoSCoW (RF01-17, RNF01-06)
-│   │   ├── risks.md / .tex          # R01-R10 + matriz de controlos forenses
+│   │   ├── proposta.md              # Sinopse, MVP, critérios de aceitação
+│   │   ├── requirements.md          # MoSCoW (RF01-17, RNF01-06)
+│   │   ├── risks.md                 # R01-R10 + matriz de controlos forenses
 │   │   ├── changelog.md             # Uma entrada por semana (Sem 1-7)
-│   │   └── iso27037-traceability.tex/pdf  # Mapeamento à norma
+│   │   └── iso27037-traceability.pdf      # Mapeamento à norma
 │   ├── architecture/                # § 5 do guia: design
 │   │   ├── c4-context.png           # C4 nv 1
 │   │   ├── c4-containers.png        # C4 nv 2
@@ -201,7 +201,6 @@ ForensiQ/
 │   │   ├── forensiq_project/        # Settings, URLs raiz, test_settings
 │   │   └── manage.py                # comandos `seed_demo` (utilizadores+dados), `seed_crime_taxonomy` (INE/Lei 51/2023, ADR-0014), `purge_audit_logs` (retenção)
 │   └── frontend/                    # Templates Django + HTMX + Leaflet + CSS/JS
-├── src_latex/                       # Fonte LaTeX (proposta, intercalar) + figuras
 ├── Dockerfile                       # Multi-stage build
 ├── fly.toml                         # Config Fly.io (region fra)
 └── README.md

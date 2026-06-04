@@ -5,7 +5,7 @@
 | Campo | Valor |
 |---|---|
 | Versão | 1.1 · 3 mai 2026 (Markdown) |
-| Versões anteriores | [`risks.tex`](./risks.tex) (1.0 · 22 mar) · [`risks-controls.pdf`](./risks-controls.pdf) (1.0 · 12 abr — controlos técnicos) |
+| Versões anteriores | `risks.tex` (1.0 · 22 mar — fonte LaTeX arquivada fora do repositório) · [`risks-controls.pdf`](./risks-controls.pdf) (1.0 · 12 abr — controlos técnicos) |
 
 ---
 

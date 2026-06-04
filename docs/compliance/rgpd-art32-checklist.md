@@ -6,7 +6,7 @@
 **Âmbito:** aplicação web ForensiQ (backend Django 6 + DRF, frontend server-rendered (Django templates + HTMX + Leaflet), infra Fly.io + Neon).
 **Referências cruzadas:**
 - Auditoria técnica: [`docs/AUDIT_2026-04-16.md`](../AUDIT_2026-04-16.md)
-- Rastreabilidade ISO/IEC 27037: [`docs/scope/iso27037-traceability.tex`](../scope/iso27037-traceability.tex)
+- Rastreabilidade ISO/IEC 27037: [`docs/scope/iso27037-traceability.pdf`](../scope/iso27037-traceability.pdf)
 - ADR deployment: [`docs/architecture/adr/ADR-0005-deployment-flyio.md`](../architecture/adr/ADR-0005-deployment-flyio.md)
 
 ---
