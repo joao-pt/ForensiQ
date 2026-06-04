@@ -3,7 +3,7 @@
 **Documento:** mapeamento entre o Regulamento (UE) 2016/679 (RGPD), Artigo 32.º "Segurança do tratamento", e a implementação técnica da aplicação ForensiQ.
 **Versão:** 1.0
 **Data:** 2026-04-18
-**Âmbito:** aplicação web ForensiQ (backend Django 6 + DRF, frontend server-rendered (Django templates + HTMX + Alpine + Leaflet), infra Fly.io + Neon).
+**Âmbito:** aplicação web ForensiQ (backend Django 6 + DRF, frontend server-rendered (Django templates + HTMX + Leaflet), infra Fly.io + Neon).
 **Referências cruzadas:**
 - Auditoria técnica: [`docs/AUDIT_2026-04-16.md`](../AUDIT_2026-04-16.md)
 - Rastreabilidade ISO/IEC 27037: [`docs/scope/iso27037-traceability.tex`](../scope/iso27037-traceability.tex)

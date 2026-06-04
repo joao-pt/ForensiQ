@@ -174,6 +174,6 @@ O `settings.py` activa automaticamente quando `DEBUG=False`:
 - **SSL redirect:** Todos os pedidos HTTP redireccionados para HTTPS
 - **Cookies secure:** Session e CSRF cookies só via HTTPS
 - **Proxy SSL header:** `X-Forwarded-Proto` do Fly.io
-- **CORS:** Apenas `forensiq.pt` e `www.forensiq.pt`
-- **CSRF trusted origins:** Apenas `forensiq.pt` e `www.forensiq.pt`
+- **CORS:** `forensiq.pt`, `www.forensiq.pt` e `forensiq.fly.dev` (host do Fly.io)
+- **CSRF trusted origins:** Idem — mesma lista canónica (`_FRONTEND_ORIGINS`) reutilizada em `settings.py`
 - **Container:** Corre como utilizador `forensiq` (não-root)

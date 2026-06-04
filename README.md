@@ -23,7 +23,7 @@
 - Backend Django 6 + DRF com **≈500 testes** (494 a passar + 6 skip de triggers só-PostgreSQL, exercitados no job postgres do CI) e cobertura **~84%** (gate CI a 80%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
-- Frontend server-rendered (Django templates + HTMX + Alpine.js + Leaflet), mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
+- Frontend server-rendered (Django templates + HTMX + Leaflet), mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
 - Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com 5 ocorrências PT realistas e fotos placeholder.
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
@@ -77,7 +77,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - DatabaseCache (PostgreSQL Neon) para `/api/stats/dashboard/` e lookups
 - Throttling (5 req/min) em endpoints sensíveis
 
-### Frontend (Django templates + HTMX + Alpine)
+### Frontend (Django templates + HTMX + Leaflet)
 - Mobile-first, touch targets ≥48px (WCAG 2.1 AA)
 - Tipografia: IBM Plex Sans (UI) + IBM Plex Mono (hashes/IDs/timestamps/coordenadas), self-hosted (woff2)
 - Tokens semânticos para estados forenses (`--state-apreendida` etc.)
@@ -95,7 +95,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
   - `/custodies/` — todas as transições com filtros (mobile compacto, desktop completo)
   - `/stats/` — dashboard agregado
   - `/reports/` — relatórios PDF
-  - `/settings/` — perfil, **tema dia/noite + tema automático ao entardecer (geolocation + sunset NOAA)**, terminar sessão
+  - `/settings/` — perfil, **tema dia/noite + tema automático por hora do dia (claro 07h–19h, escuro fora desse intervalo)**, terminar sessão
   - `/audit/investigation/` — relatório de investigação de erros (auditoria)
   - `/verificacoes/` — centro de verificação QR para operador (gestão, não pesquisa pública)
   - `/v/<hash>/` — verificação pública via QR, sem autenticação
@@ -129,7 +129,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - **Mobile (perito no terreno)**: dashboard prioriza acções rápidas (Nova Ocorrência / Novo Item) e últimas ocorrências; estatísticas em scroll horizontal compacto
 - **Desktop**: stats grid 4 colunas + breakdown + acções + recent
 - **Breadcrumb**: chevron SVG mask-image; em mobile colapsa para botão "← {parent}"
-- **Tema dia/noite** com toggle persistente em localStorage; **tema automático opcional** ativa modo noite 1h após pôr-do-sol (cálculo NOAA via geolocation, client-side)
+- **Tema dia/noite** com toggle persistente em localStorage; **tema automático opcional** por hora do dia (claro entre as 07h e as 19h, escuro fora desse intervalo), client-side
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
@@ -200,7 +200,7 @@ ForensiQ/
 │   │   ├── core/                    # App principal (models, views, serializers, tests)
 │   │   ├── forensiq_project/        # Settings, URLs raiz, test_settings
 │   │   └── manage.py                # comandos `seed_demo` (utilizadores+dados), `seed_crime_taxonomy` (INE/Lei 51/2023, ADR-0014), `purge_audit_logs` (retenção)
-│   └── frontend/                    # Templates Django + HTMX + Alpine.js + Leaflet + CSS/JS
+│   └── frontend/                    # Templates Django + HTMX + Leaflet + CSS/JS
 ├── src_latex/                       # Fonte LaTeX (proposta, intercalar) + figuras
 ├── Dockerfile                       # Multi-stage build
 ├── fly.toml                         # Config Fly.io (region fra)
@@ -274,7 +274,7 @@ python -m pytest --cov=core           # com coverage
 | 0001 | Base de dados | Neon.tech (Frankfurt) — gerido, com connection pooling |
 | 0002 | Estrutura Django | Projecto `forensiq_project` + app `core` |
 | 0003 | API REST | DRF + ViewSets + permissões custom + Spectacular OpenAPI |
-| 0004 | Frontend | Server-rendered (Django templates + HTMX + Alpine.js + Leaflet), mobile-first |
+| 0004 | Frontend | Server-rendered (Django templates + HTMX + Leaflet), mobile-first |
 | 0005 | Deployment | Fly.io (Frankfurt), HTTPS automático, volume persistente |
 | 0006 | Sub-componentes | `Evidence.parent_evidence` self-FK; profundidade ≤3 |
 | 0007 | SRI + Referrer-Policy | Subresource Integrity em CDN; strict-origin-when-cross-origin |

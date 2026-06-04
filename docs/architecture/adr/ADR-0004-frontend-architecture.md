@@ -4,11 +4,11 @@
 Superseded
 
 > **Nota de superseding (Fase 3 — reconstrução do frontend):**
-> Esta decisão foi substituída. O frontend deixou de ser uma camada vanilla que consome a API REST via JWT a partir do browser e passou a ser **server-rendered** com **Django Templates + HTMX + Alpine + Leaflet**, com autenticação por **cookies HttpOnly** servidos pelo Django (ver ADR-0009). A renderização passou a ser feita no servidor (ORM → template), eliminando o *drift* entre o contrato da API e a UI.
+> Esta decisão foi substituída. O frontend deixou de ser uma camada vanilla que consome a API REST via JWT a partir do browser e passou a ser **server-rendered** com **Django Templates + HTMX + Leaflet**, com autenticação por **cookies HttpOnly** servidos pelo Django (ver ADR-0009). A renderização passou a ser feita no servidor (ORM → template), eliminando o *drift* entre o contrato da API e a UI.
 >
 > Em concreto:
 > - A **alternativa 2** considerada abaixo (Django Templates com HTMX), na altura rejeitada por adicionar dependência, foi precisamente a adoptada na reconstrução.
-> - A organização "um CSS/JS por página" (`src/frontend/static/css/pages/*` e `src/frontend/static/js/pages/*`) foi descontinuada; os módulos por página foram removidos. A organização e a direcção de arte do novo frontend estão especificadas em `docs/refactor/art-direction.md`.
+> - A organização "um CSS/JS por página" (`src/frontend/static/css/pages/*` e `src/frontend/static/js/pages/*`) foi descontinuada; subsistem apenas os módulos `login` e `error`. A direcção de arte do novo frontend assenta em IBM Plex Sans/Mono, acento âmbar e densidade de ferramenta forense.
 > - A **API DRF** mantém-se, mas para PWA, acesso público (verificação) e mobile — não como camada de consumo do frontend web.
 >
 > O corpo seguinte preserva-se como registo histórico da decisão original.
