@@ -1,0 +1,59 @@
+%% ForensiQ — C4 Nivel 2 (Containers) — arquitetura hibrida
+%% UI server-rendered (Django + HTMX) + API REST (DRF) sobre um nucleo unico.
+%% Substitui, para o relatorio final, o c4-container.mmd (snapshot pre-refactor, mantido como historico do intercalar).
+%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i c4-container-hibrido.mmd -o c4-container-hibrido.png -b transparent -w 2200
+
+flowchart TB
+    Browser("Agente / Perito<br/>browser — HTML")
+    ApiClient("PWA · app móvel futura<br/>integração — JSON")
+    Public("Cidadão<br/>verificação pública")
+
+    subgraph Edge["Fly.io · Frankfurt"]
+        Gunicorn["Gunicorn (WSGI) + WhiteNoise<br/>HTTPS A+ · CSP nonce · JWTCookieAuth · CSRF"]
+    end
+
+    subgraph App["Django 6.0 · forensiq_project"]
+        subgraph Web["Apresentação web — para humanos"]
+            FViews["frontend_views.py<br/>vistas server-rendered"]
+            Templates["Templates Django + HTMX<br/>Leaflet (mapas)"]
+        end
+
+        subgraph ApiLayer["Apresentação API — para máquinas"]
+            DRF["DRF ViewSets<br/>JSON · Swagger /api/docs/"]
+            PDFGen["Guia PDF<br/>/api/.../pdf/ · ReportLab"]
+        end
+
+        subgraph CoreLayer["Núcleo partilhado"]
+            Serializers["Serializers DRF<br/>validação — fonte única"]
+            Access["Acesso need-to-know<br/>ADR-0017"]
+            Models["Models + Triggers PostgreSQL<br/>Evidence (imutável)<br/>ChainOfCustody — ledger append-only<br/>SHA-256 encadeado · ADR-0015"]
+        end
+    end
+
+    Neon[("PostgreSQL<br/>Neon.tech · Frankfurt")]
+    OSM[/"OpenStreetMap<br/>tiles · Nominatim"/]
+    IMEI[/"IMEIDB.xyz"/]
+    Volume[("Fly Volume<br/>/data/media")]
+
+    Browser -->|"HTTPS · HTML"| Gunicorn
+    Public -->|"HTTPS · HTML"| Gunicorn
+    ApiClient -->|"HTTPS · JSON"| Gunicorn
+
+    Gunicorn --> FViews
+    Gunicorn --> DRF
+
+    FViews --> Templates
+    FViews -->|"lê ORM + reutiliza validação"| Serializers
+    DRF --> Serializers
+    DRF --> PDFGen
+    PDFGen --> Models
+
+    Serializers --> Access
+    Access --> Models
+    Models --> Neon
+
+    Templates -.->|"tiles"| OSM
+    DRF -.->|"reverse geocoding"| OSM
+    DRF -.->|"lookup IMEI"| IMEI
+    PDFGen -.->|"lê fotos"| Volume
+    DRF -.->|"upload fotos"| Volume
