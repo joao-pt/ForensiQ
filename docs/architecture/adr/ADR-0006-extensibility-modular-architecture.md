@@ -323,16 +323,18 @@ class AuditLog(models.Model):
     class Action(models.TextChoices):
         VIEW = 'VIEW', 'Visualização'
         CREATE = 'CREATE', 'Criação'
-        UPDATE = 'UPDATE', 'Actualização'
-        DELETE = 'DELETE', 'Eliminação'
         EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
+        EXPORT_CSV = 'EXPORT_CSV', 'Exportação CSV'
+        AUDIT_PURGE = 'AUDIT_PURGE', 'Expurgo de Logs (retenção RGPD)'
+        SYSTEM_ALERT = 'SYSTEM_ALERT', 'Alerta Operacional (quota/auth)'
+        # Sem UPDATE/DELETE: as entidades auditadas são imutáveis (append-only).
     
     user = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
     action = models.CharField(max_length=20, choices=Action.choices)
-    resource_type = models.CharField(max_length=50)  # EVIDENCE, OCCURRENCE, etc.
+    resource_type = models.CharField(max_length=20)  # OCCURRENCE, EVIDENCE, CUSTODY, DEVICE, SYSTEM
     resource_id = models.IntegerField()
     ip_address = models.GenericIPAddressField()
-    correlation_id = models.UUIDField(default=uuid4)
+    correlation_id = models.CharField(max_length=36, blank=True, default='')  # UUID da requisição
     timestamp = models.DateTimeField(auto_now_add=True)
     details = models.JSONField(default=dict)
 

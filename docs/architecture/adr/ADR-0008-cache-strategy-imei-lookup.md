@@ -56,7 +56,7 @@ O VIN não passa por este cache: deixou de haver integração de API e passou a 
 
 A monitorização de consumo da imeidb.xyz não usa este padrão de chave: é um contador `imeidb:calls_24h` (TTL 24h), que dá visibilidade operacional do número de chamadas nas últimas 24 horas.
 
-Em caso de falha do cache (erro de DB, timeout), o código de lookup **continua** — faz a chamada directa à API, devolve o resultado ao utilizador, e apenas loga o erro de cache. O cache é uma optimização, nunca um caminho crítico.
+Por desenho, o cache é uma optimização, nunca um caminho crítico: uma falha de cache (erro de DB, timeout) não deveria impedir o lookup nem o registo de prova. **Nota de implementação:** este *fallback* silencioso ainda não está no código — as chamadas `cache.get()`/`cache.set()` no lookup IMEI (`core/views.py`, ~`:695`/`:737`) não estão envolvidas em `try/except`, pelo que uma falha do *backend* de cache surge como erro. Envolvê-las fica como endurecimento pendente (ver Mitigações).
 
 ## Alternatives Considered
 
@@ -111,7 +111,7 @@ Spawn de um contentor Redis no Fly.io (deixou de ter plano gratuito desde 2024).
 ### Mitigações
 
 - **Índice da chave** — a tabela é criada via `createcachetable`, que define a coluna `cache_key` como chave primária (índice único do schema canónico do Django), suficiente para o lookup por chave. Não há índice adicional explícito na migration.
-- **Fallback silencioso** — o serviço de lookup trata excepções de cache (`cache.get()`, `cache.set()`) como warnings e continua a fazer a chamada à API, garantindo que uma falha de cache nunca impede o registo de prova.
+- **Fallback silencioso (endurecimento pendente).** O desenho prevê tratar excepções de cache (`cache.get()`, `cache.set()`) como *warnings*, continuando a chamada à API para que uma falha de cache nunca impeça o registo de prova. À data, porém, estas chamadas em `core/views.py` (~`:695`/`:737`) **não** estão protegidas por `try/except` — está por implementar.
 
 ## Revisão futura
 

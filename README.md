@@ -20,7 +20,7 @@
 
 🟢 **MVP funcional em produção · Sem. 9 (janela de revisão alargada) · Relatório Intercalar aprovado em 5 mai 2026.**
 
-- Backend Django 6 + DRF com **≈500 testes** (494 a passar + 6 skip de triggers só-PostgreSQL, exercitados no job postgres do CI) e cobertura **~84%** (gate CI a 80%).
+- Backend Django 6 + DRF com **≈537 testes** (531 a passar + 6 skip de triggers só-PostgreSQL, exercitados no job postgres do CI) e cobertura **~84%** (gate CI a 80%).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
 - Frontend server-rendered (Django templates + HTMX + Leaflet), mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
@@ -94,7 +94,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
   - `/evidences/<id>/custody/` — timeline cronológica com state progress, modal de transição (apenas AGENT, próximo estado válido), hashes encadeados
   - `/custodies/` — todas as transições com filtros (mobile compacto, desktop completo)
   - `/stats/` — dashboard agregado
-  - `/reports/` — relatórios PDF
+  - `/reports/` — guias de transporte (PDF, ADR-0012)
   - `/settings/` — perfil, **tema dia/noite + tema automático por hora do dia (claro 07h–19h, escuro fora desse intervalo)**, terminar sessão
   - `/audit/investigation/` — relatório de investigação de erros (auditoria)
   - `/verificacoes/` — centro de verificação QR para operador (gestão, não pesquisa pública)
@@ -133,7 +133,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (≈500 · cobertura ~84%, gate CI 80%)
+### Testes (≈537 · cobertura ~84%, gate CI 80%)
 
 Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real corre `pytest -q`.
 
@@ -158,7 +158,7 @@ Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real cor
 ```bash
 cd src/backend
 ../../.venv/Scripts/python.exe -m pytest -q
-# ~494 passed, 6 skipped (triggers só-PostgreSQL)
+# 531 passed, 6 skipped (triggers só-PostgreSQL)
 ../../.venv/Scripts/python.exe -m pytest --cov=core --cov-report=term-missing
 # Cobertura ~84% global (gate CI: fail_under=80)
 ```
@@ -261,7 +261,7 @@ python manage.py runserver
 
 ```bash
 cd src/backend
-python -m pytest -q                   # ≈500 testes (494 a passar + 6 skip de triggers só-PostgreSQL)
+python -m pytest -q                   # ≈537 testes (531 a passar + 6 skip de triggers só-PostgreSQL)
 python -m pytest --cov=core           # com coverage
 ```
 
@@ -295,7 +295,7 @@ Detalhe completo em `docs/architecture/adr/`.
 
 ## Contribuir
 
-Ver [`CONTRIBUTING.md`](CONTRIBUTING.md) para o workflow de Conventional Commits em PT-PT, política de *branches* e processo de Pull Request. Reportar vulnerabilidades via [`SECURITY.md`](SECURITY.md) (GitHub Security Advisory privado, não issue público). Código de conduta em [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) (Contributor Covenant 2.1).
+Projecto académico individual (UC 21184). Os commits seguem Conventional Commits em PT-PT. Reportar vulnerabilidades via [`SECURITY.md`](SECURITY.md) — GitHub Security Advisory privado, não *issue* público.
 
 ## Roadmap pós-entrega final
 
@@ -323,8 +323,8 @@ Trabalho assumido como *future work* no relatório, a executar após avaliação
 
 ## Uso de IA generativa
 
-O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerciais, principalmente) em modo *pair programming*: brainstorming arquitectural, geração de boilerplate, escrita inicial de testes, revisão de segurança. Todo o código foi compreendido, validado e adaptado pelo autor antes de entrar no repositório (regra inviolável definida em `INSTRUCOES_GLOBAIS.md`). Ferramentas e referências serão listadas na secção de Referências do relatório final.
+O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerciais, principalmente) em modo *pair programming*: brainstorming arquitectural, geração de boilerplate, escrita inicial de testes, revisão de segurança. Todo o código foi compreendido, validado e adaptado pelo autor antes de entrar no repositório (regra inviolável de desenvolvimento do projecto). Ferramentas e referências serão listadas na secção de Referências do relatório final.
 
 ---
 
-*Última actualização: 30 mai 2026 · refactor backend (Fase 2) · **≈500 testes** (494 a passar + 6 skip de triggers PG) · cobertura ~84% (gate CI 80%)*
+*Última actualização: 4 jun 2026 · sincronização da documentação com o código · **≈537 testes** (531 a passar + 6 skip de triggers PG) · cobertura ~84% (gate CI 80%)*

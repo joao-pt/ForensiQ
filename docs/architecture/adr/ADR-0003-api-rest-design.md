@@ -51,7 +51,7 @@ Com os modelos de dados definidos (ADR-0002), é necessário expor uma API REST 
 - Campo `agent` preenchido automaticamente via `perform_create(serializer.save(agent=request.user))`.
 - `integrity_hash` e `record_hash` são read-only nos serializers.
 - ValidationError do modelo convertida para DRF ValidationError (HTTP 400).
-- Paginação por defeito: 20 itens por página.
+- Paginação por defeito: 50 itens por página (`page_size_query_param` permite ao cliente pedir 20/50/100; `max_page_size` corta em 100).
 - Filtragem por query params: `?occurrence=id`, `?evidence=id`.
 
 ## Consequences
@@ -60,7 +60,7 @@ Com os modelos de dados definidos (ADR-0002), é necessário expor uma API REST 
 - API consistente e previsível (convenções REST).
 - Permissões granulares por perfil, testadas automaticamente.
 - Swagger UI disponível em `/api/docs/` para documentação interativa.
-- `tests_api.py` cobre os cenários principais (>60 casos); a suite total do core ronda os ~500 testes.
+- `tests_api.py` cobre os cenários principais (>60 casos); a suite total do core ronda os ~537 testes.
 
 ### Negativas
 - Sem versionamento de API (v1/) — a considerar se houver alterações breaking.

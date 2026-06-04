@@ -64,7 +64,7 @@ Simultaneamente, um novo requisito entrou no Wave 2: **registos hierárquicos** 
 5. **Mapa de migração (forward-only):**
    | Legacy | Substituto | Notas |
    | ------ | ---------- | ----- |
-   | `DIGITAL_DEVICE` | `MOBILE_DEVICE` ou `COMPUTER` | A peritagem escolhe por contexto |
+   | `DIGITAL_DEVICE` | `MOBILE_DEVICE` | A migração assume telemóvel (`# assume-se smartphone`); reclassificação manual pela perícia se for computador |
    | `DOCUMENT`       | `OTHER_DIGITAL` | Fallback — papel deixou de existir |
    | `PHOTO`          | `DIGITAL_FILE` | Captura fotográfica como ficheiro digital |
    | `VEHICLE`        | `VEHICLE` | Inalterado |

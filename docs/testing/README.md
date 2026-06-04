@@ -144,7 +144,7 @@ Playwright (ver `pyproject.toml` → `testpaths = ["core"]`).
 
 ---
 
-## 5. Cobertura atual (33 testes E2E)
+## 5. Cobertura atual (32 testes E2E)
 
 | Módulo | Testes | O que cobre |
 |---|---:|---|
@@ -156,7 +156,7 @@ Playwright (ver `pyproject.toml` → `testpaths = ["core"]`).
 | `test_custody.py` | 1 | Registo de evento no **ledger** de custódia (transição válida). |
 | `test_intake.py` | 1 | **Receção** no laboratório (transferência para LAB_PUBLICO, perito-only). |
 | `test_public_verify.py` | 2 | Verificação pública por QR (sem login): hash válido = 200; inválido = 404. |
-| `test_accessibility.py` | 3 | **Zero** violações graves/críticas de a11y (incl. contraste WCAG AA) — testado no tema **claro E escuro**; login. |
+| `test_accessibility.py` | 2 | **Zero** violações graves/críticas de a11y (incl. contraste WCAG AA) — testado no tema **claro E escuro** (parametrizado); login. |
 | `test_performance.py` | 3 | Orçamento de render do servidor; latência da cascata; latência do filtro HTMX. |
 | `test_keyboard.py` | 3 | A11y de teclado: skip link → conteúdo; login submetido com Enter; abrir o drawer com Enter numa linha. |
 | `test_mobile.py` | 1 | Responsivo: o off-canvas da sidebar abre/fecha em viewport móvel (incl. Escape). |
