@@ -4,6 +4,8 @@
 
 Accepted — 2026-05-30. Formaliza a classificação do crime e a prioridade da `Occurrence`. Estende os campos da `Occurrence` e liga-se ao feed de actividade e à decisão de tornar a `OccurrenceViewSet` POST-only. Acompanha o ADR-0013 (GPS na custódia) como segundo ADR estrutural da Fase 2 do refactor.
 
+> **Âncoras de linha e nomenclatura.** Os números de linha citados refletem o estado do `models.py` à data da decisão (pré-implementação); o código atual é a fonte de verdade (`Occurrence` em `core/models.py:548`). A convenção de longitude é hoje `gps_lng` em todo o schema (rename `gps_lon`→`gps_lng`, migração `0018`, ADR-0013); leituras de `gps_lon` neste ADR referem-se ao nome pré-rename.
+
 ## Data
 
 2026-05-30

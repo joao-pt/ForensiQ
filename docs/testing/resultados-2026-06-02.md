@@ -88,4 +88,4 @@ item mais pesado, adiado.
   script único (semear + arrancar + auditar + parar) é possível se valer a pena.
 - **F2 (contraste) — revisão visual:** os tokens ficaram mais escuros para
   cumprir AA; vale a pena uma vista de olhos para confirmar que a estética densa
-  se mantém ao meu gosto (a norma está cumprida; o ajuste fino é de gosto).
+  se mantém conforme pretendido (a norma está cumprida; o ajuste fino é uma questão de preferência).

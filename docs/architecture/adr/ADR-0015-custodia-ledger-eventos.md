@@ -9,6 +9,8 @@ Formaliza o tema **T20** do `o plano interno de refactor` (Fase 2 do refactor). 
 Substitui o desenho de máquina-de-estados linear que descrevia a `ChainOfCustody` (`CustodyState` + `VALID_TRANSITIONS`). A descrição antiga do T20 no `plano interno de refactor` (grafo ramificado, `VALID_TRANSITIONS` alargado, +4 estados) fica **substituída** por este modelo de ledger de eventos.
 
 > **Nota de superveniência.** Os nomes dos eventos descritos neste ADR foram depois refinados, sem alterar a semântica de ledger aqui fixada. O ADR-0016 desdobrou a génese por proveniência — `APREENSAO` passou a `APREENSAO_OBJETO`/`APREENSAO_DADOS` e acrescentou-se `DERIVACAO_ITEM`; `VALIDACAO` passou a `VALIDACAO_APREENSAO`. O ADR-0017 separou a transferência de custódia nos dois lados do movimento — `TRANSFERENCIA` (push, entrega) e `ASSUNCAO_CUSTODIA` (pull, recepção). O código actual reflecte estes nomes (`EventType`, `src/backend/core/models.py:1315-1343`), com as guardas a operar sobre conjuntos de eventos de génese (`GENESIS_EVENTS`, `SEIZURE_GENESIS_EVENTS`) em vez da guarda literal `APREENSAO`. A guarda `INICIO_PERICIA` ⇐ `DESPACHO_PERICIA` mantém-se. Tudo o resto deste ADR permanece válido.
+>
+> **Âncoras de linha.** Os restantes números de linha citados ao longo deste ADR refletem o estado do `models.py` *à data da decisão* (a versão de partida a refatorar e o plano de execução do T20); o código atual é a fonte de verdade — p.ex. `derive_legal_state` em `core/models.py:1378`, `compute_record_hash` em `:1801`, e o `ChainOfCustodyViewSet`/`ChainOfCustodySerializer` cujos intervalos exactos se deslocaram com o crescimento dos ficheiros.
 
 ## Data
 

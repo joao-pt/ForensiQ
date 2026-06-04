@@ -32,6 +32,8 @@ Por fim, o hash. Como cada registo do ledger fica imutável ao gravar (triggers 
         | esc(location_name) | esc(storage_location) | observations
    ```
 
+   > **Emenda (ADR-0016 §6 · migração `0023`).** A fórmula foi posteriormente **estendida** com quatro campos de selo por-evento — `sealed`, `seal_condition_on_receipt`, `new_seal_number`, `relinquished_by` — acrescentados *após* `observations`. A fórmula em produção tem hoje **17 segmentos**; a *docstring* de `compute_record_hash` (`core/models.py`) é a fonte viva e descreve-os na íntegra. O bloco acima preserva a decisão original (13 segmentos) tal como foi tomada; a extensão respeitou a regra de ordem fixa, anexando os campos novos no fim.
+
 2. **Campo em falta serializa como string vazia, determinismicamente.** Um campo `null` (GPS não capturado, `storage_location` por preencher) entra na string como `''` entre separadores. Isto é tratamento de **dados em falta**, não de qualquer formato anterior: o desenho é novo e limpo, não há registos a preservar. A posição do campo na string é sempre a mesma, esteja preenchido ou vazio.
 
 3. **Campos de texto livre são escapados antes de entrar no hash.** `location_name` (nome de POI vindo do OSM/Nominatim) e `storage_location` (texto livre: armário/sala interno) podem conter `|` ou `,`, que são os separadores da string. Passam por `_hash_escape` (`\` → `\\`, `|` → `\|`, `,` → `\,`), garantindo que o conteúdo nunca colide com a estrutura da string. `event_type` e `custodian_type` são enums de valores controlados (sem separadores), logo não precisam de escaping.

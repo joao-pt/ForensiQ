@@ -17,7 +17,7 @@ Apenas o ramo `main` (deployado em <https://forensiq.pt>) recebe correcções de
 
 Em vez disso:
 
-1. **Preferencial — GitHub Security Advisory privado:** abre um advisory privado em <https://github.com/joao-pt/ForensiQ/security/advisories/new>. O GitHub notifica o maintainer e mantém o conteúdo privado até divulgação coordenada.
+1. **Preferencial — GitHub Security Advisory privado:** abre um advisory privado em <https://github.com/joao-pt/ForensiQ/security/advisories/new>. O GitHub notifica-me e mantém o conteúdo privado até divulgação coordenada.
 2. **Alternativa — Email:** <rodriguesrede@gmail.com>. Usa o assunto `[ForensiQ Security] <título curto>`.
 
 ### O que incluir no relatório
