@@ -11,6 +11,7 @@ sensíveis só sejam carregados via API.
 """
 
 import json
+import logging
 from functools import wraps
 from urllib.parse import urlencode
 
@@ -50,6 +51,8 @@ from core.models import (
     Occurrence,
     derive_legal_state,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class _ScopeView:
@@ -333,21 +336,20 @@ def public_verify_view(request, short_hash):
     user_can_see_full = False
     if token:
         try:
-            access = AccessToken(token)
+            # NB: variável local `decoded` (não `access`) — `access` é o módulo
+            # core.access; reutilizar o nome aqui mascarava-o e rebentava a chamada.
+            decoded = AccessToken(token)
             from django.contrib.auth import get_user_model
 
-            user_id = access['user_id']
-            user = get_user_model().objects.filter(pk=user_id).first()
-            if user and user.is_authenticated:
-                # FORENSIC_EXPERT vê tudo; FIRST_RESPONDER só se for o dono.
-                profile = getattr(user, 'profile', None)
-                if (
-                    getattr(user, 'is_staff', False)
-                    or profile == 'FORENSIC_EXPERT'
-                    or profile == 'FIRST_RESPONDER'
-                    and occurrence.agent_id == user.id
-                ):
-                    user_can_see_full = True
+            user = get_user_model().objects.filter(pk=decoded['user_id']).first()
+            # "Ver tudo" = poder aceder à ocorrência pelo mesmo critério da vista
+            # autenticada (access.can_access_occurrence: titular / leitura total —
+            # staff/NACIONAL/perito forense — / autoridade do caso). Antes concedia-se
+            # a QUALQUER FORENSIC_EXPERT e redirecionava-se para /occurrences/<id>/,
+            # que reaplica o âmbito e devolvia 404 a quem não tinha acesso; agora os
+            # critérios coincidem. Quem não pode aceder cai na vista pública mínima.
+            if user and user.is_authenticated and access.can_access_occurrence(user, occurrence):
+                user_can_see_full = True
         except TokenError:
             pass
 
@@ -435,12 +437,15 @@ def _occ_pri_code(o):
 def _activity_feed(user, limit=20):
     """Últimos eventos do AuditLog (append-only) visíveis ao utilizador.
 
-    AGENTE vê os seus; PERITO/staff veem tudo (espelha ActivityFeedView). É a
+    Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo de
+    auditoria; qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
+    CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
+    *need-to-know* (ADR-0017). Espelha :class:`core.views.ActivityFeedView`. É a
     fonte de verdade do "que aconteceu": criação de prova (com hash), eventos
     de custódia, exportações de PDF, alertas.
     """
     qs = AuditLog.objects.select_related('user').order_by('-sequence')
-    if not user.is_staff and getattr(user, 'profile', None) == 'FIRST_RESPONDER':
+    if not access.has_national_read(user):
         qs = qs.filter(user_id=user.id)
     logs = list(qs[:limit])
     for r in logs:
@@ -467,9 +472,13 @@ def _legal_states_by_evidence(user):
     item com a função pura :func:`derive_legal_state` (fonte de verdade única,
     sem tradução para SQL). É o mesmo padrão usado nos endpoints da API.
     """
-    qs = ChainOfCustody.objects.all()
-    if not user.is_staff and getattr(user, 'profile', None) == 'FIRST_RESPONDER':
-        qs = qs.filter(evidence__occurrence__agent=user)
+    # Âmbito *need-to-know* item-level (ADR-0017), fonte única em core.access — NÃO
+    # o antigo filtro só-titular. Antes: ChainOfCustody.objects.all() para todos
+    # menos FIRST_RESPONDER, o que (a) vazava contagens de TODOS os casos aos
+    # restantes perfis no dashboard e (b) sub-contava o FIRST_RESPONDER que detém
+    # itens de ocorrências de outrem. scope_custody devolve todos os eventos das
+    # evidências visíveis, pelo que derive_legal_state recebe a cadeia completa.
+    qs = access.scope_custody(user)
     eventos = {}
     for rec in qs.order_by('evidence_id', 'sequence').only(
         'evidence_id', 'event_type', 'custodian_type', 'sequence'
@@ -499,7 +508,7 @@ def dashboard_view(request):
     # Pontos georreferenciados por região (mapa do hero).
     pts = [
         {'lat': float(o.gps_lat), 'lng': float(o.gps_lng), 'label': o.code or o.number, 'pri': _occ_pri_code(o)}
-        for o in occ_qs.exclude(gps_lat=None)
+        for o in occ_qs.exclude(gps_lat=None).exclude(gps_lng=None)
     ]
 
     def _within(b, p):
@@ -1280,13 +1289,21 @@ def occurrence_intake_view(request, occurrence_id):
     if not token:
         return HttpResponseRedirect('/login/?next=' + request.path)
     try:
-        access = AccessToken(token)
+        # `decoded` (não `access`): `access` é o módulo core.access — reutilizar o
+        # nome mascará-lo-ia e rebentaria qualquer chamada access.* nesta função.
+        decoded = AccessToken(token)
     except TokenError:
         return HttpResponseRedirect('/login/?next=' + request.path)
 
-    user = get_user_model().objects.filter(pk=access['user_id']).first()
+    user = get_user_model().objects.filter(pk=decoded['user_id']).first()
     if user is None:
         return HttpResponseRedirect('/login/?next=' + request.path)
+
+    # Esta view descodifica o JWT à mão (não passa pela auth do DRF), por isso
+    # request.user ficaria anónimo. Fixamo-lo para que o gate de escrita do
+    # ChainOfCustodySerializer (access.can_append_custody, agora fail-closed)
+    # autorize com base no utilizador real do intake.
+    request.user = user
 
     is_expert = getattr(user, 'profile', None) == 'FORENSIC_EXPERT'
     if not (user.is_staff or user.is_superuser or is_expert):
@@ -1312,10 +1329,18 @@ def occurrence_intake_view(request, occurrence_id):
     }
 
     evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
-    state_by_evidence = {}
-    for ev in evidences:
-        eventos = list(ChainOfCustody.objects.filter(evidence=ev).order_by('sequence'))
-        state_by_evidence[ev.id] = derive_legal_state(eventos) if eventos else ''
+    # Uma só query para TODOS os eventos da ocorrência (antes: uma query por
+    # evidência — N+1 a cada carregamento da página de intake). Agrupa por
+    # evidência e deriva o estado uma vez por item.
+    eventos_por_ev = {}
+    for rec in ChainOfCustody.objects.filter(evidence__occurrence=occurrence).order_by(
+        'evidence_id', 'sequence'
+    ):
+        eventos_por_ev.setdefault(rec.evidence_id, []).append(rec)
+    state_by_evidence = {
+        ev.id: (derive_legal_state(eventos_por_ev[ev.id]) if ev.id in eventos_por_ev else '')
+        for ev in evidences
+    }
 
     # POST — registar TRANSFERENCIA → LAB_PUBLICO nos itens marcados (lote atómico,
     # ledger de eventos ADR-0015), reusando o ChainOfCustodySerializer validado.
@@ -1359,7 +1384,9 @@ def occurrence_intake_view(request, occurrence_id):
                             payload['gps_lng'] = gps_lng
                             if gps_accuracy:
                                 payload['gps_accuracy_m'] = gps_accuracy
-                        s = ChainOfCustodySerializer(data=payload)
+                        s = ChainOfCustodySerializer(
+                            data=payload, context={'request': request}
+                        )
                         s.is_valid(raise_exception=True)
                         rec = s.save(agent=user)
                         log_access(
@@ -1378,8 +1405,23 @@ def occurrence_intake_view(request, occurrence_id):
                     f'Receção registada: {len(to_receive)} item(ns) no laboratório.',
                 )
                 return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
-            except Exception as exc:  # noqa: BLE001 — qualquer falha → rollback + mostra erro
-                intake_errors.append(f'Falha no registo: {exc}')
+            except (DjangoValidationError, DRFValidationError) as exc:
+                # Erros de validação (guardas do ledger, GPS, permissão) são
+                # accionáveis e seguros de mostrar ao operador.
+                messages_list = getattr(exc, 'messages', None)
+                if messages_list:
+                    intake_errors.extend(messages_list)
+                else:
+                    intake_errors.append(str(getattr(exc, 'detail', exc)))
+            except Exception:  # noqa: BLE001 — falha inesperada → rollback (atomic) + msg genérica
+                # NÃO interpolar a excepção crua na página (fuga de detalhe interno
+                # + mascarava o erro real). Regista-se o stack trace e mostra-se
+                # uma mensagem genérica.
+                logger.exception('Falha inesperada no intake da ocorrência %s', occurrence.id)
+                intake_errors.append(
+                    'Falha no registo. A operação foi revertida; tente novamente '
+                    'ou contacte o suporte se persistir.'
+                )
 
     rows = [
         {
@@ -1424,12 +1466,17 @@ def stats_view(request):
         'custody_events': _scope_custody(user).count(),
         'prioritarias': occ_qs.filter(priority=Occurrence.Priority.PRIORITARIA).count(),
     }
+    # Lookup tolerante: EnumValue(x) levantaria ValueError (→ 500) se a BD tivesse
+    # um valor fora dos choices actuais (ex.: dado anterior a um rename de tipo/
+    # evento). dict(choices).get cai no valor cru em vez de rebentar.
+    type_labels = dict(Evidence.EvidenceType.choices)
+    event_labels = dict(EventType.choices)
     by_type = [
-        {'label': Evidence.EvidenceType(r['type']).label, 'n': r['n']}
+        {'label': type_labels.get(r['type'], r['type']), 'n': r['n']}
         for r in _scope_evidences(user).values('type').annotate(n=Count('id')).order_by('-n')
     ]
     by_event = [
-        {'label': EventType(r['event_type']).label, 'n': r['n']}
+        {'label': event_labels.get(r['event_type'], r['event_type']), 'n': r['n']}
         for r in _scope_custody(user).values('event_type').annotate(n=Count('id')).order_by('-n')
     ]
     return render(request, 'stats.html', {'kpis': kpis, 'by_type': by_type, 'by_event': by_event})

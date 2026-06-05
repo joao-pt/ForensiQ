@@ -71,7 +71,7 @@ from .models import (
     derive_legal_state,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
-from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
+from .permissions import CanAccessCustodyApi, IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
     ActivityFeedSerializer,
     CascadeCustodyRequestSerializer,
@@ -471,8 +471,12 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     """
     API da cadeia de custódia.
 
-    - Criação: AGENT ou EXPERT (conforme a fase da custódia).
-    - Consulta: qualquer utilizador autenticado.
+    - Criação: qualquer perfil que o modelo de acesso autorize a escrever no item
+      (custódio atual, membro da instituição que o detém, override do perito,
+      despacho da autoridade do caso, ou staff) — a autorização é feita por
+      ``access.can_append_custody`` em ``perform_create``/``cascade``. Perfis
+      só-leitura (CHEFE_SERVICO/AUDITOR) nunca escrevem.
+    - Consulta: qualquer utilizador autenticado (com âmbito need-to-know).
     - Edição/eliminação: BLOQUEADAS (append-only — 405 Method Not Allowed).
     - O campo 'agent' é preenchido automaticamente.
     - Filtragem por evidência: ?evidence=<id>
@@ -480,7 +484,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 
     queryset = ChainOfCustody.objects.select_related('evidence', 'agent').all()
     serializer_class = ChainOfCustodySerializer
-    permission_classes = [IsAuthenticated, IsAgentOrExpert]
+    # CanAccessCustodyApi (não IsAgentOrExpert): admite os perfis que o modelo de
+    # acesso autoriza a escrever (inclui CASE_AUTHORITY e EVIDENCE_CUSTODIAN) e
+    # delega a decisão item-level a access.can_append_custody em perform_create/
+    # cascade. IsAgentOrExpert bloqueava indevidamente esses perfis.
+    permission_classes = [IsAuthenticated, CanAccessCustodyApi]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = CustodyFilter
@@ -561,8 +569,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         - Cada ``ChainOfCustody.save()`` mantém o seu próprio
           ``select_for_update`` por evidência — não há contenção entre
           evidências distintas.
-        - Ownership: utilizador tem de poder operar sobre TODAS as
-          evidências (AGENT dono, EXPERT ou staff). Caso contrário 403.
+        - Ownership: o utilizador tem de poder ESCREVER em TODAS as evidências
+          (access.can_append_custody por item — custódio atual / override do
+          perito / despacho da autoridade do caso / staff). Caso contrário 403.
         - As guardas do ledger (ADR-0015) são validadas por cada
           ``ChainOfCustody.save()``; se uma evidência rejeitar o evento,
           todas revertem e o cliente recebe 400 com ``evidence_id`` e mensagem.
@@ -590,10 +599,20 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 {'detail': 'Uma ou mais evidências não existem.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        # Gate de ESCRITA item-level (ADR-0017 §5) — o MESMO que perform_create.
+        # Antes usava _user_can_access_occurrence (acesso de LEITURA à ocorrência),
+        # o que deixava o titular da ocorrência injetar QUALQUER evento (incl.
+        # terminais) em itens detidos por outro custódio/laboratório. can_append_custody
+        # exige deter o item / override de perito / despacho da autoridade do caso.
         for ev in evidences:
-            if not _user_can_access_occurrence(request.user, ev.occurrence):
+            if not access.can_append_custody(request.user, ev, event_type):
                 return Response(
-                    {'detail': f'Sem permissão sobre a evidência {ev.code or ev.pk}.'},
+                    {
+                        'detail': (
+                            'Sem permissão para registar este evento na evidência '
+                            f'{ev.code or ev.pk} (ADR-0017).'
+                        )
+                    },
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
@@ -1325,11 +1344,13 @@ class ActivityFeedView(generics.ListAPIView):
     paginado pela paginação default do projecto. Read-only: apenas GET é
     exposto (``ListAPIView``); POST/PUT/PATCH/DELETE devolvem 405.
 
-    Âmbito (documentado):
-    - EXPERT / staff vêem TODOS os eventos de auditoria.
-    - AGENT vê APENAS os eventos que ELE praticou (``user_id == request.user.id``).
-      Como o ``AuditLog`` regista acessos a prova potencialmente sob segredo de
-      justiça, não se expõe a um agente a actividade de terceiros.
+    Âmbito (documentado, ADR-0017):
+    - Leitura nacional (staff ou credencial NACIONAL) vê TODOS os eventos.
+    - Qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
+      CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou
+      (``user_id == request.user.id``). Como o ``AuditLog`` regista acessos a
+      prova potencialmente sob segredo de justiça, não se expõe a actividade de
+      terceiros a quem não tem leitura nacional.
 
     O sinal ``is_priority_alert`` (ADR-0014 §7) destaca a criação de
     ocorrências prioritárias. Para evitar N+1, os ids das ocorrências
@@ -1343,7 +1364,12 @@ class ActivityFeedView(generics.ListAPIView):
     def get_queryset(self):
         qs = AuditLog.objects.select_related('user').order_by('-timestamp')
         user = self.request.user
-        if not user.is_staff and getattr(user, 'profile', None) == 'FIRST_RESPONDER':
+        # Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo de
+        # auditoria; qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
+        # CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
+        # *need-to-know* (ADR-0017). Antes só o FIRST_RESPONDER era restringido, o
+        # que vazava o registo global a todos os outros perfis não-nacionais.
+        if not access.has_national_read(user):
             qs = qs.filter(user_id=user.id)
         return qs
 

@@ -23,13 +23,6 @@ from .models import (
     Occurrence,
     derive_legal_state,
 )
-from .validators import (
-    validate_iccid,
-    validate_imei,
-    validate_imsi,
-    validate_mac,
-    validate_vin,
-)
 
 User = get_user_model()
 
@@ -423,46 +416,19 @@ class EvidenceSerializer(serializers.ModelSerializer):
 
         etype = attrs.get('type') or (self.instance and self.instance.type)
 
-        # --- Validadores por tipo (espelhados no Model.clean — defesa em
-        #     profundidade). Qualquer alteração num lado deve reflectir-se no
-        #     outro.
-        errors = {}
-        if etype == Evidence.EvidenceType.MOBILE_DEVICE:
-            imei = tsd.get('imei')
-            if imei:
-                try:
-                    validate_imei(imei)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'imei: {"; ".join(exc.messages)}'
-        elif etype == Evidence.EvidenceType.SIM_CARD:
-            imsi = tsd.get('imsi')
-            if imsi:
-                try:
-                    validate_imsi(imsi)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
-            iccid = tsd.get('iccid')
-            if iccid:
-                try:
-                    validate_iccid(iccid)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'iccid: {"; ".join(exc.messages)}'
-        elif etype == Evidence.EvidenceType.VEHICLE:
-            vin = tsd.get('vin')
-            if vin:
-                try:
-                    validate_vin(vin)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'vin: {"; ".join(exc.messages)}'
-        elif etype == Evidence.EvidenceType.NETWORK_DEVICE:
-            mac = tsd.get('mac')
-            if mac:
-                try:
-                    validate_mac(mac)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'mac: {"; ".join(exc.messages)}'
-        if errors:
-            raise serializers.ValidationError(errors)
+        # --- Validadores por tipo: fonte ÚNICA partilhada com Model.clean
+        #     (evidence_field_config.validate_type_specific_data). Cobre TODOS os
+        #     tipos/campos com validador (imei_2, GPS_TRACKER, IOT_DEVICE,
+        #     VEHICLE_COMPONENT…) e acumula um erro por campo — sem a escada
+        #     if/elif que tinha drift e sobrepunha iccid sobre imsi. Defesa em
+        #     profundidade: o Model.clean() reaplica os mesmos validadores.
+        from core import evidence_field_config
+
+        problems = evidence_field_config.validate_type_specific_data(etype, tsd)
+        if problems:
+            raise serializers.ValidationError(
+                {'type_specific_data': ' | '.join(problems)}
+            )
 
         # --- Parent evidence: tem de partilhar ocorrência.
         parent = attrs.get('parent_evidence')
@@ -561,19 +527,25 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
             )
-        request = self.context.get('request')
+        # Gate de ESCRITA — FALHA FECHADA: se o serializer for instanciado sem
+        # request/utilizador autenticado não conseguimos autorizar, logo NEGA-SE
+        # (antes ignorava-se a verificação quando faltava o contexto — fail-open).
+        # Todos os chamadores reais passam contexto: o ViewSet via get_serializer e
+        # a view de intake define request.user + context={'request': request}.
         evidence = attrs.get('evidence')
-        if (
-            request is not None
-            and request.user.is_authenticated
-            and evidence is not None
-            and not access.can_append_custody(request.user, evidence, attrs.get('event_type'))
-        ):
-            raise serializers.ValidationError(
-                'Não tem permissão para registar eventos de custódia neste item '
-                '(ADR-0017): só o custódio atual, um membro da instituição que o '
-                'detém, o perito ou a autoridade do caso.'
-            )
+        if evidence is not None:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            if user is None or not user.is_authenticated:
+                raise serializers.ValidationError(
+                    'Autenticação necessária para registar eventos de custódia (ADR-0017).'
+                )
+            if not access.can_append_custody(user, evidence, attrs.get('event_type')):
+                raise serializers.ValidationError(
+                    'Não tem permissão para registar eventos de custódia neste item '
+                    '(ADR-0017): só o custódio atual, um membro da instituição que o '
+                    'detém, o perito ou a autoridade do caso.'
+                )
         return attrs
 
 

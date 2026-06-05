@@ -59,6 +59,21 @@ def _profile(user):
     return getattr(user, 'profile', None)
 
 
+def has_full_read(user):
+    """Leitura TOTAL — toda a prova e todos os processos.
+
+    Inclui a leitura nacional (staff / credencial NACIONAL) e — por decisão do
+    dono (2026-06-05) — o PERITO FORENSE: um perito pode ser questionado sobre
+    processos de outras áreas/divisões, pelo que tem acesso de leitura a toda a
+    prova e processos por FUNÇÃO, independentemente da credencial. É uma exceção
+    explícita ao princípio geral do ADR-0017 («a credencial governa a leitura»):
+    a função de perito é, ela própria, habilitante para leitura total. A ESCRITA
+    continua governada por :func:`can_append_custody` (quem detém / override do
+    perito / despacho da autoridade do caso).
+    """
+    return has_national_read(user) or _profile(user) == User.Profile.FORENSIC_EXPERT
+
+
 # ---------------------------------------------------------------------------
 # Scoping de LEITURA (querysets)
 # ---------------------------------------------------------------------------
@@ -74,7 +89,7 @@ def scope_evidences(user, base_qs=None):
     qs = Evidence.objects.all() if base_qs is None else base_qs
     if not getattr(user, 'is_authenticated', False):
         return qs.none()
-    if has_national_read(user):
+    if has_full_read(user):
         return qs
     inst_ids = _active_institution_ids(user)
     cond = Q(agent=user) | Q(occurrence__agent=user) | Q(custody_chain__agent=user)
@@ -93,7 +108,7 @@ def scope_occurrences(user, base_qs=None):
     qs = Occurrence.objects.all() if base_qs is None else base_qs
     if not getattr(user, 'is_authenticated', False):
         return qs.none()
-    if has_national_read(user):
+    if has_full_read(user):
         return qs
     cond = Q(agent=user)
     inst_ids = _active_institution_ids(user)
@@ -109,7 +124,7 @@ def scope_custody(user, base_qs=None):
     qs = ChainOfCustody.objects.all() if base_qs is None else base_qs
     if not getattr(user, 'is_authenticated', False):
         return qs.none()
-    if has_national_read(user):
+    if has_full_read(user):
         return qs
     return qs.filter(evidence__in=scope_evidences(user).values('pk'))
 
@@ -123,7 +138,7 @@ def can_view_evidence(user, evidence):
     """Pode LER este item + cadeia? (object-level — ADR-0017 §5)."""
     if not getattr(user, 'is_authenticated', False):
         return False
-    if has_national_read(user):
+    if has_full_read(user):
         return True
     if evidence.agent_id == user.id or evidence.occurrence.agent_id == user.id:
         return True
@@ -135,10 +150,14 @@ def can_view_evidence(user, evidence):
 
 
 def can_access_occurrence(user, occurrence):
-    """Pode aceder à OCORRÊNCIA inteira? (titular / NACIONAL / autoridade do caso)."""
+    """Pode aceder à OCORRÊNCIA inteira? (titular / leitura total / autoridade do caso).
+
+    Leitura total = staff, credencial NACIONAL ou perito forense (ver
+    :func:`has_full_read`).
+    """
     if not getattr(user, 'is_authenticated', False):
         return False
-    if has_national_read(user):
+    if has_full_read(user):
         return True
     if occurrence.agent_id == user.id:
         return True
@@ -184,8 +203,15 @@ def can_append_custody(user, evidence, event_type=None):
     if not getattr(user, 'is_authenticated', False):
         return False
     profile = _profile(user)
+    # READ_ONLY (CHEFE_SERVICO/AUDITOR) NUNCA escrevem — verificado ANTES do bypass
+    # de staff, senão um auditor/chefe que também tenha is_staff=True conseguiria
+    # escrever (os campos profile e is_staff são ortogonais no modelo User).
     if profile in READ_ONLY_PROFILES:
         return False
+    # Staff/superuser (sem perfil só-leitura) são operadores administrativos —
+    # podem registar (ex.: intake de laboratório feito por staff).
+    if getattr(user, 'is_staff', False):
+        return True
     if profile == User.Profile.FORENSIC_EXPERT and can_view_evidence(user, evidence):
         return True
 

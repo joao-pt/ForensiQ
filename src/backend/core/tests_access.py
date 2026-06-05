@@ -112,10 +112,13 @@ class AccessReadItemLevelTest(TestCase):
         self.assertFalse(access.can_view_evidence(self.estranho, self.ev))
         self.assertNotIn(self.ev, access.scope_evidences(self.estranho))
 
-    def test_perito_normal_sem_relacao_nao_ve(self):
-        # FORENSIC_EXPERT com credencial NORMAL e sem relação com o item NÃO vê
-        # (a visibilidade vem da credencial/relação, não do papel) — família 8.
-        self.assertFalse(access.can_view_evidence(self.perito_norm, self.ev))
+    def test_perito_normal_ve_tudo_por_funcao(self):
+        # DECISÃO do dono (2026-06-05): o PERITO FORENSE tem leitura total por
+        # FUNÇÃO (pode ser questionado sobre processos de outras áreas/divisões),
+        # independentemente da credencial. Exceção explícita ao princípio geral
+        # «a credencial governa a leitura» — ver access.has_full_read.
+        self.assertTrue(access.can_view_evidence(self.perito_norm, self.ev))
+        self.assertIn(self.ev, access.scope_evidences(self.perito_norm))
 
     def test_ex_custodio_ve_item_mas_nao_a_ocorrencia(self):
         # O membro do lab vê o ITEM mas NÃO a ocorrência inteira (least privilege).
@@ -167,9 +170,27 @@ class AccessWriteTest(TestCase):
         self.assertFalse(access.can_append_custody(self.chefe, self.ev))
         self.assertFalse(access.can_append_custody(self.auditor, self.ev))
 
+    def test_readonly_com_is_staff_continua_sem_escrever(self):
+        # REGRESSÃO: o bypass de is_staff NÃO se pode sobrepor ao perfil só-leitura.
+        # profile e is_staff são ortogonais; um CHEFE/AUDITOR a quem se dê acesso
+        # de staff no admin continua impedido de escrever (READ_ONLY corre primeiro).
+        _event(self.ev, self.titular, inst=self.lab)
+        chefe_staff = _user('w_chefe_staff', User.Profile.CHEFE_SERVICO, User.Clearance.NACIONAL)
+        chefe_staff.is_staff = True
+        chefe_staff.save(update_fields=['is_staff'])
+        auditor_staff = _user('w_auditor_staff', User.Profile.AUDITOR)
+        auditor_staff.is_staff = True
+        auditor_staff.save(update_fields=['is_staff'])
+        self.assertFalse(access.can_append_custody(chefe_staff, self.ev))
+        self.assertFalse(access.can_append_custody(auditor_staff, self.ev))
+
 
 class AccessCredentialVsFunctionTest(TestCase):
-    """Família 8 — credencial governa a leitura; função governa a escrita."""
+    """Família 8 — credencial governa a leitura; função governa a escrita.
+
+    EXCEÇÃO (decisão do dono, 2026-06-05): a função PERITO FORENSE é, ela própria,
+    habilitante para leitura total (ver :func:`core.access.has_full_read`).
+    """
 
     @classmethod
     def setUpTestData(cls):
@@ -180,8 +201,10 @@ class AccessCredentialVsFunctionTest(TestCase):
         cls.ev = _evidence(cls.occ, cls.titular)
         _event(cls.ev, cls.titular)
 
-    def test_perito_normal_nao_ve_tudo(self):
-        self.assertFalse(access.can_view_evidence(self.perito_norm, self.ev))
+    def test_perito_normal_ve_tudo_por_funcao(self):
+        # Perito forense (mesmo NORMAL) tem leitura total por função — decisão do
+        # dono (2026-06-05). A credencial governa a leitura dos RESTANTES perfis.
+        self.assertTrue(access.can_view_evidence(self.perito_norm, self.ev))
 
     def test_chefe_nacional_ve_tudo_mas_nao_escreve(self):
         self.assertTrue(access.can_view_evidence(self.chefe_nac, self.ev))
