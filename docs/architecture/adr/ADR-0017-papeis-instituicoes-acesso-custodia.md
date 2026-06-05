@@ -6,6 +6,16 @@ Accepted — 2026-06-01
 
 Complementa o **ADR-0016** (modelo de identificação e génese da prova/custódia) e supera o ponto em aberto #1 desse ADR (papéis). A nomenclatura dos `EventType` é a definida no ADR-0016. Substitui o modelo de **2 perfis** (`AGENT`/`EXPERT`) por um modelo de **função + credencial + instituições**, com controlo de acesso *need-to-know* **derivado do ledger** de custódia. Sem retrocompatibilidade (princípio da Fase 2); a demo é regerada.
 
+## Emenda — 2026-06-05: leitura total do perito forense por função
+
+Revê-se a regra de **leitura** para o papel `FORENSIC_EXPERT`. Na versão original deste ADR (secções 1, 3, 5 e *edge case* 6), a visibilidade total dependia **exclusivamente da credencial** (`NACIONAL`); um perito com `clearance=NORMAL` via apenas os seus itens. Na prática pericial isso é insuficiente: um perito pode ser chamado a pronunciar-se sobre processos de **outras áreas ou divisões**, pelo que necessita de **leitura a toda a prova e a todos os processos**.
+
+Regra revista: o papel `FORENSIC_EXPERT` é, **por si só**, habilitante para **leitura total**, independentemente da credencial. A leitura total passa a ser concedida a: **staff**, credencial **`NACIONAL`** *ou* papel **`FORENSIC_EXPERT`**. A **escrita mantém-se inalterada** (governada pela secção 5: detém o item / *override* do perito / atos de despacho da autoridade do caso / staff; `CHEFE_SERVICO`/`AUDITOR` nunca escrevem). Para os restantes papéis com `clearance=NORMAL` (`EVIDENCE_CUSTODIAN`, `CASE_AUTHORITY` fora dos seus casos) o *need-to-know* mantém-se.
+
+Materialização: `core/access.py::has_full_read(user) = has_national_read(user) or profile == FORENSIC_EXPERT`, consumida por `scope_evidences`/`scope_occurrences`/`scope_custody`/`can_view_evidence`/`can_access_occurrence`. O registo de auditoria (`AuditLog`) permanece em *oversight-tier* (`has_national_read` — staff/`NACIONAL`), por ser metadados de supervisão e não conteúdo de prova.
+
+As afirmações originais "o perito `NORMAL` não vê tudo" (assinaladas abaixo) ficam **superadas por esta emenda** quanto ao papel `FORENSIC_EXPERT`.
+
 ## Data
 
 2026-06-01
@@ -52,7 +62,7 @@ Um perito é, em regra, habilitado à credencial nacional — mas é a **credenc
 - **`NACIONAL`** → visibilidade nacional de **leitura** (lê todos os itens/casos). Credencial de peritos com supervisão nacional **e** de chefes de serviço.
 - **`NORMAL`** → visibilidade *need-to-know* (secção 5).
 
-A credencial governa a **leitura**; a capacidade de **alterar** estados vem da **função**: o `FORENSIC_EXPERT` tem *override* operacional de escrita (sobre os itens que vê) e pode nomear intermediários; o `CHEFE_SERVICO` é **só-leitura**. Assim, perito e chefe com `NACIONAL` veem ambos tudo, mas **só o perito altera**.
+A credencial governa a **leitura** (com a exceção do papel `FORENSIC_EXPERT` — ver Emenda 2026-06-05: o perito tem leitura total por função); a capacidade de **alterar** estados vem da **função**: o `FORENSIC_EXPERT` tem *override* operacional de escrita (sobre os itens que vê) e pode nomear intermediários; o `CHEFE_SERVICO` é **só-leitura**. Assim, perito e chefe com `NACIONAL` veem ambos tudo, mas **só o perito altera**.
 
 ### 4. Instituições
 
@@ -65,6 +75,7 @@ A credencial governa a **leitura**; a capacidade de **alterar** estados vem da *
 O **ledger append-only de custódia JÁ É o grafo de relações** custódio↔item. Por isso a permissão **deriva da presença de uma relação** (ReBAC mínimo), sem motor ABAC externo — o RBAC puro seria insuficiente (não capta "o custódio *deste* item", tal como o NIST nota que não capta "o médico assistente *deste* doente"); o ABAC completo seria desproporcionado para a PoC.
 
 **LER um item (Evidence) e a sua cadeia** — verdadeiro se qualquer:
+0. papel `FORENSIC_EXPERT` (leitura total por função — Emenda 2026-06-05) ou `is_staff`;
 1. `clearance == NACIONAL` (visibilidade nacional);
 2. é o **titular/recolhedor** — `Evidence.agent` ou o agente da ocorrência;
 3. **teve custódia** — foi `agent` em algum evento desse item no ledger (**leitura permanente**, porque o ledger nunca se apaga);
@@ -104,7 +115,7 @@ Ao **submeter a apreensão para validação**, o caso é **atribuído a um servi
 3. **Âmbito do `CASE_AUTHORITY`.** Definido pela **atribuição da ocorrência a um serviço do MP** ao submeter para validação (secção 6b); membros do serviço atribuído têm autoridade e acesso ao caso.
 4. **Item sem instituição (génese).** No 1.º evento (apreensão/aquisição), a `custodian_institution` é a instituição do `FIRST_RESPONDER` que recolhe; migração deriva-a do `custodian_type`/agente.
 5. **Pessoa em várias instituições.** `InstitutionMembership` é M2M; a visibilidade institucional soma todas as instituições ativas da pessoa.
-6. **Perito sem credencial nacional.** Um `FORENSIC_EXPERT` com `clearance=NORMAL` só vê os seus itens — confirma que a visibilidade vem da credencial, não do papel.
+6. **Perito sem credencial nacional.** ~~Um `FORENSIC_EXPERT` com `clearance=NORMAL` só vê os seus itens~~ — **superado pela Emenda 2026-06-05**: o perito forense tem leitura total **por função**, mesmo com `clearance=NORMAL`. (A visibilidade por credencial mantém-se para os restantes papéis.)
 7. **Imutabilidade.** Os eventos do ledger continuam append-only; conceder/retirar acesso **não** edita eventos passados — o acesso é sempre **derivado** do estado atual do ledger + pertenças.
 
 ## Consequências
@@ -116,7 +127,7 @@ Ao **submeter a apreensão para validação**, o caso é **atribuído a um servi
 - **Testes (acrescem às 5 famílias do ADR-0016):**
   6. *Acesso item-level* — titular/teve-custódia/membro-instituição/NACIONAL veem; quem nunca tocou no item **não** vê; ex-custódio vê o item mas **não** a ocorrência.
   7. *Escrita por custódio* — só a instituição custódia atual escreve; *push* vs *pull* (`ASSUNCAO_CUSTODIA`); `NACIONAL` *override*; `CASE_AUTHORITY` só atos de despacho.
-  8. *Credencial vs função* — `FORENSIC_EXPERT` com `NORMAL` não vê tudo; `NACIONAL` (qualquer função) vê tudo.
+  8. *Credencial vs função* — `NACIONAL` (qualquer função) vê tudo; `FORENSIC_EXPERT` vê tudo por função mesmo com `NORMAL` (Emenda 2026-06-05); os restantes papéis `NORMAL` continuam *need-to-know*.
 
 ## Pontos em aberto
 
