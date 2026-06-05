@@ -24,13 +24,7 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
-from core.validators import (
-    validate_iccid,
-    validate_imei,
-    validate_imsi,
-    validate_mac,
-    validate_vin,
-)
+from core.validators import validate_imei
 
 # ---------------------------------------------------------------------------
 # Gerador de códigos humanos ANO-TIPO-SEQ (ex.: OCC-2026-00001)
@@ -50,19 +44,24 @@ def _next_yearly_code(prefix, model, year, field='code', width=5):
     (ex.: ``width=4`` → ``OC-2026-0001``; ``width=5`` → ``OCC-2026-00001``).
     """
     prefix_filter = f'{prefix}-{year}-'
-    last = (
-        model.objects.filter(**{f'{field}__startswith': prefix_filter})
-        .order_by(f'-{field}')
-        .values_list(field, flat=True)
-        .first()
-    )
-    if last:
+    # MAX *numérico* do sufixo — nunca lexicográfico. order_by('-code') compara
+    # strings, logo 'OC-2026-9999' > 'OC-2026-10000' (porque '9' > '1'): assim que
+    # a contagem ultrapassa a largura do zero-padding, o "último" código lido fica
+    # errado e recomputa-se para sempre um código já existente (colisão eterna →
+    # RuntimeError). Varremos os códigos do ano e tomamos o maior número real. Só
+    # corre na criação de uma ocorrência e o conjunto é limitado por ano.
+    existing = model.objects.filter(
+        **{f'{field}__startswith': prefix_filter}
+    ).values_list(field, flat=True)
+    max_seq = 0
+    for value in existing:
         try:
-            seq = int(last.rsplit('-', 1)[-1]) + 1
-        except (ValueError, IndexError):
-            seq = 1
-    else:
-        seq = 1
+            n = int(value.rsplit('-', 1)[-1])
+        except (ValueError, IndexError, AttributeError):
+            continue
+        if n > max_seq:
+            max_seq = n
+    seq = max_seq + 1
     return f'{prefix}-{year}-{seq:0{width}d}'
 
 
@@ -1265,23 +1264,7 @@ class Evidence(models.Model):
 
         from core import evidence_field_config
 
-        validators = {
-            'imei': validate_imei,
-            'imsi': validate_imsi,
-            'iccid': validate_iccid,
-            'vin': validate_vin,
-            'mac': validate_mac,
-        }
-        problems = []
-        for field in evidence_field_config.fields_for(self.type):
-            name = field.get('validator')
-            value = data.get(field['key'])
-            if name and value:
-                try:
-                    validators[name](value)
-                except ValidationError as exc:
-                    problems.append(f'{field["key"]}: {"; ".join(exc.messages)}')
-
+        problems = evidence_field_config.validate_type_specific_data(self.type, data)
         if problems:
             raise ValidationError({'type_specific_data': ' | '.join(problems)})
 
@@ -1488,7 +1471,12 @@ class ChainOfCustody(models.Model):
     CustodianType = CustodianType
 
     code = models.CharField(
-        max_length=32,
+        # Deriva de evidence.code (até 32 chars) + sufixo '-M{sequência}'. Tem de
+        # ser maior que 32, senão um item com código já longo (sub-componente
+        # profundo) ou >=100 eventos (-M100) faz o código transbordar e o
+        # full_clean() de save() levanta um ValidationError de max_length que NÃO
+        # é IntegrityError — o retry não o apanha e o evento não pode ser gravado.
+        max_length=48,
         unique=True,
         blank=True,
         default='',

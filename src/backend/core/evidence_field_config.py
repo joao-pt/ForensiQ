@@ -127,6 +127,48 @@ def fields_for(evidence_type: str) -> list[dict]:
     return EVIDENCE_TYPE_FIELDS.get(evidence_type, [])
 
 
+def validate_type_specific_data(evidence_type: str, data: dict | None) -> list[str]:
+    """Aplica os validadores de formato dos campos do tipo a ``data``.
+
+    Fonte ÚNICA partilhada por ``models.Evidence._validate_type_specific_data`` e
+    ``serializers.EvidenceSerializer.validate`` — mata o drift (a antiga escada
+    if/elif do serializer cobria só MOBILE_DEVICE/SIM_CARD/VEHICLE/NETWORK_DEVICE
+    e ignorava imei_2, GPS_TRACKER, IOT_DEVICE e VEHICLE_COMPONENT). Devolve a
+    lista de problemas (uma entrada por campo inválido — NÃO sobrepõe, ao
+    contrário do bug em que iccid esmagava o erro de imsi). Lista vazia = válido.
+    """
+    # Import local para evitar dependência circular ao nível do módulo
+    # (validators é puro; evidence_field_config é importado por models/serializers).
+    from django.core.exceptions import ValidationError
+
+    from core.validators import (
+        validate_iccid,
+        validate_imei,
+        validate_imsi,
+        validate_mac,
+        validate_vin,
+    )
+
+    validators = {
+        'imei': validate_imei,
+        'imsi': validate_imsi,
+        'iccid': validate_iccid,
+        'vin': validate_vin,
+        'mac': validate_mac,
+    }
+    data = data or {}
+    problems: list[str] = []
+    for field in fields_for(evidence_type):
+        name = field.get('validator')
+        value = data.get(field['key'])
+        if name and value:
+            try:
+                validators[name](value)
+            except ValidationError as exc:
+                problems.append(f'{field["key"]}: {"; ".join(exc.messages)}')
+    return problems
+
+
 def all_keys() -> set[str]:
     """Todas as chaves conhecidas de type_specific_data (transversais + tipos)."""
     keys = {f['key'] for f in TRANSVERSAL_FIELDS}

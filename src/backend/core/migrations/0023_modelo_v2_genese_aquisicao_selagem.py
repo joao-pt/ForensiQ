@@ -4,6 +4,62 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
+_DISABLE_EVIDENCE_TRIGGER_SQL = (
+    'ALTER TABLE "core_evidence" DISABLE TRIGGER trg_evidence_no_update'
+)
+_ENABLE_EVIDENCE_TRIGGER_SQL = (
+    'ALTER TABLE "core_evidence" ENABLE TRIGGER trg_evidence_no_update'
+)
+
+
+def _with_triggers_disabled(schema_editor, fn):
+    """Executa ``fn()`` com o trigger de imutabilidade de Evidence OFF.
+
+    Mesmo padrão da 0006: em SQLite o trigger não existe (corre direto); em
+    Postgres desactiva e reactiva, mesmo que ``fn()`` levante excepção.
+    """
+    connection = schema_editor.connection
+    is_postgres = connection.vendor == 'postgresql'
+    if is_postgres:
+        with connection.cursor() as cursor:
+            cursor.execute(_DISABLE_EVIDENCE_TRIGGER_SQL)  # nosemgrep: python.django.security.injection.raw-query.raw-query
+    try:
+        fn()
+    finally:
+        if is_postgres:
+            with connection.cursor() as cursor:
+                cursor.execute(_ENABLE_EVIDENCE_TRIGGER_SQL)  # nosemgrep: python.django.security.injection.raw-query.raw-query
+
+
+def backfill_local_index(apps, schema_editor):
+    """Atribui ``local_index`` distinto por âmbito ANTES de criar os UniqueConstraints.
+
+    O AddField acima põe ``local_index=0`` em TODAS as linhas existentes; sem este
+    backfill, o ``AddConstraint`` seguinte falha (violação de unicidade) numa BD com
+    >=2 itens-raiz na mesma ocorrência ou >=2 sub-componentes do mesmo pai — o caso
+    normal. Numera as raízes por ocorrência e os filhos por pai (ordem de ``id``).
+    Em BD fresca (testes/CI) a tabela está vazia → no-op. Evidence é imutável
+    (trigger ``BEFORE UPDATE`` de 0002), por isso desactiva-se como em 0006.
+    """
+    Evidence = apps.get_model('core', 'Evidence')
+
+    def _do():
+        from collections import defaultdict
+
+        scopes = defaultdict(list)
+        rows = Evidence.objects.order_by('id').values('id', 'occurrence_id', 'parent_evidence_id')
+        for row in rows:
+            if row['parent_evidence_id']:
+                key = ('child', row['parent_evidence_id'])
+            else:
+                key = ('root', row['occurrence_id'])
+            scopes[key].append(row['id'])
+        for ids in scopes.values():
+            for index, pk in enumerate(ids, start=1):
+                Evidence.objects.filter(pk=pk).update(local_index=index)
+
+    _with_triggers_disabled(schema_editor, _do)
+
 
 class Migration(migrations.Migration):
 
@@ -246,6 +302,9 @@ class Migration(migrations.Migration):
                 verbose_name='Código do caso',
             ),
         ),
+        # Backfill OBRIGATÓRIO antes dos UniqueConstraints: dá um local_index
+        # distinto por âmbito às linhas existentes (todas a 0 após o AddField).
+        migrations.RunPython(backfill_local_index, reverse_code=migrations.RunPython.noop),
         migrations.AddConstraint(
             model_name='evidence',
             constraint=models.UniqueConstraint(
