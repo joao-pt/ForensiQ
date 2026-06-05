@@ -209,3 +209,150 @@ class AccessCredentialVsFunctionTest(TestCase):
     def test_chefe_nacional_ve_tudo_mas_nao_escreve(self):
         self.assertTrue(access.can_view_evidence(self.chefe_nac, self.ev))
         self.assertFalse(access.can_append_custody(self.chefe_nac, self.ev))
+
+
+class AccessLensTest(TestCase):
+    """Lentes de acesso (consolas por papel) — eixos de leitura expostos na UI.
+
+    Cobre o ramo custodial (subconjunto estrito de :func:`scope_evidences`, sem
+    curto-circuito de leitura total) e a matriz lente×papel×credencial.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lab = Institution.objects.create(
+            name='Lab L', type=InstitutionType.LAB_PUBLICO, sigla='LAB-L'
+        )
+        cls.opc = Institution.objects.create(
+            name='PSP L', type=InstitutionType.OPC, sigla='PSP-L'
+        )
+
+        # Um utilizador por papel × credencial (12 combinações).
+        cls.responder = _user('lns_responder', User.Profile.FIRST_RESPONDER)
+        cls.responder_nac = _user(
+            'lns_responder_nac', User.Profile.FIRST_RESPONDER, User.Clearance.NACIONAL
+        )
+        cls.custodian = _user('lns_custodian', User.Profile.EVIDENCE_CUSTODIAN)
+        cls.custodian_nac = _user(
+            'lns_custodian_nac', User.Profile.EVIDENCE_CUSTODIAN, User.Clearance.NACIONAL
+        )
+        cls.perito_norm = _user('lns_perito_norm', User.Profile.FORENSIC_EXPERT)
+        cls.perito_nac = _user(
+            'lns_perito_nac', User.Profile.FORENSIC_EXPERT, User.Clearance.NACIONAL
+        )
+        cls.mp = _user('lns_mp', User.Profile.CASE_AUTHORITY)
+        cls.mp_nac = _user('lns_mp_nac', User.Profile.CASE_AUTHORITY, User.Clearance.NACIONAL)
+        cls.chefe_norm = _user('lns_chefe_norm', User.Profile.CHEFE_SERVICO)
+        cls.chefe_nac = _user('lns_chefe_nac', User.Profile.CHEFE_SERVICO, User.Clearance.NACIONAL)
+        cls.auditor_norm = _user('lns_auditor_norm', User.Profile.AUDITOR)
+        cls.auditor_nac = _user('lns_auditor_nac', User.Profile.AUDITOR, User.Clearance.NACIONAL)
+        InstitutionMembership.objects.create(user=cls.custodian, institution=cls.lab)
+
+        cls.all_users = [
+            cls.responder, cls.responder_nac, cls.custodian, cls.custodian_nac,
+            cls.perito_norm, cls.perito_nac, cls.mp, cls.mp_nac,
+            cls.chefe_norm, cls.chefe_nac, cls.auditor_norm, cls.auditor_nac,
+        ]
+
+        cls.occ = _occ(cls.responder, 'L1')
+        # Item à GUARDA do lab: génese pelo titular + transferência registada pelo
+        # custódio (o lab é custodian_institution) → ramo custodial.
+        cls.ev_held = _evidence(cls.occ, cls.responder)
+        _event(cls.ev_held, cls.responder, inst=cls.opc)
+        _event(
+            cls.ev_held,
+            cls.custodian,
+            event_type=EventType.TRANSFERENCIA_CUSTODIA,
+            inst=cls.lab,
+        )
+        # Item SÓ por titularidade (sem eventos) — visível por scope_evidences
+        # (titular) mas FORA do ramo custodial. Testemunha do subconjunto estrito.
+        cls.ev_owned_only = _evidence(cls.occ, cls.responder)
+
+    # -- Ramo custodial -----------------------------------------------------
+
+    def test_custodial_e_subconjunto_estrito(self):
+        # Para o titular, o item só-por-titularidade está em scope_evidences mas
+        # NÃO no ramo custodial → custodial ⊊ scope_evidences.
+        self.assertIn(self.ev_owned_only, access.scope_evidences(self.responder))
+        self.assertNotIn(self.ev_owned_only, access.scope_evidences_custodial(self.responder))
+        for u in (self.responder, self.custodian):
+            full = set(access.scope_evidences(u))
+            custodial = set(access.scope_evidences_custodial(u))
+            self.assertTrue(custodial.issubset(full))
+
+    def test_custodial_inclui_item_a_guarda(self):
+        # O custódio (membro do lab que tocou no item) vê o item no ramo custodial.
+        self.assertIn(self.ev_held, access.scope_evidences_custodial(self.custodian))
+
+    def test_custodial_nao_curtocircuita_full_read(self):
+        # Perito (leitura total) que não detém nada nem pertence a instituição
+        # custodial vê o ramo custodial VAZIO — apesar de scope_evidences ser tudo.
+        for perito in (self.perito_norm, self.perito_nac):
+            self.assertIn(self.ev_held, access.scope_evidences(perito))
+            self.assertEqual(list(access.scope_evidences_custodial(perito)), [])
+
+    def test_custodial_anonimo_vazio(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        anon = AnonymousUser()
+        self.assertEqual(list(access.scope_evidences_custodial(anon)), [])
+        self.assertEqual(list(access.scope_custody_custodial(anon)), [])
+
+    def test_custody_custodial_subconjunto(self):
+        full = set(access.scope_custody(self.custodian))
+        custodial = set(access.scope_custody_custodial(self.custodian))
+        self.assertTrue(custodial.issubset(full))
+        self.assertTrue(len(custodial) >= 1)
+
+    # -- Matriz de lentes ---------------------------------------------------
+
+    def test_available_lenses_nunca_vazio(self):
+        for u in self.all_users:
+            self.assertTrue(access.available_lenses(u), f'{u.username} sem lentes')
+
+    def test_default_lens_in_available(self):
+        for u in self.all_users:
+            self.assertIn(
+                access.default_lens(u),
+                access.available_lenses(u),
+                f'default fora de available para {u.username}',
+            )
+
+    def test_default_lens_por_papel(self):
+        casos = {
+            self.responder: access.Lens.MINE,
+            self.responder_nac: access.Lens.MINE,
+            self.custodian: access.Lens.CUSTODY,
+            self.custodian_nac: access.Lens.CUSTODY,
+            self.perito_norm: access.Lens.ALL,
+            self.perito_nac: access.Lens.ALL,
+            self.mp: access.Lens.MINE,
+            self.mp_nac: access.Lens.MINE,
+            self.chefe_norm: access.Lens.CUSTODY,
+            self.chefe_nac: access.Lens.ALL,
+            self.auditor_norm: access.Lens.CUSTODY,
+            self.auditor_nac: access.Lens.ALL,
+        }
+        for u, esperado in casos.items():
+            self.assertEqual(access.default_lens(u), esperado, u.username)
+
+    def test_can_use_lens_all_iff_full_read(self):
+        for u in self.all_users:
+            self.assertEqual(
+                access.can_use_lens(u, access.Lens.ALL),
+                access.has_full_read(u),
+                u.username,
+            )
+
+    def test_can_use_lens_mine_nega_readonly(self):
+        for u in (self.chefe_norm, self.chefe_nac, self.auditor_norm, self.auditor_nac):
+            self.assertFalse(access.can_use_lens(u, access.Lens.MINE), u.username)
+
+    def test_resolve_lens_fallback(self):
+        # Lente proibida / inválida / ausente → default; permitida → respeitada.
+        self.assertEqual(access.resolve_lens(self.responder, 'all'), access.Lens.MINE)
+        self.assertEqual(access.resolve_lens(self.responder, 'bogus'), access.Lens.MINE)
+        self.assertEqual(access.resolve_lens(self.responder, None), access.Lens.MINE)
+        self.assertEqual(access.resolve_lens(self.responder, 'custody'), access.Lens.CUSTODY)
+        self.assertEqual(access.resolve_lens(self.perito_norm, 'all'), access.Lens.ALL)

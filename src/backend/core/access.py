@@ -130,6 +130,128 @@ def scope_custody(user, base_qs=None):
 
 
 # ---------------------------------------------------------------------------
+# Ramo custodial (lente "À guarda da instituição") — item-level
+# ---------------------------------------------------------------------------
+
+
+def scope_evidences_custodial(user, base_qs=None):
+    """Itens à guarda do utilizador/instituição — ramo *custodial* de
+    :func:`scope_evidences`, isolado para a lente "À guarda da instituição".
+
+    Visível só se o utilizador detém/deteve o item (foi ``agent`` de um evento)
+    ou a sua instituição é/foi ``custodian_institution``. É um **subconjunto
+    estrito** de :func:`scope_evidences`: usa as mesmas condições do ramo
+    custodial, SEM o curto-circuito ``has_full_read`` — um perito (leitura total)
+    que não detém nada vê esta lente VAZIA (mostra o que detém, não tudo).
+    """
+    qs = Evidence.objects.all() if base_qs is None else base_qs
+    if not getattr(user, 'is_authenticated', False):
+        return qs.none()
+    inst_ids = _active_institution_ids(user)
+    cond = Q(custody_chain__agent=user)
+    if inst_ids:
+        cond |= Q(custody_chain__custodian_institution_id__in=inst_ids)
+    return qs.filter(cond).distinct()
+
+
+def scope_custody_custodial(user, base_qs=None):
+    """Eventos de custódia dos itens à guarda do utilizador/instituição
+    (espelha :func:`scope_custody` sobre o subconjunto custodial)."""
+    qs = ChainOfCustody.objects.all() if base_qs is None else base_qs
+    if not getattr(user, 'is_authenticated', False):
+        return qs.none()
+    return qs.filter(evidence__in=scope_evidences_custodial(user).values('pk'))
+
+
+# ---------------------------------------------------------------------------
+# Lentes de acesso (consolas por papel) — eixos de LEITURA expostos na UI
+# ---------------------------------------------------------------------------
+
+
+class Lens:
+    """Eixos de leitura que a UI expõe como "lente" (consolas por papel).
+
+    Cada lente corresponde EXATAMENTE a um queryset que o backend impõe:
+
+    - ``MINE`` — eixo de caso (:func:`scope_occurrences`): as minhas ocorrências.
+    - ``CUSTODY`` — eixo de item (:func:`scope_evidences_custodial`): à guarda do
+      meu serviço/de mim. É centrado em ITENS — não existe eixo institucional ao
+      nível da ocorrência.
+    - ``ALL`` — leitura total (só ``has_full_read``): toda a prova e processos.
+    """
+
+    MINE = 'mine'
+    CUSTODY = 'custody'
+    ALL = 'all'
+
+
+VALID_LENSES = frozenset({Lens.MINE, Lens.CUSTODY, Lens.ALL})
+
+# Ordem fixa de apresentação dos chips.
+_LENS_ORDER = (Lens.MINE, Lens.CUSTODY, Lens.ALL)
+
+
+def can_use_lens(user, lens):
+    """O utilizador pode usar esta lente? (gate server-side).
+
+    ``ALL`` ⟺ leitura total (``has_full_read``); ``MINE`` ⟺ autenticado e perfil
+    não só-leitura (titular/operacional); ``CUSTODY`` ⟺ autenticado com perfil
+    operacional. ``CHEFE_SERVICO``/``AUDITOR`` (só-leitura) não usam ``MINE``
+    (não são titulares de casos).
+    """
+    if not getattr(user, 'is_authenticated', False):
+        return False
+    if lens == Lens.ALL:
+        return has_full_read(user)
+    profile = _profile(user)
+    if lens == Lens.MINE:
+        return profile is not None and profile not in READ_ONLY_PROFILES
+    if lens == Lens.CUSTODY:
+        return profile is not None
+    return False
+
+
+def available_lenses(user):
+    """Lentes utilizáveis pelo utilizador, em ordem fixa de apresentação."""
+    return [lens for lens in _LENS_ORDER if can_use_lens(user, lens)]
+
+
+def default_lens(user):
+    """Lente inicial do utilizador. A credencial amplia as lentes *disponíveis*,
+    não muda o trabalho default (o eixo segue a FUNÇÃO). Garantidamente
+    pertencente a :func:`available_lenses`.
+    """
+    profile = _profile(user)
+    if profile == User.Profile.EVIDENCE_CUSTODIAN:
+        preferred = Lens.CUSTODY
+    elif profile in (User.Profile.FIRST_RESPONDER, User.Profile.CASE_AUTHORITY):
+        preferred = Lens.MINE
+    elif profile == User.Profile.FORENSIC_EXPERT:
+        preferred = Lens.ALL
+    elif profile in READ_ONLY_PROFILES:
+        # Supervisão: leitura total se a credencial a permitir, senão o pouco que
+        # o serviço tem à guarda.
+        preferred = Lens.ALL if has_full_read(user) else Lens.CUSTODY
+    else:
+        # Staff/superuser sem perfil operacional.
+        preferred = Lens.ALL
+    if can_use_lens(user, preferred):
+        return preferred
+    available = available_lenses(user)
+    return available[0] if available else Lens.MINE
+
+
+def resolve_lens(user, requested):
+    """Resolve a lente pedida pelo cliente (query param) contra o que o
+    utilizador pode usar. Lente inválida/proibida/ausente → :func:`default_lens`
+    (fallback silencioso — não vaza a existência do eixo).
+    """
+    if requested in VALID_LENSES and can_use_lens(user, requested):
+        return requested
+    return default_lens(user)
+
+
+# ---------------------------------------------------------------------------
 # Permissões object-level (LEITURA)
 # ---------------------------------------------------------------------------
 
