@@ -621,3 +621,91 @@ body.app-body {
         50%      { opacity: 1;   transform: scale(1.05); }
     }
 }
+
+/* =====================================================================
+   Lente de acesso (consolas por papel — ADR-0017)
+   Barra de chips (topo do app-main) + sidebar adaptativa ao eixo ativo.
+   Tudo CSS estático servido por <link> (sem inline → compatível com a CSP).
+   ===================================================================== */
+
+.lens-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+    flex-shrink: 0;
+}
+.lens-bar__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-right: var(--sp-1);
+}
+.lens-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--sp-1) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+    color: var(--text);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease);
+}
+.lens-chip:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.lens-chip:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+.lens-chip.is-active,
+.lens-chip[aria-current="page"] {
+    background: var(--accent-tint);
+    color: var(--accent-on-tint);
+    border-color: var(--accent);
+    font-weight: var(--fw-medium);
+}
+
+/* Sidebar adaptativa: o grupo do eixo da lente ativa sobe ao topo (CSS order)
+   e o seu título ganha o âmbar. Apresentação pura — nenhum link sai do DOM,
+   tudo continua alcançável trocando de lente. */
+.app-sidebar nav {
+    display: flex;
+    flex-direction: column;
+}
+.app-sidebar__group { order: 2; }
+.app-sidebar nav[data-lens="mine"]    [data-axis="mine"],
+.app-sidebar nav[data-lens="all"]     [data-axis="mine"],
+.app-sidebar nav[data-lens="custody"] [data-axis="custody"] {
+    order: 1;
+}
+.app-sidebar nav[data-lens="mine"]    [data-axis="mine"]    > .app-sidebar__group-title,
+.app-sidebar nav[data-lens="custody"] [data-axis="custody"] > .app-sidebar__group-title {
+    color: var(--accent);
+}
+
+/* Pílula de âmbito (ex.: rótulo do feed de auditoria no painel). */
+.scope-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    padding: 2px var(--sp-2);
+    white-space: nowrap;
+}

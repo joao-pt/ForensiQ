@@ -3,6 +3,9 @@
 
 {% block title %}Receção · {{ occurrence.code }} — ForensiQ{% endblock %}
 
+{# Sem barra de lente: página de entrada de dados (clicar um chip perderia o formulário). #}
+{% block lens_bar %}{% endblock %}
+
 {% block extra_css %}
   <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}

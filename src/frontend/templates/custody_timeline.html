@@ -3,6 +3,9 @@
 
 {% block title %}Cadeia · {{ ev.code }} — ForensiQ{% endblock %}
 
+{# Sem barra de lente: tem formulário de registo de evento (clicar um chip perderia o que está por submeter). #}
+{% block lens_bar %}{% endblock %}
+
 {% block extra_css %}
   {% include '_leaflet_head.html' %}
   <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">

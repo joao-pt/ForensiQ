@@ -41,13 +41,13 @@
 {% if page_obj.has_other_pages %}
 <nav class="pager" aria-label="Paginação">
   {% if page_obj.has_previous %}
-  <a class="pager__btn" href="/reports/?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}"
-     hx-get="/reports/?q={{ q|urlencode }}&page={{ page_obj.previous_page_number }}" hx-target="#rpt-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
+  <a class="pager__btn" href="/reports/?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
+     hx-get="/reports/?{{ qs_base }}&page={{ page_obj.previous_page_number }}" hx-target="#rpt-grid" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
   {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
   <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
   {% if page_obj.has_next %}
-  <a class="pager__btn" href="/reports/?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}"
-     hx-get="/reports/?q={{ q|urlencode }}&page={{ page_obj.next_page_number }}" hx-target="#rpt-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
+  <a class="pager__btn" href="/reports/?{{ qs_base }}&page={{ page_obj.next_page_number }}"
+     hx-get="/reports/?{{ qs_base }}&page={{ page_obj.next_page_number }}" hx-target="#rpt-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
   {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
 </nav>
 {% endif %}

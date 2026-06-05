@@ -189,10 +189,10 @@
                     </svg>
                 </button>
             </div>
-            <nav>
-                <div class="app-sidebar__group">
+            <nav data-lens="{{ lens|default:'' }}">
+                <div class="app-sidebar__group" data-axis="mine">
                     <p class="app-sidebar__group-title" role="presentation">Principal</p>
-                    <a class="app-sidebar__link" href="/dashboard/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/dashboard/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -201,7 +201,7 @@
                         </svg>
                         <span class="app-sidebar__label">Painel</span>
                     </a>
-                    <a class="app-sidebar__link" href="/occurrences/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/occurrences/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -212,9 +212,9 @@
                     </a>
                 </div>
 
-                <div class="app-sidebar__group">
+                <div class="app-sidebar__group" data-axis="custody">
                     <p class="app-sidebar__group-title" role="presentation">Laboratório</p>
-                    <a class="app-sidebar__link" href="/evidences/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/evidences/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -223,7 +223,7 @@
                         </svg>
                         <span class="app-sidebar__label">Evidências</span>
                     </a>
-                    <a class="app-sidebar__link" href="/custodies/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/custodies/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -247,9 +247,9 @@
                     {% endif %}
                 </div>
 
-                <div class="app-sidebar__group">
+                <div class="app-sidebar__group" data-axis="any">
                     <p class="app-sidebar__group-title" role="presentation">Análise</p>
-                    <a class="app-sidebar__link" href="/reports/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/reports/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -258,7 +258,7 @@
                         </svg>
                         <span class="app-sidebar__label">Relatórios</span>
                     </a>
-                    <a class="app-sidebar__link" href="/stats/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/stats/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -268,7 +268,7 @@
                     </a>
                 </div>
 
-                <div class="app-sidebar__group">
+                <div class="app-sidebar__group" data-axis="any">
                     <p class="app-sidebar__group-title" role="presentation">Sistema</p>
                     <a class="app-sidebar__link" href="/settings/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
@@ -295,6 +295,7 @@
 
         {% block app_main %}
         <main class="app-main" id="main-content" tabindex="-1">
+            {% block lens_bar %}{% include 'partials/_lens_bar.html' %}{% endblock %}
             <nav class="breadcrumb app-breadcrumb" aria-label="Navegação">
                 {% block breadcrumb %}<span class="breadcrumb-current">Início</span>{% endblock %}
             </nav>

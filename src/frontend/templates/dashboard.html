@@ -115,9 +115,16 @@
     </div>
   </section>
 
-  <!-- Registo de atividade (AuditLog append-only) — tudo o que acontece -->
+  <!-- Registo de atividade (AuditLog append-only). O âmbito segue a credencial
+       (has_national_read), não a lente: um perito NORMAL tem leitura total da
+       prova mas o seu feed são só os atos dele. -->
   <section class="section">
-    <header class="section__head"><h2 class="section__title">Registo de atividade</h2></header>
+    <header class="section__head">
+      <h2 class="section__title">Registo de atividade</h2>
+      <span class="scope-badge" title="Âmbito do registo de auditoria">
+        {% if feed_is_national %}Registo nacional{% else %}Apenas as minhas ações{% endif %}
+      </span>
+    </header>
     <div class="section__body section__body--flush">
       {% if logs %}
       <ul class="feed" aria-label="Últimos eventos do sistema">

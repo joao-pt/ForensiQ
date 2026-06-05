@@ -75,7 +75,7 @@
 <div class="empty">
   <p class="empty__title">Sem ocorrências</p>
   <p class="empty__hint">
-    {% if q or pri or cat or date_after or date_before %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências registadas.{% endif %}
+    {% if q or pri or cat or date_after or date_before %}Nenhum resultado para os filtros aplicados.{% elif lens == 'custody' %}Nesta lente vê o que está à sua guarda — não os casos. A prova que detém aparece em <a href="/evidences/?lens=custody">Evidências</a>.{% else %}Ainda não há ocorrências que possa ver a nível de caso.{% endif %}
   </p>
 </div>
 {% endif %}
