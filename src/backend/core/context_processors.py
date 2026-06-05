@@ -39,3 +39,40 @@ def _build_info():
 def app_metadata(request):
     """Injecta metadata de build no contexto de cada template."""
     return _build_info()
+
+
+def lens_nav(request):
+    """Injecta a lente de acesso ativa e as lentes disponíveis na casca.
+
+    A "lente" (consolas por papel — ADR-0017) é o eixo de leitura ativo:
+    ``mine`` (minhas ocorrências), ``custody`` (à guarda da instituição, item-level)
+    ou ``all`` (leitura total). É resolvida exatamente como nas views
+    (:func:`core.access.resolve_lens`), pelo que a casca e o conteúdo concordam.
+
+    Livre de ORM — lê só ``profile``/``clearance``/``is_staff`` de ``request.user``
+    — pelo que é barato em qualquer página e devolve vazio a não-autenticados (a
+    casca esconde os chips quando há menos de duas lentes).
+    """
+    from core import access
+
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {}
+    options = access.available_lenses(user)
+    active = access.resolve_lens(user, request.GET.get('lens'))
+    labels = {
+        access.Lens.MINE: 'Minhas ocorrências',
+        access.Lens.CUSTODY: 'À guarda da instituição',
+        access.Lens.ALL: 'Tudo',
+    }
+    return {
+        'lens': active,
+        # Sufixo de querystring para os links da casca preservarem a lente ativa
+        # (ex.: href="/evidences/{{ lens_qs }}").
+        'lens_qs': f'?lens={active}',
+        'lens_options': (
+            [{'key': k, 'label': labels[k], 'is_active': k == active} for k in options]
+            if len(options) >= 2
+            else []
+        ),
+    }

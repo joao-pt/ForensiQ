@@ -462,7 +462,7 @@ def _activity_feed(user, limit=20):
     return logs
 
 
-def _legal_states_by_evidence(user):
+def _legal_states_by_evidence(user, custody_qs=None):
     """``{evidence_id: estado_legal_derivado}`` numa ÚNICA query (WI-E).
 
     Substitui a iteração O(n) que instanciava todas as evidências e ordenava o
@@ -478,13 +478,59 @@ def _legal_states_by_evidence(user):
     # restantes perfis no dashboard e (b) sub-contava o FIRST_RESPONDER que detém
     # itens de ocorrências de outrem. scope_custody devolve todos os eventos das
     # evidências visíveis, pelo que derive_legal_state recebe a cadeia completa.
-    qs = access.scope_custody(user)
+    # ``custody_qs`` permite restringir à lente ativa (ex.: tiles do Painel em
+    # "À guarda") — tem de ser já um âmbito imposto (subconjunto de scope_custody).
+    qs = access.scope_custody(user) if custody_qs is None else custody_qs
     eventos = {}
-    for rec in qs.order_by('evidence_id', 'sequence').only(
+    # select_related(None) limpa quaisquer joins (ex.: a lente traz
+    # select_related('agent')) que entrariam em conflito com o .only() abaixo.
+    for rec in qs.select_related(None).order_by('evidence_id', 'sequence').only(
         'evidence_id', 'event_type', 'custodian_type', 'sequence'
     ):
         eventos.setdefault(rec.evidence_id, []).append(rec)
     return {ev_id: derive_legal_state(evs) for ev_id, evs in eventos.items()}
+
+
+# ---------------------------------------------------------------------------
+# Dispatch por lente de acesso (consolas por papel) — ver core.access.Lens.
+# Cada lente mapeia num queryset que o backend impõe (sem inventar âmbitos):
+# MINE = eixo de caso; CUSTODY = eixo de item (ramo custodial); ALL = leitura
+# total (só alcançável por has_full_read). Resolver a lente com
+# access.resolve_lens valida-a contra o utilizador (fallback silencioso).
+# ---------------------------------------------------------------------------
+
+
+def _lens_occurrences(user, lens):
+    """Ocorrências para a lente ativa. A página de ocorrências é sempre âmbito de
+    CASO (``scope_occurrences``) — em ``custody`` fica vazia para um custódio puro
+    e o template remete para Evidências (não se fabrica acesso ao caso)."""
+    return _scope_occurrences(user)
+
+
+def _lens_evidences(user, lens):
+    """Itens para a lente ativa (reutiliza os predicados de core.access)."""
+    qs = Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence').prefetch_related(
+        'custody_chain'
+    )
+    if lens == access.Lens.CUSTODY:
+        return access.scope_evidences_custodial(user, base_qs=qs)
+    if lens == access.Lens.MINE:
+        return access.scope_evidences(user, base_qs=qs).filter(
+            occurrence__in=access.scope_occurrences(user).values('pk')
+        )
+    return access.scope_evidences(user, base_qs=qs)  # ALL
+
+
+def _lens_custody(user, lens):
+    """Eventos de custódia para a lente ativa."""
+    qs = ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
+    if lens == access.Lens.CUSTODY:
+        return access.scope_custody_custodial(user, base_qs=qs)
+    if lens == access.Lens.MINE:
+        return access.scope_custody(user, base_qs=qs).filter(
+            evidence__occurrence__in=access.scope_occurrences(user).values('pk')
+        )
+    return access.scope_custody(user, base_qs=qs)  # ALL
 
 
 @jwt_cookie_user
@@ -492,13 +538,24 @@ def dashboard_view(request):
     """Painel — hero geo + últimas ocorrências + registo de atividade, TUDO
     server-rendered (Fase 3). Sem o JS antigo do hero (drift eliminado)."""
     user = request.user
-    occ_qs = _scope_occurrences(user)
+    lens = access.resolve_lens(user, request.GET.get('lens'))
+    # Em "À guarda", o eixo é o ITEM: o hero deriva as ocorrências dos itens
+    # custodiados (contexto geográfico do que se detém), em vez do âmbito de caso
+    # (que para um custódio puro seria vazio). Nas restantes lentes é o caso.
+    if lens == access.Lens.CUSTODY:
+        occ_qs = (
+            Occurrence.objects.select_related('agent', 'crime_type')
+            .filter(evidences__in=access.scope_evidences_custodial(user).values('pk'))
+            .distinct()
+        )
+    else:
+        occ_qs = _scope_occurrences(user)
     occ_total = occ_qs.count()
 
     # Tiles do estado da cadeia — contagem por estado legal DERIVADO (ledger).
     # WI-E: uma só query agrupada (sem instanciar todas as evidências).
     tile_counts = {k: 0 for k in LEGAL_STATE_LABELS}
-    for st in _legal_states_by_evidence(user).values():
+    for st in _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens)).values():
         if st in tile_counts:
             tile_counts[st] += 1
     tiles = [
@@ -527,6 +584,7 @@ def dashboard_view(request):
             'occ_total': occ_total,
             'recent': recent,
             'logs': _activity_feed(user, limit=20),
+            'feed_is_national': access.has_national_read(user),
             'tiles': tiles,
             'total_active': sum(tile_counts.values()),
             'points_continental': json.dumps(regions['continental']),
@@ -553,7 +611,8 @@ def occurrences_view(request):
     if drawer_id:
         return _occurrence_drawer(request, user, drawer_id)
 
-    qs = _scope_occurrences(user)
+    lens = access.resolve_lens(user, request.GET.get('lens'))
+    qs = _lens_occurrences(user, lens)
 
     query = (request.GET.get('q') or '').strip()
     if query:
@@ -591,7 +650,7 @@ def occurrences_view(request):
 
     # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
     qs_base = urlencode({k: v for k, v in (
-        ('q', query), ('pri', priority), ('cat', cat),
+        ('lens', lens), ('q', query), ('pri', priority), ('cat', cat),
         ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
     ) if v})
 
@@ -708,7 +767,8 @@ def evidences_view(request):
     if drawer_id:
         return _evidence_drawer(request, user, drawer_id)
 
-    qs = _scope_evidences(user)
+    lens = access.resolve_lens(user, request.GET.get('lens'))
+    qs = _lens_evidences(user, lens)
 
     query = (request.GET.get('q') or '').strip()
     if query:
@@ -724,10 +784,13 @@ def evidences_view(request):
         qs = qs.filter(type=etype)
 
     # Filtro por estado legal DERIVADO (entrada a partir dos tiles do Painel).
-    # WI-E: uma só query agrupada em vez de iterar todas as evidências 2x.
+    # WI-E: uma só query agrupada em vez de iterar todas as evidências 2x. Estado
+    # derivado da cadeia COMPLETA (scope_custody_custodial devolve cadeias inteiras
+    # dos itens da lente, não só os eventos custodiais).
     state = (request.GET.get('state') or '').strip()
     if state in LEGAL_STATES:
-        matching = [ev_id for ev_id, st in _legal_states_by_evidence(user).items() if st == state]
+        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
+        matching = [ev_id for ev_id, st in states.items() if st == state]
         qs = qs.filter(id__in=matching)
 
     date_after = (request.GET.get('date_after') or '').strip()
@@ -746,7 +809,7 @@ def evidences_view(request):
     _decorate_evidences(page_obj.object_list)
 
     qs_base = urlencode({k: v for k, v in (
-        ('q', query), ('type', etype), ('state', state),
+        ('lens', lens), ('q', query), ('type', etype), ('state', state),
         ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
     ) if v})
 
@@ -1154,7 +1217,8 @@ def custody_list_view(request):
     if drawer_id:
         return _custody_drawer(request, user, drawer_id)
 
-    qs = _scope_custody(user)
+    lens = access.resolve_lens(user, request.GET.get('lens'))
+    qs = _lens_custody(user, lens)
 
     query = (request.GET.get('q') or '').strip()
     if query:
@@ -1177,10 +1241,12 @@ def custody_list_view(request):
     if institution.isdigit():
         qs = qs.filter(custodian_institution_id=int(institution))
 
-    # Estado legal DERIVADO do item a que o evento pertence (mesmo padrão WI-E).
+    # Estado legal DERIVADO do item a que o evento pertence (mesmo padrão WI-E),
+    # restrito à lente ativa (cadeias completas dos itens da lente).
     state = (request.GET.get('state') or '').strip()
     if state in LEGAL_STATES:
-        matching = [ev_id for ev_id, st in _legal_states_by_evidence(user).items() if st == state]
+        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
+        matching = [ev_id for ev_id, st in states.items() if st == state]
         qs = qs.filter(evidence_id__in=matching)
 
     date_after = (request.GET.get('date_after') or '').strip()
@@ -1199,7 +1265,7 @@ def custody_list_view(request):
     _decorate_events(page_obj.object_list)
 
     qs_base = urlencode({k: v for k, v in (
-        ('q', query), ('event', event), ('custodian', custodian),
+        ('lens', lens), ('q', query), ('event', event), ('custodian', custodian),
         ('institution', institution), ('state', state),
         ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
     ) if v})
@@ -1244,7 +1310,8 @@ def investigation_report_view(request):
 def reports_view(request):
     """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3)."""
     user = request.user
-    qs = _scope_occurrences(user).annotate(n_ev=Count('evidences'))
+    lens = access.resolve_lens(user, request.GET.get('lens'))
+    qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences'))
     query = (request.GET.get('q') or '').strip()
     if query:
         qs = qs.filter(
@@ -1254,10 +1321,12 @@ def reports_view(request):
     paginator = Paginator(qs, 30)
     page_obj = paginator.get_page(request.GET.get('page'))
     _decorate_occurrences(page_obj.object_list)
+    qs_base = urlencode({k: v for k, v in (('lens', lens), ('q', query)) if v})
     ctx = {
         'page_obj': page_obj,
         'total': paginator.count,
         'q': query,
+        'qs_base': qs_base,
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
     if ctx['is_htmx']:
@@ -1459,11 +1528,14 @@ def stats_view(request):
     """Estatísticas agregadas — server-rendered (Fase 3). Agregados baratos
     (não deriva estado legal por linha; isso fica para uma vista dedicada)."""
     user = request.user
-    occ_qs = _scope_occurrences(user)
+    lens = access.resolve_lens(user, request.GET.get('lens'))
+    occ_qs = _lens_occurrences(user, lens)
+    evd_qs = _lens_evidences(user, lens)
+    cus_qs = _lens_custody(user, lens)
     kpis = {
         'occurrences': occ_qs.count(),
-        'evidences': _scope_evidences(user).count(),
-        'custody_events': _scope_custody(user).count(),
+        'evidences': evd_qs.count(),
+        'custody_events': cus_qs.count(),
         'prioritarias': occ_qs.filter(priority=Occurrence.Priority.PRIORITARIA).count(),
     }
     # Lookup tolerante: EnumValue(x) levantaria ValueError (→ 500) se a BD tivesse
@@ -1473,11 +1545,11 @@ def stats_view(request):
     event_labels = dict(EventType.choices)
     by_type = [
         {'label': type_labels.get(r['type'], r['type']), 'n': r['n']}
-        for r in _scope_evidences(user).values('type').annotate(n=Count('id')).order_by('-n')
+        for r in evd_qs.values('type').annotate(n=Count('id')).order_by('-n')
     ]
     by_event = [
         {'label': event_labels.get(r['event_type'], r['event_type']), 'n': r['n']}
-        for r in _scope_custody(user).values('event_type').annotate(n=Count('id')).order_by('-n')
+        for r in cus_qs.values('event_type').annotate(n=Count('id')).order_by('-n')
     ]
     return render(request, 'stats.html', {'kpis': kpis, 'by_type': by_type, 'by_event': by_event})
 
