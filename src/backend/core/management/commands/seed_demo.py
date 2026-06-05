@@ -166,6 +166,15 @@ class Command(BaseCommand):
         parser.add_argument('--agent-password', help='Password para o perfil AGENT.')
         parser.add_argument('--expert-username', help='Username para o perfil EXPERT.')
         parser.add_argument('--expert-password', help='Password para o perfil EXPERT.')
+        parser.add_argument(
+            '--demo-password',
+            default='Forensiq#Demo2026',
+            help=(
+                'Password (DEMONSTRAÇÃO, não-produção) partilhada pelo roster de '
+                'utilizadores por instituição. Tem default conhecido para a demo; '
+                'substitua-a (ou use credenciais por utilizador) em qualquer uso real.'
+            ),
+        )
 
     # ----- entry point -----
 
@@ -212,6 +221,8 @@ class Command(BaseCommand):
             secret=True,
         )
 
+        demo_password = (options.get('demo_password') or 'Forensiq#Demo2026').strip()
+
         if agent_username == expert_username:
             raise CommandError('Username do AGENT e do EXPERT têm de ser distintos.')
 
@@ -242,10 +253,11 @@ class Command(BaseCommand):
         # Organização (ADR-0017): instituições custódias básicas + pertenças.
         institutions = self._seed_organizations(agent, expert)
 
-        # Perfis adicionais para a demo cobrir os 6 papéis do ADR-0017 (custódio,
-        # MP, chefe, auditor) — sem isto só era possível autenticar como
-        # agente/perito e os outros 4 perfis nunca eram instanciados.
-        extra = self._seed_extra_roles(institutions)
+        # Roster de demonstração: VÁRIOS utilizadores por instituição, cobrindo os
+        # 6 papéis do ADR-0017 em várias cidades/serviços. Sem isto a demo só tinha
+        # um agente e um perito; assim exibe o modelo função+credencial+instituição
+        # com pluralidade realista (várias esquadras, laboratórios, DIAP, tribunal).
+        extra = self._seed_org_roster(institutions, demo_password)
         all_users = [agent, expert] + extra
 
         if users_only:
@@ -309,11 +321,19 @@ class Command(BaseCommand):
         laboratório público. Tribunal e serviço do MP ficam disponíveis para
         os fluxos de encaminhamento/validação. Idempotente.
         """
+        # Nomes das 4 primeiras mantidos EXATAMENTE (match idempotente por
+        # nome+tipo, ADR-0017); as siglas PSP-LSB/LPC/TJ-LSB são usadas por
+        # _create_cases. Acrescentam-se mais OPC/laboratório/MP para a demo ter
+        # várias organizações.
         specs = [
             ('Polícia de Segurança Pública — Esquadra de Lisboa', InstitutionType.OPC, 'PSP-LSB'),
+            ('Polícia de Segurança Pública — Esquadra do Porto', InstitutionType.OPC, 'PSP-PRT'),
+            ('Guarda Nacional Republicana — Destacamento de Faro', InstitutionType.OPC, 'GNR-FAR'),
             ('Laboratório de Polícia Científica', InstitutionType.LAB_PUBLICO, 'LPC'),
-            ('Tribunal Judicial da Comarca de Lisboa', InstitutionType.TRIBUNAL, 'TJ-LSB'),
+            ('PeritaLab — laboratório privado acreditado', InstitutionType.LAB_PRIVADO, 'LAB-PRIV'),
             ('DIAP de Lisboa', InstitutionType.MP, 'DIAP-LSB'),
+            ('DIAP do Porto', InstitutionType.MP, 'DIAP-PRT'),
+            ('Tribunal Judicial da Comarca de Lisboa', InstitutionType.TRIBUNAL, 'TJ-LSB'),
         ]
         institutions = {}
         for name, type_, sigla in specs:
@@ -336,47 +356,101 @@ class Command(BaseCommand):
         )
         return institutions
 
-    def _seed_extra_roles(self, institutions):
-        """Provisiona os 4 perfis além de agente/perito, para a demo cobrir os
-        6 papéis do ADR-0017. Password demo ÚNICA e conhecida (impressa no
-        resumo) — uso exclusivamente de demonstração local (CWE-521 aceite)."""
-        password = 'Prova-Digital-2026!'
-        specs = [
-            ('custodio', User.Profile.EVIDENCE_CUSTODIAN, User.Clearance.NORMAL,
-             'Custódio', 'Demo', 'CUSTODY-DEMO', 'LPC'),
-            ('mp', User.Profile.CASE_AUTHORITY, User.Clearance.NACIONAL,
-             'Magistrado', 'Demo', 'MP-DEMO', 'DIAP-LSB'),
-            ('chefe', User.Profile.CHEFE_SERVICO, User.Clearance.NACIONAL,
-             'Chefe', 'Serviço', 'CHEFE-DEMO', 'PSP-LSB'),
-            ('auditor', User.Profile.AUDITOR, User.Clearance.NACIONAL,
-             'Auditor', 'Demo', 'AUDITOR-DEMO', 'TJ-LSB'),
+    def _seed_org_roster(self, institutions, password):
+        """Provisiona VÁRIOS utilizadores por instituição (demo, ADR-0017).
+
+        Cobre os 6 papéis (FIRST_RESPONDER, FORENSIC_EXPERT, EVIDENCE_CUSTODIAN,
+        CASE_AUTHORITY, CHEFE_SERVICO, AUDITOR) em várias organizações/cidades,
+        com várias contas por organização. Todos com a MESMA password de
+        DEMONSTRAÇÃO (``password``, não-produção, impressa no resumo). Idempotente
+        (upsert por username); cada utilizador é ligado à sua instituição.
+
+        Notas de modelagem para a demo do controlo de acesso:
+        - inclui peritos com credencial NORMAL (perito.lpc2, perito.priv1) para
+          exibir a leitura total do perito POR FUNÇÃO (Emenda ADR-0017 2026-06-05);
+        - chefes/auditor/MP têm credencial NACIONAL (leitura nacional).
+        """
+        P = User.Profile
+        C = User.Clearance
+        # sigla -> [(username, profile, clearance, first_name, last_name, badge), ...]
+        roster = [
+            ('PSP-LSB', [
+                ('agente.lsb1', P.FIRST_RESPONDER, C.NORMAL, 'Rui', 'Almeida', 'PSP-LSB-101'),
+                ('agente.lsb2', P.FIRST_RESPONDER, C.NORMAL, 'Sofia', 'Marques', 'PSP-LSB-102'),
+                ('chefe.lsb', P.CHEFE_SERVICO, C.NACIONAL, 'Helena', 'Costa', 'PSP-LSB-CH'),
+            ]),
+            ('PSP-PRT', [
+                ('agente.prt1', P.FIRST_RESPONDER, C.NORMAL, 'Tiago', 'Ferreira', 'PSP-PRT-201'),
+                ('agente.prt2', P.FIRST_RESPONDER, C.NORMAL, 'Inês', 'Pinto', 'PSP-PRT-202'),
+                ('chefe.prt', P.CHEFE_SERVICO, C.NACIONAL, 'Paulo', 'Sousa', 'PSP-PRT-CH'),
+            ]),
+            ('GNR-FAR', [
+                ('agente.far1', P.FIRST_RESPONDER, C.NORMAL, 'Carla', 'Nunes', 'GNR-FAR-301'),
+                ('chefe.far', P.CHEFE_SERVICO, C.NACIONAL, 'Mário', 'Lopes', 'GNR-FAR-CH'),
+            ]),
+            ('LPC', [
+                ('perito.lpc1', P.FORENSIC_EXPERT, C.NACIONAL, 'André', 'Reis', 'LPC-E1'),
+                ('perito.lpc2', P.FORENSIC_EXPERT, C.NORMAL, 'Beatriz', 'Cardoso', 'LPC-E2'),
+                ('custodio.lpc', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Jorge', 'Tavares', 'LPC-CUS'),
+            ]),
+            ('LAB-PRIV', [
+                ('perito.priv1', P.FORENSIC_EXPERT, C.NORMAL, 'Núria', 'Gomes', 'PRIV-E1'),
+                ('custodio.priv', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Diogo', 'Antunes', 'PRIV-CUS'),
+            ]),
+            ('DIAP-LSB', [
+                ('mp.lsb1', P.CASE_AUTHORITY, C.NACIONAL, 'Teresa', 'Lima', 'MP-LSB-1'),
+                ('mp.lsb2', P.CASE_AUTHORITY, C.NACIONAL, 'Ricardo', 'Matos', 'MP-LSB-2'),
+            ]),
+            ('DIAP-PRT', [
+                ('mp.prt1', P.CASE_AUTHORITY, C.NACIONAL, 'Cláudia', 'Rocha', 'MP-PRT-1'),
+            ]),
+            ('TJ-LSB', [
+                ('escrivao.tj', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Manuel', 'Cunha', 'TJ-LSB-ESC'),
+            ]),
         ]
+
         users = []
-        self._extra_credentials = []
-        for username, profile, clearance, fn, ln, badge, sigla in specs:
-            u = self._upsert_user(
-                username=username,
-                password=password,
-                profile=profile,
-                clearance=clearance,
-                first_name=fn,
-                last_name=ln,
-                email=f'{username}@forensiq.demo',
-                badge_number=badge,
-            )
+        self._roster_by_org = []
+        for sigla, members in roster:
             inst = institutions.get(sigla)
-            if inst:
-                InstitutionMembership.objects.update_or_create(
-                    user=u,
-                    institution=inst,
-                    defaults={'is_active': True},
+            usernames = []
+            for username, profile, clearance, fn, ln, badge in members:
+                u = self._upsert_user(
+                    username=username,
+                    password=password,
+                    profile=profile,
+                    clearance=clearance,
+                    first_name=fn,
+                    last_name=ln,
+                    email=f'{username}@forensiq.demo',
+                    badge_number=badge,
                 )
-            users.append(u)
-            self._extra_credentials.append(username)
-        self._extra_password = password
+                if inst is not None:
+                    InstitutionMembership.objects.update_or_create(
+                        user=u, institution=inst, defaults={'is_active': True},
+                    )
+                users.append(u)
+                usernames.append(username)
+            self._roster_by_org.append((sigla, usernames))
+
+        # Auditor nacional — supervisão transversal, sem instituição própria.
+        auditor = self._upsert_user(
+            username='auditor.geral',
+            password=password,
+            profile=P.AUDITOR,
+            clearance=C.NACIONAL,
+            first_name='Auditor',
+            last_name='Geral',
+            email='auditor.geral@forensiq.demo',
+            badge_number='AUD-GERAL',
+        )
+        users.append(auditor)
+        self._roster_by_org.append(('(nacional)', ['auditor.geral']))
+
+        self._demo_password = password
         self.stdout.write(
-            '   Perfis adicionais: 4 '
-            '(custodio@LPC, mp@DIAP-LSB, chefe@PSP-LSB, auditor@TJ-LSB).'
+            f'   Roster por instituição: {len(users)} utilizadores demo em '
+            f'{len(self._roster_by_org)} grupos.'
         )
         return users
 
@@ -394,6 +468,8 @@ class Command(BaseCommand):
                         core_evidence,
                         core_occurrence,
                         core_auditlog,
+                        core_institutionmembership,
+                        core_institution,
                         core_user
                     RESTART IDENTITY CASCADE
                 """)
@@ -403,7 +479,8 @@ class Command(BaseCommand):
             Evidence.objects.all()._raw_delete(Evidence.objects.db)
             Occurrence.objects.all().delete()
             AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
-            User.objects.all().delete()
+            User.objects.all().delete()  # cascata remove as pertenças
+            Institution.objects.all().delete()
 
         if wipe_media:
             media_root = Path(settings.MEDIA_ROOT)
@@ -861,11 +938,15 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('=' * 60))
         for user in users:
             self.stdout.write(f'   {user.profile:<18} {user.clearance:<9} {user.username}')
-        if getattr(self, '_extra_credentials', None):
+        roster = getattr(self, '_roster_by_org', None)
+        if roster:
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING('Roster de demonstração (uma password para todos):'))
+            for sigla, usernames in roster:
+                self.stdout.write(f'   {sigla:<12} {", ".join(usernames)}')
             self.stdout.write('')
             self.stdout.write(self.style.WARNING(
-                f'Perfis adicionais ({", ".join(self._extra_credentials)}) — '
-                f'password demo única: {self._extra_password}'
+                f'Password do roster (DEMO, não-produção): {self._demo_password}'
             ))
         self.stdout.write('')
         if cases_created and cases:
