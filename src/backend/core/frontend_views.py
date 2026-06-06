@@ -51,6 +51,7 @@ from core.models import (
     EventType,
     Evidence,
     Institution,
+    InstitutionType,
     Occurrence,
     Portador,
     derive_legal_state,
@@ -859,6 +860,106 @@ def occurrences_new_view(request):
         )
 
     return render(request, 'occurrences_new.html', _ctx({}, {}))
+
+
+def _can_manage_institutions(user):
+    """Gerir instituições (pontos de controlo) é ato de administração: ``staff``
+    ou credencial NACIONAL. Lista e criação partilham o mesmo portão."""
+    return bool(user.is_staff or getattr(user, 'has_national_clearance', False))
+
+
+def _wants_modal(request):
+    """Pedido em modo modal (ação-in-place)? GET ``?modal=1`` (abrir) ou o
+    campo escondido ``modal`` no POST (submeter)."""
+    return request.GET.get('modal') == '1' or request.POST.get('modal') == '1'
+
+
+@jwt_cookie_user
+def institutions_view(request):
+    """Lista de instituições (pontos de controlo fixos) — gestão (staff/NACIONAL).
+
+    As instituições são dados de referência da custódia (não são prova). Esta é a
+    casa do gatilho de criação ação-in-place (modal). Filtra por texto e por tipo.
+    """
+    user = request.user
+    if not _can_manage_institutions(user):
+        return HttpResponseForbidden('Sem permissão para gerir instituições.')
+
+    qs = Institution.objects.order_by('name')
+    query = (request.GET.get('q') or '').strip()
+    if query:
+        qs = qs.filter(Q(name__icontains=query) | Q(sigla__icontains=query))
+    itype = (request.GET.get('type') or '').strip()
+    if itype in InstitutionType.values:
+        qs = qs.filter(type=itype)
+
+    paginator = Paginator(qs, 25)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    qs_base = urlencode({k: v for k, v in (('q', query), ('type', itype)) if v})
+    ctx = {
+        'page_obj': page_obj,
+        'total': paginator.count,
+        'q': query,
+        'type': itype,
+        'institution_types': InstitutionType.choices,
+        'qs_base': qs_base,
+    }
+    return render(request, 'institutions.html', ctx)
+
+
+@jwt_cookie_user
+def institution_new_view(request):
+    """Criação manual de instituição (ponto de controlo) — ADR-0016 Fase 1.
+
+    Reusa o ``InstitutionSerializer`` (obrigatórios nome+tipo+morada+GPS, coerência
+    e quantização a 7 casas via ``full_clean``). Serve duas superfícies da MESMA
+    lógica: página completa (fallback no-JS / navegação direta) e fragmento modal
+    (``?modal=1``, ação-in-place). Em sucesso no modal devolve 204 + ``HX-Redirect``
+    (o HTMX navega); em erro devolve o fragmento com os erros e o modal mantém-se.
+    """
+    from core.serializers import InstitutionSerializer
+
+    user = request.user
+    if not _can_manage_institutions(user):
+        return HttpResponseForbidden('Sem permissão para criar instituições.')
+
+    modal = _wants_modal(request)
+    template = 'partials/_institution_form.html' if modal else 'institution_new.html'
+
+    def _ctx(errors, data):
+        return {
+            'errors': errors,
+            'data': data or {},
+            'institution_types': InstitutionType.choices,
+            'modal': modal,
+            'action': '/institutions/new/',
+        }
+
+    if request.method == 'POST':
+        fields = ('name', 'type', 'sigla', 'address', 'gps_lat', 'gps_lng', 'email', 'phone')
+        data = {k: request.POST[k].strip() for k in fields if request.POST.get(k, '').strip()}
+        serializer = InstitutionSerializer(data=data)
+        if serializer.is_valid():
+            try:
+                inst = serializer.save()
+            except DjangoValidationError as exc:
+                return render(request, template, _ctx({'geral': exc.messages}, request.POST), status=400)
+            log_access(
+                request=request,
+                action=AuditLog.Action.CREATE,
+                resource_type=AuditLog.ResourceType.SYSTEM,
+                resource_id=inst.pk,
+                details={'institution': inst.pk, 'name': inst.name, 'type': inst.type},
+            )
+            messages.success(request, f'Instituição {inst.sigla or inst.name} criada.')
+            if modal:
+                resp = HttpResponse(status=204)
+                resp['HX-Redirect'] = '/institutions/'
+                return resp
+            return HttpResponseRedirect('/institutions/')
+        return render(request, template, _ctx(serializer.errors, request.POST), status=400)
+
+    return render(request, template, _ctx({}, {}))
 
 
 @jwt_cookie_user

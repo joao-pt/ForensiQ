@@ -279,6 +279,16 @@
 
                 <div class="app-sidebar__group" data-axis="any">
                     <p class="app-sidebar__group-title" role="presentation">Sistema</p>
+                    {% if user.is_staff or user.has_national_clearance %}
+                    <a class="app-sidebar__link" href="/institutions/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 11h.01M15 11h.01"/>
+                        </svg>
+                        <span class="app-sidebar__label">Instituições</span>
+                    </a>
+                    {% endif %}
                     <a class="app-sidebar__link" href="/settings/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -395,6 +405,24 @@
     <!-- Notificações / alertas -->
     <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
+    <!-- Modal de AÇÃO (ação-in-place) — <dialog> nativo central, preenchido via
+         HTMX pelo gatilho [data-modal-open]. Vazio até abrir. Ver modal-action.js. -->
+    <dialog id="app-modal" class="app-modal" aria-labelledby="app-modal-title">
+        <div class="app-modal__panel">
+            <header class="app-modal__head">
+                <h2 class="app-modal__title" id="app-modal-title">Ação</h2>
+                <button type="button" class="app-modal__close" data-modal-close
+                        aria-label="Fechar" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </header>
+            <div class="app-modal__body" id="app-modal-body"></div>
+        </div>
+    </dialog>
+
     <!-- Mensagens server-side entregues como dados; app-shell.js encaminha-as para o toast. -->
     {% if messages %}
     <div id="server-messages" hidden>
@@ -411,6 +439,7 @@
     <script src="{% static 'js/user-menu.js' %}"></script>
     <script src="{% static 'js/toast.js' %}"></script>
     <script src="{% static 'js/app-shell.js' %}"></script>
+    <script src="{% static 'js/modal-action.js' %}"></script>
     <script src="{% static 'js/sticky-toolbar.js' %}"></script>
     <script src="{% static 'js/field-keyboard.js' %}"></script>
     <!-- Helpers partilhados (fonte única) — carregados ANTES dos componentes de página -->

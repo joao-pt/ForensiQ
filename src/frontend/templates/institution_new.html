@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Nova instituição — ForensiQ{% endblock %}
+
+{# Sem barra de consola: página de entrada de dados. #}
+{% block lens_bar %}{% endblock %}
+
+{% block extra_css %}
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/institutions/">Instituições</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Nova</span>
+{% endblock %}
+
+{% block content %}
+<article class="detail fullbleed" aria-labelledby="in-title">
+
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="in-title">Nova instituição</h1>
+      <p class="detail__sub">Ponto de controlo fixo — a coordenada é copiada para o evento na receção</p>
+    </div>
+  </header>
+
+  <section class="section">
+    <div class="section__body">
+      {% include 'partials/_institution_form.html' %}
+    </div>
+  </section>
+
+</article>
+{% endblock %}
+
+{% block extra_js %}
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'js/components/geo.js' %}"></script>
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/map-picker.js' %}"></script>
+  <script src="{% static 'js/form-error-focus.js' %}"></script>
+{% endblock %}

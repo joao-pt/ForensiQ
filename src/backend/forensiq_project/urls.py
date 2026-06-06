@@ -45,6 +45,8 @@ from core.frontend_views import (
     evidence_singular_redirect,
     evidences_new_view,
     evidences_view,
+    institution_new_view,
+    institutions_view,
     investigation_report_view,
     login_view,
     occurrence_detail_singular_redirect,
@@ -134,6 +136,10 @@ urlpatterns = [
 
     # Custódias
     path('custodies/', custody_list_view, name='custodies'),
+
+    # Instituições (pontos de controlo fixos) — gestão (staff/NACIONAL)
+    path('institutions/', institutions_view, name='institutions'),
+    path('institutions/new/', institution_new_view, name='institution_new'),
 
     # Relatórios PDF, estatísticas e definições
     path('reports/', reports_view, name='reports'),

@@ -1,0 +1,113 @@
+{% load l10n %}
+{% comment %}
+  Formulário de criação de instituição (ponto de controlo fixo).
+  Fonte ÚNICA partilhada por duas superfícies da MESMA lógica:
+    • página completa (institution_new.html) — fallback no-JS / navegação direta;
+    • fragmento modal (ação-in-place) quando `modal` é verdadeiro.
+  Em modo modal submete via HTMX para #app-modal-body (erros voltam aqui; o
+  sucesso responde 204 + HX-Redirect e o HTMX navega).
+{% endcomment %}
+<div data-modal-title="Nova instituição">
+
+  {% if errors.non_field_errors or errors.geral %}
+  <div class="section" role="alert">
+    <div class="section__body">
+      {% for e in errors.non_field_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+      {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
+    {% csrf_token %}
+    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+    <div class="form-grid">
+
+      <div class="form-field">
+        <label for="f-i-name">Nome *</label>
+        <input type="text" id="f-i-name" name="name" value="{{ data.name }}" required maxlength="255"
+               {% if errors.name %}aria-invalid="true" aria-describedby="f-i-name-err"{% endif %}>
+        {% if errors.name %}<span class="form-error visible" id="f-i-name-err">{{ errors.name.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="f-i-type">Tipo *</label>
+        <select id="f-i-type" name="type" required
+                {% if errors.type %}aria-invalid="true" aria-describedby="f-i-type-err"{% endif %}>
+          <option value="">— selecionar —</option>
+          {% for val, label in institution_types %}
+          <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if errors.type %}<span class="form-error visible" id="f-i-type-err">{{ errors.type.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="f-i-sigla">Sigla</label>
+        <input type="text" id="f-i-sigla" name="sigla" value="{{ data.sigla }}" maxlength="20" placeholder="ex.: LPC-LX">
+      </div>
+
+      <div class="form-field">
+        <label for="f-i-phone">Telefone</label>
+        <input class="mono" type="tel" id="f-i-phone" name="phone" value="{{ data.phone }}" placeholder="+351 …">
+      </div>
+
+      <div class="form-field form-field--full">
+        <label for="f-i-email">Email</label>
+        <input type="email" id="f-i-email" name="email" value="{{ data.email }}" placeholder="geral@instituicao.pt">
+      </div>
+
+      <div class="form-field form-field--full">
+        <label for="f-i-address">Morada *</label>
+        <input type="text" id="f-i-address" name="address" value="{{ data.address }}" required maxlength="255"
+               placeholder="Rua, nº, localidade"
+               {% if errors.address %}aria-invalid="true" aria-describedby="f-i-address-err"{% endif %}>
+        {% if errors.address %}<span class="form-error visible" id="f-i-address-err">{{ errors.address.0 }}</span>{% endif %}
+      </div>
+
+      {# Localização — ponto de controlo fixo. Clicar no mapa fixa o pino; o GPS do
+         dispositivo é um atalho. A coordenada é COPIADA para o evento na receção
+         (GPS-só-no-terreno), por isso é obrigatória na criação manual. #}
+      <div class="form-field form-field--full" role="group" aria-labelledby="f-i-geo-label">
+        <span class="subhead" id="f-i-geo-label">Localização (ponto de controlo) *</span>
+        <div class="map-picker" data-map-picker
+             data-lat-target="#f-i-lat" data-lng-target="#f-i-lng"></div>
+        <p class="map-picker__hint">Clique no mapa para fixar o pino, ou capture o GPS do dispositivo.</p>
+        <div class="form-inline">
+          <button type="button" class="btn-ghost" data-geo-capture
+                  data-lat-target="#f-i-lat" data-lng-target="#f-i-lng" data-decimals="7">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
+            Capturar GPS
+          </button>
+          <span class="mono facts__src" data-geo-acc></span>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label for="f-i-lat">Latitude *</label>
+        <input class="mono" type="text" inputmode="decimal" id="f-i-lat" name="gps_lat" value="{{ data.gps_lat }}" required
+               placeholder="38.7197003"
+               {% if errors.gps_lat %}aria-invalid="true" aria-describedby="f-i-lat-err"{% endif %}>
+        {% if errors.gps_lat %}<span class="form-error visible" id="f-i-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="f-i-lng">Longitude *</label>
+        <input class="mono" type="text" inputmode="decimal" id="f-i-lng" name="gps_lng" value="{{ data.gps_lng }}" required
+               placeholder="-9.1466657"
+               {% if errors.gps_lng %}aria-invalid="true" aria-describedby="f-i-lng-err"{% endif %}>
+        {% if errors.gps_lng %}<span class="form-error visible" id="f-i-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
+      </div>
+
+    </div>
+
+    <div class="form-actions">
+      {% if modal %}
+      <button type="button" class="btn-ghost" data-modal-close>Cancelar</button>
+      {% else %}
+      <a class="btn-ghost" href="/institutions/">Cancelar</a>
+      {% endif %}
+      <button type="submit" class="btn-accent">Criar instituição</button>
+    </div>
+  </form>
+</div>

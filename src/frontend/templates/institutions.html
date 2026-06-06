@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static l10n %}
+
+{% block title %}Instituições — ForensiQ{% endblock %}
+
+{% block extra_css %}
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Instituições</span>{% endblock %}
+
+{% block content %}
+<section class="fullbleed" aria-labelledby="inst-title">
+
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="inst-title">Instituições</h1>
+      <span class="page-head__count">{{ total }} instituiç{{ total|pluralize:"ão,ões" }}</span>
+    </div>
+    {# Ação-in-place: abre o formulário num modal sobre esta página (sem trocar de
+       janela). O href é o recurso no-JS / navegação direta (página completa). #}
+    <a class="btn-accent" href="/institutions/new/"
+       data-modal-open data-modal-title="Nova instituição"
+       hx-get="/institutions/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      Nova instituição
+    </a>
+  </header>
+
+  <form class="toolbar" role="search" action="/institutions/" method="get">
+    <div class="toolbar__search">
+      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="search" name="q" value="{{ q }}"
+             placeholder="Pesquisar nome ou sigla…" autocomplete="off" aria-label="Pesquisar instituições">
+    </div>
+    <select name="type" aria-label="Filtrar por tipo">
+      <option value="">Tipo: todos</option>
+      {% for val, label in institution_types %}
+      <option value="{{ val }}" {% if type == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-ghost">Filtrar</button>
+  </form>
+
+  <div class="gridwrap">
+    {% if page_obj.object_list %}
+    <table class="grid" role="grid" aria-label="Instituições">
+      <thead>
+        <tr role="row">
+          <th role="columnheader" scope="col">Nome</th>
+          <th role="columnheader" scope="col">Tipo</th>
+          <th role="columnheader" scope="col">Sigla</th>
+          <th role="columnheader" scope="col" class="col-hide-sm">Morada</th>
+          <th role="columnheader" scope="col">GPS</th>
+          <th role="columnheader" scope="col">Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for inst in page_obj %}
+        <tr role="row">
+          <td role="gridcell">{{ inst.name }}</td>
+          <td role="gridcell" class="grid__ellipsis">{{ inst.get_type_display }}</td>
+          <td role="gridcell" class="mono">{{ inst.sigla|default:'—' }}</td>
+          <td role="gridcell" class="grid__muted col-hide-sm">{{ inst.address|default:'—' }}</td>
+          <td role="gridcell" class="mono">{% if inst.gps_lat is not None %}{{ inst.gps_lat|unlocalize }}, {{ inst.gps_lng|unlocalize }}{% else %}—{% endif %}</td>
+          <td role="gridcell">
+            {% if inst.is_active %}<span class="state state--ok">Ativa</span>{% else %}<span class="state state--muted">Inativa</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+    <nav class="pager" aria-label="Paginação">
+      {% if page_obj.has_previous %}
+      <a class="pager__btn" href="?page={{ page_obj.previous_page_number }}{% if qs_base %}&{{ qs_base }}{% endif %}">Anterior</a>
+      {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
+      <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+      <a class="pager__btn" href="?page={{ page_obj.next_page_number }}{% if qs_base %}&{{ qs_base }}{% endif %}">Seguinte</a>
+      {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty">
+      <p class="empty__title">Sem instituições</p>
+      <p class="empty__hint">
+        {% if q or type %}Nenhuma instituição para os filtros aplicados.{% else %}Crie o primeiro ponto de controlo com “Nova instituição”.{% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+
+</section>
+{% endblock %}
+
+{% block extra_js %}
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  {# Scripts dos componentes do formulário injetado no modal (ação-in-place):
+     a captura de GPS é delegada no document, o seletor de mapa arranca em
+     fq:modal-open. Leaflet/FQMap já carregados acima. #}
+  <script src="{% static 'js/components/geo.js' %}"></script>
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/map-picker.js' %}"></script>
+{% endblock %}
