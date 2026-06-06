@@ -36,10 +36,12 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core import access, evidence_field_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
+from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.models import (
     GENESIS_EVENTS,
     LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
+    TERMINAL_EVENTS,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -214,29 +216,7 @@ def _occurrence_drawer(request, user, drawer_id):
 # Evidências (lista server-rendered)
 # ---------------------------------------------------------------------------
 
-# Rótulos PT do estado legal derivado (ADR-0015) — espelho de
-# pdf_export._LEGAL_STATE_LABELS, para render server-side.
-LEGAL_STATE_LABELS = {
-    'a_guarda_opc': 'À guarda do OPC',
-    'validada': 'Validada',
-    'em_pericia': 'Em perícia',
-    'pericia_concluida': 'Perícia concluída',
-    'encaminhada': 'Encaminhada',
-    'restituida': 'Restituída',
-    'perdida_favor_estado': 'Perdida a favor do Estado',
-    'destruida': 'Destruída',
-}
-# Variante semântica do ponto do badge .state (cor classifica o estado).
-LEGAL_STATE_CSS = {
-    'a_guarda_opc': 'info',
-    'validada': 'info',
-    'em_pericia': 'warn',
-    'pericia_concluida': 'ok',
-    'encaminhada': 'warn',
-    'restituida': 'muted',
-    'perdida_favor_estado': 'danger',
-    'destruida': 'muted',
-}
+# LEGAL_STATE_LABELS / LEGAL_STATE_CSS: fonte única em core.labels (importados no topo).
 
 _EVD_SORTS = {
     'recent': '-timestamp_seizure',
@@ -994,9 +974,6 @@ def evidence_detail_view(request, evidence_id):
     )
 
 
-_TERMINAL_EVENT_VALUES = {EventType.RESTITUICAO, EventType.DESTRUICAO}
-
-
 def _genesis_event_for(evidence):
     """Evento de génese aplicável à evidência, por proveniência (ADR-0016 §2)."""
     if evidence is not None and evidence.parent_evidence_id is not None:
@@ -1022,7 +999,7 @@ def _valid_next_events(events, evidence=None):
     if not events:
         genesis = _genesis_event_for(evidence)
         return [(genesis.value, genesis.label)]
-    if types & _TERMINAL_EVENT_VALUES:
+    if types & TERMINAL_EVENTS:
         return []
     seizure_done = bool(types & SEIZURE_GENESIS_EVENTS)
     out = []

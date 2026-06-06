@@ -39,6 +39,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from core.labels import LEGAL_STATE_LABELS
+
 # ---------------------------------------------------------------------------
 # Sanitização — proteção contra injecção em Paragraph
 # ---------------------------------------------------------------------------
@@ -722,19 +724,6 @@ def generate_evidence_pdf(evidence):
 # ---------------------------------------------------------------------------
 
 
-# Rótulos humanos do estado legal derivado (ADR-0015) para o PDF.
-_LEGAL_STATE_LABELS = {
-    'a_guarda_opc': 'À guarda do OPC',
-    'validada': 'Validada',
-    'em_pericia': 'Em perícia',
-    'pericia_concluida': 'Perícia concluída',
-    'encaminhada': 'Encaminhada',
-    'restituida': 'Restituída',
-    'perdida_favor_estado': 'Perdida a favor do Estado',
-    'destruida': 'Destruída',
-}
-
-
 def _current_custody_state(evidence):
     """Devolve (label sanitizado do estado legal derivado, último record).
 
@@ -754,7 +743,7 @@ def _current_custody_state(evidence):
     records.sort(key=lambda r: r.sequence)
     last = records[-1]
     estado = derive_legal_state(records)
-    return (_sanitize(_LEGAL_STATE_LABELS.get(estado, estado)), last)
+    return (_sanitize(LEGAL_STATE_LABELS.get(estado, estado)), last)
 
 
 def generate_occurrence_pdf(occurrence):
