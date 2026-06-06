@@ -1,8 +1,10 @@
-"""ForensiQ — Testes de view da lente de acesso (consolas por papel, ADR-0017).
+"""ForensiQ — Testes de view da CONSOLA (duas zonas) + Arquivo.
 
-Exercita o dispatch por lente nas views server-rendered, a propagação do
-``?lens=`` (toolbar/qs_base), o fallback silencioso de lente proibida, a
-renderização condicional dos chips e o rótulo de âmbito do feed.
+A consola (substitui a antiga lente de 3 eixos por papel) tem duas zonas: "as
+minhas" (âmbito de caso pessoal) e "Instituição" (processo inteiro da instituição,
+só para membros). Exercita: a renderização condicional do seletor (≥2 zonas), a
+mudança de cor (``data-console-mode``), o fallback silencioso das zonas antigas,
+o acesso institucional ao processo inteiro e a separação ativo/arquivo.
 """
 
 from django.contrib.auth import get_user_model
@@ -21,79 +23,116 @@ from core.tests_access import _event, _evidence, _occ, _user
 User = get_user_model()
 
 
-class LensFrontendTest(TestCase):
+class ConsoleFrontendTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.lab = Institution.objects.create(
-            name='Lab F', type=InstitutionType.LAB_PUBLICO, sigla='LAB-F'
+            name='Lab C', type=InstitutionType.LAB_PUBLICO, sigla='LAB-C'
         )
-        cls.responder = _user('lf_responder', User.Profile.FIRST_RESPONDER)
-        cls.custodian = _user('lf_custodian', User.Profile.EVIDENCE_CUSTODIAN)
-        # Perito NORMAL: leitura total por FUNÇÃO (não detém nada).
-        cls.perito = _user('lf_perito', User.Profile.FORENSIC_EXPERT)
-        cls.perito_nac = _user(
-            'lf_perito_nac', User.Profile.FORENSIC_EXPERT, User.Clearance.NACIONAL
+        cls.opc = Institution.objects.create(
+            name='PSP C', type=InstitutionType.OPC, sigla='PSP-C'
         )
-        # CHEFE_SERVICO NORMAL: só a lente "custody" → sem chips.
-        cls.chefe_norm = _user('lf_chefe_norm', User.Profile.CHEFE_SERVICO)
-        InstitutionMembership.objects.create(user=cls.custodian, institution=cls.lab)
+        # Titular (sem pertença) e membro do lab (custódio, sem titularidade).
+        cls.responder = cls._u('cf_responder', User.Profile.FIRST_RESPONDER)
+        cls.member = cls._u('cf_member', User.Profile.EVIDENCE_CUSTODIAN)
+        InstitutionMembership.objects.create(user=cls.member, institution=cls.lab)
 
-        cls.occ = _occ(cls.responder, 'F1')
-        cls.ev = _evidence(cls.occ, cls.responder)
-        _event(cls.ev, cls.responder, inst=cls.lab)
-        _event(
-            cls.ev, cls.custodian, event_type=EventType.TRANSFERENCIA_CUSTODIA, inst=cls.lab
-        )
+        # Processo ATIVO: item à guarda do lab (génese pelo titular + movimentação
+        # registada com o lab como custodian_institution) — não terminal.
+        cls.occ_active = _occ(cls.responder, 'C-ATIVO')
+        cls.ev_a = _evidence(cls.occ_active, cls.responder)
+        _event(cls.ev_a, cls.responder, inst=cls.opc)  # APREENSAO_OBJETO
+        _event(cls.ev_a, cls.responder, event_type=EventType.TRANSFERENCIA_CUSTODIA, inst=cls.lab)
+        # Item-IRMÃO no mesmo processo que o lab NUNCA custodiou (só @opc): o membro
+        # deve poder abri-lo (processo inteiro), embora fora do seu need-to-know item.
+        cls.ev_b = _evidence(cls.occ_active, cls.responder)
+        _event(cls.ev_b, cls.responder, inst=cls.opc)  # APREENSAO_OBJETO @opc
+
+        # Processo ARQUIVADO: único item em estado terminal (restituído).
+        cls.occ_arch = _occ(cls.responder, 'C-ARQUIVO')
+        ev_x = _evidence(cls.occ_arch, cls.responder)
+        _event(ev_x, cls.responder, inst=cls.opc)  # APREENSAO_OBJETO
+        _event(ev_x, cls.responder, event_type=EventType.RESTITUICAO, inst=cls.opc)
+
+    @classmethod
+    def _u(cls, username, profile):
+        return _user(username, profile)
 
     def _get(self, user, url):
         self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(user))
         return self.client.get(url)
 
-    def test_hidden_lens_input_no_toolbar(self):
-        r = self._get(self.responder, '/occurrences/?lens=mine')
-        self.assertEqual(r.status_code, 200)
-        self.assertIn('name="lens" value="mine"', r.content.decode())
+    # -- Seletor de consola -------------------------------------------------
 
-    def test_lens_proibida_cai_em_default_sem_500(self):
-        # FIRST_RESPONDER não tem a lente ALL → ?lens=all cai na default (mine).
-        r = self._get(self.responder, '/evidences/?lens=all')
-        self.assertEqual(r.status_code, 200)
-        body = r.content.decode()
-        self.assertIn('name="lens" value="mine"', body)
-        self.assertNotIn('name="lens" value="all"', body)
-
-    def test_chips_para_multilente(self):
-        body = self._get(self.responder, '/occurrences/').content.decode()
+    def test_membro_tem_consola_duas_zonas(self):
+        body = self._get(self.member, '/occurrences/').content.decode()
         self.assertIn('class="lens-bar"', body)
         self.assertIn('href="?lens=mine"', body)
-        self.assertIn('href="?lens=custody"', body)
-        # FIRST_RESPONDER (sem leitura total) não tem a lente "Tudo".
-        self.assertNotIn('href="?lens=all"', body)
+        self.assertIn('href="?lens=institution"', body)
+        self.assertIn('Instituição', body)
 
-    def test_perito_tem_lente_tudo(self):
-        body = self._get(self.perito, '/occurrences/').content.decode()
-        self.assertIn('href="?lens=all"', body)
+    def test_nao_membro_sem_seletor(self):
+        # Sem pertença → só a zona "as minhas" → seletor escondido (<2 zonas).
+        body = self._get(self.responder, '/occurrences/').content.decode()
+        self.assertNotIn('class="lens-bar"', body)
 
-    def test_sem_chips_para_lente_unica(self):
-        # CHEFE_SERVICO NORMAL só tem a lente "custody" → sem barra de chips.
-        r = self._get(self.chefe_norm, '/dashboard/')
+    def test_zona_antiga_cai_em_mine_sem_500(self):
+        # Os valores antigos ('all'/'custody') já não existem → fallback em mine.
+        for old in ('all', 'custody', 'bogus'):
+            r = self._get(self.member, f'/occurrences/?lens={old}')
+            self.assertEqual(r.status_code, 200, old)
+            self.assertIn('data-console-mode="mine"', r.content.decode())
+
+    # -- Mudança de cor (modo Instituição) ----------------------------------
+
+    def test_modo_instituicao_muda_cor(self):
+        body = self._get(self.member, '/occurrences/?lens=institution').content.decode()
+        self.assertIn('data-console-mode="institution"', body)
+
+    def test_modo_mine_por_omissao(self):
+        body = self._get(self.member, '/occurrences/').content.decode()
+        self.assertIn('data-console-mode="mine"', body)
+
+    # -- Zona Instituição = processo inteiro --------------------------------
+
+    def test_instituicao_ve_processo_sem_ser_titular(self):
+        # O membro não é titular; em "as minhas" não vê o processo, mas na zona
+        # Instituição vê-o (a instituição é dona do processo).
+        mine = self._get(self.member, '/occurrences/?lens=mine').content.decode()
+        inst = self._get(self.member, '/occurrences/?lens=institution').content.decode()
+        self.assertNotIn(f'data-id="{self.occ_active.id}"', mine)
+        self.assertIn(f'data-id="{self.occ_active.id}"', inst)
+
+    def test_membro_abre_detalhe_por_pertenca(self):
+        # Clicar numa linha da zona Instituição abre o processo (não 404).
+        r = self._get(self.member, f'/occurrences/{self.occ_active.id}/')
         self.assertEqual(r.status_code, 200)
-        self.assertNotIn('class="lens-bar"', r.content.decode())
 
-    def test_custody_nao_curtocircuita_full_read_na_view(self):
-        # Perito (leitura total) que não detém nada: a lista de evidências em
-        # "custody" não mostra o item, mas em "all" mostra.
-        all_body = self._get(self.perito, '/evidences/?lens=all').content.decode()
-        cust_body = self._get(self.perito, '/evidences/?lens=custody').content.decode()
-        self.assertIn(f'data-id="{self.ev.id}"', all_body)
-        self.assertNotIn(f'data-id="{self.ev.id}"', cust_body)
+    def test_membro_abre_item_irmao_que_a_instituicao_nunca_teve(self):
+        # ev_b é item-irmão que o lab nunca custodiou. Como o membro lê o PROCESSO
+        # inteiro (a instituição é dona), o detalhe/drawer/timeline de ev_b abrem
+        # (sem o clicável-para-404 que existiria com gate só item-level).
+        self.assertEqual(self._get(self.member, f'/evidences/{self.ev_b.id}/').status_code, 200)
+        self.assertEqual(
+            self._get(self.member, f'/evidences/?drawer={self.ev_b.id}').status_code, 200
+        )
+        self.assertEqual(
+            self._get(self.member, f'/evidences/{self.ev_b.id}/custody/').status_code, 200
+        )
 
-    def test_feed_label_minhas_acoes_para_normal(self):
-        # Perito NORMAL tem leitura total da prova, mas o feed é só dos seus atos.
-        body = self._get(self.perito, '/dashboard/').content.decode()
-        self.assertIn('Apenas as minhas ações', body)
-        self.assertNotIn('Registo nacional', body)
+    def test_estranho_nao_abre_item(self):
+        # Deny-side intacto: um custódio sem pertença nem titularidade → 404.
+        estranho = self._u('cf_estranho', User.Profile.EVIDENCE_CUSTODIAN)
+        self.assertEqual(self._get(estranho, f'/evidences/{self.ev_b.id}/').status_code, 404)
 
-    def test_feed_label_nacional_para_nacional(self):
-        body = self._get(self.perito_nac, '/dashboard/').content.decode()
-        self.assertIn('Registo nacional', body)
+    # -- Arquivo ------------------------------------------------------------
+
+    def test_lista_ativa_exclui_arquivados(self):
+        body = self._get(self.responder, '/occurrences/').content.decode()
+        self.assertIn(f'data-id="{self.occ_active.id}"', body)
+        self.assertNotIn(f'data-id="{self.occ_arch.id}"', body)
+
+    def test_arquivo_mostra_so_concluidos(self):
+        body = self._get(self.responder, '/arquivo/').content.decode()
+        self.assertIn(f'data-id="{self.occ_arch.id}"', body)
+        self.assertNotIn(f'data-id="{self.occ_active.id}"', body)

@@ -1695,6 +1695,18 @@ LEGAL_STATES = frozenset(
     }
 )
 
+# Estados legais TERMINAIS — o item esgotou o seu ciclo de custódia (restituído,
+# perdido a favor do Estado ou destruído) e não admite mais eventos. Fonte única
+# do conceito de "concluído"; a vista de Arquivo deriva daqui que uma ocorrência
+# está arquivada (todos os itens em estado terminal). Subconjunto de LEGAL_STATES.
+TERMINAL_LEGAL_STATES = frozenset(
+    {
+        'restituida',
+        'perdida_favor_estado',
+        'destruida',
+    }
+)
+
 
 def _hash_escape(value):
     r"""Escapa separadores do hash em campos de texto livre (ADR-0013).

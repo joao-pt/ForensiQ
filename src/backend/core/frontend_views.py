@@ -42,6 +42,7 @@ from core.models import (
     LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
     TERMINAL_EVENTS,
+    TERMINAL_LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -203,11 +204,27 @@ def _scope_occurrences(user):
     return access.scope_occurrences(user, base_qs=qs)
 
 
+def _readable_occurrence(user, pk):
+    """Ocorrência por ``pk`` se o utilizador a pode LER na consola server-rendered;
+    ``None`` se não existe ou está fora de acesso. É a porta de DETALHE/drawer:
+    mais ampla que a LISTA pessoal (``scope_occurrences``) — abre por acesso global
+    (titular / leitura total / autoridade do caso, :func:`can_access_occurrence`)
+    OU por pertença institucional (a instituição é dona do processo, abre o
+    processo inteiro — :func:`is_occurrence_institutional`). A API/PDF/verificação
+    pública mantêm o need-to-know item-level (não passam por aqui)."""
+    try:
+        occ = Occurrence.objects.select_related('agent', 'crime_type').get(pk=pk)
+    except (Occurrence.DoesNotExist, ValueError, TypeError):
+        return None
+    if access.can_access_occurrence(user, occ) or access.is_occurrence_institutional(user, occ):
+        return occ
+    return None
+
+
 def _occurrence_drawer(request, user, drawer_id):
     """Fragmento HTMX do painel direito (detalhe Local) de uma ocorrência."""
-    try:
-        occ = _scope_occurrences(user).get(pk=drawer_id)
-    except (Occurrence.DoesNotExist, ValueError, TypeError):
+    occ = _readable_occurrence(user, drawer_id)
+    if occ is None:
         return HttpResponseNotFound('Ocorrência não encontrada.')
     _decorate_occurrences([occ])
     occ.evidence_count = occ.evidences.count()
@@ -254,11 +271,33 @@ def _decorate_evidences(evidences):
         e.state_label, e.state_css = _evidence_state(e)
 
 
+def _readable_evidence(user, pk):
+    """Evidência por ``pk`` se o utilizador a pode LER na consola server-rendered;
+    ``None`` caso contrário. Item-level need-to-know (``can_view_evidence``) OU o
+    item pertence a uma ocorrência que o utilizador lê por pertença institucional
+    (a instituição é dona do processo → vê o processo INTEIRO, incl. itens-irmãos
+    que a sua instituição nunca custodiou — coerente com a zona "Instituição" da
+    consola, que lista o processo todo). A ESCRITA continua governada pelo
+    serializer (``can_append_custody``, fail-closed), independente desta porta."""
+    try:
+        ev = (
+            Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence')
+            .prefetch_related('custody_chain')
+            .get(pk=pk)
+        )
+    except (Evidence.DoesNotExist, ValueError, TypeError):
+        return None
+    if access.can_view_evidence(user, ev) or access.is_occurrence_institutional(
+        user, ev.occurrence
+    ):
+        return ev
+    return None
+
+
 def _evidence_drawer(request, user, drawer_id):
     """Fragmento HTMX do painel direito (detalhe Local) de uma evidência."""
-    try:
-        ev = _scope_evidences(user).get(pk=drawer_id)
-    except (Evidence.DoesNotExist, ValueError, TypeError):
+    ev = _readable_evidence(user, drawer_id)
+    if ev is None:
         return HttpResponseNotFound('Evidência não encontrada.')
     _decorate_evidences([ev])
     return render(request, 'partials/_evidence_drawer.html', {'ev': ev})
@@ -474,45 +513,105 @@ def _legal_states_by_evidence(user, custody_qs=None):
 
 
 # ---------------------------------------------------------------------------
-# Dispatch por lente de acesso (consolas por papel) — ver core.access.Lens.
-# Cada lente mapeia num queryset que o backend impõe (sem inventar âmbitos):
-# MINE = eixo de caso; CUSTODY = eixo de item (ramo custodial); ALL = leitura
-# total (só alcançável por has_full_read). Resolver a lente com
-# access.resolve_lens valida-a contra o utilizador (fallback silencioso).
+# Dispatch por ZONA de consola (duas zonas) — ver core.access.Lens.
+# A consola é case-axis (de processo, nunca por item): MINE = o âmbito de caso
+# pessoal (scope_occurrences); INSTITUTION = o processo INTEIRO das ocorrências da
+# instituição (scope_occurrences_institutional) — ampliação de leitura por modo,
+# deliberada. access.console_mode resolve a zona (param/sessão) contra o
+# utilizador (fallback silencioso); access.remember_console_mode memoriza-a.
 # ---------------------------------------------------------------------------
 
 
 def _lens_occurrences(user, lens):
-    """Ocorrências para a lente ativa. A página de ocorrências é sempre âmbito de
-    CASO (``scope_occurrences``) — em ``custody`` fica vazia para um custódio puro
-    e o template remete para Evidências (não se fabrica acesso ao caso)."""
+    """Ocorrências para a zona ativa: ``MINE`` = âmbito de caso pessoal;
+    ``INSTITUTION`` = ocorrências da instituição (processo inteiro, sem item)."""
+    if lens == access.Lens.INSTITUTION:
+        qs = Occurrence.objects.select_related('agent', 'crime_type')
+        return access.scope_occurrences_institutional(user, base_qs=qs)
     return _scope_occurrences(user)
 
 
 def _lens_evidences(user, lens):
-    """Itens para a lente ativa (reutiliza os predicados de core.access)."""
+    """Itens para a zona ativa (case-axis, nunca por item).
+
+    ``INSTITUTION`` mostra TODOS os itens das ocorrências da instituição (processo
+    inteiro — a instituição é dona do processo). ``MINE`` mostra os itens legíveis
+    (item-level, ADR-0017) das ocorrências do utilizador.
+    """
     qs = Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence').prefetch_related(
         'custody_chain'
     )
-    if lens == access.Lens.CUSTODY:
-        return access.scope_evidences_custodial(user, base_qs=qs)
-    if lens == access.Lens.MINE:
-        return access.scope_evidences(user, base_qs=qs).filter(
-            occurrence__in=access.scope_occurrences(user).values('pk')
+    if lens == access.Lens.INSTITUTION:
+        return qs.filter(
+            occurrence__in=access.scope_occurrences_institutional(user).values('pk')
         )
-    return access.scope_evidences(user, base_qs=qs)  # ALL
+    return access.scope_evidences(user, base_qs=qs).filter(
+        occurrence__in=access.scope_occurrences(user).values('pk')
+    )
 
 
 def _lens_custody(user, lens):
-    """Eventos de custódia para a lente ativa."""
+    """Eventos de custódia para a zona ativa (mesma lógica case-axis)."""
     qs = ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
-    if lens == access.Lens.CUSTODY:
-        return access.scope_custody_custodial(user, base_qs=qs)
-    if lens == access.Lens.MINE:
-        return access.scope_custody(user, base_qs=qs).filter(
-            evidence__occurrence__in=access.scope_occurrences(user).values('pk')
+    if lens == access.Lens.INSTITUTION:
+        return qs.filter(
+            evidence__occurrence__in=access.scope_occurrences_institutional(user).values('pk')
         )
-    return access.scope_custody(user, base_qs=qs)  # ALL
+    return access.scope_custody(user, base_qs=qs).filter(
+        evidence__occurrence__in=access.scope_occurrences(user).values('pk')
+    )
+
+
+# ---------------------------------------------------------------------------
+# Arquivo — ocorrências CONCLUÍDAS (todos os itens em estado legal terminal).
+# Derivado do ledger (sem coluna nova), mesmo padrão WI-E do Painel: uma só
+# passagem sobre os estados legais por item. Listas ativas EXCLUEM os arquivados;
+# a vista /arquivo/ mostra-os.
+# ---------------------------------------------------------------------------
+
+
+def _archived_occurrence_ids(user, occ_qs):
+    """``set`` de IDs ARQUIVADOS no âmbito ``occ_qs``: ocorrências com ≥1 item e
+    TODOS os itens em estado legal terminal (restituída/perdida a favor do
+    Estado/destruída). Itens SEM eventos (estado por abrir) impedem o arquivo — o
+    processo ainda está vivo.
+
+    Eficiência (não varre tudo a cada página): só se DERIVA o estado das
+    ocorrências CANDIDATAS — as que têm no ledger ≥1 evento de disposição final
+    (restituição / destruição / perda a favor do Estado). Uma ocorrência sem
+    nenhum desses eventos não pode estar concluída e é descartada em SQL, sem custo
+    de derivação. A derivação usa a cadeia COMPLETA do candidato (não o âmbito da
+    lente): "processo concluído" é uma propriedade OBJETIVA do ledger, independente
+    de quem vê que eventos — para o titular/membro o âmbito já é a cadeia inteira,
+    pelo que coincide com os tiles do Painel. ``derive_legal_state`` é a fonte de
+    verdade (sem tradução para SQL), aplicada só ao subconjunto candidato."""
+    candidate_ids = list(
+        occ_qs.filter(
+            evidences__custody_chain__event_type__in=(
+                EventType.RESTITUICAO,
+                EventType.DESTRUICAO,
+                EventType.PERDA_FAVOR_ESTADO,
+            )
+        )
+        .values_list('pk', flat=True)
+        .distinct()
+    )
+    if not candidate_ids:
+        return set()
+    states = _legal_states_by_evidence(
+        user,
+        custody_qs=ChainOfCustody.objects.filter(evidence__occurrence_id__in=candidate_ids),
+    )
+    by_occ = {}
+    for ev_id, occ_id in Evidence.objects.filter(
+        occurrence_id__in=candidate_ids
+    ).values_list('id', 'occurrence_id'):
+        by_occ.setdefault(occ_id, []).append(states.get(ev_id))
+    return {
+        occ_id
+        for occ_id, sts in by_occ.items()
+        if sts and all(s in TERMINAL_LEGAL_STATES for s in sts)
+    }
 
 
 @jwt_cookie_user
@@ -520,18 +619,11 @@ def dashboard_view(request):
     """Painel — hero geo + últimas ocorrências + registo de atividade, TUDO
     server-rendered (Fase 3). Sem o JS antigo do hero (drift eliminado)."""
     user = request.user
-    lens = access.resolve_lens(user, request.GET.get('lens'))
-    # Em "À guarda", o eixo é o ITEM: o hero deriva as ocorrências dos itens
-    # custodiados (contexto geográfico do que se detém), em vez do âmbito de caso
-    # (que para um custódio puro seria vazio). Nas restantes lentes é o caso.
-    if lens == access.Lens.CUSTODY:
-        occ_qs = (
-            Occurrence.objects.select_related('agent', 'crime_type')
-            .filter(evidences__in=access.scope_evidences_custodial(user).values('pk'))
-            .distinct()
-        )
-    else:
-        occ_qs = _scope_occurrences(user)
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
+    # O hero segue a zona ativa da consola: "as minhas" (âmbito de caso pessoal)
+    # ou "Instituição" (processo inteiro das ocorrências da instituição).
+    occ_qs = _lens_occurrences(user, lens)
     occ_total = occ_qs.count()
 
     # Tiles do estado da cadeia — contagem por estado legal DERIVADO (ledger).
@@ -579,21 +671,19 @@ def dashboard_view(request):
     )
 
 
-@jwt_cookie_user
-def occurrences_view(request):
-    """Lista de ocorrências — server-rendered (Fase 3, Django + HTMX).
-
-    Lê o ORM diretamente com o ownership do utilizador. Filtros, pesquisa,
-    ordenação e paginação por query params. Em pedidos HTMX devolve só o
-    fragmento da grelha; com ``?drawer=<id>`` devolve o painel de detalhe.
-    """
+def _occurrences_list_response(request, archived=False):
+    """Corpo PARTILHADO das listas de ocorrências ativas (``/occurrences/``) e do
+    Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, filtros,
+    ordenação e paginação — só diferem na divisão arquivado/ativo e no template.
+    O drawer (``?drawer=``) é comum (o detalhe de um processo é o mesmo)."""
     user = request.user
 
     drawer_id = request.GET.get('drawer')
     if drawer_id:
         return _occurrence_drawer(request, user, drawer_id)
 
-    lens = access.resolve_lens(user, request.GET.get('lens'))
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens)
 
     query = (request.GET.get('q') or '').strip()
@@ -623,6 +713,11 @@ def occurrences_view(request):
     if d_before:
         qs = qs.filter(date_time__date__lte=d_before)
 
+    # Arquivo vs ativo: processo CONCLUÍDO = todos os itens em estado legal
+    # terminal. Deriva-se sobre o âmbito já filtrado (sem coluna nova) e divide-se.
+    archived_ids = _archived_occurrence_ids(user, qs)
+    qs = qs.filter(pk__in=archived_ids) if archived else qs.exclude(pk__in=archived_ids)
+
     sort_key = (request.GET.get('sort') or 'recent').strip()
     qs = qs.order_by(_OCC_SORTS.get(sort_key, '-date_time'))
 
@@ -630,6 +725,7 @@ def occurrences_view(request):
     page_obj = paginator.get_page(request.GET.get('page'))
     _decorate_occurrences(page_obj.object_list)
 
+    list_endpoint = '/arquivo/' if archived else '/occurrences/'
     # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
     qs_base = urlencode({k: v for k, v in (
         ('lens', lens), ('q', query), ('pri', priority), ('cat', cat),
@@ -646,6 +742,9 @@ def occurrences_view(request):
         'date_before': date_before,
         'sort': sort_key,
         'qs_base': qs_base,
+        'lens': lens,
+        'is_archive': archived,
+        'list_endpoint': list_endpoint,
         'crime_categories': CrimeCategoria.objects.order_by('codigo'),
         'selected_id': request.GET.get('selected') or '',
         'is_htmx': bool(request.headers.get('HX-Request')),
@@ -653,20 +752,46 @@ def occurrences_view(request):
 
     if ctx['is_htmx']:
         return render(request, 'partials/_occurrences_grid.html', ctx)
-    return render(request, 'occurrences.html', ctx)
+    return render(request, 'arquivo.html' if archived else 'occurrences.html', ctx)
+
+
+@jwt_cookie_user
+def occurrences_view(request):
+    """Lista de ocorrências ATIVAS — server-rendered (Fase 3, Django + HTMX).
+
+    Lê o ORM com o working-set da zona de consola ativa. Os processos CONCLUÍDOS
+    (todos os itens em estado terminal) saem para o Arquivo (:func:`arquivo_view`).
+    Em pedidos HTMX devolve só o fragmento da grelha; com ``?drawer=<id>`` o
+    painel de detalhe.
+    """
+    return _occurrences_list_response(request, archived=False)
+
+
+@jwt_cookie_user
+def arquivo_view(request):
+    """Arquivo de processos CONCLUÍDOS — ocorrências cujos itens estão TODOS em
+    estado legal terminal (restituído/perdido a favor do Estado/destruído). Mesma
+    grelha e zona de consola da lista ativa, restrita aos arquivados."""
+    return _occurrences_list_response(request, archived=True)
 
 
 @jwt_cookie_user
 def occurrence_detail_view(request, occurrence_id):
     """Detalhe de uma ocorrência — hub do caso, server-rendered (Fase 3)."""
     user = request.user
-    try:
-        occ = _scope_occurrences(user).get(pk=occurrence_id)
-    except (Occurrence.DoesNotExist, ValueError, TypeError):
+    occ = _readable_occurrence(user, occurrence_id)
+    if occ is None:
         return HttpResponseNotFound('Ocorrência não encontrada.')
     _decorate_occurrences([occ])
+    # Processo INTEIRO: quem ACEDE à ocorrência vê TODOS os seus itens, sem filtro
+    # por item (a instituição é dona do processo). O object-level já foi imposto
+    # por _readable_occurrence; a lista cross-ocorrência (Evidências) é que mantém
+    # o need-to-know item-level.
     evidences = list(
-        _scope_evidences(user).filter(occurrence=occ).order_by('parent_evidence_id', 'id')
+        Evidence.objects.filter(occurrence=occ)
+        .select_related('occurrence', 'agent', 'parent_evidence')
+        .prefetch_related('custody_chain')
+        .order_by('parent_evidence_id', 'id')
     )
     _decorate_evidences(evidences)
     occ.evidence_count = len(evidences)
@@ -749,7 +874,8 @@ def evidences_view(request):
     if drawer_id:
         return _evidence_drawer(request, user, drawer_id)
 
-    lens = access.resolve_lens(user, request.GET.get('lens'))
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
     qs = _lens_evidences(user, lens)
 
     query = (request.GET.get('q') or '').strip()
@@ -766,9 +892,9 @@ def evidences_view(request):
         qs = qs.filter(type=etype)
 
     # Filtro por estado legal DERIVADO (entrada a partir dos tiles do Painel).
-    # WI-E: uma só query agrupada em vez de iterar todas as evidências 2x. Estado
-    # derivado da cadeia COMPLETA (scope_custody_custodial devolve cadeias inteiras
-    # dos itens da lente, não só os eventos custodiais).
+    # WI-E: uma só query agrupada em vez de iterar todas as evidências 2x. O estado
+    # deriva da cadeia COMPLETA dos itens da zona ativa (_lens_custody devolve
+    # cadeias inteiras, não eventos isolados).
     state = (request.GET.get('state') or '').strip()
     if state in LEGAL_STATES:
         states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
@@ -955,9 +1081,8 @@ def _chain_points(events):
 def evidence_detail_view(request, evidence_id):
     """Detalhe de uma evidência — hub do item, server-rendered (Fase 3)."""
     user = request.user
-    try:
-        ev = _scope_evidences(user).get(pk=evidence_id)
-    except (Evidence.DoesNotExist, ValueError, TypeError):
+    ev = _readable_evidence(user, evidence_id)
+    if ev is None:
         return HttpResponseNotFound('Evidência não encontrada.')
     _decorate_evidences([ev])
     events = sort_custody_chain(ev.custody_chain.all())
@@ -1129,9 +1254,11 @@ def custody_timeline_view(request, evidence_id):
     redireciona (PRG); em erro re-renderiza com o formulário aberto.
     """
     user = request.user
-    try:
-        ev = _scope_evidences(user).get(pk=evidence_id)
-    except (Evidence.DoesNotExist, ValueError, TypeError):
+    # Leitura: item-level OU processo da instituição (consola). A ESCRITA (POST)
+    # é governada à parte pelo ChainOfCustodySerializer (can_append_custody,
+    # fail-closed) — abrir a timeline não concede direito de registar eventos.
+    ev = _readable_evidence(user, evidence_id)
+    if ev is None:
         return HttpResponseNotFound('Evidência não encontrada.')
 
     sub_components = list(ev.sub_components.order_by('id'))
@@ -1184,11 +1311,27 @@ def _scope_custody(user):
     return access.scope_custody(user, base_qs=qs)
 
 
+def _readable_custody(user, pk):
+    """Evento de custódia por ``pk`` se o utilizador pode LER o seu item na consola
+    (item-level ``can_view_evidence`` OU processo da instituição —
+    :func:`_readable_evidence`); ``None`` caso contrário."""
+    try:
+        rec = ChainOfCustody.objects.select_related(
+            'evidence', 'evidence__occurrence', 'agent'
+        ).get(pk=pk)
+    except (ChainOfCustody.DoesNotExist, ValueError, TypeError):
+        return None
+    if access.can_view_evidence(user, rec.evidence) or access.is_occurrence_institutional(
+        user, rec.evidence.occurrence
+    ):
+        return rec
+    return None
+
+
 def _custody_drawer(request, user, drawer_id):
     """Fragmento HTMX do painel direito (detalhe Local) de um evento de custódia."""
-    try:
-        rec = _scope_custody(user).get(pk=drawer_id)
-    except (ChainOfCustody.DoesNotExist, ValueError, TypeError):
+    rec = _readable_custody(user, drawer_id)
+    if rec is None:
         return HttpResponseNotFound('Registo de custódia não encontrado.')
     _decorate_events([rec])
     return render(request, 'partials/_custody_drawer.html', {'r': rec})
@@ -1203,7 +1346,8 @@ def custody_list_view(request):
     if drawer_id:
         return _custody_drawer(request, user, drawer_id)
 
-    lens = access.resolve_lens(user, request.GET.get('lens'))
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
     qs = _lens_custody(user, lens)
 
     query = (request.GET.get('q') or '').strip()
@@ -1296,7 +1440,8 @@ def investigation_report_view(request):
 def reports_view(request):
     """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3)."""
     user = request.user
-    lens = access.resolve_lens(user, request.GET.get('lens'))
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences'))
     query = (request.GET.get('q') or '').strip()
     if query:
@@ -1516,7 +1661,8 @@ def stats_view(request):
     """Estatísticas agregadas — server-rendered (Fase 3). Agregados baratos
     (não deriva estado legal por linha; isso fica para uma vista dedicada)."""
     user = request.user
-    lens = access.resolve_lens(user, request.GET.get('lens'))
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
     occ_qs = _lens_occurrences(user, lens)
     evd_qs = _lens_evidences(user, lens)
     cus_qs = _lens_custody(user, lens)

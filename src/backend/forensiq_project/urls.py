@@ -35,6 +35,7 @@ from core.auth_views import (
     CookieRefreshView,
 )
 from core.frontend_views import (
+    arquivo_view,
     custody_evidence_redirect,
     custody_list_view,
     custody_singular_redirect,
@@ -116,6 +117,8 @@ urlpatterns = [
     # Ocorrências
     path('occurrences/', occurrences_view, name='occurrences'),
     path('occurrences/new/', occurrences_new_view, name='occurrences_new'),
+    # Arquivo — processos concluídos (itens todos em estado terminal)
+    path('arquivo/', arquivo_view, name='arquivo'),
     path('occurrences/<int:occurrence_id>/', occurrence_detail_view, name='occurrence_detail'),
     path(
         'occurrences/<int:occurrence_id>/intake/',

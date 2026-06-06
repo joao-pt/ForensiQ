@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Arquivo — ForensiQ{% endblock %}
+
+{% block extra_css %}
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Arquivo</span>{% endblock %}
+
+{% block drawer_title %}Detalhe do processo{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione um processo arquivado na lista.</p>
+{% endblock %}
+
+{% block content %}
+<section class="fullbleed" aria-labelledby="arq-title">
+
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="arq-title">Arquivo</h1>
+      <span class="page-head__count" id="occ-count" aria-live="polite">{{ total }} processo{{ total|pluralize }}</span>
+    </div>
+  </header>
+
+  <form class="toolbar" role="search" action="/arquivo/" method="get"
+        hx-get="/arquivo/"
+        hx-target="#occ-grid"
+        hx-swap="innerHTML"
+        hx-trigger="submit, input changed delay:350ms"
+        hx-push-url="true"
+        hx-indicator="#occ-busy">
+    {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
+    <div class="toolbar__search">
+      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+      </svg>
+      <input type="search" name="q" value="{{ q }}"
+             placeholder="Pesquisar código, NUIPC, morada…"
+             autocomplete="off" aria-label="Pesquisar no arquivo">
+    </div>
+    <select name="pri" aria-label="Filtrar por prioridade">
+      <option value="">Prioridade: todas</option>
+      <option value="PRIORITARIA" {% if pri == 'PRIORITARIA' %}selected{% endif %}>Prioritárias</option>
+      <option value="NORMAL" {% if pri == 'NORMAL' %}selected{% endif %}>Normais</option>
+    </select>
+    <select name="cat" aria-label="Filtrar por categoria de crime">
+      <option value="">Crime: todos</option>
+      {% for c in crime_categories %}
+      <option value="{{ c.id }}" {% if cat == c.id|stringformat:"s" %}selected{% endif %}>{{ c.codigo }} — {{ c.nome }}</option>
+      {% endfor %}
+    </select>
+    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Data desde" title="Ocorrências desde">
+    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Data até" title="Ocorrências até">
+    <select name="sort" aria-label="Ordenar">
+      <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
+      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
+      <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
+      <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
+    </select>
+    <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
+  </form>
+
+  <div id="occ-grid" class="gridwrap">
+    {% include 'partials/_occurrences_grid.html' %}
+  </div>
+
+</section>
+{% endblock %}
+
+{% block extra_js %}
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
+{% endblock %}

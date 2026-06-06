@@ -42,16 +42,18 @@ def app_metadata(request):
 
 
 def lens_nav(request):
-    """Injecta a lente de acesso ativa e as lentes disponíveis na casca.
+    """Injecta a zona de CONSOLA ativa e as zonas disponíveis na casca.
 
-    A "lente" (consolas por papel — ADR-0017) é o eixo de leitura ativo:
-    ``mine`` (minhas ocorrências), ``custody`` (à guarda da instituição, item-level)
-    ou ``all`` (leitura total). É resolvida exatamente como nas views
-    (:func:`core.access.resolve_lens`), pelo que a casca e o conteúdo concordam.
+    A consola (duas zonas — substitui a antiga lente por papel) é o working-set de
+    leitura ativo: ``mine`` ("as minhas", âmbito de caso) ou ``institution``
+    ("Instituição", processo inteiro da instituição). É resolvida exatamente como
+    nas views (:func:`core.access.console_mode`, com memória de sessão), pelo que a
+    casca e o conteúdo concordam.
 
-    Livre de ORM — lê só ``profile``/``clearance``/``is_staff`` de ``request.user``
-    — pelo que é barato em qualquer página e devolve vazio a não-autenticados (a
-    casca esconde os chips quando há menos de duas lentes).
+    Livre de ORM para a resolução da zona (lê ``profile``/``clearance``/``is_staff``
+    e a memória de sessão), barato em qualquer página; ``available_lenses`` faz uma
+    leitura leve das pertenças. Devolve vazio a não-autenticados (a casca esconde o
+    seletor quando há menos de duas zonas).
     """
     from core import access
 
@@ -59,15 +61,16 @@ def lens_nav(request):
     if user is None or not getattr(user, 'is_authenticated', False):
         return {}
     options = access.available_lenses(user)
-    active = access.resolve_lens(user, request.GET.get('lens'))
+    active = access.console_mode(request, user)
     labels = {
-        access.Lens.MINE: 'Minhas ocorrências',
-        access.Lens.CUSTODY: 'À guarda da instituição',
-        access.Lens.ALL: 'Tudo',
+        access.Lens.MINE: access.mine_label(user),
+        access.Lens.INSTITUTION: 'Instituição',
     }
     return {
         'lens': active,
-        # Sufixo de querystring para os links da casca preservarem a lente ativa
+        # ``console_mode`` é o eixo da banda/cor da casca (CSS [data-console-mode]).
+        'console_mode': active,
+        # Sufixo de querystring para os links da casca preservarem a zona ativa
         # (ex.: href="/evidences/{{ lens_qs }}").
         'lens_qs': f'?lens={active}',
         'lens_options': (

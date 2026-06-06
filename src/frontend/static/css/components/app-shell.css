@@ -678,22 +678,41 @@ body.app-body {
     font-weight: var(--fw-medium);
 }
 
-/* Sidebar adaptativa: o grupo do eixo da lente ativa sobe ao topo (CSS order)
-   e o seu título ganha o âmbar. Apresentação pura — nenhum link sai do DOM,
-   tudo continua alcançável trocando de lente. */
+/* Modo Instituição (zona "Instituição" da consola): a casca ganha uma cor FRIA
+   (--info) — sinaliza que se vê o PROCESSO INTEIRO da instituição (a instituição
+   é dona do processo), não só "as minhas". Tudo por seletor [data-console-mode]:
+   CSP-safe, sem JS nem estilo inline. */
+.app-main[data-console-mode="institution"] {
+    box-shadow: inset 0 3px 0 0 var(--info);
+}
+.app-main[data-console-mode="institution"] .lens-bar {
+    background: var(--info-tint);
+    border-bottom-color: var(--info);
+}
+.lens-bar[data-console-mode="institution"] .lens-chip.is-active,
+.lens-bar[data-console-mode="institution"] .lens-chip[aria-current="page"] {
+    background: var(--info-tint);
+    color: var(--text-emphasis);
+    border-color: var(--info);
+}
+
+/* Sidebar adaptativa: o grupo "Principal" (eixo mine) fica no topo nas duas
+   zonas; o seu título ganha a cor da zona ativa (âmbar em "as minhas",
+   --info em "Instituição"). Apresentação pura — nenhum link sai do DOM. */
 .app-sidebar nav {
     display: flex;
     flex-direction: column;
 }
 .app-sidebar__group { order: 2; }
-.app-sidebar nav[data-lens="mine"]    [data-axis="mine"],
-.app-sidebar nav[data-lens="all"]     [data-axis="mine"],
-.app-sidebar nav[data-lens="custody"] [data-axis="custody"] {
+.app-sidebar nav[data-lens="mine"]        [data-axis="mine"],
+.app-sidebar nav[data-lens="institution"] [data-axis="mine"] {
     order: 1;
 }
-.app-sidebar nav[data-lens="mine"]    [data-axis="mine"]    > .app-sidebar__group-title,
-.app-sidebar nav[data-lens="custody"] [data-axis="custody"] > .app-sidebar__group-title {
+.app-sidebar nav[data-lens="mine"]        [data-axis="mine"] > .app-sidebar__group-title {
     color: var(--accent);
+}
+.app-sidebar nav[data-lens="institution"] [data-axis="mine"] > .app-sidebar__group-title {
+    color: var(--info);
 }
 
 /* Pílula de âmbito (ex.: rótulo do feed de auditoria no painel). */

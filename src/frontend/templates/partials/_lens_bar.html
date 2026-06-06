@@ -1,12 +1,13 @@
 {% comment %}
-Barra da lente de acesso (consolas por papel — ADR-0017). Chips de navegação
-completa (sem JS → CSP-safe): trocar de lente recarrega a página e re-agrupa a
-sidebar. Renderizada só quando há ≥2 lentes disponíveis (lens_options vem do
-context processor core.context_processors.lens_nav).
+Barra da CONSOLA (duas zonas — substitui a antiga lente por papel). Chips de
+navegação completa (sem JS → CSP-safe): trocar de zona recarrega a página, muda a
+cor da casca (data-console-mode no app-main) e re-resolve o âmbito. Renderizada só
+quando há ≥2 zonas (lens_options vem do context processor core.context_processors.
+lens_nav — só membros de uma instituição têm a zona "Instituição").
 {% endcomment %}
 {% if lens_options %}
-<nav class="lens-bar" aria-label="Lente de acesso">
-  <span class="lens-bar__label" aria-hidden="true">Lente</span>
+<nav class="lens-bar" aria-label="Consola de acesso" data-console-mode="{{ console_mode }}">
+  <span class="lens-bar__label" aria-hidden="true">Consola</span>
   {% for opt in lens_options %}
   <a class="lens-chip{% if opt.is_active %} is-active{% endif %}"
      href="?lens={{ opt.key }}"{% if opt.is_active %} aria-current="page"{% endif %}>

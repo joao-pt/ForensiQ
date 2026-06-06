@@ -10,7 +10,7 @@ Testa diretamente as funções de :mod:`core.access` (mais rápido e legível qu
 via HTTP); o gating HTTP é exercitado em tests_api.
 """
 
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.utils import timezone
 
 from core import access
@@ -305,11 +305,15 @@ class AccessLensTest(TestCase):
         self.assertTrue(custodial.issubset(full))
         self.assertTrue(len(custodial) >= 1)
 
-    # -- Matriz de lentes ---------------------------------------------------
+    # -- Consola (duas zonas: "as minhas" + "Instituição") ------------------
+
+    def test_zonas_validas_sao_so_duas(self):
+        # As zonas antigas ('custody'/'all') deixaram de ser válidas.
+        self.assertEqual(access.VALID_LENSES, frozenset({'mine', 'institution'}))
 
     def test_available_lenses_nunca_vazio(self):
         for u in self.all_users:
-            self.assertTrue(access.available_lenses(u), f'{u.username} sem lentes')
+            self.assertTrue(access.available_lenses(u), f'{u.username} sem zonas')
 
     def test_default_lens_in_available(self):
         for u in self.all_users:
@@ -319,40 +323,135 @@ class AccessLensTest(TestCase):
                 f'default fora de available para {u.username}',
             )
 
-    def test_default_lens_por_papel(self):
-        casos = {
-            self.responder: access.Lens.MINE,
-            self.responder_nac: access.Lens.MINE,
-            self.custodian: access.Lens.CUSTODY,
-            self.custodian_nac: access.Lens.CUSTODY,
-            self.perito_norm: access.Lens.ALL,
-            self.perito_nac: access.Lens.ALL,
-            self.mp: access.Lens.MINE,
-            self.mp_nac: access.Lens.MINE,
-            self.chefe_norm: access.Lens.CUSTODY,
-            self.chefe_nac: access.Lens.ALL,
-            self.auditor_norm: access.Lens.CUSTODY,
-            self.auditor_nac: access.Lens.ALL,
-        }
-        for u, esperado in casos.items():
-            self.assertEqual(access.default_lens(u), esperado, u.username)
+    def test_default_lens_sempre_mine(self):
+        # A vista-base é "as minhas" para todos estes utilizadores (nenhum é
+        # supervisor só-leitura COM pertença); a zona Instituição é escolha
+        # explícita. (A exceção dos supervisores membros é testada à parte.)
+        for u in self.all_users:
+            self.assertEqual(access.default_lens(u), access.Lens.MINE, u.username)
 
-    def test_can_use_lens_all_iff_full_read(self):
+    def test_default_lens_supervisor_membro_arranca_em_instituicao(self):
+        # Um chefe/auditor (só-leitura, nunca titular) MEMBRO de uma instituição
+        # arranca na zona Instituição (oversight), não numa "as minhas" vazia.
+        chefe_membro = _user('lns_chefe_membro', User.Profile.CHEFE_SERVICO)
+        InstitutionMembership.objects.create(user=chefe_membro, institution=self.lab)
+        self.assertEqual(access.default_lens(chefe_membro), access.Lens.INSTITUTION)
+        # Sem pertença, o mesmo perfil arranca em MINE (vista vazia honesta).
+        self.assertEqual(access.default_lens(self.chefe_norm), access.Lens.MINE)
+
+    def test_mine_sempre_disponivel(self):
+        for u in self.all_users:
+            self.assertTrue(access.can_use_lens(u, access.Lens.MINE), u.username)
+
+    def test_institution_iff_membro_de_instituicao(self):
+        # Só o custódio pertence a uma instituição (o lab); a credencial NACIONAL
+        # não dá a zona Instituição — esta chaveia só na PERTENÇA.
+        membros = {self.custodian}
         for u in self.all_users:
             self.assertEqual(
-                access.can_use_lens(u, access.Lens.ALL),
-                access.has_full_read(u),
+                access.can_use_lens(u, access.Lens.INSTITUTION),
+                u in membros,
                 u.username,
             )
 
-    def test_can_use_lens_mine_nega_readonly(self):
-        for u in (self.chefe_norm, self.chefe_nac, self.auditor_norm, self.auditor_nac):
-            self.assertFalse(access.can_use_lens(u, access.Lens.MINE), u.username)
-
     def test_resolve_lens_fallback(self):
-        # Lente proibida / inválida / ausente → default; permitida → respeitada.
-        self.assertEqual(access.resolve_lens(self.responder, 'all'), access.Lens.MINE)
-        self.assertEqual(access.resolve_lens(self.responder, 'bogus'), access.Lens.MINE)
-        self.assertEqual(access.resolve_lens(self.responder, None), access.Lens.MINE)
-        self.assertEqual(access.resolve_lens(self.responder, 'custody'), access.Lens.CUSTODY)
-        self.assertEqual(access.resolve_lens(self.perito_norm, 'all'), access.Lens.ALL)
+        # Zona antiga / inválida / ausente → MINE (fallback silencioso).
+        for req in ('all', 'custody', 'bogus', None):
+            self.assertEqual(access.resolve_lens(self.responder, req), access.Lens.MINE, req)
+        # 'institution' só vale para membro; um não-membro cai em MINE.
+        self.assertEqual(
+            access.resolve_lens(self.custodian, 'institution'), access.Lens.INSTITUTION
+        )
+        self.assertEqual(access.resolve_lens(self.responder, 'institution'), access.Lens.MINE)
+
+    def test_mine_label_honesto(self):
+        # Leitura total → "Todas"; restantes → "As minhas".
+        self.assertIn('Todas', access.mine_label(self.perito_norm))
+        self.assertIn('minhas', access.mine_label(self.responder))
+
+    # -- Scope institucional + acesso por pertença --------------------------
+
+    def test_scope_institucional_inclui_ocorrencia_do_lab(self):
+        # O custódio (membro do lab que tem o item) vê a ocorrência inteira.
+        self.assertIn(self.occ, access.scope_occurrences_institutional(self.custodian))
+
+    def test_scope_institucional_vazio_sem_pertenca(self):
+        # Leitura total mas SEM pertença → zona institucional vazia (não
+        # curto-circuita has_full_read; chaveia só na pertença).
+        self.assertEqual(list(access.scope_occurrences_institutional(self.perito_norm)), [])
+        self.assertEqual(list(access.scope_occurrences_institutional(self.responder)), [])
+
+    def test_acesso_ocorrencia_por_pertenca_institucional(self):
+        # is_occurrence_institutional: object-level da zona Instituição (consola).
+        # Um membro do lab (que tem o item) "é dono" do processo.
+        self.assertTrue(access.is_occurrence_institutional(self.custodian, self.occ))
+        outro = _user('lns_outro', User.Profile.EVIDENCE_CUSTODIAN)
+        self.assertFalse(access.is_occurrence_institutional(outro, self.occ))
+
+    def test_can_access_occurrence_global_mantem_need_to_know(self):
+        # A porta GLOBAL (API/PDF/verificação) NÃO foi alargada: um custódio membro
+        # sem ser titular/autoridade do caso continua sem acesso de OCORRÊNCIA por
+        # aí — o "processo inteiro" vive na consola server-rendered.
+        self.assertFalse(access.can_access_occurrence(self.custodian, self.occ))
+
+
+class ConsoleSessionTest(TestCase):
+    """Resolução da zona de consola por pedido: ``?lens=`` → sessão → default,
+    com memória de sessão só quando o param é explícito."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.lab = Institution.objects.create(
+            name='Lab CS', type=InstitutionType.LAB_PUBLICO, sigla='LAB-CS'
+        )
+        cls.member = _user('cs_member', User.Profile.EVIDENCE_CUSTODIAN)
+        cls.outsider = _user('cs_outsider', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.member, institution=cls.lab)
+        cls.rf = RequestFactory()
+
+    def _req(self, qs='', session=None):
+        req = self.rf.get(f'/occurrences/{qs}')
+        req.session = {} if session is None else session
+        return req
+
+    def test_param_explicito_resolve_e_memoriza(self):
+        req = self._req('?lens=institution')
+        self.assertEqual(access.console_mode(req, self.member), access.Lens.INSTITUTION)
+        access.remember_console_mode(req, access.Lens.INSTITUTION)
+        self.assertEqual(req.session.get(access.CONSOLE_SESSION_KEY), access.Lens.INSTITUTION)
+
+    def test_param_proibido_cai_em_mine_sem_poluir_sessao(self):
+        # Não-membro a pedir 'institution' → MINE; e NÃO persiste o rebaixamento
+        # (um link proibido não deve gravar 'mine' por cima da memória).
+        req = self._req('?lens=institution')
+        mode = access.console_mode(req, self.outsider)
+        self.assertEqual(mode, access.Lens.MINE)
+        access.remember_console_mode(req, mode)
+        self.assertNotIn(access.CONSOLE_SESSION_KEY, req.session)
+
+    def test_param_legado_nao_apaga_zona_lembrada(self):
+        # Membro com 'institution' lembrada; clica num link legado ?lens=custody.
+        # Esse request resolve para MINE (param explícito inválido → default), mas
+        # a zona lembrada NÃO é apagada (próxima navegação sem param volta a ela).
+        req = self._req('?lens=custody', session={access.CONSOLE_SESSION_KEY: access.Lens.INSTITUTION})
+        mode = access.console_mode(req, self.member)
+        self.assertEqual(mode, access.Lens.MINE)
+        access.remember_console_mode(req, mode)
+        self.assertEqual(req.session.get(access.CONSOLE_SESSION_KEY), access.Lens.INSTITUTION)
+
+    def test_sem_param_usa_sessao(self):
+        req = self._req(session={access.CONSOLE_SESSION_KEY: access.Lens.INSTITUTION})
+        self.assertEqual(access.console_mode(req, self.member), access.Lens.INSTITUTION)
+        # Sem param explícito → NÃO escreve a sessão.
+        before = dict(req.session)
+        access.remember_console_mode(req, access.Lens.INSTITUTION)
+        self.assertEqual(dict(req.session), before)
+
+    def test_sem_param_nem_sessao_usa_default(self):
+        req = self._req()
+        self.assertEqual(access.console_mode(req, self.outsider), access.Lens.MINE)
+
+    def test_sessao_proibida_cai_em_mine(self):
+        # Sessão com 'institution' mas utilizador sem pertença → MINE.
+        req = self._req(session={access.CONSOLE_SESSION_KEY: access.Lens.INSTITUTION})
+        self.assertEqual(access.console_mode(req, self.outsider), access.Lens.MINE)
