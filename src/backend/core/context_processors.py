@@ -79,3 +79,22 @@ def lens_nav(request):
             else []
         ),
     }
+
+
+def inbound_nav(request):
+    """Injecta a contagem de "prova a chegar" para o badge da casca (ADR-0016 v2).
+
+    Surface leve de :func:`core.access.scope_inbound_transit`: um único COUNT por
+    request e SÓ para membros de instituição (a caixa-de-entrada é institucional —
+    chaveia no DESTINO da prova). Devolve vazio a não-autenticados e a quem não
+    pertence a nenhuma instituição (sem badge nem link na sidebar). Fonte única da
+    regra em ``access`` — aqui não se duplica o filtro.
+    """
+    from core import access
+
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {}
+    if not access._active_institution_ids(user):
+        return {}  # a zona "prova a chegar" só existe para membros
+    return {'inbound_member': True, 'inbound_count': access.scope_inbound_transit(user).count()}

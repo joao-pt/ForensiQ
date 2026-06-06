@@ -13,6 +13,8 @@ MP que aparece na cadeia), pois a ``Occurrence`` é imutável e não admite um c
 de atribuição mutável (ADR-0017 §6b — ponto materializado por derivação).
 """
 
+import contextlib
+
 from django.db.models import Q
 
 from core.models import ChainOfCustody, Evidence, Occurrence, ProvaEmTransito, User
@@ -37,14 +39,27 @@ READ_ONLY_PROFILES = frozenset({User.Profile.CHEFE_SERVICO, User.Profile.AUDITOR
 
 
 def _active_institution_ids(user):
-    """IDs das instituições ativas a que o utilizador pertence."""
+    """IDs das instituições ativas a que o utilizador pertence.
+
+    Memoizado na instância do utilizador para não repetir a query nos vários pontos
+    que a chamam no mesmo render (``lens_nav`` e ``inbound_nav`` nos context
+    processors, scopes nas views). Como ``request.user`` vive um único pedido, o
+    cache é, na prática, por-pedido — e as pertenças não mudam a meio de um render.
+    Recai na query se a instância não aceitar o atributo (ex.: ``AnonymousUser``).
+    """
     if not getattr(user, 'is_authenticated', False):
         return []
-    return list(
+    cached = getattr(user, '_fq_active_institution_ids', None)
+    if cached is not None:
+        return cached
+    ids = list(
         user.institution_memberships.filter(is_active=True).values_list(
             'institution_id', flat=True
         )
     )
+    with contextlib.suppress(AttributeError, TypeError):
+        user._fq_active_institution_ids = ids
+    return ids
 
 
 def has_national_read(user):
@@ -184,6 +199,28 @@ def scope_inbound_transit(user, base_qs=None):
     if not inst_ids:
         return qs.none()
     return qs.filter(destino_institution_id__in=inst_ids, acknowledged_at__isnull=True)
+
+
+def has_inbound_for_occurrence(user, occurrence):
+    """O utilizador tem prova A CHEGAR (encaminhamento pendente) NESTA ocorrência?
+
+    Verdadeiro se algum aviso ``ProvaEmTransito`` por reconhecer desta ocorrência
+    tem por destino uma instituição ativa do utilizador — i.e. o item aparece na
+    caixa "prova a chegar" dele. É a porta de LEITURA da receção (quem pode ABRIR o
+    formulário de intake), alinhada com :func:`scope_inbound_transit` (mesma regra,
+    restrita a uma ocorrência). A ESCRITA da receção continua governada por
+    :func:`can_append_custody` no serializer — esta porta não a substitui.
+    """
+    if occurrence is None:
+        return False
+    inst_ids = _active_institution_ids(user)
+    if not inst_ids:
+        return False
+    return ProvaEmTransito.objects.filter(
+        evidence__occurrence=occurrence,
+        destino_institution_id__in=inst_ids,
+        acknowledged_at__isnull=True,
+    ).exists()
 
 
 def scope_occurrences_institutional(user, base_qs=None):

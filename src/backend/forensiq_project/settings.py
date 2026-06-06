@@ -95,6 +95,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.app_metadata',
                 'core.context_processors.lens_nav',
+                'core.context_processors.inbound_nav',
             ],
         },
     },

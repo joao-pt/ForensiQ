@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% load static l10n %}
+
+{% block title %}Prova a chegar — ForensiQ{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Prova a chegar</span>{% endblock %}
+
+{% block content %}
+<section class="fullbleed" aria-labelledby="inbound-title">
+
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="inbound-title">Prova a chegar</h1>
+      <span class="page-head__count">{{ total }} por receber</span>
+    </div>
+  </header>
+
+  <p class="page-lead">
+    Prova encaminhada para a sua instituição, ainda em trânsito. Receba cada item no
+    intake da respetiva ocorrência para fechar a cadeia de custódia.
+  </p>
+
+  <div class="gridwrap">
+    {% if notices %}
+    <table class="grid" role="grid" aria-label="Prova a chegar à instituição">
+      <thead>
+        <tr role="row">
+          <th role="columnheader" scope="col">Item</th>
+          <th role="columnheader" scope="col">Ocorrência</th>
+          <th role="columnheader" scope="col" class="col-hide-sm">Tipo</th>
+          <th role="columnheader" scope="col">Destino</th>
+          <th role="columnheader" scope="col" class="col-hide-sm">Portador</th>
+          <th role="columnheader" scope="col">Encaminhado</th>
+          <th role="columnheader" scope="col"><span class="visually-hidden">Ação</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for n in notices %}
+        <tr role="row">
+          <td role="gridcell" class="mono grid__code">{{ n.evidence.code }}</td>
+          <td role="gridcell" class="mono">
+            <a href="/occurrences/{{ n.evidence.occurrence_id }}/">{{ n.evidence.occ_label }}</a>
+          </td>
+          <td role="gridcell" class="grid__ellipsis col-hide-sm">{{ n.evidence.type_label }}</td>
+          <td role="gridcell">{{ n.destino_institution.sigla|default:n.destino_institution.name }}</td>
+          <td role="gridcell" class="col-hide-sm">
+            {{ n.bearer_label }}{% if n.bearer_mat %} <span class="grid__muted mono">({{ n.bearer_mat }})</span>{% endif %}
+          </td>
+          <td role="gridcell" class="mono grid__muted">{{ n.created_at|date:'Y-m-d H:i' }}</td>
+          <td role="gridcell">
+            <a class="btn-ghost" href="/occurrences/{{ n.evidence.occurrence_id }}/intake/">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M12 3v10M8 9l4 4 4-4"/></svg>
+              Receber
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">
+      <p class="empty__title">Nada a chegar</p>
+      <p class="empty__hint">Não há prova encaminhada por receber na sua instituição.</p>
+    </div>
+    {% endif %}
+  </div>
+
+</section>
+{% endblock %}

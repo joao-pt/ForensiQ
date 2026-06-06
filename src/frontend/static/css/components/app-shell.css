@@ -409,6 +409,26 @@ body.app-body {
     min-width: 0;
 }
 
+/* Badge de contagem (ex.: "prova a chegar" por receber). Pílula âmbar discreta,
+   dígitos em mono — alinhada à direita do link, sinaliza sem dominar. */
+.app-sidebar__badge {
+    flex-shrink: 0;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    line-height: 1;
+    color: var(--accent-on-tint);
+    background: var(--accent-tint);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-pill);
+}
+
 /* =====================================================================
    app-main
    ===================================================================== */

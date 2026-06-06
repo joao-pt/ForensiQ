@@ -953,6 +953,38 @@ def occurrence_encaminhar_view(request, occurrence_id):
 
 
 @jwt_cookie_user
+def inbound_view(request):
+    """Caixa "prova a chegar" — provas encaminhadas para a(s) instituição(ões) do
+    utilizador, ainda por receber (ADR-0016 v2, 2.ª metade do handoff).
+
+    Fecha o ciclo encaminhar→chegar→receber: lista os avisos ``ProvaEmTransito`` por
+    reconhecer e cada um liga ao intake da sua ocorrência, onde se regista a RECEÇÃO.
+    É surface de :func:`core.access.scope_inbound_transit` — institucional (chaveia no
+    DESTINO, não no detentor atual; ``none()`` para quem não pertence a nenhuma
+    instituição). O portador é lido do *snapshot* gravado no evento de encaminhamento.
+    """
+    user = request.user
+    notices = list(
+        access.scope_inbound_transit(user)
+        .select_related(
+            'evidence__occurrence',
+            'evidence__agent',
+            'destino_institution',
+            'encaminhamento_event',
+        )
+        .prefetch_related('evidence__custody_chain')
+        .order_by('-created_at', 'evidence__code')
+    )
+    _decorate_evidences([n.evidence for n in notices])
+    for n in notices:
+        evt = n.encaminhamento_event
+        nome = ' '.join(p for p in (evt.bearer_nome, evt.bearer_apelido) if p).strip()
+        n.bearer_label = nome or evt.bearer_matricula or '—'
+        n.bearer_mat = evt.bearer_matricula
+    return render(request, 'inbound.html', {'notices': notices, 'total': len(notices)})
+
+
+@jwt_cookie_user
 def occurrences_new_view(request):
     """Registo de nova ocorrência — server-rendered + POST via serializer (Fase 3).
 
@@ -1773,20 +1805,20 @@ def reports_view(request):
 
 
 def occurrence_intake_view(request, occurrence_id):
-    """Página de check-list de intake no laboratório (ADR-0012 Vaga 2).
+    """Página de check-list de RECEÇÃO (2.ª metade do handoff, ADR-0016 v2).
 
-    Acessível só a EXPERT (ou staff). AGENT em campo entrega; não faz
-    intake. O template renderiza checklist das evidências esperadas;
-    o submit é feito via JS para o endpoint `/api/custody/cascade/`
-    existente, registando em todos os itens marcados um evento
-    ``TRANSFERENCIA`` para ``LAB_PUBLICO`` numa só operação atómica
-    (ledger de eventos, ADR-0015).
+    Recebe a prova em trânsito: regista um ``RECEPCAO_CUSTODIA`` por item marcado,
+    em lote atómico, reusando o ``ChainOfCustodySerializer`` (herda destino/custódio
+    do encaminhamento e, em instituição fixa, a coordenada do registo da instituição).
 
     Requisitos de auth (impostos no servidor antes do render):
     1. JWT válido em cookie `fq_access`.
-    2. Perfil EXPERT, staff, ou superuser.
+    2. Pode receber: EXPERT/staff (intake de laboratório) OU membro da instituição
+       de destino de um encaminhamento pendente desta ocorrência (receção OPC→OPC —
+       alinha com a caixa "prova a chegar"). A ESCRITA é, ainda assim, validada por
+       ``can_append_custody`` no serializer.
 
-    Qualquer outro perfil recebe HTTP 403.
+    Quem não cumpra recebe HTTP 403.
     """
     from django.contrib.auth import get_user_model
 
@@ -1812,11 +1844,22 @@ def occurrence_intake_view(request, occurrence_id):
     # autorize com base no utilizador real do intake.
     request.user = user
 
-    is_expert = getattr(user, 'profile', None) == 'FORENSIC_EXPERT'
-    if not (user.is_staff or user.is_superuser or is_expert):
-        return render(request, '403_intake.html', status=403)
-
     occurrence = Occurrence.objects.filter(pk=occurrence_id).first()
+    # Quem pode RECEBER (abrir o intake): operador de laboratório (EXPERT) ou staff
+    # — E TAMBÉM um membro da instituição de destino de um encaminhamento pendente
+    # DESTA ocorrência. Sem este último ramo, a receção OPC→OPC fica num beco: a
+    # caixa "prova a chegar" mostra o item ao membro do destino, mas o intake
+    # recusava-o (403). A porta de ESCRITA real continua no serializer
+    # (can_append_custody, fail-closed); aqui decide-se só quem vê/usa o formulário.
+    is_expert = getattr(user, 'profile', None) == 'FORENSIC_EXPERT'
+    can_receive = (
+        user.is_staff
+        or user.is_superuser
+        or is_expert
+        or access.has_inbound_for_occurrence(user, occurrence)
+    )
+    if not can_receive:
+        return render(request, '403_intake.html', status=403)
     if occurrence is None:
         return render(request, '404.html', status=404)
 
@@ -1912,7 +1955,7 @@ def occurrence_intake_view(request, occurrence_id):
                         )
                 messages.success(
                     request,
-                    f'Receção registada: {len(to_receive)} item(ns) no laboratório.',
+                    f'Receção registada: {len(to_receive)} item(ns).',
                 )
                 return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
             except (DjangoValidationError, DRFValidationError) as exc:

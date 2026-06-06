@@ -45,6 +45,7 @@ from core.frontend_views import (
     evidence_singular_redirect,
     evidences_new_view,
     evidences_view,
+    inbound_view,
     institution_new_view,
     institutions_view,
     investigation_report_view,
@@ -143,6 +144,10 @@ urlpatterns = [
 
     # Custódias
     path('custodies/', custody_list_view, name='custodies'),
+
+    # Caixa "prova a chegar" — avisos de encaminhamento para a minha instituição,
+    # por receber (2.ª metade do handoff, ADR-0016 v2). Liga ao intake/receber.
+    path('inbound/', inbound_view, name='inbound'),
 
     # Instituições (pontos de controlo fixos) — gestão (staff/NACIONAL)
     path('institutions/', institutions_view, name='institutions'),

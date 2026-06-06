@@ -241,6 +241,19 @@
                         </svg>
                         <span class="app-sidebar__label">Custódias</span>
                     </a>
+                    {% if inbound_member %}
+                    {# Prova a chegar — avisos de encaminhamento por receber. Só para
+                       membros de instituição (a caixa é institucional). #}
+                    <a class="app-sidebar__link" href="/inbound/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M12 3v10M8 9l4 4 4-4"/>
+                        </svg>
+                        <span class="app-sidebar__label">Prova a chegar</span>
+                        {% if inbound_count %}<span class="app-sidebar__badge" aria-label="{{ inbound_count }} por receber">{{ inbound_count }}</span>{% endif %}
+                    </a>
+                    {% endif %}
                     {% if user.is_staff or user.profile == 'FORENSIC_EXPERT' %}
                     <a class="app-sidebar__link" href="/verificacoes/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
