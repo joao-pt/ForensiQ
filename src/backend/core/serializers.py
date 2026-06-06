@@ -24,6 +24,7 @@ from .models import (
     Occurrence,
     derive_legal_state,
 )
+from .validators import validate_gps_coherence
 
 User = get_user_model()
 
@@ -574,10 +575,10 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
         """Coerência GPS + gate de ESCRITA item-level (ADR-0017 §5)."""
         lat = attrs.get('gps_lat')
         lng = attrs.get('gps_lng')
-        if (lat is None) != (lng is None):
-            raise serializers.ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+        try:
+            validate_gps_coherence(lat, lng)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
         # Gate de ESCRITA — FALHA FECHADA: se o serializer for instanciado sem
         # request/utilizador autenticado não conseguimos autorizar, logo NEGA-SE
         # (antes ignorava-se a verificação quando faltava o contexto — fail-open).
@@ -658,10 +659,10 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Coerência GPS: latitude e longitude ambas presentes ou ambas ausentes."""
-        if (attrs.get('gps_lat') is None) != (attrs.get('gps_lng') is None):
-            raise serializers.ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+        try:
+            validate_gps_coherence(attrs.get('gps_lat'), attrs.get('gps_lng'))
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
         return attrs
 
 

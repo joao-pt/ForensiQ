@@ -24,7 +24,7 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
-from core.validators import validate_imei
+from core.validators import validate_gps_coherence, validate_imei
 
 
 def gps_quantum():
@@ -376,11 +376,7 @@ class Institution(models.Model):
 
     def clean(self):
         super().clean()
-        # Coerência GPS: lat e lng ambas presentes ou ambas ausentes (como Occurrence).
-        if (self.gps_lat is not None) != (self.gps_lng is not None):
-            raise ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+        validate_gps_coherence(self.gps_lat, self.gps_lng)
         # Quantização a 7 casas (ADR-0013), igual ao ledger — a coordenada da
         # instituição entra no hash da receção, logo tem de coincidir bit a bit.
         q = gps_quantum()
@@ -761,8 +757,7 @@ class Occurrence(models.Model):
         # Normalizar número da ocorrência (collapse spaces + strip)
         if self.number:
             self.number = ' '.join(self.number.split())
-        if (self.gps_lat is not None) != (self.gps_lng is not None):
-            raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
+        validate_gps_coherence(self.gps_lat, self.gps_lng)
         if self.date_time and self.date_time > timezone.now():
             raise ValidationError({'date_time': 'A data da ocorrência não pode estar no futuro.'})
         # Prioridade derivada da Política Criminal (ADR-0014). Corre só na
@@ -1314,8 +1309,7 @@ class Evidence(models.Model):
 
     def clean(self):
         super().clean()
-        if (self.gps_lat is not None) != (self.gps_lng is not None):
-            raise ValidationError('Latitude e longitude devem ser ambas definidas ou ambas vazias.')
+        validate_gps_coherence(self.gps_lat, self.gps_lng)
         if self.timestamp_seizure and self.timestamp_seizure > timezone.now():
             raise ValidationError(
                 {'timestamp_seizure': 'A data da apreensão não pode estar no futuro.'}
@@ -2013,11 +2007,7 @@ class ChainOfCustody(models.Model):
                 }
             )
 
-        # Coerência GPS: lat e lng ambas presentes ou ambas ausentes (como Occurrence).
-        if (self.gps_lat is not None) != (self.gps_lng is not None):
-            raise ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+        validate_gps_coherence(self.gps_lat, self.gps_lng)
 
         # Quantização GPS a 7 casas (ADR-0013), ANTES do hash — garante
         # valor em memória == valor na BD == valor recalculado pelo perito.

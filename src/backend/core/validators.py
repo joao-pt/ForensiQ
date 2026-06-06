@@ -26,6 +26,24 @@ import re
 from django.core.exceptions import ValidationError
 
 # ---------------------------------------------------------------------------
+# GPS — coerência de coordenadas (ADR-0013)
+# ---------------------------------------------------------------------------
+
+
+def validate_gps_coherence(lat, lng) -> None:
+    """Coerência GPS: latitude e longitude ambas presentes ou ambas ausentes.
+
+    Levanta ``ValidationError`` (Django) se só uma estiver definida. Fonte ÚNICA
+    da regra e da mensagem, partilhada por ``Model.clean()`` e pelos serializers
+    (que convertem para a ``ValidationError`` do DRF). ADR-0013.
+    """
+    if (lat is None) != (lng is None):
+        raise ValidationError(
+            'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+        )
+
+
+# ---------------------------------------------------------------------------
 # IMEI — International Mobile Equipment Identity
 # ---------------------------------------------------------------------------
 
