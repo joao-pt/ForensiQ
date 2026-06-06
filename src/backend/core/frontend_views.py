@@ -53,6 +53,7 @@ from core.models import (
     Occurrence,
     derive_legal_state,
 )
+from core.utils import get_user_display_name, sort_custody_chain
 
 logger = logging.getLogger(__name__)
 
@@ -181,7 +182,7 @@ def _decorate_occurrences(occurrences):
         occ.pri = _priority_badge(occ)
         ct = occ.crime_type
         occ.crime_label = f'{ct.codigo} — {ct.descritivo}' if ct else '—'
-        occ.agent_label = occ.agent.get_full_name() or occ.agent.username
+        occ.agent_label = get_user_display_name(occ.agent)
 
 
 # Ordenações expostas na UI → expressão de ORM (lista branca: impede injeção
@@ -237,7 +238,7 @@ def _scope_evidences(user):
 
 def _evidence_state(evidence):
     """(label, css) do estado legal derivado da cadeia de custódia."""
-    eventos = sorted(evidence.custody_chain.all(), key=lambda r: r.sequence)
+    eventos = sort_custody_chain(evidence.custody_chain.all())
     if not eventos:
         return ('Sem custódia', 'muted')
     st = derive_legal_state(eventos)
@@ -247,7 +248,7 @@ def _evidence_state(evidence):
 def _decorate_evidences(evidences):
     for e in evidences:
         e.type_label = e.get_type_display()
-        e.agent_label = e.agent.get_full_name() or e.agent.username
+        e.agent_label = get_user_display_name(e.agent)
         e.occ_label = e.occurrence.code or e.occurrence.number
         e.state_label, e.state_css = _evidence_state(e)
 
@@ -431,7 +432,7 @@ def _activity_feed(user, limit=20):
     for r in logs:
         r.action_label = r.get_action_display()
         r.resource_label = r.get_resource_type_display()
-        r.user_label = (r.user.get_full_name() or r.user.username) if r.user else 'sistema'
+        r.user_label = get_user_display_name(r.user)
         d = r.details or {}
         if r.resource_type == AuditLog.ResourceType.EVIDENCE and d.get('hash'):
             r.extra = d['hash'][:16] + '…'
@@ -928,7 +929,7 @@ def _decorate_events(events):
     for r in events:
         r.event_label = r.get_event_type_display()
         r.custodian_label = r.get_custodian_type_display() if r.custodian_type else '—'
-        r.agent_label = r.agent.get_full_name() or r.agent.username
+        r.agent_label = get_user_display_name(r.agent)
         r.hash_short = (r.record_hash or '')[:16]
 
 
@@ -958,7 +959,7 @@ def evidence_detail_view(request, evidence_id):
     except (Evidence.DoesNotExist, ValueError, TypeError):
         return HttpResponseNotFound('Evidência não encontrada.')
     _decorate_evidences([ev])
-    events = sorted(ev.custody_chain.all(), key=lambda r: r.sequence)
+    events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     sub_components = list(ev.sub_components.select_related('agent').order_by('id'))
     _decorate_evidences(sub_components)
@@ -1131,7 +1132,7 @@ def custody_timeline_view(request, evidence_id):
             return HttpResponseRedirect(f'/evidences/{ev.id}/custody/')
 
     _decorate_evidences([ev])
-    events = sorted(ev.custody_chain.all(), key=lambda r: r.sequence)
+    events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     valid_events = _valid_next_events(events, ev)
     return render(

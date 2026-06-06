@@ -24,6 +24,7 @@ from .models import (
     Occurrence,
     derive_legal_state,
 )
+from .utils import get_user_display_name, sort_custody_chain
 from .validators import validate_gps_coherence
 
 User = get_user_model()
@@ -59,7 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         """Nome completo, com fallback para username."""
-        return obj.get_full_name() or obj.username
+        return get_user_display_name(obj)
 
     class Meta:
         model = User
@@ -211,7 +212,7 @@ class OccurrenceSerializer(serializers.ModelSerializer):
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
-        return obj.agent.get_full_name() or obj.agent.username
+        return get_user_display_name(obj.agent)
 
     def get_crime_type_label(self, obj):
         """Rótulo legível do tipo de crime (ex.: '40 — Roubo na via pública')."""
@@ -341,7 +342,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
-        return obj.agent.get_full_name() or obj.agent.username
+        return get_user_display_name(obj.agent)
 
     def get_parent_evidence_label(self, obj):
         """Rótulo amigável do pai (ex.: 'ITM-2026-00001 · Telemóvel — S23'),
@@ -393,7 +394,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
         eventos = list(obj.custody_chain.all())
         if not eventos:
             return None
-        eventos.sort(key=lambda r: r.sequence)
+        eventos = sort_custody_chain(eventos)
         return derive_legal_state(eventos)
 
     class Meta:
@@ -524,12 +525,12 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
-        return obj.agent.get_full_name() or obj.agent.username
+        return get_user_display_name(obj.agent)
 
     def get_legal_state(self, obj):
         """Estado legal derivado da sequência completa de eventos da evidência."""
         eventos = list(obj.evidence.custody_chain.all())
-        eventos.sort(key=lambda r: r.sequence)
+        eventos = sort_custody_chain(eventos)
         return derive_legal_state(eventos)
 
     class Meta:
@@ -720,7 +721,7 @@ class ActivityFeedSerializer(serializers.ModelSerializer):
         """Nome legível do autor: nome completo > username > 'sistema'."""
         if obj.user_id is None:
             return 'sistema'
-        return obj.user.get_full_name() or obj.user.username
+        return get_user_display_name(obj.user)
 
     def get_is_priority_alert(self, obj):
         """True para criação de ocorrência PRIORITÁRIA (ADR-0014 §7).

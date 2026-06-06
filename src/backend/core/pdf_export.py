@@ -40,6 +40,7 @@ from reportlab.platypus import (
 )
 
 from core.labels import LEGAL_STATE_LABELS
+from core.utils import get_user_display_name, sort_custody_chain
 
 # ---------------------------------------------------------------------------
 # Sanitização — proteção contra injecção em Paragraph
@@ -352,7 +353,7 @@ def _fmt_gps(lat, lng):
 
 
 def _fmt_agent(user):
-    return _sanitize(user.get_full_name() or user.username)
+    return _sanitize(get_user_display_name(user))
 
 
 def _label_value_rows(pairs, styles, col_widths=(5 * cm, 12 * cm)):
@@ -703,7 +704,7 @@ def generate_evidence_pdf(evidence):
     # `all()` reaproveita o prefetch_related aplicado pela view (N12).
     # Ordenação ascendente em memória (o prefetch é -sequence; aqui
     # precisamos da ordem cronológica natural).
-    custody_records = sorted(evidence.custody_chain.all(), key=lambda r: r.sequence)
+    custody_records = sort_custody_chain(evidence.custody_chain.all())
     story += _custody_table(custody_records, styles)
 
     # Declaração
@@ -740,7 +741,7 @@ def _current_custody_state(evidence):
     records = list(evidence.custody_chain.all())
     if not records:
         return ('—', None)
-    records.sort(key=lambda r: r.sequence)
+    records = sort_custody_chain(records)
     last = records[-1]
     estado = derive_legal_state(records)
     return (_sanitize(LEGAL_STATE_LABELS.get(estado, estado)), last)
