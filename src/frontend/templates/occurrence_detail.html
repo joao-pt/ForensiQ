@@ -35,6 +35,15 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
         Guia PDF
       </a>
+      {% if can_handoff %}
+      {# Ação in-place: encaminhar a prova em lote (portador + destino) num modal. #}
+      <a class="btn-ghost" href="/occurrences/{{ occ.id }}/encaminhar/"
+         data-modal-open data-modal-title="Encaminhar prova"
+         hx-get="/occurrences/{{ occ.id }}/encaminhar/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        Encaminhar
+      </a>
+      {% endif %}
       {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
       <a class="btn-accent" href="/evidences/new/?occurrence={{ occ.id }}">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>

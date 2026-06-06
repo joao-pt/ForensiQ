@@ -51,6 +51,7 @@ from core.frontend_views import (
     login_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
+    occurrence_encaminhar_view,
     occurrence_intake_view,
     occurrence_singular_redirect,
     occurrences_new_view,
@@ -126,6 +127,12 @@ urlpatterns = [
         'occurrences/<int:occurrence_id>/intake/',
         occurrence_intake_view,
         name='occurrence_intake',
+    ),
+    # Encaminhar prova em lote (handoff, ADR-0016 v2) — ação in-place (modal)
+    path(
+        'occurrences/<int:occurrence_id>/encaminhar/',
+        occurrence_encaminhar_view,
+        name='occurrence_encaminhar',
     ),
 
     # Evidências

@@ -796,7 +796,160 @@ def occurrence_detail_view(request, occurrence_id):
     )
     _decorate_evidences(evidences)
     occ.evidence_count = len(evidences)
-    return render(request, 'occurrence_detail.html', {'occ': occ, 'evidences': evidences})
+    # Encaminhar é ação de escrita: escondida a perfis só-leitura (a porta real é
+    # o can_append_custody por item, no serializer).
+    can_handoff = getattr(user, 'profile', None) not in ('CHEFE_SERVICO', 'AUDITOR')
+    return render(
+        request,
+        'occurrence_detail.html',
+        {'occ': occ, 'evidences': evidences, 'can_handoff': can_handoff},
+    )
+
+
+# Destino do encaminhamento promove o custódio (eixo CustodianType, ortogonal ao
+# event_type). MP não tem CustodianType próprio → custódio em branco (estado
+# derivado 'encaminhada'). Derivar AQUI (servidor) e não no cliente é o que faz o
+# gate de laboratório disparar: encaminhar para um LAB_* leva custodian_type LAB_*.
+_CUSTODIAN_TYPE_BY_INSTITUTION = {
+    InstitutionType.OPC: CustodianType.OPC,
+    InstitutionType.LAB_PUBLICO: CustodianType.LAB_PUBLICO,
+    InstitutionType.LAB_PRIVADO: CustodianType.LAB_PRIVADO,
+    InstitutionType.TRIBUNAL: CustodianType.TRIBUNAL,
+    InstitutionType.DEPOSITARIO: CustodianType.DEPOSITARIO,
+}
+
+
+def _encaminhaveis(user, occ):
+    """Itens da ocorrência que o utilizador pode ENCAMINHAR agora: génese feita,
+    não terminais nem já em trânsito (ENCAMINHAMENTO é próximo evento válido) E com
+    permissão de escrita (``can_append_custody``). Lista decorada para o template.
+    Anota ``ev.checked`` (omissão: todos selecionados — encaminha-se a prova junta)."""
+    itens = []
+    qs = (
+        Evidence.objects.filter(occurrence=occ)
+        .select_related('occurrence', 'agent', 'parent_evidence')
+        .prefetch_related('custody_chain')
+        .order_by('parent_evidence_id', 'id')
+    )
+    for ev in qs:
+        events = sort_custody_chain(ev.custody_chain.all())
+        valid = {v for v, _ in _valid_next_events(events, ev)}
+        if EventType.ENCAMINHAMENTO_CUSTODIA.value in valid and access.can_append_custody(
+            user, ev, EventType.ENCAMINHAMENTO_CUSTODIA
+        ):
+            itens.append(ev)
+    _decorate_evidences(itens)
+    return itens
+
+
+def _register_handoff(request, evidences, bearer_id, destino):
+    """Regista ENCAMINHAMENTO_CUSTODIA em cada item (1 evento/item), numa transação
+    atómica: portador + destino, custódio promovido pelo tipo do destino, SEM GPS (a
+    coordenada regista-se na receção). Reusa o ``ChainOfCustodySerializer`` (guardas
+    do ledger, ownership, gate de laboratório, hash, criação da ProvaEmTransito).
+    Devolve lista de erros (vazia = sucesso); qualquer falha reverte tudo."""
+    from django.db import transaction
+
+    from core.serializers import ChainOfCustodySerializer
+
+    base = {
+        'event_type': EventType.ENCAMINHAMENTO_CUSTODIA.value,
+        'bearer': bearer_id,
+        'custodian_institution': destino.id,
+        'observations': (request.POST.get('observations') or '').strip(),
+    }
+    ctype = _CUSTODIAN_TYPE_BY_INSTITUTION.get(destino.type)
+    if ctype:
+        base['custodian_type'] = ctype
+    errors = []
+    try:
+        with transaction.atomic():
+            for ev in evidences:
+                serializer = ChainOfCustodySerializer(
+                    data=dict(base, evidence=ev.id), context={'request': request}
+                )
+                serializer.is_valid(raise_exception=True)
+                record = serializer.save(agent=request.user)
+                log_access(
+                    request=request,
+                    action=AuditLog.Action.CREATE,
+                    resource_type=AuditLog.ResourceType.CUSTODY,
+                    resource_id=record.pk,
+                    details={
+                        'evidence_id': record.evidence_id,
+                        'event_type': record.event_type,
+                        'destino': destino.id,
+                    },
+                )
+    except (DRFValidationError, DjangoValidationError) as exc:
+        errors = _flatten_validation_error(exc)
+    return errors
+
+
+@jwt_cookie_user
+def occurrence_encaminhar_view(request, occurrence_id):
+    """Encaminhar prova da ocorrência (handoff em LOTE, ADR-0016 v2): entregar
+    vários itens a um portador, com destino a uma instituição — 1 evento
+    ENCAMINHAMENTO_CUSTODIA por item, SEM GPS (a prova fica em trânsito; a
+    coordenada regista-se na receção). Ação in-place (modal) a partir da página da
+    ocorrência: o agente regista tudo e depois encaminha a prova junta ("a prova
+    não fica no local"). Em sucesso no modal devolve 204 + HX-Redirect.
+    """
+    user = request.user
+    occ = _readable_occurrence(user, occurrence_id)
+    if occ is None:
+        return HttpResponseNotFound('Ocorrência não encontrada.')
+
+    modal = _wants_modal(request)
+    template = 'partials/_encaminhar_form.html' if modal else 'occurrence_encaminhar.html'
+    itens = _encaminhaveis(user, occ)
+    destinos = Institution.objects.filter(is_active=True).order_by('name')
+    portadores = Portador.objects.filter(is_active=True).order_by('apelido', 'nome')
+
+    submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
+    for ev in itens:
+        # GET: tudo selecionado; re-render por erro: mantém a escolha do utilizador.
+        ev.checked = submitted is None or str(ev.id) in submitted
+
+    def _ctx(errors, data):
+        return {
+            'occ': occ,
+            'itens': itens,
+            'destinos': destinos,
+            'portadores': portadores,
+            'errors': errors,
+            'data': data or {},
+            'modal': modal,
+            'action': f'/occurrences/{occ.id}/encaminhar/',
+        }
+
+    if request.method == 'POST':
+        sel = [ev for ev in itens if str(ev.id) in submitted]
+        bearer_id = (request.POST.get('bearer') or '').strip()
+        dest_id = (request.POST.get('custodian_institution') or '').strip()
+        destino = destinos.filter(pk=dest_id).first() if dest_id.isdigit() else None
+        errs = []
+        if not sel:
+            errs.append('Selecione pelo menos um item para encaminhar.')
+        if not bearer_id:
+            errs.append('Indique o portador que conduz a prova.')
+        if destino is None:
+            errs.append('Indique uma instituição de destino válida.')
+        if not errs:
+            errs = _register_handoff(request, sel, bearer_id, destino)
+        if not errs:
+            messages.success(
+                request,
+                f'{len(sel)} item(ns) encaminhado(s) para {destino.sigla or destino.name}.',
+            )
+            if modal:
+                resp = HttpResponse(status=204)
+                resp['HX-Redirect'] = f'/occurrences/{occ.id}/'
+                return resp
+            return HttpResponseRedirect(f'/occurrences/{occ.id}/')
+        return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
+
+    return render(request, template, _ctx({}, {}))
 
 
 @jwt_cookie_user
