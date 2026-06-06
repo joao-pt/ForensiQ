@@ -1,144 +1,83 @@
 """
-ForensiQ — Configuração dos campos de caracterização por tipo de evidência.
+ForensiQ — Acesso à configuração de campos por tipo de evidência.
 
-Fonte ÚNICA (server-side) dos campos guardados em ``Evidence.type_specific_data``
-(JSONField). Consumida por:
-  - ``frontend_views`` — render do bloco de campos por tipo no formulário;
-  - ``models._validate_type_specific_data`` / ``serializers`` — presença
-    (``required``) + validadores de formato;
-  - PDF / serializers — apresentação (mascarando os sensíveis).
+A configuração VIVE na base de dados (``EvidenceFieldDef`` + ``FieldOption``),
+editável no admin — fonte ÚNICA, sem hardcode (semeada por
+``0027_seed_evidence_fields``). Este módulo é a API de LEITURA: converte as linhas
+para os dicts que o render do formulário (``frontend_views``), a validação
+(``models.Evidence._validate_type_specific_data`` / ``serializers``) e o PDF
+consomem — mantendo a mesma forma de sempre (``{key, label, input, options?,
+required?, validator?, lookup?, sensitive?}``), pelo que os consumidores não mudam.
 
-Render a partir desta config mata o drift backend↔frontend: nenhum campo é
-hardcoded no template. Adicionar um campo é editar SÓ este ficheiro.
-
-Decisão (João, 2026-06-02): formulário LEAN para recolha no terreno. Muitos
-campos tornam o registo um pesadelo e muitos nem são visíveis ao agente. Logo:
-  - transversais mínimos (marca, modelo; o nº de série é campo próprio do
-    modelo, não entra aqui);
-  - por tipo, sobretudo os IDENTIFICADORES (IMEI/IMSI/ICCID/VIN/MAC) e 1–2
-    campos críticos; o resto fica para o laboratório.
-  - campos ``sensitive`` (passcode/PIN) são mascarados na UI/PDF e cifrados.
-
-Suporte de pesquisa (spec completa em ``_cowork/device_fields_spec.json``):
-NIST SP 800-101r1, SWGDE 17-F-002/18-F-002/003, ISO/IEC 27037, ACPO.
-
-Chaves dos campos:
-  key       — nome em ``type_specific_data`` (snake_case);
-  label     — rótulo PT-PT;
-  input     — text | number | select | tel;
-  options   — lista (só para input=select);
-  required  — bool (default False);
-  validator — 'imei' | 'imsi' | 'iccid' | 'vin' | 'mac' (formato; reutiliza os
-              validadores existentes do modelo). Sem validator = texto livre;
-  lookup    — 'imei' | 'vin' (liga ao botão de consulta externa, se existir);
-  sensitive — bool; mascarar na UI/PDF e cifrar ao nível da aplicação.
+Os VALIDADORES de formato (IMEI/IMSI/ICCID/VIN/MAC) ficam em código
+(``core.validators``): a coluna ``validator`` só refere, por nome, uma função que
+existe — nunca se cria um campo cujo validador não exista.
 """
 
 from __future__ import annotations
 
-# Campos comuns a TODOS os tipos (em type_specific_data). O serial_number é
-# campo próprio do modelo Evidence — não duplicar aqui.
-TRANSVERSAL_FIELDS = [
-    {'key': 'marca', 'label': 'Marca / Fabricante', 'input': 'text'},
-    {'key': 'modelo', 'label': 'Modelo', 'input': 'text'},
-    # Estado de energia na apreensão — dado VOLÁTIL (ISO/IEC 27037; princípio
-    # ACPO 1). Tem de ser capturado no momento: ligado/desligado/modo de avião
-    # condiciona todo o exame posterior e pode não ser recuperável no laboratório.
-    {'key': 'estado_energia', 'label': 'Estado de energia na apreensão', 'input': 'select',
-     'options': ['Ligado', 'Desligado', 'Modo de avião', 'Não aplicável', 'Desconhecido']},
-]
 
-# Campos específicos por tipo (LEAN — identificadores + poucos críticos).
-EVIDENCE_TYPE_FIELDS: dict[str, list[dict]] = {
-    'MOBILE_DEVICE': [
-        {'key': 'imei', 'label': 'IMEI', 'input': 'text', 'validator': 'imei', 'lookup': 'imei'},
-        {'key': 'imei_2', 'label': 'IMEI secundário (dual-SIM)', 'input': 'text', 'validator': 'imei'},
-        {'key': 'operating_system', 'label': 'Sistema operativo', 'input': 'select',
-         'options': ['Android', 'iOS / iPadOS', 'Outro', 'Desconhecido']},
-        {'key': 'passcode', 'label': 'Código de desbloqueio (se autorizado)', 'input': 'text', 'sensitive': True},
-    ],
-    'SIM_CARD': [
-        {'key': 'imsi', 'label': 'IMSI', 'input': 'text', 'validator': 'imsi'},
-        {'key': 'iccid', 'label': 'ICCID', 'input': 'text', 'validator': 'iccid'},
-        {'key': 'carrier', 'label': 'Operador', 'input': 'text'},
-        {'key': 'pin_code', 'label': 'PIN (se autorizado)', 'input': 'text', 'sensitive': True},
-    ],
-    'VEHICLE': [
-        {'key': 'vin', 'label': 'VIN', 'input': 'text', 'validator': 'vin', 'lookup': 'vin'},
-    ],
-    'VEHICLE_COMPONENT': [
-        {'key': 'associated_vin', 'label': 'VIN do veículo associado', 'input': 'text', 'validator': 'vin'},
-    ],
-    'NETWORK_DEVICE': [
-        {'key': 'mac', 'label': 'MAC', 'input': 'text', 'validator': 'mac'},
-    ],
-    'IOT_DEVICE': [
-        {'key': 'mac', 'label': 'MAC', 'input': 'text', 'validator': 'mac'},
-    ],
-    'GPS_TRACKER': [
-        {'key': 'imei', 'label': 'IMEI', 'input': 'text', 'validator': 'imei'},
-        {'key': 'imsi', 'label': 'IMSI', 'input': 'text', 'validator': 'imsi'},
-    ],
-    'SMART_TAG': [
-        {'key': 'tag_ecosystem', 'label': 'Ecossistema', 'input': 'select',
-         'options': ['Apple AirTag', 'Samsung SmartTag', 'Tile', 'Chipolo', 'Outro', 'Desconhecido']},
-        {'key': 'device_serial_number', 'label': 'Nº de série do localizador', 'input': 'text'},
-    ],
-    'COMPUTER': [
-        {'key': 'operating_system', 'label': 'Sistema operativo', 'input': 'text'},
-        {'key': 'encryption_status', 'label': 'Cifragem de disco', 'input': 'select',
-         'options': ['Sem cifragem', 'BitLocker', 'FileVault', 'LUKS', 'Outra', 'Desconhecido']},
-    ],
-    'INTERNAL_DRIVE': [
-        {'key': 'capacity', 'label': 'Capacidade', 'input': 'text'},
-        {'key': 'interface', 'label': 'Interface', 'input': 'select',
-         'options': ['SATA', 'NVMe', 'SAS', 'IDE/PATA', 'USB', 'Outro', 'Desconhecido']},
-    ],
-    'STORAGE_MEDIA': [
-        {'key': 'capacity', 'label': 'Capacidade', 'input': 'text'},
-    ],
-    'MEMORY_CARD': [
-        {'key': 'capacity', 'label': 'Capacidade', 'input': 'text'},
-    ],
-    'CCTV_DEVICE': [
-        {'key': 'channels', 'label': 'Nº de canais', 'input': 'number'},
-        {'key': 'system_datetime', 'label': 'Data/hora do sistema na recolha', 'input': 'text'},
-    ],
-    'DRONE': [
-        {'key': 'aircraft_serial_number', 'label': 'Nº de série da aeronave', 'input': 'text'},
-    ],
-    'GAMING_CONSOLE': [
-        {'key': 'console_id', 'label': 'ID da consola', 'input': 'text'},
-    ],
-    'DIGITAL_FILE': [
-        {'key': 'source_device_description', 'label': 'Dispositivo-fonte (descrição)', 'input': 'text'},
-    ],
-    'RFID_NFC_CARD': [
-        {'key': 'card_uid', 'label': 'UID do cartão', 'input': 'text'},
-    ],
-    'OTHER_DIGITAL': [
-        {'key': 'device_category', 'label': 'Categoria do dispositivo', 'input': 'text'},
-    ],
-}
+def _to_dict(field) -> dict:
+    """``EvidenceFieldDef`` (com ``options`` pré-carregadas) → dict consumido pela UI/validação."""
+    d = {'key': field.key, 'label': field.label, 'input': field.input}
+    if field.required:
+        d['required'] = True
+    if field.validator:
+        d['validator'] = field.validator
+    if field.lookup:
+        d['lookup'] = field.lookup
+    if field.sensitive:
+        d['sensitive'] = True
+    if field.input == 'select':
+        d['options'] = [o.value for o in field.options.all()]
+    return d
+
+
+def transversal_fields() -> list[dict]:
+    """Campos comuns a todos os tipos (``evidence_type`` vazio)."""
+    from core.models import EvidenceFieldDef
+
+    qs = (
+        EvidenceFieldDef.objects.filter(evidence_type='', is_active=True)
+        .prefetch_related('options')
+    )
+    return [_to_dict(f) for f in qs]
 
 
 def fields_for(evidence_type: str) -> list[dict]:
-    """Campos específicos de um EvidenceType (lista vazia se não houver)."""
-    return EVIDENCE_TYPE_FIELDS.get(evidence_type, [])
+    """Campos específicos de um ``EvidenceType`` (lista vazia se não houver)."""
+    from core.models import EvidenceFieldDef
+
+    if not evidence_type:
+        return []
+    qs = (
+        EvidenceFieldDef.objects.filter(evidence_type=evidence_type, is_active=True)
+        .prefetch_related('options')
+    )
+    return [_to_dict(f) for f in qs]
+
+
+def type_fields_flat() -> list[dict]:
+    """TODOS os campos por-tipo, planos, cada um marcado com ``type`` (o JS
+    mostra/esconde por tipo). Substitui a antiga iteração de ``EVIDENCE_TYPE_FIELDS``."""
+    from core.models import EvidenceFieldDef
+
+    qs = (
+        EvidenceFieldDef.objects.exclude(evidence_type='')
+        .filter(is_active=True)
+        .prefetch_related('options')
+        .order_by('evidence_type', 'order', 'key')
+    )
+    return [{**_to_dict(f), 'type': f.evidence_type} for f in qs]
 
 
 def validate_type_specific_data(evidence_type: str, data: dict | None) -> list[str]:
     """Aplica os validadores de formato dos campos do tipo a ``data``.
 
     Fonte ÚNICA partilhada por ``models.Evidence._validate_type_specific_data`` e
-    ``serializers.EvidenceSerializer.validate`` — mata o drift (a antiga escada
-    if/elif do serializer cobria só MOBILE_DEVICE/SIM_CARD/VEHICLE/NETWORK_DEVICE
-    e ignorava imei_2, GPS_TRACKER, IOT_DEVICE e VEHICLE_COMPONENT). Devolve a
-    lista de problemas (uma entrada por campo inválido — NÃO sobrepõe, ao
-    contrário do bug em que iccid esmagava o erro de imsi). Lista vazia = válido.
+    ``serializers.EvidenceSerializer.validate``. Devolve a lista de problemas (uma
+    entrada por campo inválido — NÃO sobrepõe). Lista vazia = válido.
     """
-    # Import local para evitar dependência circular ao nível do módulo
-    # (validators é puro; evidence_field_config é importado por models/serializers).
     from django.core.exceptions import ValidationError
 
     from core.validators import (
@@ -170,16 +109,20 @@ def validate_type_specific_data(evidence_type: str, data: dict | None) -> list[s
 
 
 def all_keys() -> set[str]:
-    """Todas as chaves conhecidas de type_specific_data (transversais + tipos)."""
-    keys = {f['key'] for f in TRANSVERSAL_FIELDS}
-    for fields in EVIDENCE_TYPE_FIELDS.values():
-        keys.update(f['key'] for f in fields)
-    return keys
+    """Todas as chaves conhecidas de ``type_specific_data`` (transversais + tipos)."""
+    from core.models import EvidenceFieldDef
+
+    return set(
+        EvidenceFieldDef.objects.filter(is_active=True).values_list('key', flat=True)
+    )
 
 
 def sensitive_keys() -> set[str]:
     """Chaves a mascarar/cifrar (passcode, PIN, …)."""
-    keys = set()
-    for fields in EVIDENCE_TYPE_FIELDS.values():
-        keys.update(f['key'] for f in fields if f.get('sensitive'))
-    return keys
+    from core.models import EvidenceFieldDef
+
+    return set(
+        EvidenceFieldDef.objects.filter(is_active=True, sensitive=True).values_list(
+            'key', flat=True
+        )
+    )

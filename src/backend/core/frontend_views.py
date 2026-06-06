@@ -833,12 +833,6 @@ def evidences_view(request):
     return render(request, 'evidences.html', ctx)
 
 
-# Chaves de type_specific_data recolhidas no formulário (transversais + por
-# tipo), derivadas da fonte única evidence_field_config. Os validadores de
-# formato correm no modelo/serializer, também a partir da config.
-_TSD_KEYS = sorted(evidence_field_config.all_keys())
-
-
 def _evd_field_ctx(post):
     """(transversais, por-tipo) para o formulário de evidência, cada campo com o
     valor atual (re-preenche após erro). A lista por-tipo é plana, marcada com o
@@ -846,12 +840,9 @@ def _evd_field_ctx(post):
     def _v(field):
         return (post.get(field['key']) or '').strip() if hasattr(post, 'get') else ''
 
-    transversal = [{**f, 'value': _v(f)} for f in evidence_field_config.TRANSVERSAL_FIELDS]
-    type_fields = [
-        {**f, 'type': etype, 'value': _v(f)}
-        for etype, fields in evidence_field_config.EVIDENCE_TYPE_FIELDS.items()
-        for f in fields
-    ]
+    transversal = [{**f, 'value': _v(f)} for f in evidence_field_config.transversal_fields()]
+    # type_fields_flat() já marca cada campo com 'type' (para o JS mostrar/esconder).
+    type_fields = [{**f, 'value': _v(f)} for f in evidence_field_config.type_fields_flat()]
     return transversal, type_fields
 
 
@@ -875,12 +866,13 @@ def evidences_new_view(request):
     )
 
     if request.method == 'POST':
+        tsd_keys = evidence_field_config.all_keys()
         data = {
             k: v
             for k, v in request.POST.items()
-            if v != '' and k != 'csrfmiddlewaretoken' and k not in _TSD_KEYS
+            if v != '' and k != 'csrfmiddlewaretoken' and k not in tsd_keys
         }
-        tsd = {k: request.POST[k].strip() for k in _TSD_KEYS if request.POST.get(k, '').strip()}
+        tsd = {k: request.POST[k].strip() for k in tsd_keys if request.POST.get(k, '').strip()}
         if tsd:
             data['type_specific_data'] = tsd
         if request.FILES.get('photo'):

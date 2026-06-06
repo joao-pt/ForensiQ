@@ -10,6 +10,8 @@ from .models import (
     CrimeSubcategoria,
     CrimeTipo,
     Evidence,
+    EvidenceFieldDef,
+    FieldOption,
     Institution,
     InstitutionMembership,
     Occurrence,
@@ -161,6 +163,35 @@ class ChainOfCustodyAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Registos de custódia são imutáveis — sem eliminação."""
         return False
+
+
+# ---------------------------------------------------------------------------
+# Configuração de campos por tipo de evidência (dados de referência editáveis)
+# ---------------------------------------------------------------------------
+
+
+class FieldOptionInline(admin.TabularInline):
+    model = FieldOption
+    extra = 1
+
+
+@admin.register(EvidenceFieldDef)
+class EvidenceFieldDefAdmin(admin.ModelAdmin):
+    list_display = (
+        'evidence_type',
+        'key',
+        'label',
+        'input',
+        'required',
+        'validator',
+        'sensitive',
+        'order',
+        'is_active',
+    )
+    list_filter = ('evidence_type', 'input', 'required', 'sensitive', 'is_active')
+    search_fields = ('key', 'label', 'evidence_type')
+    ordering = ('evidence_type', 'order', 'key')
+    inlines = [FieldOptionInline]
 
 
 @admin.register(AuditLog)
