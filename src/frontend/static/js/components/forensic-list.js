@@ -143,29 +143,7 @@
         }
     });
 
-    // Reparação robusta do tamanho de um mapa Leaflet. O bug clássico é o mapa
-    // arrancar num container ainda sem dimensões (drawer a abrir, swap HTMX,
-    // transição para overlay fixed em mobile, banda do hero sem altura) e ficar
-    // cinzento. Em vez de depender de um único invalidateSize com timing frágil,
-    // disparamos em três momentos: já a seguir ao layout (duplo rAF), quando o
-    // mapa fica pronto (whenReady) e sempre que o container muda de dimensões
-    // (ResizeObserver) — cobrindo todos os casos acima.
-    function refreshMapSize(map, el) {
-        if (!map || !el) return;
-        requestAnimationFrame(function () {
-            requestAnimationFrame(function () { try { map.invalidateSize(); } catch (e) { /* removido */ } });
-        });
-        map.whenReady(function () { try { map.invalidateSize(); } catch (e) { /* removido */ } });
-        if (typeof ResizeObserver !== 'undefined' && !el._fqRO) {
-            var ro = new ResizeObserver(function () {
-                if (el.clientWidth > 0 && el.clientHeight > 0) {
-                    try { map.invalidateSize(); } catch (e) { /* removido */ }
-                }
-            });
-            ro.observe(el);
-            el._fqRO = ro;
-        }
-    }
+    // refreshMapSize / init de mapa Leaflet: fonte única em FQMap (utils/map-helpers.js).
 
     function destroyDrawerMap() {
         if (!drawerMap) return;
@@ -189,8 +167,7 @@
         var lat = parseFloat(el.dataset.lat);
         var lng = parseFloat(el.dataset.lng);
         destroyDrawerMap();
-        drawerMap = L.map(el, { zoomControl: true, attributionControl: false });
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(drawerMap);
+        drawerMap = FQMap.createMap(el, { zoomControl: true, attributionControl: false });
 
         var drewChain = renderChain(el);
         if (!drewChain) {
@@ -198,7 +175,7 @@
             drawerMap.setView([lat, lng], 15);
             L.marker([lat, lng]).addTo(drawerMap).bindTooltip(el.dataset.label || '', { permanent: false });
         }
-        refreshMapSize(drawerMap, el);
+        FQMap.refreshSize(drawerMap, el);
     }
 
     // Modo Cadeia — desenha o trajeto a partir de #drawer-map[data-chain].
@@ -301,8 +278,7 @@
                 opts.dragging = false; opts.scrollWheelZoom = false; opts.doubleClickZoom = false;
                 opts.boxZoom = false; opts.keyboard = false; opts.touchZoom = false; opts.tap = false;
             }
-            var m = L.map(el, opts);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(m);
+            var m = FQMap.createMap(el, opts);
             el._fqMap = m;
 
             var bounds = parseBounds(el.dataset.bounds);
@@ -323,7 +299,7 @@
                 m.setView([lat, lng], 15);
                 L.marker([lat, lng]).addTo(m).bindTooltip(el.dataset.label || '', { permanent: false });
             }
-            refreshMapSize(m, el);
+            FQMap.refreshSize(m, el);
         });
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initStaticMaps);
