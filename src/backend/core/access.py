@@ -15,7 +15,7 @@ de atribuição mutável (ADR-0017 §6b — ponto materializado por derivação)
 
 from django.db.models import Q
 
-from core.models import ChainOfCustody, Evidence, Occurrence, User
+from core.models import ChainOfCustody, Evidence, Occurrence, ProvaEmTransito, User
 
 # Atos de despacho que a autoridade do caso (MP) pode praticar (ADR-0017 §5).
 CASE_AUTHORITY_EVENTS = frozenset(
@@ -161,6 +161,24 @@ def scope_custody_custodial(user, base_qs=None):
     if not getattr(user, 'is_authenticated', False):
         return qs.none()
     return qs.filter(evidence__in=scope_evidences_custodial(user).values('pk'))
+
+
+def scope_inbound_transit(user, base_qs=None):
+    """Provas a chegar À INSTITUIÇÃO do utilizador (caixa-de-entrada — ADR-0016 v2).
+
+    Avisos ``ProvaEmTransito`` por reconhecer cuja ``destino_institution`` é uma
+    instituição ativa do utilizador. É institucional por natureza: SEM
+    curto-circuito ``has_full_read`` (um perito com leitura total mas sem
+    pertença não tem nada *a chegar*) e SEM ramo pessoal — chaveia no DESTINO
+    (para onde a prova vai), não no detentor atual.
+    """
+    qs = ProvaEmTransito.objects.all() if base_qs is None else base_qs
+    if not getattr(user, 'is_authenticated', False):
+        return qs.none()
+    inst_ids = _active_institution_ids(user)
+    if not inst_ids:
+        return qs.none()
+    return qs.filter(destino_institution_id__in=inst_ids, acknowledged_at__isnull=True)
 
 
 # ---------------------------------------------------------------------------

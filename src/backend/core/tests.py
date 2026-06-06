@@ -365,6 +365,9 @@ class DeriveLegalStateTest(TestCase):
             [
                 (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
+                # Gate (ADR-0016 v2): o laboratório exige um despacho prévio.
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                # Movimentação LEGADO (um só tempo) — ainda deriva 'encaminhada'.
                 (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
             ],
         )

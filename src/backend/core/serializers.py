@@ -559,7 +559,13 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'seal_condition_on_receipt',
             'new_seal_number',
             'relinquished_by',
+            'bearer',
+            'bearer_matricula',
+            'bearer_nome',
+            'bearer_apelido',
+            'bearer_posto',
             'record_hash',
+            'hash_version',
         ]
         read_only_fields = [
             'id',
@@ -569,7 +575,14 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'sequence',
             'legal_state',
             'timestamp',
+            # Snapshot do portador + versão: derivados/gravados pelo modelo no
+            # save() (ADR-0016 v2) — só o FK ``bearer`` é input do cliente.
+            'bearer_matricula',
+            'bearer_nome',
+            'bearer_apelido',
+            'bearer_posto',
             'record_hash',
+            'hash_version',
         ]
 
     def validate(self, attrs):

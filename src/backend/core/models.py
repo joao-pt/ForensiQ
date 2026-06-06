@@ -1540,9 +1540,15 @@ class EventType(models.TextChoices):
     - ``DERIVACAO_ITEM`` — sub-componente autonomizado (em regra no laboratório);
       só para evidência com ``parent_evidence``.
 
-    Movimentação (ADR-0017 §6): ``TRANSFERENCIA_CUSTODIA`` (push — entrega em
-    pessoa) e ``ASSUNCAO_CUSTODIA`` (pull — membro da instituição que tem o
-    item armazenado chama-o a si).
+    Movimentação em dois tempos (ADR-0016 — modelo de custódia v2):
+    ``ENCAMINHAMENTO_CUSTODIA`` (a origem entrega a prova a um portador, com
+    destino — a prova fica *em trânsito*, sem GPS) seguido de
+    ``RECEPCAO_CUSTODIA`` (o destino confirma a chegada e ganha coordenadas). O
+    portador entra na cadeia de hash como snapshot (ver :class:`Portador`).
+
+    ``TRANSFERENCIA_CUSTODIA``/``ASSUNCAO_CUSTODIA`` são LEGADO (modelo de um só
+    tempo): mantêm-se no enum para integridade de ledgers históricos, mas já
+    não são oferecidos como próximo evento nem usados no seed novo.
     """
 
     # --- Génese (1.º movimento) ---
@@ -1554,6 +1560,10 @@ class EventType(models.TextChoices):
     DESPACHO_PERICIA = 'DESPACHO_PERICIA', 'Despacho para perícia'
     INICIO_PERICIA = 'INICIO_PERICIA', 'Início de perícia'
     CONCLUSAO_PERICIA = 'CONCLUSAO_PERICIA', 'Conclusão de perícia'
+    # --- Movimentação em dois tempos (ADR-0016 v2) ---
+    ENCAMINHAMENTO_CUSTODIA = 'ENCAMINHAMENTO_CUSTODIA', 'Encaminhamento (em trânsito)'
+    RECEPCAO_CUSTODIA = 'RECEPCAO_CUSTODIA', 'Receção'
+    # --- Movimentação LEGADO (um só tempo; já não oferecida) ---
     TRANSFERENCIA_CUSTODIA = 'TRANSFERENCIA_CUSTODIA', 'Transferência de custódia'
     ASSUNCAO_CUSTODIA = 'ASSUNCAO_CUSTODIA', 'Assunção de custódia'
     RESTITUICAO = 'RESTITUICAO', 'Restituição'  # terminal
@@ -1587,6 +1597,15 @@ GENESIS_EVENTS = {
 # vez). A derivação de item (DERIVACAO_ITEM) não é uma apreensão autónoma.
 SEIZURE_GENESIS_EVENTS = {EventType.APREENSAO_OBJETO, EventType.APREENSAO_DADOS}
 
+# Custódios de laboratório. Gate (CPP Art. 154.º): um laboratório não admite
+# prova — nem que seja para arquivo — sem um DESPACHO_PERICIA prévio no ledger.
+LAB_CUSTODIANS = frozenset({CustodianType.LAB_PUBLICO, CustodianType.LAB_PRIVADO})
+
+# Movimentação em dois tempos (ADR-0016 v2): encaminhar (em trânsito) → receber.
+HANDOFF_EVENTS = frozenset(
+    {EventType.ENCAMINHAMENTO_CUSTODIA, EventType.RECEPCAO_CUSTODIA}
+)
+
 # Prazo legal de validação da apreensão (CPP Art. 178.º/6). O incumprimento é
 # assinalado (validation_overdue) no momento em que o evento VALIDACAO é gravado,
 # nunca bloqueado; para leitura/feed (T06) deriva-se dos timestamps gravados.
@@ -1602,7 +1621,7 @@ def derive_legal_state(eventos_ordenados):
     e devolve uma de:
 
         a_guarda_opc | validada | em_pericia | pericia_concluida |
-        encaminhada | restituida | perdida_favor_estado | destruida
+        em_transito | encaminhada | restituida | perdida_favor_estado | destruida
 
     O estado segue o ÚLTIMO acto relevante (a custódia é não-linear: várias
     perícias e encaminhamentos em ordem livre — CPP Art. 158.º), com duas
@@ -1612,8 +1631,11 @@ def derive_legal_state(eventos_ordenados):
     - existe PERDA_FAVOR_ESTADO (sem terminal posterior) → ``perdida_favor_estado``
       (estatuto legal forte; domina mesmo uma perícia em curso).
     - último INICIO_PERICIA → ``em_pericia``; último CONCLUSAO_PERICIA → ``pericia_concluida``.
-    - último TRANSFERENCIA_CUSTODIA/ASSUNCAO_CUSTODIA → ``a_guarda_opc`` se de
-      volta ao OPC, senão ``encaminhada`` (lab/tribunal/depositário/proprietário).
+    - último ENCAMINHAMENTO_CUSTODIA → ``em_transito`` (encaminhada, ainda não
+      recebida — ADR-0016 v2); último RECEPCAO_CUSTODIA → ``a_guarda_opc`` se de
+      volta ao OPC, senão ``encaminhada``.
+    - último TRANSFERENCIA_CUSTODIA/ASSUNCAO_CUSTODIA (LEGADO) → ``a_guarda_opc`` se
+      de volta ao OPC, senão ``encaminhada`` (lab/tribunal/depositário/proprietário).
     - DESPACHO_PERICIA/VALIDACAO_APREENSAO/génese como último → patamar atingido
       (``validada`` se já houve validação, senão ``a_guarda_opc``).
     """
@@ -1640,8 +1662,16 @@ def derive_legal_state(eventos_ordenados):
         return 'em_pericia'
     if et == EventType.CONCLUSAO_PERICIA:
         return 'pericia_concluida'
-    if et in (EventType.TRANSFERENCIA_CUSTODIA, EventType.ASSUNCAO_CUSTODIA):
-        # De volta ao OPC = à guarda do OPC; qualquer outro custódio = encaminhada.
+    if et == EventType.ENCAMINHAMENTO_CUSTODIA:
+        # Encaminhada mas ainda não recebida → em trânsito (ADR-0016 v2).
+        return 'em_transito'
+    if et in (
+        EventType.RECEPCAO_CUSTODIA,
+        EventType.TRANSFERENCIA_CUSTODIA,
+        EventType.ASSUNCAO_CUSTODIA,
+    ):
+        # Receção / movimentação legado: de volta ao OPC = à guarda do OPC;
+        # qualquer outro custódio = encaminhada.
         return 'a_guarda_opc' if ultimo.custodian_type == CustodianType.OPC else 'encaminhada'
 
     # DESPACHO_PERICIA / VALIDACAO_APREENSAO / génese como último: patamar atingido.
@@ -1657,6 +1687,7 @@ LEGAL_STATES = frozenset(
         'validada',
         'em_pericia',
         'pericia_concluida',
+        'em_transito',
         'encaminhada',
         'restituida',
         'perdida_favor_estado',
@@ -1837,12 +1868,49 @@ class ChainOfCustody(models.Model):
         related_name='custody_relinquishments',
         verbose_name='Entregue por',
     )
+    # --- Portador (modelo de custódia v2 — ADR-0016) ---
+    # Quem conduz a prova entre pontos de controlo no ENCAMINHAMENTO. O snapshot
+    # (matrícula/nome/apelido/posto) é copiado no save() ANTES da validação e
+    # entra na cadeia de hash; corrigir/desativar o Portador nunca altera hashes
+    # já calculados (a verdade forense é a cópia no momento do evento).
+    bearer = models.ForeignKey(
+        'Portador',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='custody_events',
+        verbose_name='Portador',
+        help_text='Portador que conduz a prova no encaminhamento (entra na cadeia de hash).',
+    )
+    bearer_matricula = models.CharField(
+        max_length=50, blank=True, default='', verbose_name='Matrícula do portador (snapshot)'
+    )
+    bearer_nome = models.CharField(
+        max_length=100, blank=True, default='', verbose_name='Nome do portador (snapshot)'
+    )
+    bearer_apelido = models.CharField(
+        max_length=100, blank=True, default='', verbose_name='Apelido do portador (snapshot)'
+    )
+    bearer_posto = models.CharField(
+        max_length=50, blank=True, default='', verbose_name='Posto do portador (snapshot)'
+    )
     record_hash = models.CharField(
         max_length=64,
         blank=True,
         default='',
         verbose_name='Hash SHA-256 do registo',
         help_text='Hash que encadeia com o registo anterior (integridade).',
+    )
+    hash_version = models.CharField(
+        max_length=8,
+        default='hv1',
+        editable=False,
+        verbose_name='Versão da fórmula de hash',
+        help_text=(
+            'Versão da fórmula do record_hash (ADR-0013/0016). Registos anteriores '
+            'ao portador são hv1; os novos são hv2 (prefixo + snapshot do portador). '
+            'O verificador escolhe a fórmula pela versão — nunca se recalcula retroativo.'
+        ),
     )
     sequence = models.PositiveIntegerField(
         default=0,
@@ -2007,6 +2075,88 @@ class ChainOfCustody(models.Model):
                 }
             )
 
+        # --- Movimentação em dois tempos (ADR-0016 v2) ---
+        # ENCAMINHAMENTO: a origem entrega a prova a um portador, com destino; a
+        # prova fica EM TRÂNSITO (sem GPS — a coordenada regista-se na receção).
+        if self.event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
+            if self.bearer_id is None:
+                raise ValidationError(
+                    {'bearer': 'O encaminhamento exige um portador (entra na cadeia de hash).'}
+                )
+            if not self.custodian_institution_id:
+                raise ValidationError(
+                    {
+                        'custodian_institution': (
+                            'O encaminhamento exige uma instituição de destino.'
+                        )
+                    }
+                )
+            if self.gps_lat is not None or self.gps_lng is not None:
+                raise ValidationError(
+                    {
+                        'gps_lat': (
+                            'O encaminhamento não capta GPS (a prova está em trânsito); '
+                            'a coordenada é registada na receção.'
+                        )
+                    }
+                )
+            if prior and prior[-1].event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'A prova já está em trânsito; registe a receção antes de '
+                            'novo encaminhamento.'
+                        )
+                    }
+                )
+
+        # RECEPCAO: o destino confirma a chegada de uma prova em trânsito. Herda o
+        # destino do encaminhamento e, em instituição fixa, a coordenada vem do
+        # registo da instituição (não há captura no terreno).
+        if self.event_type == EventType.RECEPCAO_CUSTODIA:
+            if not prior or prior[-1].event_type != EventType.ENCAMINHAMENTO_CUSTODIA:
+                raise ValidationError(
+                    {
+                        'event_type': (
+                            'A receção só fecha um encaminhamento em curso (a prova '
+                            'tem de estar em trânsito).'
+                        )
+                    }
+                )
+            encaminhamento = prior[-1]
+            if not self.custodian_institution_id:
+                self.custodian_institution = encaminhamento.custodian_institution
+            if not self.custodian_type:
+                self.custodian_type = encaminhamento.custodian_type
+            if (
+                self.gps_lat is None
+                and self.gps_lng is None
+                and self.custodian_institution_id
+            ):
+                inst = self.custodian_institution
+                if inst and inst.gps_lat is not None and inst.gps_lng is not None:
+                    self.gps_lat = inst.gps_lat
+                    self.gps_lng = inst.gps_lng
+
+        # Gate de laboratório (CPP Art. 154.º): encaminhar/entregar prova a um
+        # laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já no ledger — o
+        # laboratório não admite prova sem despacho, nem que seja para arquivo. Não
+        # se aplica à génese (a derivação de um sub-componente no laboratório herda
+        # a base legal do item-pai já lá presente).
+        if (
+            prior
+            and self.custodian_type in LAB_CUSTODIANS
+            and EventType.DESPACHO_PERICIA not in prior_types
+        ):
+            raise ValidationError(
+                {
+                    'custodian_type': (
+                        'Um laboratório não admite prova sem um DESPACHO_PERICIA '
+                        'prévio no ledger (CPP Art. 154.º).'
+                    )
+                }
+            )
+
         validate_gps_coherence(self.gps_lat, self.gps_lng)
 
         # Quantização GPS a 7 casas (ADR-0013), ANTES do hash — garante
@@ -2026,7 +2176,17 @@ class ChainOfCustody(models.Model):
         recalcular o hash a partir dos campos relidos da BD e do hash do
         registo anterior, verificando a integridade da cadeia (ISO/IEC 27037).
 
-        Fórmula (17 segmentos por ``|``, ordem fixa — contrato irreversível):
+        Duas versões coexistem (o verificador escolhe pela ``hash_version``
+        gravada — NUNCA se recalcula um registo antigo com a fórmula nova):
+
+        - ``hv1`` (legado, anterior ao portador): os 17 segmentos abaixo, sem
+          prefixo. Registos hv1 mantêm-se intactos (triggers bloqueiam UPDATE).
+        - ``hv2`` (ADR-0016 — portador na cadeia): prefixo ``hv2|`` + os mesmos
+          17 segmentos + 4 segmentos do snapshot do portador no FIM
+          (``bmat``/``bnome``/``bapel``/``bposto``, texto livre escapado). Os
+          segmentos hv1 NÃO são reordenados (contrato aditivo).
+
+        Fórmula hv1 (17 segmentos por ``|``, ordem fixa — contrato irreversível):
 
             previous_hash | seq=N | evidence_id | event_type | custodian_type |
             agent_id | timestamp_iso | gps_lat | gps_lng | gps_accuracy_m |
@@ -2079,6 +2239,17 @@ class ChainOfCustody(models.Model):
             f'|newseal={_hash_escape(self.new_seal_number)}'
             f'|relinq={self.relinquished_by_id or ""}'
         )
+
+        # hv2 (ADR-0016 — portador na cadeia): prefixo de versão + snapshot do
+        # portador acrescentados SEM reordenar os segmentos hv1 (contrato aditivo).
+        if (self.hash_version or 'hv1') == 'hv2':
+            data = (
+                f'hv2|{data}'
+                f'|bmat={_hash_escape(self.bearer_matricula)}'
+                f'|bnome={_hash_escape(self.bearer_nome)}'
+                f'|bapel={_hash_escape(self.bearer_apelido)}'
+                f'|bposto={_hash_escape(self.bearer_posto)}'
+            )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
     def _lookup_previous_hash(self):
@@ -2144,6 +2315,16 @@ class ChainOfCustody(models.Model):
                         # identidade do movimento é a do item + o nº de sequência.
                         self.code = f'{self.evidence.code}-M{self.sequence:02d}'
 
+                    # Versão da fórmula + snapshot do portador (ADR-0016 v2):
+                    # copiados ANTES do full_clean para entrarem na validação E no
+                    # hash. Todo registo novo é hv2; o snapshot só se há portador.
+                    self.hash_version = 'hv2'
+                    if self.bearer_id is not None:
+                        self.bearer_matricula = self.bearer.matricula
+                        self.bearer_nome = self.bearer.nome
+                        self.bearer_apelido = self.bearer.apelido
+                        self.bearer_posto = self.bearer.posto
+
                     self.full_clean()
                     # Passar o hash explicitamente para a função ficar pura e
                     # reaproveitar a leitura já feita dentro do select_for_update.
@@ -2152,6 +2333,25 @@ class ChainOfCustody(models.Model):
                         previous_hash=previous_hash,
                     )
                     super().save(*args, **kwargs)
+
+                    # Caixa-de-entrada "prova a chegar" (ADR-0016 v2): criada no
+                    # mesmo atomic do encaminhamento; resolvida quando a receção
+                    # correspondente é gravada. Modelo próprio (o ledger imutável
+                    # não guarda flags de leitura) — ver ProvaEmTransito.
+                    if (
+                        self.event_type == EventType.ENCAMINHAMENTO_CUSTODIA
+                        and self.custodian_institution_id
+                    ):
+                        ProvaEmTransito.objects.create(
+                            destino_institution_id=self.custodian_institution_id,
+                            evidence_id=self.evidence_id,
+                            encaminhamento_event=self,
+                        )
+                    elif self.event_type == EventType.RECEPCAO_CUSTODIA:
+                        ProvaEmTransito.objects.filter(
+                            evidence_id=self.evidence_id,
+                            acknowledged_at__isnull=True,
+                        ).update(acknowledged_at=self.timestamp)
                 return
             except IntegrityError as exc:
                 if 'code' not in str(exc).lower():
@@ -2167,6 +2367,55 @@ class ChainOfCustody(models.Model):
         raise ValidationError(
             'Registos de cadeia de custódia são imutáveis. Não é permitido eliminar registos.'
         )
+
+
+class ProvaEmTransito(models.Model):
+    """Aviso acionável "prova a chegar" dirigido à instituição de destino (ADR-0016 v2).
+
+    NÃO é estado derivado: o ledger é imutável e não guarda flags de leitura. É
+    uma caixa-de-entrada por instituição, criada no MESMO ``atomic()`` do evento
+    de ENCAMINHAMENTO e resolvida quando a RECEPCAO correspondente é gravada (ou
+    por reconhecimento manual). Mutável — ao contrário da cadeia, não tem trigger
+    de imutabilidade. O scope é institucional (ver ``access.scope_inbound_transit``).
+    """
+
+    destino_institution = models.ForeignKey(
+        'Institution',
+        on_delete=models.CASCADE,
+        related_name='inbound_transit',
+        verbose_name='Instituição de destino',
+    )
+    evidence = models.ForeignKey(
+        Evidence,
+        on_delete=models.CASCADE,
+        related_name='transit_notices',
+        verbose_name='Evidência em trânsito',
+    )
+    encaminhamento_event = models.ForeignKey(
+        'ChainOfCustody',
+        on_delete=models.CASCADE,
+        related_name='transit_notice',
+        verbose_name='Evento de encaminhamento',
+    )
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Criado em')
+    acknowledged_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Reconhecido/recebido em',
+        help_text='Preenchido na receção correspondente (ou reconhecimento manual).',
+    )
+
+    class Meta:
+        verbose_name = 'Prova em trânsito'
+        verbose_name_plural = 'Provas em trânsito'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['destino_institution', 'acknowledged_at']),
+        ]
+
+    def __str__(self):
+        estado = 'recebida' if self.acknowledged_at else 'a chegar'
+        return f'{self.evidence_id} → {self.destino_institution_id} ({estado})'
 
 
 # ---------------------------------------------------------------------------

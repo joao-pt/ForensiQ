@@ -28,7 +28,14 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from core.models import ChainOfCustody, Evidence, Occurrence
+from core.models import (
+    ChainOfCustody,
+    Evidence,
+    Institution,
+    InstitutionType,
+    Occurrence,
+    Portador,
+)
 
 User = get_user_model()
 
@@ -139,11 +146,17 @@ class OccurrenceIntakeRenderTest(TestCase):
         cls.ev_pending = _make_evidence(cls.occurrence, cls.agent, 'SN-PND-1')
         cls.ev_in_transit = _make_evidence(cls.occurrence, cls.agent, 'SN-TRA-1')
         cls.ev_received = _make_evidence(cls.occurrence, cls.agent, 'SN-RCV-1')
-        # Ledger de eventos (ADR-0015):
-        # - pending  → só APREENSAO_OBJETO          (estado derivado: a_guarda_opc)
-        # - in_transit → APREENSAO_OBJETO+VALIDACAO_APREENSAO (estado derivado: validada)
-        # - received → APREENSAO_OBJETO+TRANSFERENCIA_CUSTODIA→LAB_PUBLICO (encaminhada =
-        #   "já recebida" no intake).
+        # Destino do encaminhamento + portador (ADR-0016 v2 — handoff em 2 tempos).
+        cls.lab = Institution.objects.create(
+            name='Lab Intake', type=InstitutionType.LAB_PUBLICO, sigla='LAB-INT'
+        )
+        cls.portador = Portador.objects.create(
+            matricula='INT-0001', nome='Ana', apelido='Costa', posto='Agente'
+        )
+        # Ledger de eventos (ADR-0015 / ADR-0016 v2):
+        # - pending    → só APREENSAO_OBJETO (a_guarda_opc; nem em trânsito nem recebida).
+        # - in_transit → …+DESPACHO+ENCAMINHAMENTO (em_transito = recebível no intake).
+        # - received   → …+ENCAMINHAMENTO+RECEPCAO  (encaminhada = "já recebida").
         ChainOfCustody.objects.create(
             evidence=cls.ev_pending,
             event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
@@ -151,23 +164,32 @@ class OccurrenceIntakeRenderTest(TestCase):
             agent=cls.agent,
         )
         for ev in (cls.ev_in_transit, cls.ev_received):
+            for et in (
+                ChainOfCustody.EventType.APREENSAO_OBJETO,
+                ChainOfCustody.EventType.VALIDACAO_APREENSAO,
+                ChainOfCustody.EventType.DESPACHO_PERICIA,
+            ):
+                ChainOfCustody.objects.create(
+                    evidence=ev,
+                    event_type=et,
+                    custodian_type=ChainOfCustody.CustodianType.OPC,
+                    agent=cls.agent,
+                )
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
-                custodian_type=ChainOfCustody.CustodianType.OPC,
+                event_type=ChainOfCustody.EventType.ENCAMINHAMENTO_CUSTODIA,
+                custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
+                custodian_institution=cls.lab,
+                bearer=cls.portador,
                 agent=cls.agent,
             )
-        ChainOfCustody.objects.create(
-            evidence=cls.ev_in_transit,
-            event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
-            custodian_type=ChainOfCustody.CustodianType.OPC,
-            agent=cls.agent,
-        )
+        # ev_received fecha o trânsito com a receção no laboratório (perito).
         ChainOfCustody.objects.create(
             evidence=cls.ev_received,
-            event_type=ChainOfCustody.EventType.TRANSFERENCIA_CUSTODIA,
+            event_type=ChainOfCustody.EventType.RECEPCAO_CUSTODIA,
             custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
-            agent=cls.agent,
+            custodian_institution=cls.lab,
+            agent=cls.expert,
         )
 
     def setUp(self):
@@ -201,11 +223,11 @@ class OccurrenceIntakeRenderTest(TestCase):
         chk = f'name="evidence_ids" value="{self.ev_in_transit.id}" checked'.encode()
         self.assertIn(chk, response.content)
 
-    def test_template_indica_transferencia_para_laboratorio(self):
+    def test_template_indica_recepcao_de_prova_encaminhada(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        # Intake regista um evento TRANSFERENCIA → LAB_PUBLICO em lote. O DOM
-        # reconstruído não expõe o enum cru; comunica-o na frase do cabeçalho.
+        # Intake = fase 2 do handoff (ADR-0016 v2): regista a RECEÇÃO da prova
+        # encaminhada. O DOM não expõe o enum cru; comunica-o no cabeçalho.
         self.assertIn(
-            'Transferência → Laboratório público'.encode(),
+            'Receção de prova encaminhada'.encode(),
             response.content,
         )

@@ -103,6 +103,17 @@
           </div>
 
           <div class="form-field">
+            <label for="r-bearer">Portador (encaminhamento)</label>
+            <select id="r-bearer" name="bearer">
+              <option value="">— (não aplicável) —</option>
+              {% for p in portadores %}
+              <option value="{{ p.id }}" {% if register_data.bearer == p.id|stringformat:"s" %}selected{% endif %}>{{ p.apelido }}, {{ p.nome }} · <span class="mono">{{ p.matricula }}</span>{% if p.posto %} · {{ p.posto }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <span class="form-hint">Obrigatório no encaminhamento: entra na cadeia de hash (snapshot).</span>
+          </div>
+
+          <div class="form-field">
             <label for="r-loc">Local (POI)</label>
             <input type="text" id="r-loc" name="location_name" value="{{ register_data.location_name }}"
                    placeholder="Ex.: Laboratório de Informática Forense" autocomplete="off">

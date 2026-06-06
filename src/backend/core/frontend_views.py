@@ -51,6 +51,7 @@ from core.models import (
     Evidence,
     Institution,
     Occurrence,
+    Portador,
     derive_legal_state,
 )
 from core.utils import get_user_display_name, sort_custody_chain
@@ -992,9 +993,11 @@ def _valid_next_events(events, evidence=None):
     Espelha apenas as regras BLOQUEANTES (não as advisory de 72h): 1.º evento =
     génese (objeto/dados/derivação conforme a evidência); a génese só pode ser o
     1.º; nenhum evento após terminal; VALIDAÇÃO_APREENSÃO exige apreensão prévia
-    e só uma vez; INÍCIO_PERÍCIA exige DESPACHO_PERÍCIA prévio. O backend
-    (serializer + clean) continua a ser a fonte de verdade — isto é só para não
-    oferecer transições impossíveis.
+    e só uma vez; INÍCIO_PERÍCIA exige DESPACHO_PERÍCIA prévio. Movimentação em
+    dois tempos (ADR-0016 v2): em trânsito (último = ENCAMINHAMENTO) só admite a
+    RECEPCAO; a RECEPCAO só se oferece nesse caso. ``TRANSFERENCIA``/``ASSUNCAO``
+    (LEGADO) já não são oferecidos. O backend (serializer + clean) continua a ser
+    a fonte de verdade — isto é só para não oferecer transições impossíveis.
     """
     types = {e.event_type for e in events}
     if not events:
@@ -1002,11 +1005,21 @@ def _valid_next_events(events, evidence=None):
         return [(genesis.value, genesis.label)]
     if types & TERMINAL_EVENTS:
         return []
+    # Em trânsito: o único próximo evento possível é a receção (ADR-0016 v2).
+    if events[-1].event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
+        return [(EventType.RECEPCAO_CUSTODIA.value, EventType.RECEPCAO_CUSTODIA.label)]
     seizure_done = bool(types & SEIZURE_GENESIS_EVENTS)
     out = []
     for et in EventType:
         if et in GENESIS_EVENTS:
             continue  # génese só na posição 1
+        # Movimentação LEGADO (um só tempo) — mantida no enum p/ ledgers
+        # históricos, mas já não oferecida.
+        if et in (EventType.TRANSFERENCIA_CUSTODIA, EventType.ASSUNCAO_CUSTODIA):
+            continue
+        # RECEPCAO só fecha um encaminhamento em curso (tratado acima).
+        if et == EventType.RECEPCAO_CUSTODIA:
+            continue
         if et == EventType.VALIDACAO_APREENSAO and (
             not seizure_done or EventType.VALIDACAO_APREENSAO in types
         ):
@@ -1057,8 +1070,9 @@ def _register_custody_event(request, evidence, targets):
         'storage_location': (request.POST.get('storage_location') or '').strip(),
         'observations': (request.POST.get('observations') or '').strip(),
     }
-    # Custódia institucional / pessoal (ADR-0017) — opcionais.
-    for fk in ('custodian_institution', 'custodian_user', 'relinquished_by'):
+    # Custódia institucional / pessoal (ADR-0017) + portador no encaminhamento
+    # (ADR-0016 v2) — opcionais.
+    for fk in ('custodian_institution', 'custodian_user', 'relinquished_by', 'bearer'):
         val = (request.POST.get(fk) or '').strip()
         if val:
             base[fk] = val
@@ -1145,6 +1159,8 @@ def custody_timeline_view(request, evidence_id):
             'valid_events': valid_events,
             'custodian_types': CustodianType.choices,
             'institutions': Institution.objects.filter(is_active=True).order_by('name'),
+            # Portadores ativos para o select do ENCAMINHAMENTO (ADR-0016 v2).
+            'portadores': Portador.objects.filter(is_active=True).order_by('apelido', 'nome'),
             'seal_conditions': Evidence.SealCondition.choices,
             'sub_components': sub_components,
             'ledger_closed': not valid_events,
@@ -1381,8 +1397,10 @@ def occurrence_intake_view(request, occurrence_id):
         for ev in evidences
     }
 
-    # POST — registar TRANSFERENCIA → LAB_PUBLICO nos itens marcados (lote atómico,
-    # ledger de eventos ADR-0015), reusando o ChainOfCustodySerializer validado.
+    # POST — registar a RECEÇÃO (fase 2 do handoff, ADR-0016 v2) dos itens em
+    # trânsito marcados, em lote atómico, reusando o ChainOfCustodySerializer. O
+    # destino/custódio e (em instituição fixa) a coordenada são herdados do
+    # encaminhamento no clean() do modelo; aqui passa-se só o item + metadados.
     intake_errors = []
     if request.method == 'POST':
         from django.db import transaction
@@ -1399,18 +1417,19 @@ def occurrence_intake_view(request, occurrence_id):
         to_receive = [
             ev
             for ev in evidences
-            if str(ev.id) in selected and state_by_evidence[ev.id] not in received_states
+            if str(ev.id) in selected and state_by_evidence[ev.id] == 'em_transito'
         ]
         if not to_receive:
-            intake_errors.append('Selecione pelo menos um item ainda não recebido.')
+            intake_errors.append(
+                'Selecione pelo menos um item em trânsito (encaminhado, ainda por receber).'
+            )
         else:
             try:
                 with transaction.atomic():
                     for ev in to_receive:
                         payload = {
                             'evidence': ev.id,
-                            'event_type': EventType.TRANSFERENCIA_CUSTODIA,
-                            'custodian_type': ChainOfCustody.CustodianType.LAB_PUBLICO,
+                            'event_type': EventType.RECEPCAO_CUSTODIA,
                         }
                         if location:
                             payload['location_name'] = location
@@ -1469,6 +1488,8 @@ def occurrence_intake_view(request, occurrence_id):
             'current_state_display': LEGAL_STATE_LABELS.get(state_by_evidence[ev.id])
             or 'Sem custódia',
             'current_state_css': LEGAL_STATE_CSS.get(state_by_evidence[ev.id], 'muted'),
+            # Recebível = em trânsito (encaminhado, ainda por receber — ADR-0016 v2).
+            'in_transit': state_by_evidence[ev.id] == 'em_transito',
             'already_received': state_by_evidence[ev.id] in received_states,
         }
         for ev in evidences
@@ -1482,13 +1503,10 @@ def occurrence_intake_view(request, occurrence_id):
             'rows': rows,
             'evidence_count': len(rows),
             'intake_errors': intake_errors,
-            # Intake = registar TRANSFERENCIA → LAB_PUBLICO em lote (ADR-0015).
-            # ``target_state``/``target_custodian`` são consumidos pelo JS de
-            # intake para compor o POST a /api/custody/cascade/ (event_type +
-            # custodian_type). O template do intake será reformulado na fase
-            # frontend; o backend já entrega a semântica nova.
-            'target_state': EventType.TRANSFERENCIA_CUSTODIA,
-            'target_custodian': ChainOfCustody.CustodianType.LAB_PUBLICO,
+            # Intake = fase 2 do handoff (ADR-0016 v2): registar a RECEÇÃO dos
+            # itens em trânsito. O destino/coordenada vêm do encaminhamento.
+            'intake_action_label': 'Receção de prova encaminhada',
+            'target_state': EventType.RECEPCAO_CUSTODIA,
         },
     )
 

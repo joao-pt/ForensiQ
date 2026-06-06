@@ -29,7 +29,7 @@
   <header class="detail__head">
     <div>
       <h1 class="detail__title" id="in-title">Receção no laboratório</h1>
-      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} · regista <strong>Transferência → Laboratório público</strong></p>
+      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} · regista <strong>Receção de prova encaminhada</strong></p>
     </div>
   </header>
 
@@ -55,14 +55,17 @@
             {% for row in rows %}
             <tr role="row">
               <td role="gridcell" class="grid__check">
-                {% if row.already_received %}
-                  <span aria-hidden="true" title="Já recebida no laboratório">✓</span>
-                  <span class="visually-hidden">Já recebida no laboratório</span>
-                {% else %}
+                {% if row.in_transit %}
                   <label class="form-check grid__check-label" title="Receber {{ row.evidence.code }}">
                     <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" checked
                            aria-label="Receber {{ row.evidence.code }}">
                   </label>
+                {% elif row.already_received %}
+                  <span aria-hidden="true" title="Já recebida no laboratório">✓</span>
+                  <span class="visually-hidden">Já recebida no laboratório</span>
+                {% else %}
+                  <span aria-hidden="true" title="Ainda por encaminhar">—</span>
+                  <span class="visually-hidden">Ainda por encaminhar</span>
                 {% endif %}
               </td>
               <td role="gridcell" class="mono grid__code">{{ row.evidence.code }}</td>

@@ -354,8 +354,9 @@ class PdfNoNPlusOneTest(TestCase):
                 gps_lat=Decimal('38.7'),
                 gps_lng=Decimal('-9.1'),
             )
-            # Sequência de eventos do ledger: apreensão → validação →
-            # transferência para laboratório (3 eventos por evidência).
+            # Sequência de eventos do ledger: apreensão → validação → despacho →
+            # transferência para laboratório (4 eventos por evidência). O despacho
+            # satisfaz o gate de laboratório (ADR-0016 v2, CPP Art. 154.º).
             ChainOfCustody.objects.create(
                 evidence=ev,
                 event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
@@ -365,6 +366,12 @@ class PdfNoNPlusOneTest(TestCase):
             ChainOfCustody.objects.create(
                 evidence=ev,
                 event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
+                custodian_type=ChainOfCustody.CustodianType.OPC,
+                agent=cls.agent,
+            )
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
                 custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
             )

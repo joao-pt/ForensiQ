@@ -69,6 +69,7 @@ from core.models import (
     InstitutionMembership,
     InstitutionType,
     Occurrence,
+    Portador,
 )
 
 User = get_user_model()
@@ -325,24 +326,81 @@ class Command(BaseCommand):
         # nome+tipo, ADR-0017); as siglas PSP-LSB/LPC/TJ-LSB são usadas por
         # _create_cases. Acrescentam-se mais OPC/laboratório/MP para a demo ter
         # várias organizações.
+        # Coordenadas/contactos aproximados mas plausíveis (dados públicos). A
+        # instituição fixa fornece a coordenada da RECEÇÃO (ADR-0016 v2 — não há
+        # captura GPS no laboratório); por isso cada uma traz lat/lng registados.
         specs = [
-            ('Polícia de Segurança Pública — Esquadra de Lisboa', InstitutionType.OPC, 'PSP-LSB'),
-            ('Polícia de Segurança Pública — Esquadra do Porto', InstitutionType.OPC, 'PSP-PRT'),
-            ('Guarda Nacional Republicana — Destacamento de Faro', InstitutionType.OPC, 'GNR-FAR'),
-            ('Laboratório de Polícia Científica', InstitutionType.LAB_PUBLICO, 'LPC'),
-            ('PeritaLab — laboratório privado acreditado', InstitutionType.LAB_PRIVADO, 'LAB-PRIV'),
-            ('DIAP de Lisboa', InstitutionType.MP, 'DIAP-LSB'),
-            ('DIAP do Porto', InstitutionType.MP, 'DIAP-PRT'),
-            ('Tribunal Judicial da Comarca de Lisboa', InstitutionType.TRIBUNAL, 'TJ-LSB'),
+            {
+                'name': 'Polícia de Segurança Pública — Esquadra de Lisboa',
+                'type': InstitutionType.OPC, 'sigla': 'PSP-LSB',
+                'address': 'Largo da Severa 7, 1100-585 Lisboa',
+                'gps_lat': Decimal('38.7140000'), 'gps_lng': Decimal('-9.1357000'),
+                'email': 'lisboa@psp.pt', 'phone': '+351 213 466 141',
+            },
+            {
+                'name': 'Polícia de Segurança Pública — Esquadra do Porto',
+                'type': InstitutionType.OPC, 'sigla': 'PSP-PRT',
+                'address': 'Largo 1.º de Dezembro, 4000-407 Porto',
+                'gps_lat': Decimal('41.1496000'), 'gps_lng': Decimal('-8.6109000'),
+                'email': 'porto@psp.pt', 'phone': '+351 222 092 000',
+            },
+            {
+                'name': 'Guarda Nacional Republicana — Destacamento de Faro',
+                'type': InstitutionType.OPC, 'sigla': 'GNR-FAR',
+                'address': 'Rua da Polícia de Segurança Pública, 8000-408 Faro',
+                'gps_lat': Decimal('37.0194000'), 'gps_lng': Decimal('-7.9304000'),
+                'email': 'faro@gnr.pt', 'phone': '+351 289 888 800',
+            },
+            {
+                'name': 'Laboratório de Polícia Científica',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'LPC',
+                'address': 'Rua Gomes Freire 174, 1169-007 Lisboa',
+                'gps_lat': Decimal('38.7256000'), 'gps_lng': Decimal('-9.1430000'),
+                'email': 'lpc@pj.pt', 'phone': '+351 211 967 000',
+            },
+            {
+                'name': 'PeritaLab — laboratório privado acreditado',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'LAB-PRIV',
+                'address': 'Av. da República 50, 1069-211 Lisboa',
+                'gps_lat': Decimal('38.7400000'), 'gps_lng': Decimal('-9.1466000'),
+                'email': 'pericias@peritalab.pt', 'phone': '+351 217 900 000',
+            },
+            {
+                'name': 'DIAP de Lisboa', 'type': InstitutionType.MP, 'sigla': 'DIAP-LSB',
+                'address': 'Rua Marquês de Fronteira 70, 1098-001 Lisboa',
+                'gps_lat': Decimal('38.7290000'), 'gps_lng': Decimal('-9.1570000'),
+                'email': 'diap.lisboa@mp.pt', 'phone': '+351 213 846 500',
+            },
+            {
+                'name': 'DIAP do Porto', 'type': InstitutionType.MP, 'sigla': 'DIAP-PRT',
+                'address': 'Rua de Santos Pousada 117, 4000-478 Porto',
+                'gps_lat': Decimal('41.1530000'), 'gps_lng': Decimal('-8.5960000'),
+                'email': 'diap.porto@mp.pt', 'phone': '+351 222 069 900',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca de Lisboa',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-LSB',
+                'address': 'Campus de Justiça, Av. D. João II, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7686000'), 'gps_lng': Decimal('-9.0966000'),
+                'email': 'lisboa.tribunal@tribunais.org.pt', 'phone': '+351 218 472 800',
+            },
         ]
         institutions = {}
-        for name, type_, sigla in specs:
+        for spec in specs:
             inst, _ = Institution.objects.update_or_create(
-                name=name,
-                type=type_,
-                defaults={'sigla': sigla, 'is_active': True},
+                name=spec['name'],
+                type=spec['type'],
+                defaults={
+                    'sigla': spec['sigla'],
+                    'is_active': True,
+                    'address': spec['address'],
+                    'gps_lat': spec['gps_lat'],
+                    'gps_lng': spec['gps_lng'],
+                    'email': spec['email'],
+                    'phone': spec['phone'],
+                },
             )
-            institutions[sigla] = inst
+            institutions[spec['sigla']] = inst
 
         for user, inst in ((agent, institutions['PSP-LSB']), (expert, institutions['LPC'])):
             InstitutionMembership.objects.update_or_create(
@@ -648,7 +706,7 @@ class Command(BaseCommand):
                 'SIM NOS — sub-componente do Samsung.',
             ),
         )
-        # Encaminhada ao laboratório público e em perícia.
+        # Despachada, encaminhada (portador) e recebida no laboratório, em perícia.
         cases.append(
             (
                 c2,
@@ -657,7 +715,8 @@ class Command(BaseCommand):
                     (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                     (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                     (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PUBLICO),
                     (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 ],
             )
@@ -701,7 +760,7 @@ class Command(BaseCommand):
                 'Disco externo Seagate 2TB — burla bancária.',
             ),
         )
-        # Perícia concluída e prova restituída ao proprietário (terminal).
+        # Perícia concluída e prova restituída ao proprietário (terminal/arquivada).
         cases.append(
             (
                 c3,
@@ -710,7 +769,8 @@ class Command(BaseCommand):
                     (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                     (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                     (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PUBLICO),
                     (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                     (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
                     (EventType.RESTITUICAO, CustodianType.PROPRIETARIO),
@@ -768,7 +828,8 @@ class Command(BaseCommand):
                 'microSD 256 GB recuperado do drone.',
             ),
         )
-        # Encaminhada ao laboratório público (aguarda despacho/perícia).
+        # Despachada e encaminhada ao laboratório público — EM TRÂNSITO (ainda por
+        # receber): demonstra a caixa "prova a chegar" (ProvaEmTransito) no destino.
         cases.append(
             (
                 c4,
@@ -776,7 +837,8 @@ class Command(BaseCommand):
                 [
                     (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                     (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                    (EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO),
                 ],
             )
         )
@@ -893,6 +955,12 @@ class Command(BaseCommand):
             CustodianType.LAB_PRIVADO: institutions.get('LPC'),
             CustodianType.TRIBUNAL: institutions.get('TJ-LSB'),
         }
+        # Portador (ADR-0016 v2): conduz a prova no ENCAMINHAMENTO; o snapshot
+        # (matrícula/nome/apelido/posto) entra na cadeia de hash. Idempotente.
+        portador, _ = Portador.objects.get_or_create(
+            matricula='PSP-114520',
+            defaults={'nome': 'Rui', 'apelido': 'Marques', 'posto': 'Agente Principal'},
+        )
         for _occurrence, evidences, eventos in cases:
             for ev in evidences:
                 if ev.parent_evidence_id is not None:
@@ -916,6 +984,21 @@ class Command(BaseCommand):
                 )
                 for idx, (event_type, custodian_type) in enumerate(eventos):
                     et = genesis if idx == 0 else event_type
+                    # ENCAMINHAMENTO (ADR-0016 v2): a origem (OPC) entrega a prova a
+                    # um portador; fica em trânsito (titular = instituição de destino,
+                    # sem detentor pessoal, sem GPS). A receção/atos no lab são do perito.
+                    if et == EventType.ENCAMINHAMENTO_CUSTODIA:
+                        ChainOfCustody(
+                            evidence=ev,
+                            event_type=et,
+                            custodian_type=custodian_type,
+                            custodian_institution=ct_to_inst.get(custodian_type),
+                            custodian_user=None,
+                            bearer=portador,
+                            agent=agent,
+                            observations=f'Encaminhamento via portador {portador.matricula}.',
+                        ).save()
+                        continue
                     acting = expert if custodian_type in lab_custodians else agent
                     ChainOfCustody(
                         evidence=ev,

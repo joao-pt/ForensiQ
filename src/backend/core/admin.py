@@ -16,7 +16,9 @@ from .models import (
     InstitutionMembership,
     Occurrence,
     PoliticaCriminalPrioridade,
+    Portador,
     PrioridadeCrimeTipo,
+    ProvaEmTransito,
     User,
 )
 
@@ -163,6 +165,32 @@ class ChainOfCustodyAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Registos de custódia são imutáveis — sem eliminação."""
         return False
+
+
+@admin.register(Portador)
+class PortadorAdmin(admin.ModelAdmin):
+    """Portadores (ADR-0016 v2) — dado de referência mutável, gerido no admin.
+
+    O Portador NÃO concede acesso (é metadado); o que entra no ledger é o
+    *snapshot* no momento do encaminhamento, imutável.
+    """
+
+    list_display = ('matricula', 'apelido', 'nome', 'posto', 'is_active', 'user')
+    list_filter = ('is_active', 'posto')
+    search_fields = ('matricula', 'nome', 'apelido', 'posto')
+    raw_id_fields = ('user',)
+    ordering = ('apelido', 'nome')
+
+
+@admin.register(ProvaEmTransito)
+class ProvaEmTransitoAdmin(admin.ModelAdmin):
+    """Caixa "prova a chegar" (ADR-0016 v2) — leitura/reconhecimento manual."""
+
+    list_display = ('pk', 'evidence', 'destino_institution', 'created_at', 'acknowledged_at')
+    list_filter = ('destino_institution', 'acknowledged_at')
+    search_fields = ('evidence__code',)
+    raw_id_fields = ('evidence', 'encaminhamento_event', 'destino_institution')
+    readonly_fields = ('encaminhamento_event', 'created_at')
 
 
 # ---------------------------------------------------------------------------
