@@ -1089,9 +1089,14 @@ def evidences_new_view(request):
 
         serializer = EvidenceSerializer(data=data, context={'request': request})
         if serializer.is_valid():
+            from django.db import transaction
             try:
-                ev = serializer.save(agent=user)
-            except DjangoValidationError as exc:
+                # Registo = apreensão: o item e a sua génese de custódia nascem na
+                # MESMA transação (se a génese falhar, o item não persiste).
+                with transaction.atomic():
+                    ev = serializer.save(agent=user)
+                    _register_seizure_genesis(request, ev)
+            except (DjangoValidationError, DRFValidationError) as exc:
                 return render(
                     request,
                     'evidences_new.html',
@@ -1106,7 +1111,7 @@ def evidences_new_view(request):
                         # é um serializer DRF, não um Form, e o re-render mostra o
                         # que o utilizador submeteu.
                         'preselect': request.POST.get('occurrence', ''),  # nosemgrep
-                        'errors': {'geral': exc.messages},
+                        'errors': {'geral': _flatten_validation_error(exc)},
                         'data': request.POST,  # nosemgrep
                     },
                     status=400,
@@ -1118,7 +1123,7 @@ def evidences_new_view(request):
                 resource_id=ev.pk,
                 details={'hash': ev.integrity_hash},
             )
-            messages.success(request, f'Item de prova {ev.code} registado.')
+            messages.success(request, f'Item de prova {ev.code} apreendido e registado.')
             return HttpResponseRedirect(f'/evidences/{ev.pk}/')
         return render(
             request,
@@ -1209,6 +1214,54 @@ def _genesis_event_for(evidence):
     if evidence is not None and evidence.type == Evidence.EvidenceType.DIGITAL_FILE:
         return EventType.APREENSAO_DADOS
     return EventType.APREENSAO_OBJETO
+
+
+def _register_seizure_genesis(request, ev):
+    """Registar é apreender (modelo do dono): o 1.º evento de génese da prova é
+    criado no PRÓPRIO ato de registo do item — não há prova registada sem ficar
+    sob custódia (ADR-0016 §2).
+
+    Só para itens-RAIZ (APREENSAO_OBJETO / APREENSAO_DADOS, conforme a proveniência);
+    um sub-componente (com evidência-pai) entra por DERIVACAO_ITEM, que é ato do
+    perito e fica fora deste atalho. Custódio = OPC da instituição do agente (se
+    tiver pertença); GPS herdado do local da apreensão do item (se captado). Reusa
+    o ``ChainOfCustodySerializer`` — mesmas guardas, ownership (génese pelo agente)
+    e hash encadeado. Corre dentro da mesma transação do registo da evidência.
+    """
+    from core.serializers import ChainOfCustodySerializer
+
+    if ev.parent_evidence_id is not None:
+        return  # sub-componente: a génese por derivação é ato do perito (manual)
+    genesis = _genesis_event_for(ev)  # APREENSAO_OBJETO ou APREENSAO_DADOS
+    data = {
+        'evidence': ev.id,
+        'event_type': genesis.value,
+        'custodian_type': CustodianType.OPC,
+    }
+    inst_id = (
+        request.user.institution_memberships.filter(is_active=True)
+        .values_list('institution_id', flat=True)
+        .first()
+    )
+    if inst_id:
+        data['custodian_institution'] = inst_id
+    if ev.gps_lat is not None and ev.gps_lng is not None:
+        data['gps_lat'] = ev.gps_lat
+        data['gps_lng'] = ev.gps_lng
+    serializer = ChainOfCustodySerializer(data=data, context={'request': request})
+    serializer.is_valid(raise_exception=True)
+    record = serializer.save(agent=request.user)
+    log_access(
+        request=request,
+        action=AuditLog.Action.CREATE,
+        resource_type=AuditLog.ResourceType.CUSTODY,
+        resource_id=record.pk,
+        details={
+            'evidence_id': record.evidence_id,
+            'event_type': record.event_type,
+            'genesis': True,
+        },
+    )
 
 
 def _valid_next_events(events, evidence=None):
