@@ -20,6 +20,7 @@ from .models import (
     CustodianType,
     EventType,
     Evidence,
+    Institution,
     Occurrence,
     derive_legal_state,
 )
@@ -134,6 +135,56 @@ class UserCreateSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # Occurrence
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Institution (ponto de controlo) — criação manual
+# ---------------------------------------------------------------------------
+
+
+class InstitutionSerializer(serializers.ModelSerializer):
+    """Criação/edição manual de instituição (ponto de controlo fixo).
+
+    **Obrigatórios: nome, tipo, morada e GPS.** A georreferência é exigida porque
+    é COPIADA para o evento na receção (GPS-só-no-terreno). A obrigatoriedade vive
+    AQUI — não no ``clean()`` do modelo — para não invalidar instituições já
+    semeadas sem morada/GPS. O ``create``/``update`` corre ``full_clean()`` para
+    aplicar a coerência e a quantização GPS a 7 casas definidas no modelo.
+    """
+
+    class Meta:
+        model = Institution
+        fields = [
+            'id',
+            'name',
+            'type',
+            'sigla',
+            'address',
+            'gps_lat',
+            'gps_lng',
+            'email',
+            'phone',
+            'is_active',
+        ]
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'address': {'required': True, 'allow_blank': False},
+            'gps_lat': {'required': True, 'allow_null': False},
+            'gps_lng': {'required': True, 'allow_null': False},
+        }
+
+    def create(self, validated_data):
+        instance = Institution(**validated_data)
+        instance.full_clean()  # coerência + quantização GPS + validadores de range
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.full_clean()
+        instance.save()
+        return instance
 
 
 class OccurrenceSerializer(serializers.ModelSerializer):

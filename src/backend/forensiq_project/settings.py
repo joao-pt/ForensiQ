@@ -242,6 +242,16 @@ IMEIDB_API_TOKEN = os.environ.get('IMEIDB_API_TOKEN', '')
 IMEIDB_BASE_URL = os.environ.get('IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
 IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
 
+# --- Parâmetros de domínio forense (ADR-0013) ---
+# Casas decimais de quantização GPS. O valor quantizado ENTRA na cadeia de hash
+# (record_hash): servidor e perito TÊM de quantizar exatamente igual. Fonte
+# ÚNICA — antes duplicado em Institution.clean e ChainOfCustody.clean. NÃO
+# alterar em sistemas com prova já registada (muda os hashes futuros).
+GPS_DECIMAL_PLACES = int(os.environ.get('GPS_DECIMAL_PLACES', 7))
+# Prazo legal de validação da apreensão (CPP Art. 178.º/6). Só assinala a flag
+# validation_overdue (nunca bloqueia). Externalizado para revisão de compliance.
+VALIDATION_DEADLINE_HOURS = int(os.environ.get('VALIDATION_DEADLINE_HOURS', 72))
+
 # --- drf-spectacular (Swagger / OpenAPI) ---
 # SWAGGER_UI_DIST/FAVICON_HREF: por defeito o drf-spectacular carrega assets
 # de cdn.jsdelivr.net, que não está na allowlist do CSP. Apontamos para o

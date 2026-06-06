@@ -26,6 +26,16 @@ from django.utils import timezone
 
 from core.validators import validate_imei
 
+
+def gps_quantum():
+    """Quantum de quantização GPS (ADR-0013) — ``Decimal`` derivado de
+    ``settings.GPS_DECIMAL_PLACES`` (default 7 casas). Fonte ÚNICA: o valor
+    quantizado ENTRA no ``record_hash``, logo o servidor e o perito têm de
+    quantizar exatamente igual. Usado por :meth:`Institution.clean` e
+    :meth:`ChainOfCustody.clean`."""
+    return Decimal(1).scaleb(-settings.GPS_DECIMAL_PLACES)
+
+
 # ---------------------------------------------------------------------------
 # Gerador de códigos humanos ANO-TIPO-SEQ (ex.: OCC-2026-00001)
 # ---------------------------------------------------------------------------
@@ -310,6 +320,44 @@ class Institution(models.Model):
         default='',
         verbose_name='Sigla',
     )
+    # Ponto de controlo fixo: morada e georreferência próprias. A coordenada da
+    # instituição é COPIADA para o evento na receção (GPS-só-no-terreno), por isso
+    # quantiza-se a 7 casas como o ledger. A obrigatoriedade de morada+GPS na
+    # criação manual impõe-se no serializer/form, NÃO aqui — para não invalidar
+    # instituições já semeadas sem georreferência.
+    address = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        verbose_name='Morada',
+    )
+    gps_lat = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+        verbose_name='Latitude GPS',
+    )
+    gps_lng = models.DecimalField(
+        max_digits=10,
+        decimal_places=7,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+        verbose_name='Longitude GPS',
+    )
+    email = models.EmailField(
+        blank=True,
+        default='',
+        verbose_name='Email',
+    )
+    phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default='',
+        verbose_name='Telefone',
+    )
     is_active = models.BooleanField(default=True, verbose_name='Ativa')
 
     class Meta:
@@ -325,6 +373,21 @@ class Institution(models.Model):
 
     def __str__(self):
         return f'{self.sigla or self.name} ({self.get_type_display()})'
+
+    def clean(self):
+        super().clean()
+        # Coerência GPS: lat e lng ambas presentes ou ambas ausentes (como Occurrence).
+        if (self.gps_lat is not None) != (self.gps_lng is not None):
+            raise ValidationError(
+                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+            )
+        # Quantização a 7 casas (ADR-0013), igual ao ledger — a coordenada da
+        # instituição entra no hash da receção, logo tem de coincidir bit a bit.
+        q = gps_quantum()
+        if self.gps_lat is not None:
+            self.gps_lat = self.gps_lat.quantize(q)
+        if self.gps_lng is not None:
+            self.gps_lng = self.gps_lng.quantize(q)
 
 
 class InstitutionMembership(models.Model):
@@ -358,6 +421,59 @@ class InstitutionMembership(models.Model):
 
     def __str__(self):
         return f'{self.user} @ {self.institution}'
+
+
+# ---------------------------------------------------------------------------
+# Portador — quem conduz a prova entre pontos de controlo (ADR-0017)
+# ---------------------------------------------------------------------------
+
+
+class Portador(models.Model):
+    """Quem conduz a prova entre pontos de controlo (ADR-0017).
+
+    NÃO é uma conta de utilizador: identifica-se pela ``matricula`` (chave
+    natural única) e regista nome/apelido/posto. No evento de encaminhamento os
+    seus dados são copiados para um *snapshot* que entra na cadeia de hash —
+    corrigir ou desativar um Portador nunca altera hashes já calculados. Se o
+    elemento vier a ter conta, liga-se opcionalmente (``user``) pela matrícula; a
+    conta inicia limpa e o Portador, por si só, NÃO concede qualquer acesso de
+    leitura/escrita (é metadado; o acesso vem sempre da pertença institucional).
+    """
+
+    matricula = models.CharField(
+        max_length=50,
+        unique=True,
+        db_index=True,
+        verbose_name='Matrícula',
+        help_text='Identificador único do elemento (chave natural).',
+    )
+    nome = models.CharField(max_length=100, verbose_name='Nome')
+    apelido = models.CharField(max_length=100, verbose_name='Apelido')
+    posto = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Posto',
+    )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='portador_profile',
+        verbose_name='Conta associada',
+        help_text='Associação opcional, por matrícula, se o elemento vier a ter conta.',
+    )
+    is_active = models.BooleanField(default=True, verbose_name='Ativo')
+
+    class Meta:
+        verbose_name = 'Portador'
+        verbose_name_plural = 'Portadores'
+        ordering = ['apelido', 'nome']
+
+    def __str__(self):
+        nome = f'{self.nome} {self.apelido}'.strip()
+        return f'{nome} ({self.matricula})' if self.matricula else nome
 
 
 # ---------------------------------------------------------------------------
@@ -1291,6 +1407,131 @@ def _digital_device_imei_validator(value):
 
 
 # ---------------------------------------------------------------------------
+# Configuração de campos por tipo de evidência (dados de referência editáveis)
+#
+# Substitui a config hardcoded de evidence_field_config.py (TRANSVERSAL_FIELDS +
+# EVIDENCE_TYPE_FIELDS) por tabelas geríveis no admin — adicionar/editar um campo
+# deixa de exigir deploy. NÃO é prova (sem invariantes de imutabilidade). O
+# conjunto de VALIDADORES e a sua implementação ficam em código (core/validators):
+# as colunas `validator`/`lookup` são choices FECHADOS ligados a funções que
+# existem — assim nunca se cria um campo cujo validador não exista.
+# ---------------------------------------------------------------------------
+
+
+class EvidenceFieldDef(models.Model):
+    """Definição de um campo de ``Evidence.type_specific_data`` (editável no admin).
+
+    Fonte ÚNICA dos campos por tipo: consumida pelo render do formulário, pela
+    validação (models/serializers) e pelo PDF. ``evidence_type`` vazio = campo
+    TRANSVERSAL (comum a todos os tipos); senão, o valor de um ``EvidenceType``.
+    """
+
+    class InputType(models.TextChoices):
+        TEXT = 'text', 'Texto'
+        NUMBER = 'number', 'Número'
+        SELECT = 'select', 'Seleção'
+        TEL = 'tel', 'Telefone'
+
+    class Validator(models.TextChoices):
+        # Espelha as funções existentes em core/validators (a implementação fica
+        # em código; aqui só o NOME, restrito ao que existe).
+        IMEI = 'imei', 'IMEI (Luhn)'
+        IMSI = 'imsi', 'IMSI'
+        ICCID = 'iccid', 'ICCID (Luhn)'
+        VIN = 'vin', 'VIN (ISO 3779)'
+        MAC = 'mac', 'MAC'
+
+    class Lookup(models.TextChoices):
+        IMEI = 'imei', 'IMEI'
+        VIN = 'vin', 'VIN'
+
+    evidence_type = models.CharField(
+        max_length=32,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='Tipo de evidência',
+        help_text='Vazio = campo transversal (todos os tipos). Senão, um valor de EvidenceType.',
+    )
+    key = models.CharField(
+        max_length=50,
+        verbose_name='Chave',
+        help_text='Nome em type_specific_data (snake_case).',
+    )
+    label = models.CharField(max_length=120, verbose_name='Rótulo')
+    input = models.CharField(
+        max_length=10,
+        choices=InputType.choices,
+        default=InputType.TEXT,
+        verbose_name='Tipo de campo',
+    )
+    required = models.BooleanField(default=False, verbose_name='Obrigatório')
+    validator = models.CharField(
+        max_length=10,
+        choices=Validator.choices,
+        blank=True,
+        default='',
+        verbose_name='Validador de formato',
+        help_text='Liga a uma função que existe em core/validators.',
+    )
+    lookup = models.CharField(
+        max_length=10,
+        choices=Lookup.choices,
+        blank=True,
+        default='',
+        verbose_name='Consulta externa',
+    )
+    sensitive = models.BooleanField(
+        default=False,
+        verbose_name='Sensível',
+        help_text='Mascarar na UI/PDF e cifrar (ex.: passcode/PIN).',
+    )
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem')
+    is_active = models.BooleanField(default=True, verbose_name='Ativo')
+
+    class Meta:
+        verbose_name = 'Campo de evidência'
+        verbose_name_plural = 'Campos de evidência'
+        ordering = ['evidence_type', 'order', 'key']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['evidence_type', 'key'],
+                name='uniq_evidence_field_type_key',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.evidence_type or "(transversal)"}.{self.key}'
+
+
+class FieldOption(models.Model):
+    """Opção de um campo ``select`` (linha-filha de :class:`EvidenceFieldDef`)."""
+
+    field = models.ForeignKey(
+        EvidenceFieldDef,
+        on_delete=models.CASCADE,
+        related_name='options',
+        verbose_name='Campo',
+    )
+    value = models.CharField(max_length=120, verbose_name='Valor')
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem')
+
+    class Meta:
+        verbose_name = 'Opção de campo'
+        verbose_name_plural = 'Opções de campo'
+        ordering = ['field', 'order', 'value']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['field', 'value'],
+                name='uniq_fieldoption_field_value',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.field.key}: {self.value}'
+
+
+# ---------------------------------------------------------------------------
 # Cadeia de Custódia — LEDGER DE EVENTOS (append-only, NUNCA UPDATE/DELETE)
 # ---------------------------------------------------------------------------
 
@@ -1355,7 +1596,7 @@ SEIZURE_GENESIS_EVENTS = {EventType.APREENSAO_OBJETO, EventType.APREENSAO_DADOS}
 # Prazo legal de validação da apreensão (CPP Art. 178.º/6). O incumprimento é
 # assinalado (validation_overdue) no momento em que o evento VALIDACAO é gravado,
 # nunca bloqueado; para leitura/feed (T06) deriva-se dos timestamps gravados.
-VALIDATION_DEADLINE = timedelta(hours=72)
+VALIDATION_DEADLINE = timedelta(hours=settings.VALIDATION_DEADLINE_HOURS)
 
 
 def derive_legal_state(eventos_ordenados):
@@ -1780,7 +2021,7 @@ class ChainOfCustody(models.Model):
 
         # Quantização GPS a 7 casas (ADR-0013), ANTES do hash — garante
         # valor em memória == valor na BD == valor recalculado pelo perito.
-        q = Decimal('0.0000001')
+        q = gps_quantum()
         if self.gps_lat is not None:
             self.gps_lat = self.gps_lat.quantize(q)
         if self.gps_lng is not None:
