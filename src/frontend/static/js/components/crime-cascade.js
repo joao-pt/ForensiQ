@@ -59,17 +59,8 @@
             if (status === 401 || status === 403) return '— sessão expirada, reautentique —';
             return '— erro ao carregar —';
         }
-        function getJSON(url) {
-            return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-                .then(function (r) {
-                    if (!r.ok) {
-                        var err = new Error('HTTP ' + r.status);
-                        err.status = r.status;
-                        throw err;
-                    }
-                    return r.json();
-                });
-        }
+        // GET JSON → window.FQFetch.getJSON (fonte única; rejeita em !ok com um
+        // Error a carregar `.status`, que o statusMessage usa p/ distinguir 401/403).
 
         function loadSubs(catId) {
             if (!catId) {
@@ -79,7 +70,7 @@
                 return Promise.resolve();
             }
             loading(subSel);
-            return getJSON('/api/crime-subcategories/?categoria=' + encodeURIComponent(catId))
+            return window.FQFetch.getJSON('/api/crime-subcategories/?categoria=' + encodeURIComponent(catId))
                 .then(function (items) {
                     fill(subSel, items, function (o, it) { o.value = it.id; o.textContent = it.codigo + ' — ' + it.nome; });
                     reset(typeSel, '— selecione a subcategoria —');
@@ -95,7 +86,7 @@
                 return Promise.resolve();
             }
             loading(typeSel);
-            return getJSON('/api/crime-types/?subcategoria=' + encodeURIComponent(subId))
+            return window.FQFetch.getJSON('/api/crime-types/?subcategoria=' + encodeURIComponent(subId))
                 .then(function (items) {
                     fill(typeSel, items, function (o, it) {
                         o.value = it.id;

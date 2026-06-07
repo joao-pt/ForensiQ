@@ -94,23 +94,16 @@
         });
     };
 
-    /** GET JSON num endpoint same-origin, com erro legível em caso de !ok. */
-    function jsonFetch(url) {
-        return fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then(function (r) {
-                return r.json().then(function (d) {
-                    if (!r.ok) throw new Error((d && d.detail) || 'Serviço indisponível.');
-                    return d;
-                });
-            });
-    }
+    // GET JSON same-origin → window.FQFetch.getJSON (fonte única; carregado em
+    // base.html antes deste módulo). reverseGeocode/searchPOI só correm a pedido,
+    // pelo que FQFetch está sempre definido quando são chamados.
 
     /**
      * Geocodificação inversa via proxy server-side. Devolve a morada composta
      * (rua, nº, localidade, país) e o payload em bruto.
      */
     Geo.reverseGeocode = function (lat, lon) {
-        return jsonFetch('/api/reverse-geocode/?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon))
+        return window.FQFetch.getJSON('/api/reverse-geocode/?lat=' + encodeURIComponent(lat) + '&lon=' + encodeURIComponent(lon))
             .then(function (d) {
                 var a = (d && d.address) || {};
                 var parts = [a.road, a.house_number, a.city, a.country].filter(function (x) { return x; });
@@ -121,7 +114,7 @@
     /** POIs OSM próximos via proxy server-side. Devolve sempre um array. */
     Geo.searchPOI = function (lat, lon, radius) {
         radius = radius || 500;
-        return jsonFetch('/api/nearby-pois/?lat=' + encodeURIComponent(lat) +
+        return window.FQFetch.getJSON('/api/nearby-pois/?lat=' + encodeURIComponent(lat) +
             '&lon=' + encodeURIComponent(lon) + '&radius=' + encodeURIComponent(radius))
             .then(function (pois) { return pois || []; });
     };

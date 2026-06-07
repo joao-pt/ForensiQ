@@ -122,13 +122,9 @@
             btn.disabled = true;
             btn.setAttribute('aria-busy', 'true');
             btn.textContent = 'A consultar…';
-            fetch('/api/evidences/lookup/vin/' + encodeURIComponent(val) + '/',
-                { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-                .then(function (r) {
-                    return r.json().then(function (d) { if (!r.ok) throw new Error(d.detail || 'VIN inválido.'); return d; });
-                })
+            window.FQFetch.getJSON('/api/evidences/lookup/vin/' + encodeURIComponent(val) + '/')
                 .then(function (d) { if (d.url) window.open(d.url, '_blank', 'noopener,noreferrer'); })
-                .catch(function (e) { window.alert(e.message || 'Falha na consulta VIN.'); })
+                .catch(function (e) { window.alert(e.detail || 'Falha na consulta VIN.'); })
                 .finally(function () {
                     btn.disabled = false;
                     btn.removeAttribute('aria-busy');
@@ -151,19 +147,17 @@
         }
         btn.disabled = true;
         btn.setAttribute('aria-busy', 'true');
-        fetch('/api/evidences/lookup/imei/' + encodeURIComponent(val) + '/',
-            { credentials: 'same-origin', headers: { Accept: 'application/json' } })
-            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
+        window.FQFetch.requestJSON('/api/evidences/lookup/imei/' + encodeURIComponent(val) + '/')
             .then(function (res) {
                 if (!out) return;
                 if (res.ok) {
-                    out.innerHTML = renderEnrichment(res.d);
+                    out.innerHTML = renderEnrichment(res.data);
                 } else if (res.status === 503) {
                     out.innerHTML = '<p class="lookup-error">Consulta indisponível. Preencha manualmente.</p>';
                 } else if (res.status === 429) {
                     out.innerHTML = '<p class="lookup-error">Demasiadas consultas. Tente novamente mais tarde.</p>';
                 } else {
-                    out.innerHTML = '<p class="lookup-error">' + esc((res.d && res.d.detail) || 'IMEI inválido.') + '</p>';
+                    out.innerHTML = '<p class="lookup-error">' + esc((res.data && res.data.detail) || 'IMEI inválido.') + '</p>';
                 }
             })
             .catch(function () { if (out) out.innerHTML = '<p class="lookup-error">Erro de rede. Tente novamente.</p>'; })
