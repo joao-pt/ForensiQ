@@ -1424,7 +1424,7 @@ def _genesis_event_for(evidence):
 
 
 def _register_seizure_genesis(request, ev):
-    """Registar é apreender (modelo do dono): o 1.º evento de génese da prova é
+    """Registar é apreender: o 1.º evento de génese da prova é
     criado no PRÓPRIO ato de registo do item — não há prova registada sem ficar
     sob custódia (ADR-0016 §2).
 

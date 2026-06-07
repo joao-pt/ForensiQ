@@ -4,7 +4,7 @@
 
 Accepted — 2026-05-31
 
-Amplia e ajusta o **ADR-0015** (ChainOfCustody como ledger de eventos) e o **ADR-0013** (GPS na custódia + fórmula única do `record_hash`). **Substitui** o esquema de códigos `OCC-/ITM-/CC-YYYY-NNNNN` (três contadores globais independentes) pelo esquema **hierárquico enraizado na ocorrência**. Sem retrocompatibilidade (princípio da Fase 2); os dados de demonstração são regerados (`seed_demo --reset`).
+Amplia e ajusta o **ADR-0015** (ChainOfCustody como ledger de eventos) e o **ADR-0013** (GPS na custódia + fórmula única do `record_hash`). **Substitui** o esquema de códigos `OCC-/ITM-/CC-YYYY-NNNNN` (três contadores globais independentes) pelo esquema **hierárquico enraizado na ocorrência**. Sem retrocompatibilidade nesta evolução do modelo; os dados de demonstração são regerados.
 
 ## Data
 

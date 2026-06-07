@@ -8,7 +8,7 @@ Accepted
 
 ## Context
 O ForensiQ precisa de um ambiente de produção acessível via `forensiq.pt`, com HTTPS, para:
-- Demonstrar a aplicação ao orientador e ao júri em ambiente real
+- Demonstrar a aplicação em ambiente real
 - Testar a API e o frontend mobile em condições de produção
 - Validar a integração com a base de dados PostgreSQL remota (Neon.tech, Frankfurt)
 

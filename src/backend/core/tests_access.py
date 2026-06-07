@@ -113,10 +113,10 @@ class AccessReadItemLevelTest(TestCase):
         self.assertNotIn(self.ev, access.scope_evidences(self.estranho))
 
     def test_perito_normal_ve_tudo_por_funcao(self):
-        # DECISÃO do dono (2026-06-05): o PERITO FORENSE tem leitura total por
-        # FUNÇÃO (pode ser questionado sobre processos de outras áreas/divisões),
-        # independentemente da credencial. Exceção explícita ao princípio geral
-        # «a credencial governa a leitura» — ver access.has_full_read.
+        # O PERITO FORENSE tem leitura total por FUNÇÃO (pode ser questionado sobre
+        # processos de outras áreas/divisões), independentemente da credencial —
+        # exceção explícita ao princípio geral «a credencial governa a leitura»
+        # (ADR-0017; ver access.has_full_read).
         self.assertTrue(access.can_view_evidence(self.perito_norm, self.ev))
         self.assertIn(self.ev, access.scope_evidences(self.perito_norm))
 
@@ -188,8 +188,8 @@ class AccessWriteTest(TestCase):
 class AccessCredentialVsFunctionTest(TestCase):
     """Família 8 — credencial governa a leitura; função governa a escrita.
 
-    EXCEÇÃO (decisão do dono, 2026-06-05): a função PERITO FORENSE é, ela própria,
-    habilitante para leitura total (ver :func:`core.access.has_full_read`).
+    Exceção: a função PERITO FORENSE é, ela própria, habilitante para leitura total
+    (ADR-0017; ver :func:`core.access.has_full_read`).
     """
 
     @classmethod

@@ -118,7 +118,7 @@ Abandono a máquina de estados. A `ChainOfCustody` passa a ser um **ledger de ev
 
 - **Gravar o estado legal como coluna materializada.** Rejeito — abriria a porta a um estado gravado que contradiz o log (a coluna e a sequência de eventos divergirem). A única fonte de verdade é o log; o estado é derivado em leitura.
 
-- **Tabela curada de instalações** (esquadras/labs/tribunais como dados de referência). Rejeito — o universo de locais (cena do crime incluída) é aberto e geográfico; uma tabela curada nunca cobriria as cenas de crime e duplicaria informação que o OSM já tem. Revisível se o orientador pedir uma lista controlada de laboratórios oficiais.
+- **Tabela curada de instalações** (esquadras/labs/tribunais como dados de referência). Rejeito — o universo de locais (cena do crime incluída) é aberto e geográfico; uma tabela curada nunca cobriria as cenas de crime e duplicaria informação que o OSM já tem. Revisível caso se justifique uma lista controlada de laboratórios oficiais.
 
 ## Consequences
 

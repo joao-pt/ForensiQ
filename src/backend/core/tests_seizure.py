@@ -1,6 +1,6 @@
 """ForensiQ — Testes: registar um item de prova É apreendê-lo (génese automática).
 
-Modelo do dono (ADR-0016 §2): não há prova registada sem ficar sob custódia. O
+Modelo de domínio (ADR-0016 §2): não há prova registada sem ficar sob custódia. O
 ato de registo cria, na MESMA transação, o evento de génese (APREENSAO_OBJETO /
 APREENSAO_DADOS) à guarda do OPC do agente — deixando o item pronto a encaminhar.
 """

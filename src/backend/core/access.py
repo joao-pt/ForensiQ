@@ -267,8 +267,7 @@ class Lens:
       processo. Só disponível a membros; ao entrar, a UI muda de cor ("modo
       Instituição").
 
-    Substitui a antiga ``CUSTODY`` (eixo de item, removida — o dono pediu para
-    "remover a situação dos filtros por item") e ``ALL`` (a leitura total deixa de
+    Substitui a antiga ``CUSTODY`` (eixo de item, removida para não filtrar por item) e ``ALL`` (a leitura total deixa de
     ser um chip; quem a tem vê-a já na zona "as minhas").
     """
 

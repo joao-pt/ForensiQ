@@ -1,6 +1,6 @@
 """ForensiQ — Testes: encaminhar prova em LOTE a partir da ocorrência (handoff v2).
 
-Modelo do dono: depois de registar (= apreender) os itens, o agente encaminha a
+Modelo de domínio: depois de registar (= apreender) os itens, o agente encaminha a
 prova TODA junta a um portador, com destino — 1 evento ENCAMINHAMENTO_CUSTODIA por
 item, SEM GPS (em trânsito até à receção). O custódio é promovido pelo tipo do
 destino, por isso o gate de laboratório (CPP Art. 154.º) dispara para destinos LAB.

@@ -14,7 +14,7 @@ O ForensiQ necessita de uma estrutura de backend que suporte:
 - Hashing SHA-256 para integridade de metadados (ISO/IEC 27037)
 - Cadeia de custódia imutável (append-only, sem UPDATE/DELETE)
 
-A stack inicialmente considerada incluía FastAPI, mas foi revista para Django + DRF por ser mais convencional, com ORM maduro e sistema de autenticação integrado — facilitando a defesa do projeto perante o júri.
+A stack inicialmente considerada incluía FastAPI, mas foi revista para Django + DRF por ser mais convencional, com ORM maduro e sistema de autenticação integrado.
 
 > _Nota: a versão do Django foi bumpada para 6.0.5 (LTS) em 17 mai 2026 — ver [ADR-0011](ADR-0011-upgrade-django-6.md)._
 >

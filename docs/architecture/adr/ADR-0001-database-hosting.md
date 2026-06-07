@@ -29,7 +29,7 @@ A escolha da base de dados e do fornecedor de alojamento são decisões interlig
 
 Utilizar **PostgreSQL** como motor de base de dados, alojado na plataforma **[Neon](https://neon.tech)**.
 
-Durante o desenvolvimento usa-se o plano gratuito do Neon (*Free Tier*), com *connection pooling* (PgBouncer). Antes da defesa pública (6–10 de julho de 2026), prevê-se a migração para o plano *Neon Launch* (5 USD/mês), para garantir disponibilidade e desempenho na demonstração.
+Durante o desenvolvimento usa-se o plano gratuito do Neon (*Free Tier*), com *connection pooling* (PgBouncer). Para produção, prevê-se a migração para o plano *Neon Launch* (5 USD/mês), para garantir disponibilidade e desempenho.
 
 ## Alternatives Considered
 

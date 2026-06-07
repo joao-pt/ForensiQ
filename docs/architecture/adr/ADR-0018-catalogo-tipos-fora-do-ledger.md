@@ -6,9 +6,9 @@ Accepted — 2026-06-07
 
 Decorre do ADR-0010 (taxonomia de evidência digital-first), do ADR-0014 (tabela de
 crimes em base de dados) e do ADR-0015/0016 (ledger de custódia append-only e contrato
-de hash). Fecha o ponto em aberto da tarefa #21 — "mover os vocabulários de tipo
-(`EvidenceType`, `InstitutionType`, `SealCondition`) de enum-em-código para dados
-editáveis" — definindo **como** o fazer sem comprometer a integridade forense.
+de hash). Define como mover os vocabulários de tipo (`EvidenceType`,
+`InstitutionType`, `SealCondition`) de enum-em-código para dados editáveis, sem
+comprometer a integridade forense.
 
 ## Data
 
@@ -136,18 +136,16 @@ No admin, `code` fica só-leitura após criação. É a mesma disciplina dos có
 
 ### 7. Materialização
 
-Implementado nas migrações `0029` (cria `EvidenceTypeRef(code [PK natural], label,
-is_active, order)` + aponta o `choices` de `Evidence.type` ao callable) e `0030` (semeia
-os 18 tipos a partir do enum). O `choices` do campo é um **callable** que lê o catálogo
-vivo (`core/evidence_type_config.py`) — `get_type_display`/`full_clean`/admin reflectem a
-tabela; o callable é tolerante a tabela inexistente (system check em BD vazia → `[]`). O
-*loader* **não tem cache de estado** (à semelhança de `evidence_field_config`); os laços
-usam `labels()` uma vez para evitar N+1. Substituídos os sítios que alimentam o `<select>`
-(`core/frontend_views.py`) e a guarda de whitelist
-(`etype in evidence_type_config.active_codes()`); o filtro da API usa o callable de
-`active_choices`; o `EvidenceSerializer` declara `type` explicitamente e valida em
-`validate_type` (desacopla o DRF do callable). Fixture e2e re-semeia em
-`TransactionTestCase`; `code` só-leitura no admin após criação (write-once).
+A tabela `EvidenceTypeRef` (`code` como chave natural *write-once*, mais `label`,
+`is_active` e `order` editáveis) vive em `core/evidence_type_config.py` e é semeada a
+partir do conjunto inicial de tipos. O `choices` do campo `Evidence.type` é um *callable*
+que lê o catálogo vivo, pelo que `get_type_display`, a validação e o admin reflectem a
+tabela; o *callable* é tolerante a tabela ainda inexistente (devolve `[]`), para o
+*system check* poder correr numa base de dados vazia. O *loader* não guarda estado em
+cache, e os laços leem os rótulos de uma só vez para evitar consultas repetidas. O
+`<select>`, a *whitelist* de validação e o filtro da API passam a ler do catálogo; o
+`EvidenceSerializer` declara `type` explicitamente e valida em `validate_type`,
+desacoplando-se do *callable*. No admin, o `code` fica só-leitura depois de criado.
 
 ## Consequências
 
@@ -175,9 +173,8 @@ usam `labels()` uma vez para evitar N+1. Substituídos os sítios que alimentam 
 ## Verificação
 
 A propriedade central — *o hash compromete-se com o slug gravado na linha, nunca com o
-rótulo do catálogo; e a origem do valor (membro de enum vs. string de BD) é indiferente
-ao hash* — é demonstrada por `core/tests_adr0018_catalogo_tipos.py` (artefacto de defesa).
-O comportamento do catálogo (acrescentar tipo sem deploy, rever rótulo em runtime,
-desactivar sem afectar itens, *slug write-once*, guarda do serializer) é coberto por
-`core/tests_evidence_type_catalog.py`. Verificação completa: 658 testes core + e2e 39/39
-verdes; `makemigrations --check` sem alterações; `ruff` limpo.
+rótulo do catálogo; e a origem do valor (membro de enum ou string de base de dados) é
+indiferente ao hash* — é demonstrada por testes de tabela dedicados. O comportamento do
+catálogo (acrescentar um tipo sem deploy, rever um rótulo em tempo de execução, desactivar
+um tipo sem afectar itens já registados, o *slug write-once* e a guarda do serializer) é
+igualmente coberto por testes.

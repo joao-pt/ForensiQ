@@ -1,6 +1,6 @@
 """ForensiQ — Testes: caixa "prova a chegar" (inbound, 2.ª metade do handoff v2).
 
-Modelo do dono: depois de encaminhada (em lote, a um portador, com destino), a prova
+Modelo de domínio: depois de encaminhada (em lote, a um portador, com destino), a prova
 fica EM TRÂNSITO e gera um aviso ``ProvaEmTransito`` dirigido à instituição de destino.
 A caixa "/inbound/" mostra esses avisos por receber e liga ao intake da ocorrência
 (onde se regista a RECEÇÃO). É institucional: chaveia no DESTINO, não no detentor.
