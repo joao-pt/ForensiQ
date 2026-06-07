@@ -383,7 +383,10 @@ class Command(BaseCommand):
                 'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-N',
                 'address': 'Jardim Carrilho Videira, 4050-167 Porto',
                 'gps_lat': Decimal('41.1481278'), 'gps_lng': Decimal('-8.6182326'),
-                'email': '', 'phone': '+351 222 073 850',
+                # Email geral do INMLCF (correio@inmlcf.mj.pt), confirmado em
+                # justica.gov.pt. As delegações não publicam email próprio em texto
+                # aberto; usa-se o contacto institucional geral nas três.
+                'email': 'correio@inmlcf.mj.pt', 'phone': '+351 222 073 850',
             },
             {
                 'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
@@ -394,7 +397,7 @@ class Command(BaseCommand):
                 # GPS corrigido na verificação: o ponto original caía na Baixa; este
                 # resolve o campus Pólo III (Montes Claros), coerente com 3000-548.
                 'gps_lat': Decimal('40.2194533'), 'gps_lng': Decimal('-8.4176226'),
-                'email': '', 'phone': '+351 239 854 220',
+                'email': 'correio@inmlcf.mj.pt', 'phone': '+351 239 854 220',
             },
             {
                 'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
@@ -402,7 +405,7 @@ class Command(BaseCommand):
                 'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-S',
                 'address': 'Rua Manuel Bento de Sousa, n.º 3, 1169-201 Lisboa',
                 'gps_lat': Decimal('38.7197895'), 'gps_lng': Decimal('-9.1381493'),
-                'email': '', 'phone': '+351 218 811 800',
+                'email': 'correio@inmlcf.mj.pt', 'phone': '+351 218 811 800',
             },
             # --- LAB_PRIVADO — Laboratórios privados ---
             {
@@ -422,10 +425,12 @@ class Command(BaseCommand):
             {
                 'name': 'Ncforenses — Ciências Forenses, Lda.',
                 'type': InstitutionType.LAB_PRIVADO, 'sigla': 'NCFORENSES',
-                'address': 'Rua do Visconde de Bóbeda 70, 1.º Frente, 4000-108 Porto',
-                # GPS corrigido na verificação (morada geocodificada em Bonfim).
-                'gps_lat': Decimal('41.1463701'), 'gps_lng': Decimal('-8.6004296'),
-                'email': '', 'phone': '+351 224 022 684',
+                'address': 'Rua de Pinto Bessa, n.º 522, R/C Esq., 4300-428 Porto',
+                # Morada/GPS corrigidos na verificação: o site oficial (ncforenses.pt)
+                # e os registos públicos indicam Rua de Pinto Bessa 522 (4300-428 Porto),
+                # não Visconde de Bóbeda; GPS geocodificado ao nº 522 (Nominatim/OSM).
+                'gps_lat': Decimal('41.1504842'), 'gps_lng': Decimal('-8.5918897'),
+                'email': 'geral@ncforenses.pt', 'phone': '+351 224 022 684',
             },
             # --- TRIBUNAL ---
             {
@@ -499,6 +504,9 @@ class Command(BaseCommand):
                 'type': InstitutionType.DEPOSITARIO, 'sigla': 'AT',
                 'address': 'Rua da Prata, n.º 10, 1149-027 Lisboa',
                 'gps_lat': Decimal('38.7088122'), 'gps_lng': Decimal('-9.1359944'),
+                # Email deliberadamente vazio: a AT não publica um email institucional
+                # geral — o contacto faz-se por e-balcão/formulário no Portal das
+                # Finanças. Não se inventa um endereço (campo opcional).
                 'email': '', 'phone': '+351 218 812 600',
             },
             {
