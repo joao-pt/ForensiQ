@@ -201,6 +201,17 @@ body.app-body {
     padding: 2px var(--sp-2);
     white-space: nowrap;
 }
+.app-top__date {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1, "zero" 1;
+    /* Mesmo estilo da hora (.app-top__clock): tamanho e cor iguais — a data e a
+       hora leem-se como um só carimbo temporal. */
+    font-size: var(--fs-sm);
+    color: var(--text-muted);
+    padding: 2px 0 2px var(--sp-2);
+    white-space: nowrap;
+}
 .app-top__clock-sep {
     transition: opacity var(--t-base);
 }

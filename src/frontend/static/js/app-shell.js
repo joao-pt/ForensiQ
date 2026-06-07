@@ -28,6 +28,7 @@
         if (!el) return;
 
         const sep = el.querySelector('.app-top__clock-sep');
+        const dateEl = document.getElementById('app-date');
         let blink = 'on';
 
         function tick() {
@@ -35,6 +36,15 @@
             const hh = String(now.getHours()).padStart(2, '0');
             const mm = String(now.getMinutes()).padStart(2, '0');
             const ss = String(now.getSeconds()).padStart(2, '0');
+            // Data local (YYYY-MM-DD) ao lado da hora — actualiza-se sozinha à
+            // meia-noite. Forma ISO mono, igual aos timestamps do resto da app.
+            if (dateEl) {
+                const y = now.getFullYear();
+                const mo = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const iso = y + '-' + mo + '-' + d;
+                if (dateEl.textContent !== iso) dateEl.textContent = iso;
+            }
             // Renderiza dígitos preservando o nó do separador para animação.
             // O <span> separador fornece o ':' entre horas e minutos (pisca),
             // por isso o primeiro nó não leva ':' (evitar HH::MM:SS).
