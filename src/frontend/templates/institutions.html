@@ -18,8 +18,8 @@
       <h1 class="page-head__title" id="inst-title">Instituições</h1>
       <span class="page-head__count">{{ total }} instituiç{{ total|pluralize:"ão,ões" }}</span>
     </div>
-    {# Ação-in-place: abre o formulário num modal sobre esta página (sem trocar de
-       janela). O href é o recurso no-JS / navegação direta (página completa). #}
+    {# Ação-in-place: abre o formulário num modal sobre esta página (sem trocar de #}
+    {# janela). O href é o recurso no-JS / navegação direta (página completa). #}
     <a class="btn-accent" href="/institutions/new/"
        data-modal-open data-modal-title="Nova instituição"
        hx-get="/institutions/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
@@ -100,9 +100,9 @@
 {% block extra_js %}
   {% include '_leaflet_js.html' %}
   <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
-  {# Scripts dos componentes do formulário injetado no modal (ação-in-place):
-     a captura de GPS é delegada no document, o seletor de mapa arranca em
-     fq:modal-open. Leaflet/FQMap já carregados acima. #}
+  {# Scripts dos componentes do formulário injetado no modal (ação-in-place): #}
+  {# a captura de GPS é delegada no document, o seletor de mapa arranca em #}
+  {# fq:modal-open. Leaflet/FQMap já carregados acima. #}
   <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/map-picker.js' %}"></script>

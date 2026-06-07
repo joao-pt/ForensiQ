@@ -211,8 +211,8 @@
                         <span class="app-sidebar__label">Ocorrências</span>
                     </a>
                     {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
-                    {# Atalho ação-in-place: abre o modal de nova ocorrência sobre a
-                       página (degrada para a página completa via href sem JS/HTMX). #}
+                    {# Atalho ação-in-place: abre o modal de nova ocorrência sobre a #}
+                    {# página (degrada para a página completa via href sem JS/HTMX). #}
                     <a class="app-sidebar__link app-sidebar__link--action" href="/occurrences/new/"
                        hx-get="/occurrences/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML"
                        data-modal-open data-modal-title="Nova ocorrência" data-sidebar-link>
@@ -247,8 +247,8 @@
                         <span class="app-sidebar__label">Evidências</span>
                     </a>
                     {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
-                    {# Atalho ação-in-place: registar = apreender. Abre o modal de novo
-                       item sobre a página (degrada para a página completa via href). #}
+                    {# Atalho ação-in-place: registar = apreender. Abre o modal de novo #}
+                    {# item sobre a página (degrada para a página completa via href). #}
                     <a class="app-sidebar__link app-sidebar__link--action" href="/evidences/new/"
                        hx-get="/evidences/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML"
                        data-modal-open data-modal-title="Novo item de prova" data-sidebar-link>
@@ -270,8 +270,8 @@
                         <span class="app-sidebar__label">Custódias</span>
                     </a>
                     {% if inbound_member %}
-                    {# Prova a chegar — avisos de encaminhamento por receber. Só para
-                       membros de instituição (a caixa é institucional). #}
+                    {# Prova a chegar — avisos de encaminhamento por receber. Só para #}
+                    {# membros de instituição (a caixa é institucional). #}
                     <a class="app-sidebar__link" href="/inbound/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
