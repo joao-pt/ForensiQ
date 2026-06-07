@@ -43,12 +43,26 @@
         } else {
             dialog.setAttribute('open', '');  // recurso p/ navegadores muito antigos
         }
-        // Foco no primeiro campo do formulário, depois do paint.
+        // Foco depois do paint. Em re-render com erros (POST inválido troca o
+        // fragmento para o modal) foca o 1.º campo inválido — senão o resumo de
+        // erros gerais, senão o 1.º campo. O modal é dono do seu foco, por isso
+        // os formulários no modal não precisam do form-error-focus.js.
         requestAnimationFrame(function () {
-            var first = body && body.querySelector(
-                'input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])'
-            );
-            if (first) { try { first.focus(); } catch (e) { /* noop */ } }
+            if (!body) return;
+            var target = body.querySelector('[aria-invalid="true"]');
+            if (!target) {
+                var alertEl = body.querySelector('[role="alert"]');
+                if (alertEl) {
+                    if (!alertEl.hasAttribute('tabindex')) alertEl.setAttribute('tabindex', '-1');
+                    target = alertEl;
+                }
+            }
+            if (!target) {
+                target = body.querySelector(
+                    'input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])'
+                );
+            }
+            if (target) { try { target.focus(); } catch (e) { /* noop */ } }
         });
         // Sinaliza para componentes que vivem dentro do fragmento (mapas, …).
         document.dispatchEvent(new CustomEvent('fq:modal-open', { detail: { root: body } }));

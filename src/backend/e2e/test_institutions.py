@@ -25,7 +25,9 @@ def test_institution_modal_create_flow(page, auth_as, live_server, csp_violation
     # O <dialog> começa fechado (dialog:not([open]) → display:none).
     expect(page.locator("#app-modal")).to_be_hidden()
 
-    page.click("[data-modal-open]")
+    # Alvo específico: a sidebar global tem agora outros [data-modal-open]
+    # (atalhos "Nova X"), por isso seleciona-se o gatilho da instituição pelo título.
+    page.click("[data-modal-title='Nova instituição']")
     # Abre e mostra o formulário injetado por HTMX.
     expect(page.locator("#app-modal")).to_be_visible()
     expect(page.locator("#f-i-name")).to_be_visible()
@@ -54,7 +56,9 @@ def test_institution_modal_closes_on_cancel(page, auth_as, live_server):
     auth_as(admin)
 
     page.goto("/institutions/", wait_until="load")
-    page.click("[data-modal-open]")
+    # Alvo específico: a sidebar global tem agora outros [data-modal-open]
+    # (atalhos "Nova X"), por isso seleciona-se o gatilho da instituição pelo título.
+    page.click("[data-modal-title='Nova instituição']")
     expect(page.locator("#app-modal")).to_be_visible()
     page.click("#app-modal [data-modal-close]")
     expect(page.locator("#app-modal")).to_be_hidden()
@@ -66,7 +70,9 @@ def test_institution_map_click_sets_coordinates(page, auth_as, live_server):
     auth_as(admin)
 
     page.goto("/institutions/", wait_until="load")
-    page.click("[data-modal-open]")
+    # Alvo específico: a sidebar global tem agora outros [data-modal-open]
+    # (atalhos "Nova X"), por isso seleciona-se o gatilho da instituição pelo título.
+    page.click("[data-modal-title='Nova instituição']")
     expect(page.locator(".map-picker")).to_be_visible()
     # Espera o Leaflet montar: o container ganha a classe `leaflet-container`.
     page.wait_for_selector(".map-picker.leaflet-container", timeout=8000)

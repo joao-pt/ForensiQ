@@ -1,0 +1,134 @@
+{% comment %}
+  Formulário de nova ocorrência — fonte ÚNICA de duas superfícies da MESMA lógica:
+    • página completa (occurrences_new.html) — fallback no-JS / navegação direta;
+    • fragmento modal (ação-in-place) quando `modal` é verdadeiro.
+  Em modo modal submete via HTMX para #app-modal-body (erros voltam aqui; o
+  sucesso responde 204 + HX-Redirect e o HTMX navega). A cascata de crime
+  (crime-cascade.js) reinicializa-se em `fq:modal-open`.
+{% endcomment %}
+<div data-modal-title="Nova ocorrência">
+
+  {% if errors.non_field_errors or errors.geral %}
+  <div class="section" role="alert">
+    <div class="section__body">
+      {% for e in errors.non_field_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+      {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}
+        data-crime-cascade data-sel-cat="{{ sel_cat }}" data-sel-sub="{{ sel_sub }}" data-sel-type="{{ sel_type }}">
+    {% csrf_token %}
+    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+    <div class="form-grid">
+
+      {# --- Secção 1: identificação do caso --- #}
+      <div class="form-field form-field--full"><h3 class="subhead">Identificação do caso</h3></div>
+
+      <div class="form-field">
+        <label for="f-number">NUIPC / número *</label>
+        <input class="mono" type="text" id="f-number" name="number" value="{{ data.number }}" required
+               placeholder="NUIPC.000/2026.LISBOA"{% if errors.number %} aria-invalid="true" aria-describedby="f-number-err"{% endif %}>
+        {% if errors.number %}<span class="form-error visible" id="f-number-err">{{ errors.number.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="f-dt">Data / hora da ocorrência *</label>
+        <input class="mono" type="datetime-local" id="f-dt" name="date_time" value="{{ data.date_time }}" required{% if errors.date_time %} aria-invalid="true" aria-describedby="f-dt-err"{% endif %}>
+        {% if errors.date_time %}<span class="form-error visible" id="f-dt-err">{{ errors.date_time.0 }}</span>{% endif %}
+      </div>
+
+      {# --- Secção 2: o que aconteceu (descrição antes da classificação) --- #}
+      <div class="form-field form-field--full"><h3 class="subhead">O que aconteceu</h3></div>
+
+      <div class="form-field form-field--full">
+        <label for="f-desc">Descrição *</label>
+        <textarea id="f-desc" name="description" required placeholder="Descrição sumária da ocorrência…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
+        {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="f-crime-cat">Categoria de crime *</label>
+        <select id="f-crime-cat" data-crime-cat>
+          <option value="">— selecionar —</option>
+          {% for c in crime_categories %}
+          <option value="{{ c.id }}">{{ c.codigo }} — {{ c.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label for="f-crime-sub">Subcategoria *</label>
+        <select id="f-crime-sub" data-crime-sub disabled>
+          <option value="">— selecione a categoria —</option>
+        </select>
+      </div>
+
+      <div class="form-field form-field--full">
+        <label for="f-crime">Tipo de crime *</label>
+        <select id="f-crime" name="crime_type" required data-crime-type disabled{% if errors.crime_type %} aria-invalid="true" aria-describedby="f-crime-err"{% endif %}>
+          <option value="">— selecione a subcategoria —</option>
+        </select>
+        <span class="form-hint" data-crime-priority aria-live="polite"></span>
+        {% if errors.crime_type %}<span class="form-error visible" id="f-crime-err">{{ errors.crime_type.0 }}</span>{% endif %}
+      </div>
+
+      {# --- Secção 3: onde (botões de captura primeiro, campos como resultado) --- #}
+      <div class="form-field form-field--full" role="group" aria-labelledby="on-geo-label">
+        <span class="subhead" id="on-geo-label">Onde — localização</span>
+        <div class="form-inline">
+          <button type="button" class="btn-ghost" data-geo-capture
+                  data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.7-7-12a7 7 0 0 1 14 0c0 5.3-7 12-7 12z"/><circle cx="12" cy="9" r="2.2"/></svg>
+            Capturar GPS
+          </button>
+          <button type="button" class="btn-ghost" data-reverse-geocode
+                  data-lat-target="#f-lat" data-lng-target="#f-lng" data-addr-target="#f-addr">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>
+            Resolver morada
+          </button>
+          <span class="mono facts__src" data-geo-acc></span>
+          <span class="mono facts__src" data-reverse-geocode-status></span>
+        </div>
+      </div>
+
+      <div class="form-field form-field--full">
+        <label for="f-addr">Morada aproximada</label>
+        <input type="text" id="f-addr" name="address" value="{{ data.address }}" placeholder="Rua, nº, localidade">
+      </div>
+
+      <div class="form-field">
+        <label for="f-lat">Latitude</label>
+        <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
+        {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="f-lng">Longitude</label>
+        <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
+        {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
+      </div>
+
+      {# --- Secção 4: prioridade (avançado) --- #}
+      <div class="form-field form-field--full"><h3 class="subhead">Prioridade</h3></div>
+
+      <div class="form-field form-field--full">
+        <label class="form-check">
+          <input type="checkbox" name="elevar_prioridade" value="true" {% if data.elevar_prioridade %}checked{% endif %}>
+          Marcar como prioritária mesmo que a lei não o exija
+        </label>
+      </div>
+
+    </div>
+
+    <div class="form-actions{% if not modal %} form-actions--sticky{% endif %}">
+      {% if modal %}
+      <button type="button" class="btn-ghost" data-modal-close>Cancelar</button>
+      {% else %}
+      <a class="btn-ghost" href="/occurrences/">Cancelar</a>
+      {% endif %}
+      <button type="submit" class="btn-accent">Registar ocorrência</button>
+    </div>
+  </form>
+</div>

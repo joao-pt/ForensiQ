@@ -13,6 +13,11 @@
  */
 (function () {
     'use strict';
+    // Idempotente: handler delegado em document.body — liga UMA vez mesmo que o
+    // script seja carregado globalmente (base.html) e por páginas à parte, para
+    // não duplicar a captura de GPS por clique.
+    if (window.__fqGeoCaptureReady) return;
+    window.__fqGeoCaptureReady = true;
     document.body.addEventListener('click', function (ev) {
         var btn = ev.target.closest ? ev.target.closest('[data-geo-capture]') : null;
         if (!btn) return;

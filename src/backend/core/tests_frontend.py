@@ -109,19 +109,23 @@ class DashboardPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('cs-tile', content)
         self.assertIn('aria-label="Mapa de Portugal continental"', content)
 
-    def test_dashboard_has_no_new_occurrence_cta(self):
-        """O painel já NÃO tem o atalho de nova ocorrência (Lote 3, 2026-06).
+    def test_dashboard_body_has_no_new_occurrence_cta(self):
+        """O CORPO do painel não tem CTA de entrada de dados (Lote 3, 2026-06).
 
-        Decisão do João: o registo de nova ocorrência sai do painel — este
-        fica focado na situação (mapa + estado da cadeia + atividade), sem
-        ações de entrada de dados. A entrada canónica vive na lista de
-        ocorrências (/occurrences/, ``btn-accent``), coberta pelo teste
-        ``test_occurrences_page_contains_new_button``.
+        O painel fica focado na situação (mapa + estado da cadeia + atividade),
+        sem ações de entrada de dados no corpo. A entrada rápida de nova
+        ocorrência passou a viver como atalho GLOBAL na sidebar (Fase 7,
+        ação-in-place) — presente em todas as páginas, fora do <main>, e coberto
+        por ``core.tests_form_modals``. Aqui garante-se só que a região principal
+        continua sem o antigo botão e sem ligação para o registo.
         """
         response = self.client.get(reverse('dashboard'))
         content = response.content.decode('utf-8')
+        # A sidebar (atalho global) vive num <aside>, fora do <main>: isola-se a
+        # região principal para verificar que o corpo do painel não traz CTA.
+        main_region = content.split('id="main-content"', 1)[1].split('</main>', 1)[0]
         self.assertNotIn('btn-new-occ', content)
-        self.assertNotIn('/occurrences/new/', content)
+        self.assertNotIn('/occurrences/new/', main_region)
 
     def test_dashboard_loads_auth_js(self):
         """A página do dashboard deve carregar o módulo auth.js."""

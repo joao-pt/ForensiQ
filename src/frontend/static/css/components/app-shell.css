@@ -429,6 +429,24 @@ body.app-body {
     border-radius: var(--r-pill);
 }
 
+/* Atalho de ação rápida ("Nova ocorrência", "Novo item") — distinto dos links de
+   navegação: rótulo discreto, afordância "+" em âmbar, tinta no hover. Abre o
+   modal ação-in-place; degrada para a página completa via href. */
+.app-sidebar__link--action {
+    color: var(--text-muted);
+    font-weight: var(--fw-medium);
+}
+.app-sidebar__link--action .app-sidebar__icon {
+    color: var(--accent);
+}
+.app-sidebar__link--action:hover {
+    background: var(--accent-tint);
+    color: var(--accent-on-tint);
+}
+.app-sidebar__link--action:hover .app-sidebar__icon {
+    color: var(--accent-on-tint);
+}
+
 /* =====================================================================
    app-main
    ===================================================================== */

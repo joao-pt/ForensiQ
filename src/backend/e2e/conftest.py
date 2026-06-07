@@ -98,6 +98,32 @@ def _block_external(context, live_server):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _seed_evidence_fields(live_server):
+    """Garante a config de campos por-tipo (``EvidenceFieldDef``) em cada teste.
+
+    Estes campos VIVEM na BD, semeados por uma migração de DADOS
+    (``0027_seed_evidence_fields``). O ``live_server`` corre sob
+    ``TransactionTestCase``, que faz flush das tabelas entre testes e NÃO restaura
+    dados de migração — pelo que, depois do 1.º teste, ``EvidenceFieldDef`` fica
+    vazia e o formulário de evidência perde os identificadores por tipo (ex.: IMEI).
+    Isto tornava ``test_type_specific_fields_toggle_by_type`` dependente da ordem
+    (passava isolado, falhava no conjunto). Re-semeia se a tabela estiver vazia,
+    reutilizando o seed da própria migração (fonte única). Os dados ficam cometidos
+    (autocommit), visíveis para a thread do servidor live.
+    """
+    import importlib
+
+    from django.apps import apps as django_apps
+
+    from core.models import EvidenceFieldDef
+
+    if not EvidenceFieldDef.objects.exists():
+        mig = importlib.import_module('core.migrations.0027_seed_evidence_fields')
+        mig.seed_fields(django_apps, None)
+    yield
+
+
 # --------------------------------------------------------------------------- #
 # Autenticação
 # --------------------------------------------------------------------------- #

@@ -25,6 +25,10 @@
 (function () {
     'use strict';
 
+    // Idempotente: o módulo pode ser carregado globalmente (base.html) e ainda
+    // por páginas que o incluem à parte — define a API uma só vez.
+    if (window.ForensiQGeo) return;
+
     var Geo = {};
 
     /** Mensagem PT-PT para um GeolocationPositionError (ou Error genérico). */

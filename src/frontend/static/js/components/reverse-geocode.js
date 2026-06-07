@@ -9,6 +9,10 @@
  */
 (function () {
     'use strict';
+    // Idempotente: handler delegado em document.body — liga UMA vez mesmo que o
+    // script seja carregado globalmente (base.html) e por páginas à parte.
+    if (window.__fqReverseGeocodeReady) return;
+    window.__fqReverseGeocodeReady = true;
     document.body.addEventListener('click', function (ev) {
         var btn = ev.target.closest ? ev.target.closest('[data-reverse-geocode]') : null;
         if (!btn) return;

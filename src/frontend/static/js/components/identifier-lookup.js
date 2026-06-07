@@ -12,39 +12,62 @@
  *  - [data-lookup="vin"]  → GET /api/evidences/lookup/vin/<vin>/ e abre o URL
  *    do vindecoder.eu numa nova aba (sem scraping, ADR-0010).
  *  - Pista de formato MAC ao vivo.
+ *
+ * Rehidratação (ação-in-place): o formulário de evidência também vive num modal
+ * cujo fragmento é injetado depois do load. `initTypeToggle(root)` liga a sincronia
+ * tipo→campos ao formulário presente na raiz dada — corre no load (document) e de
+ * novo em `fq:modal-open` (raiz do modal). O handler de lookup (delegado em
+ * document.body) liga UMA vez e cobre os fragmentos sem religar.
  */
 (function () {
     'use strict';
 
-    var typeSel = document.getElementById('f-type');
-    var section = document.querySelector('[data-id-section]');
-    var fields = Array.prototype.slice.call(document.querySelectorAll('[data-id-field]'));
+    // Idempotente: o módulo pode ser carregado globalmente (base.html) e pela
+    // página de evidência à parte — liga o toggle e o handler de lookup uma só vez.
+    if (window.__fqIdentifierLookupReady) return;
+    window.__fqIdentifierLookupReady = true;
 
-    function syncVisibility() {
-        if (!typeSel) return;
-        var t = typeSel.value;
-        var any = false;
-        fields.forEach(function (f) {
-            var on = f.getAttribute('data-id-type') === t;
-            f.classList.toggle('is-on', on);
-            // Desativar (não só esconder) os campos dos outros tipos: inputs/selects
-            // disabled não são submetidos, evitando colisão de nomes entre tipos
-            // (ex.: 'imei' existe em MOBILE_DEVICE e GPS_TRACKER; 'mac' em
-            // NETWORK_DEVICE e IOT_DEVICE). Assim só o tipo escolhido é persistido.
-            f.querySelectorAll('input, select').forEach(function (i) { i.disabled = !on; });
-            if (on) {
-                any = true;
-            } else {
-                var r = f.querySelector('.lookup-result');
-                if (r) { r.hidden = true; r.innerHTML = ''; }
-            }
-        });
-        if (section) section.classList.toggle('is-on', any);
-    }
-    if (typeSel) {
+    // --- Tipo → campos de identificador (rehidratável por raiz) ---------------
+    function initTypeToggle(root) {
+        var scope = (root && root.querySelector) ? root : document;
+        var typeSel = scope.querySelector('#f-type');
+        if (!typeSel || typeSel.hasAttribute('data-idtoggle-ready')) return;
+        var section = scope.querySelector('[data-id-section]');
+        var fields = Array.prototype.slice.call(scope.querySelectorAll('[data-id-field]'));
+        typeSel.setAttribute('data-idtoggle-ready', '1');
+
+        function syncVisibility() {
+            var t = typeSel.value;
+            var any = false;
+            fields.forEach(function (f) {
+                var on = f.getAttribute('data-id-type') === t;
+                f.classList.toggle('is-on', on);
+                // Desativar (não só esconder) os campos dos outros tipos: inputs/selects
+                // disabled não são submetidos, evitando colisão de nomes entre tipos
+                // (ex.: 'imei' existe em MOBILE_DEVICE e GPS_TRACKER; 'mac' em
+                // NETWORK_DEVICE e IOT_DEVICE). Assim só o tipo escolhido é persistido.
+                f.querySelectorAll('input, select').forEach(function (i) { i.disabled = !on; });
+                if (on) {
+                    any = true;
+                } else {
+                    var r = f.querySelector('.lookup-result');
+                    if (r) { r.hidden = true; r.innerHTML = ''; }
+                }
+            });
+            if (section) section.classList.toggle('is-on', any);
+        }
         typeSel.addEventListener('change', syncVisibility);
         syncVisibility();
     }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { initTypeToggle(document); });
+    } else {
+        initTypeToggle(document);
+    }
+    document.addEventListener('fq:modal-open', function (ev) {
+        initTypeToggle(ev.detail && ev.detail.root);
+    });
 
     // --- Render do enriquecimento (genérico, robusto ao schema do upstream) ---
     var HIDDEN = {
@@ -79,6 +102,8 @@
         return '<dl class="facts">' + rows + '</dl>' + src;
     }
 
+    // Handler de lookup — delegado em document.body (cobre também os fragmentos
+    // de modal injetados), liga UMA vez no load para não duplicar pedidos.
     document.body.addEventListener('click', function (ev) {
         var btn = ev.target.closest ? ev.target.closest('[data-lookup]') : null;
         if (!btn) return;
