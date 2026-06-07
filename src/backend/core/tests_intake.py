@@ -13,7 +13,7 @@ Cobertura da view `/occurrences/<id>/intake/`:
   - código da ocorrência
   - contagem de evidências esperadas
   - 1 checkbox por evidência (com `disabled` se já recebida)
-  - target_state = TRANSFERENCIA (evento → LAB_PUBLICO, ADR-0015)
+  - target_state = TRANSFERENCIA_CUSTODIA (evento → LAB_PUBLICO, ADR-0015)
 
 A submissão real (POST a `/api/custody/cascade/`) é coberta pelos
 testes existentes do cascade endpoint — este ficheiro só valida a
@@ -28,7 +28,14 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from core.models import ChainOfCustody, Evidence, Occurrence
+from core.models import (
+    ChainOfCustody,
+    Evidence,
+    Institution,
+    InstitutionType,
+    Occurrence,
+    Portador,
+)
 
 User = get_user_model()
 
@@ -36,7 +43,7 @@ User = get_user_model()
 from core.tests_factories import CrimeTipoFactory
 
 
-def _make_user(username, profile='AGENT', is_staff=False, is_superuser=False):
+def _make_user(username, profile='FIRST_RESPONDER', is_staff=False, is_superuser=False):
     user = User.objects.create_user(
         username=username,
         password='TestPass123!',
@@ -84,7 +91,7 @@ class OccurrenceIntakeAuthTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.agent = _make_user('agent_intake')
-        cls.expert = _make_user('expert_intake', profile='EXPERT')
+        cls.expert = _make_user('expert_intake', profile='FORENSIC_EXPERT')
         cls.staff = _make_user('staff_intake', is_staff=True)
         cls.occurrence = _make_occurrence(cls.agent)
         cls.evidence = _make_evidence(cls.occurrence, cls.agent, 'SN-IN-001')
@@ -134,40 +141,55 @@ class OccurrenceIntakeRenderTest(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.agent = _make_user('agent_render')
-        cls.expert = _make_user('expert_render', profile='EXPERT')
+        cls.expert = _make_user('expert_render', profile='FORENSIC_EXPERT')
         cls.occurrence = _make_occurrence(cls.agent)
         cls.ev_pending = _make_evidence(cls.occurrence, cls.agent, 'SN-PND-1')
         cls.ev_in_transit = _make_evidence(cls.occurrence, cls.agent, 'SN-TRA-1')
         cls.ev_received = _make_evidence(cls.occurrence, cls.agent, 'SN-RCV-1')
-        # Ledger de eventos (ADR-0015):
-        # - pending  → só APREENSAO          (estado derivado: a_guarda_opc)
-        # - in_transit → APREENSAO+VALIDACAO (estado derivado: validada)
-        # - received → APREENSAO+TRANSFERENCIA→LAB_PUBLICO (encaminhada =
-        #   "já recebida" no intake).
+        # Destino do encaminhamento + portador (ADR-0016 v2 — handoff em 2 tempos).
+        cls.lab = Institution.objects.create(
+            name='Lab Intake', type=InstitutionType.LAB_PUBLICO, sigla='LAB-INT'
+        )
+        cls.portador = Portador.objects.create(
+            matricula='INT-0001', nome='Ana', apelido='Costa', posto='Agente'
+        )
+        # Ledger de eventos (ADR-0015 / ADR-0016 v2):
+        # - pending    → só APREENSAO_OBJETO (a_guarda_opc; nem em trânsito nem recebida).
+        # - in_transit → …+DESPACHO+ENCAMINHAMENTO (em_transito = recebível no intake).
+        # - received   → …+ENCAMINHAMENTO+RECEPCAO  (encaminhada = "já recebida").
         ChainOfCustody.objects.create(
             evidence=cls.ev_pending,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=cls.agent,
         )
         for ev in (cls.ev_in_transit, cls.ev_received):
+            for et in (
+                ChainOfCustody.EventType.APREENSAO_OBJETO,
+                ChainOfCustody.EventType.VALIDACAO_APREENSAO,
+                ChainOfCustody.EventType.DESPACHO_PERICIA,
+            ):
+                ChainOfCustody.objects.create(
+                    evidence=ev,
+                    event_type=et,
+                    custodian_type=ChainOfCustody.CustodianType.OPC,
+                    agent=cls.agent,
+                )
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=ChainOfCustody.EventType.APREENSAO,
-                custodian_type=ChainOfCustody.CustodianType.OPC,
+                event_type=ChainOfCustody.EventType.ENCAMINHAMENTO_CUSTODIA,
+                custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
+                custodian_institution=cls.lab,
+                bearer=cls.portador,
                 agent=cls.agent,
             )
-        ChainOfCustody.objects.create(
-            evidence=cls.ev_in_transit,
-            event_type=ChainOfCustody.EventType.VALIDACAO,
-            custodian_type=ChainOfCustody.CustodianType.OPC,
-            agent=cls.agent,
-        )
+        # ev_received fecha o trânsito com a receção no laboratório (perito).
         ChainOfCustody.objects.create(
             evidence=cls.ev_received,
-            event_type=ChainOfCustody.EventType.TRANSFERENCIA,
+            event_type=ChainOfCustody.EventType.RECEPCAO_CUSTODIA,
             custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
-            agent=cls.agent,
+            custodian_institution=cls.lab,
+            agent=cls.expert,
         )
 
     def setUp(self):
@@ -180,28 +202,32 @@ class OccurrenceIntakeRenderTest(TestCase):
 
     def test_template_inclui_contagem(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        self.assertIn(b'Itens esperados', response.content)
-        # 3 evidências criadas no setup.
-        self.assertIn(b'>3<', response.content)
+        # O cabeçalho da receção mostra a contagem em texto livre
+        # (`{{ evidence_count }} ite{{ ...|pluralize }}`). 3 evidências no setup.
+        self.assertIn(b'3 itens', response.content)
 
-    def test_template_marca_recebidas_como_disabled(self):
+    def test_template_recebidas_nao_tem_checkbox(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        # Tolerante a whitespace: procura por `disabled` perto do id do checkbox
-        # da evidência já recebida.
-        ev_id_str = f'id="ev-{self.ev_received.id}"'.encode()
-        self.assertIn(ev_id_str, response.content)
-        idx = response.content.find(ev_id_str)
-        chunk = response.content[idx : idx + 200]
-        self.assertIn(b'disabled', chunk)
+        # A evidência já recebida não é selecionável: a sua linha mostra o
+        # estado "Já recebida" (em vez de um checkbox `evidence_ids`).
+        self.assertNotIn(
+            f'name="evidence_ids" value="{self.ev_received.id}"'.encode(),
+            response.content,
+        )
+        self.assertIn(b'>J\xc3\xa1 recebida<', response.content)
 
-    def test_template_pendentes_nao_estao_disabled(self):
+    def test_template_pendentes_tem_checkbox_selecionavel(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        ev_id_str = f'id="ev-{self.ev_in_transit.id}"'.encode()
-        idx = response.content.find(ev_id_str)
-        chunk = response.content[idx : idx + 200]
-        self.assertNotIn(b'disabled', chunk)
+        # As evidências ainda não recebidas têm um checkbox `evidence_ids`
+        # pré-marcado para a receção em lote.
+        chk = f'name="evidence_ids" value="{self.ev_in_transit.id}" checked'.encode()
+        self.assertIn(chk, response.content)
 
-    def test_template_inclui_target_state(self):
+    def test_template_indica_recepcao_de_prova_encaminhada(self):
         response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
-        # Intake regista um evento TRANSFERENCIA (→ LAB_PUBLICO) em lote.
-        self.assertIn(b'TRANSFERENCIA', response.content)
+        # Intake = fase 2 do handoff (ADR-0016 v2): regista a RECEÇÃO da prova
+        # encaminhada. O DOM não expõe o enum cru; comunica-o no cabeçalho.
+        self.assertIn(
+            'Receção de prova encaminhada'.encode(),
+            response.content,
+        )

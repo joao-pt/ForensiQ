@@ -39,6 +39,9 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from core.labels import LEGAL_STATE_LABELS
+from core.utils import get_user_display_name, sort_custody_chain
+
 # ---------------------------------------------------------------------------
 # Sanitização — proteção contra injecção em Paragraph
 # ---------------------------------------------------------------------------
@@ -350,7 +353,7 @@ def _fmt_gps(lat, lng):
 
 
 def _fmt_agent(user):
-    return _sanitize(user.get_full_name() or user.username)
+    return _sanitize(get_user_display_name(user))
 
 
 def _label_value_rows(pairs, styles, col_widths=(5 * cm, 12 * cm)):
@@ -701,7 +704,7 @@ def generate_evidence_pdf(evidence):
     # `all()` reaproveita o prefetch_related aplicado pela view (N12).
     # Ordenação ascendente em memória (o prefetch é -sequence; aqui
     # precisamos da ordem cronológica natural).
-    custody_records = sorted(evidence.custody_chain.all(), key=lambda r: r.sequence)
+    custody_records = sort_custody_chain(evidence.custody_chain.all())
     story += _custody_table(custody_records, styles)
 
     # Declaração
@@ -722,19 +725,6 @@ def generate_evidence_pdf(evidence):
 # ---------------------------------------------------------------------------
 
 
-# Rótulos humanos do estado legal derivado (ADR-0015) para o PDF.
-_LEGAL_STATE_LABELS = {
-    'a_guarda_opc': 'À guarda do OPC',
-    'validada': 'Validada',
-    'em_pericia': 'Em perícia',
-    'pericia_concluida': 'Perícia concluída',
-    'encaminhada': 'Encaminhada',
-    'restituida': 'Restituída',
-    'perdida_favor_estado': 'Perdida a favor do Estado',
-    'destruida': 'Destruída',
-}
-
-
 def _current_custody_state(evidence):
     """Devolve (label sanitizado do estado legal derivado, último record).
 
@@ -751,10 +741,10 @@ def _current_custody_state(evidence):
     records = list(evidence.custody_chain.all())
     if not records:
         return ('—', None)
-    records.sort(key=lambda r: r.sequence)
+    records = sort_custody_chain(records)
     last = records[-1]
     estado = derive_legal_state(records)
-    return (_sanitize(_LEGAL_STATE_LABELS.get(estado, estado)), last)
+    return (_sanitize(LEGAL_STATE_LABELS.get(estado, estado)), last)
 
 
 def generate_occurrence_pdf(occurrence):

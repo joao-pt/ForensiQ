@@ -927,18 +927,18 @@ class CustodyFilterTest(APITestCase):
             reverse('core:custody-list'),
             {
                 'evidence': self.ev.pk,
-                'event_type': 'APREENSAO',
+                'event_type': 'APREENSAO_OBJETO',
                 'custodian_type': 'OPC',
                 'observations': 'Apreensão teste filtro',
             },
         )
 
     def test_filter_by_event_type(self):
-        url = reverse('core:custody-list') + '?event_type=APREENSAO'
+        url = reverse('core:custody-list') + '?event_type=APREENSAO_OBJETO'
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         events = [r['event_type'] for r in response.data['results']]
-        self.assertTrue(all(e == 'APREENSAO' for e in events))
+        self.assertTrue(all(e == 'APREENSAO_OBJETO' for e in events))
 
     def test_filter_by_legal_state(self):
         url = reverse('core:custody-list') + '?legal_state=a_guarda_opc'

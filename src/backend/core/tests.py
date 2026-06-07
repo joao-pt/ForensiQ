@@ -17,8 +17,9 @@ PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 
 import hashlib
 import unittest
-from datetime import UTC, timedelta, timezone as dt_timezone
+from datetime import UTC, timedelta
 from decimal import Decimal
+from unittest import mock
 
 from django.core.exceptions import ValidationError
 from django.db import DatabaseError, connection
@@ -45,7 +46,7 @@ class UserModelTest(TestCase):
         user = User.objects.create_user(
             username='agente01',
             password='test12345',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-1234',
         )
         self.assertTrue(user.is_agent)
@@ -56,7 +57,8 @@ class UserModelTest(TestCase):
         user = User.objects.create_user(
             username='perito01',
             password='test12345',
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
         )
         self.assertFalse(user.is_agent)
         self.assertTrue(user.is_expert)
@@ -86,7 +88,7 @@ class OccurrenceModelTest(TestCase):
         )
         # __str__ combina NUIPC + código interno gerado (OCC-YYYY-NNNNN).
         self.assertTrue(str(occ).startswith('Ocorrência NUIPC-2026-001'))
-        self.assertIn('OCC-', str(occ))
+        self.assertIn('OC-', str(occ))
         self.assertIsNotNone(occ.created_at)
 
 
@@ -165,7 +167,8 @@ class ChainOfCustodyModelTest(TestCase):
         self.expert = User.objects.create_user(
             username='perito01',
             password='test12345',
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
         )
         self.occurrence = Occurrence.objects.create(
             crime_type=CrimeTipoFactory(),
@@ -189,58 +192,59 @@ class ChainOfCustodyModelTest(TestCase):
     # --- Primeiro evento de uma evidência ---
 
     def test_primeiro_evento_apreensao_passa(self):
-        record = self._evento(EventType.APREENSAO, custodian_type=CustodianType.OPC)
+        record = self._evento(EventType.APREENSAO_OBJETO, custodian_type=CustodianType.OPC)
         self.assertEqual(len(record.record_hash), 64)
         self.assertEqual(record.sequence, 1)
 
     def test_primeiro_evento_diferente_de_apreensao_falha(self):
         with self.assertRaises(ValidationError):
-            self._evento(EventType.VALIDACAO)
+            self._evento(EventType.VALIDACAO_APREENSAO)
 
     def test_apreensao_so_pode_ser_primeiro(self):
-        self._evento(EventType.APREENSAO)
+        self._evento(EventType.APREENSAO_OBJETO)
         with self.assertRaises(ValidationError):
-            self._evento(EventType.APREENSAO)
+            self._evento(EventType.APREENSAO_OBJETO)
 
     # --- Guarda da validação ---
 
     def test_validacao_requer_apreensao_previa(self):
-        # Primeiro evento tem de ser APREENSAO; aqui forçamos uma evidência
-        # nova cujo 1.º evento seria VALIDACAO — bloqueado pela guarda do 1.º.
+        # Primeiro evento tem de ser APREENSAO_OBJETO; aqui forçamos uma evidência
+        # nova cujo 1.º evento seria VALIDACAO_APREENSAO — bloqueado pela guarda do 1.º.
         with self.assertRaises(ValidationError):
-            self._evento(EventType.VALIDACAO)
+            self._evento(EventType.VALIDACAO_APREENSAO)
 
     def test_validacao_so_uma_vez(self):
-        self._evento(EventType.APREENSAO)
-        self._evento(EventType.VALIDACAO)
+        self._evento(EventType.APREENSAO_OBJETO)
+        self._evento(EventType.VALIDACAO_APREENSAO)
         with self.assertRaises(ValidationError):
-            self._evento(EventType.VALIDACAO)
+            self._evento(EventType.VALIDACAO_APREENSAO)
 
     def test_validacao_fora_de_prazo_aceite_mas_assinalada(self):
-        """VALIDACAO >72h após apreensão é aceite, mas validation_overdue=True."""
-        apre = self._evento(EventType.APREENSAO)
-        # Recuar o timestamp da apreensão >72h (UPDATE directo na BD; o trigger
-        # PG bloqueia, mas em SQLite-de-teste passa — só precisamos do estado).
-        ChainOfCustody.objects.filter(pk=apre.pk).update(
-            timestamp=timezone.now() - timedelta(hours=80)
-        )
-        record = self._evento(EventType.VALIDACAO)
+        """VALIDACAO_APREENSAO >72h após apreensão é aceite, mas validation_overdue=True."""
+        # A apreensão tem de ficar >72h no passado. O ledger é imutável (o
+        # trigger PostgreSQL bloqueia qualquer UPDATE), por isso não se retrodata
+        # com .update(); congela-se o relógio do servidor só durante a criação
+        # da apreensão — o save() força timestamp = timezone.now().
+        backdated = timezone.now() - timedelta(hours=80)
+        with mock.patch('core.models.timezone.now', return_value=backdated):
+            self._evento(EventType.APREENSAO_OBJETO)
+        record = self._evento(EventType.VALIDACAO_APREENSAO)
         self.assertTrue(record.validation_overdue)
 
     def test_validacao_dentro_do_prazo_nao_assinalada(self):
-        self._evento(EventType.APREENSAO)
-        record = self._evento(EventType.VALIDACAO)
+        self._evento(EventType.APREENSAO_OBJETO)
+        record = self._evento(EventType.VALIDACAO_APREENSAO)
         self.assertFalse(record.validation_overdue)
 
     # --- Guarda da perícia ---
 
     def test_inicio_pericia_sem_despacho_falha(self):
-        self._evento(EventType.APREENSAO)
+        self._evento(EventType.APREENSAO_OBJETO)
         with self.assertRaises(ValidationError):
             self._evento(EventType.INICIO_PERICIA)
 
     def test_inicio_pericia_com_despacho_passa(self):
-        self._evento(EventType.APREENSAO)
+        self._evento(EventType.APREENSAO_OBJETO)
         self._evento(EventType.DESPACHO_PERICIA)
         record = self._evento(EventType.INICIO_PERICIA)
         self.assertEqual(record.event_type, EventType.INICIO_PERICIA)
@@ -248,29 +252,29 @@ class ChainOfCustodyModelTest(TestCase):
     # --- Terminais fecham o ledger ---
 
     def test_terminal_restituicao_fecha(self):
-        self._evento(EventType.APREENSAO)
+        self._evento(EventType.APREENSAO_OBJETO)
         self._evento(EventType.RESTITUICAO, custodian_type=CustodianType.PROPRIETARIO)
         with self.assertRaises(ValidationError):
-            self._evento(EventType.TRANSFERENCIA)
+            self._evento(EventType.TRANSFERENCIA_CUSTODIA)
 
     def test_terminal_destruicao_fecha(self):
-        self._evento(EventType.APREENSAO)
+        self._evento(EventType.APREENSAO_OBJETO)
         self._evento(EventType.DESTRUICAO)
         with self.assertRaises(ValidationError):
-            self._evento(EventType.TRANSFERENCIA)
+            self._evento(EventType.TRANSFERENCIA_CUSTODIA)
 
     # --- Ordem livre e repetível ---
 
     def test_ordem_livre_transferencias_e_pericias_repetidas(self):
-        self._evento(EventType.APREENSAO, custodian_type=CustodianType.OPC)
-        self._evento(EventType.VALIDACAO, custodian_type=CustodianType.OPC)
+        self._evento(EventType.APREENSAO_OBJETO, custodian_type=CustodianType.OPC)
+        self._evento(EventType.VALIDACAO_APREENSAO, custodian_type=CustodianType.OPC)
         self._evento(EventType.DESPACHO_PERICIA, custodian_type=CustodianType.OPC)
-        self._evento(EventType.TRANSFERENCIA, custodian_type=CustodianType.LAB_PUBLICO)
+        self._evento(EventType.TRANSFERENCIA_CUSTODIA, custodian_type=CustodianType.LAB_PUBLICO)
         self._evento(EventType.INICIO_PERICIA, custodian_type=CustodianType.LAB_PUBLICO)
         self._evento(EventType.CONCLUSAO_PERICIA, custodian_type=CustodianType.LAB_PUBLICO)
         # Nova perícia noutro laboratório (Art. 158.º) — encaminhamento de volta.
-        self._evento(EventType.TRANSFERENCIA, custodian_type=CustodianType.OPC)
-        self._evento(EventType.TRANSFERENCIA, custodian_type=CustodianType.LAB_PRIVADO)
+        self._evento(EventType.TRANSFERENCIA_CUSTODIA, custodian_type=CustodianType.OPC)
+        self._evento(EventType.TRANSFERENCIA_CUSTODIA, custodian_type=CustodianType.LAB_PRIVADO)
         self._evento(EventType.INICIO_PERICIA, custodian_type=CustodianType.LAB_PRIVADO)
         self.assertEqual(self.evidence.custody_chain.count(), 9)
 
@@ -278,21 +282,21 @@ class ChainOfCustodyModelTest(TestCase):
 
     def test_update_blocked(self):
         """Atualizar um registo existente deve levantar ValidationError."""
-        record = self._evento(EventType.APREENSAO)
+        record = self._evento(EventType.APREENSAO_OBJETO)
         record.observations = 'Tentativa de alteração.'
         with self.assertRaises(ValidationError):
             record.save()
 
     def test_delete_blocked(self):
         """Eliminar um registo deve levantar ValidationError."""
-        record = self._evento(EventType.APREENSAO)
+        record = self._evento(EventType.APREENSAO_OBJETO)
         with self.assertRaises(ValidationError):
             record.delete()
 
     def test_hash_chain_integrity(self):
         """Hashes encadeiam-se (blockchain-like) e recomputam-se."""
-        r1 = self._evento(EventType.APREENSAO, custodian_type=CustodianType.OPC)
-        r2 = self._evento(EventType.VALIDACAO, custodian_type=CustodianType.OPC)
+        r1 = self._evento(EventType.APREENSAO_OBJETO, custodian_type=CustodianType.OPC)
+        r2 = self._evento(EventType.VALIDACAO_APREENSAO, custodian_type=CustodianType.OPC)
 
         self.assertNotEqual(r1.record_hash, r2.record_hash)
         self.assertEqual(len(r1.record_hash), 64)
@@ -340,7 +344,7 @@ class DeriveLegalStateTest(TestCase):
 
     def test_a_guarda_opc(self):
         ev = self._evidence('DLS-1')
-        eventos = self._chain(ev, [(EventType.APREENSAO, CustodianType.OPC)])
+        eventos = self._chain(ev, [(EventType.APREENSAO_OBJETO, CustodianType.OPC)])
         self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
 
     def test_validada(self):
@@ -348,8 +352,8 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
-                (EventType.VALIDACAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
             ],
         )
         self.assertEqual(derive_legal_state(eventos), 'validada')
@@ -359,9 +363,12 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
-                (EventType.VALIDACAO, CustodianType.OPC),
-                (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
+                # Gate (ADR-0016 v2): o laboratório exige um despacho prévio.
+                (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                # Movimentação LEGADO (um só tempo) — ainda deriva 'encaminhada'.
+                (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
             ],
         )
         self.assertEqual(derive_legal_state(eventos), 'encaminhada')
@@ -371,9 +378,9 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
             ],
         )
@@ -384,7 +391,7 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
@@ -398,7 +405,7 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
@@ -412,7 +419,7 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.RESTITUICAO, CustodianType.PROPRIETARIO),
             ],
         )
@@ -423,7 +430,7 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.PERDA_FAVOR_ESTADO, CustodianType.DEPOSITARIO),
             ],
         )
@@ -434,7 +441,7 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.DESTRUICAO, CustodianType.DEPOSITARIO),
             ],
         )
@@ -450,11 +457,11 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
-                (EventType.TRANSFERENCIA, CustodianType.LAB_PRIVADO),
+                (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PRIVADO),
             ],
         )
         self.assertEqual(derive_legal_state(eventos), 'encaminhada')
@@ -465,9 +472,9 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
-                (EventType.VALIDACAO, CustodianType.OPC),
-                (EventType.TRANSFERENCIA, CustodianType.TRIBUNAL),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
+                (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.TRIBUNAL),
             ],
         )
         self.assertEqual(derive_legal_state(eventos), 'encaminhada')
@@ -478,11 +485,11 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(
             ev,
             [
-                (EventType.APREENSAO, CustodianType.OPC),
+                (EventType.APREENSAO_OBJETO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
-                (EventType.TRANSFERENCIA, CustodianType.OPC),
+                (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.OPC),
             ],
         )
         self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
@@ -510,7 +517,7 @@ class CustodyHashFormulaTest(TestCase):
         """Constrói (sem gravar) um registo já com sequence/timestamp fixos."""
         defaults = dict(
             evidence=self.evidence,
-            event_type=EventType.APREENSAO,
+            event_type=EventType.APREENSAO_OBJETO,
             custodian_type=CustodianType.OPC,
             agent=self.agent,
             sequence=1,
@@ -533,7 +540,7 @@ class CustodyHashFormulaTest(TestCase):
         rec = self._build(
             sequence=2,
             timestamp=ts,
-            event_type=EventType.TRANSFERENCIA,
+            event_type=EventType.TRANSFERENCIA_CUSTODIA,
             custodian_type=CustodianType.LAB_PUBLICO,
             location_name='Bomba BP, Av. da Liberdade | Lisboa',
             storage_location='Armário B-12, Sala 3',
@@ -543,14 +550,14 @@ class CustodyHashFormulaTest(TestCase):
             observations='obs reg',
         )
         prev = 'a' * 64
-        # String de dados esperada (13 segmentos, ordem fixa do ADR-0013).
+        # String de dados esperada (17 segmentos, ordem fixa — ADR-0013 + ADR-0016 §6).
         # event_type/custodian_type CRUS; texto livre escapado (| e , → \| \,);
-        # gps_* já com 7 casas; observations cru no fim.
+        # gps_* já com 7 casas; observations + selo por-evento no fim.
         esperado = (
             f'{prev}|'
             'seq=2|'
             f'{self.evidence.id}|'
-            'TRANSFERENCIA|'
+            'TRANSFERENCIA_CUSTODIA|'
             'LAB_PUBLICO|'
             f'{self.agent.id}|'
             '2026-05-30T12:00:00+00:00|'
@@ -560,6 +567,8 @@ class CustodyHashFormulaTest(TestCase):
             r'Bomba BP\, Av. da Liberdade \| Lisboa|'
             r'Armário B-12\, Sala 3|'
             'obs reg'
+            # Selo por-evento (ADR-0016 §6) — vazios/falsos neste vetor.
+            '|sealed=0|sealcond=|newseal=|relinq='
         )
         esperado_hash = hashlib.sha256(esperado.encode('utf-8')).hexdigest()
         self.assertEqual(rec.compute_record_hash(previous_hash=prev), esperado_hash)
@@ -603,7 +612,7 @@ class CustodyHashFormulaTest(TestCase):
         a partir do registo relido da BD bate certo com o gravado."""
         rec = ChainOfCustody(
             evidence=self.evidence,
-            event_type=EventType.APREENSAO,
+            event_type=EventType.APREENSAO_OBJETO,
             custodian_type=CustodianType.OPC,
             agent=self.agent,
             gps_lat=Decimal('38.72234'),
@@ -653,7 +662,7 @@ class ImmutabilityTriggerTest(TestCase):
         )
         self.record = ChainOfCustody(
             evidence=self.evidence,
-            event_type=EventType.APREENSAO,
+            event_type=EventType.APREENSAO_OBJETO,
             custodian_type=CustodianType.OPC,
             agent=self.agent,
         )
@@ -667,7 +676,7 @@ class ImmutabilityTriggerTest(TestCase):
         with self.assertRaises(DatabaseError), connection.cursor() as cur:
             cur.execute(
                 'UPDATE core_chainofcustody SET event_type = %s WHERE id = %s',
-                [EventType.VALIDACAO, self.record.pk],
+                [EventType.VALIDACAO_APREENSAO, self.record.pk],
             )
 
     @unittest.skipUnless(connection.vendor == 'postgresql', _ONLY_PG)

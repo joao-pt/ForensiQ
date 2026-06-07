@@ -1,34 +1,28 @@
-{% load static %}<!DOCTYPE html>
-<html lang="pt-PT">
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-PT" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <title>ForensiQ — Talão não encontrado</title>
-    <link rel="stylesheet" href="{% static 'css/main.css' %}" nonce="{{ request.csp_nonce }}">
-    <style nonce="{{ request.csp_nonce }}">
-        body { background: #f5f5f5; }
-        .verify-wrap { max-width: 480px; margin: 4rem auto; padding: 0 1rem; text-align: center; }
-        .verify-card { background: #fff; padding: 2rem; border-radius: 8px;
-                       box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-        h1 { font-size: 1.4rem; color: #0F1115; margin: 0 0 .5rem; }
-        p { color: #6B7280; line-height: 1.5; }
-        .verify-cta { background: #B45309; color: #fff; padding: .75rem 1.25rem;
-                      border-radius: 4px; text-decoration: none; font-weight: 600;
-                      display: inline-block; margin-top: 1rem; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0F1115">
+  <meta name="robots" content="noindex">
+  <title>Não encontrado — ForensiQ</title>
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 </head>
 <body>
-    <main class="verify-wrap">
-        <article class="verify-card">
-            <h1>Talão não reconhecido</h1>
-            <p>
-                O código de verificação não corresponde a nenhum talão
-                de transporte activo. Verifica se digitalizaste o QR
-                completo, ou contacta a equipa que emitiu o talão.
-            </p>
-            <a href="/login/" class="verify-cta">Aceder com login</a>
-        </article>
-    </main>
+  <main class="pubdoc">
+    <div class="pubdoc__brand">
+      <svg viewBox="0 0 56 48" aria-hidden="true">
+        <circle cx="22" cy="24" r="10" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+        <circle cx="34" cy="24" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      </svg>
+      ForensiQ
+    </div>
+    <h1 class="pubdoc__title">Referência não encontrada</h1>
+    <p class="pubdoc__sub">O código de verificação não corresponde a nenhuma ocorrência, ou o seu segredo foi rotacionado.</p>
+    <p class="pubdoc__note">Por motivos de segurança, não distinguimos entre uma referência inexistente e uma expirada.</p>
+  </main>
 </body>
 </html>

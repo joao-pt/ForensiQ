@@ -1,0 +1,15 @@
+{% comment %}
+  Banda de erros de topo dos formulários (fonte ÚNICA). Mostra os erros não
+  ligados a um campo — `non_field_errors` (validação cruzada do serializer) e
+  `geral` (erros de processo construídos na view). Os formulários que só usam
+  `geral` (ex.: encaminhar) ficam idênticos: o laço de `non_field_errors` não
+  itera quando a chave não vem no contexto.
+{% endcomment %}
+{% if errors.non_field_errors or errors.geral %}
+<div class="section" role="alert">
+  <div class="section__body">
+    {% for e in errors.non_field_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+    {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
+  </div>
+</div>
+{% endif %}

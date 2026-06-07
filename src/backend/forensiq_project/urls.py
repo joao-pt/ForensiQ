@@ -22,6 +22,7 @@ import os
 
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import TemplateView
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularSwaggerView,
@@ -34,6 +35,7 @@ from core.auth_views import (
     CookieRefreshView,
 )
 from core.frontend_views import (
+    arquivo_view,
     custody_evidence_redirect,
     custody_list_view,
     custody_singular_redirect,
@@ -43,10 +45,14 @@ from core.frontend_views import (
     evidence_singular_redirect,
     evidences_new_view,
     evidences_view,
+    inbound_view,
+    institution_new_view,
+    institutions_view,
     investigation_report_view,
     login_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
+    occurrence_encaminhar_view,
     occurrence_intake_view,
     occurrence_singular_redirect,
     occurrences_new_view,
@@ -55,6 +61,7 @@ from core.frontend_views import (
     reports_view,
     settings_view,
     stats_view,
+    verifications_view,
 )
 from core.views import MediaServeView
 
@@ -96,14 +103,37 @@ urlpatterns = [
     path('login/', login_view, name='login'),
     path('dashboard/', dashboard_view, name='dashboard'),
 
+    # PWA — service worker (scope raiz) + manifest. Servidos por template para
+    # que {% static %} resolva os caminhos com hashing (WhiteNoise) em produção.
+    path(
+        'sw.js',
+        TemplateView.as_view(template_name='sw.js', content_type='application/javascript'),
+        name='service_worker',
+    ),
+    path(
+        'manifest.webmanifest',
+        TemplateView.as_view(
+            template_name='manifest.webmanifest', content_type='application/manifest+json'
+        ),
+        name='manifest',
+    ),
+
     # Ocorrências
     path('occurrences/', occurrences_view, name='occurrences'),
     path('occurrences/new/', occurrences_new_view, name='occurrences_new'),
+    # Arquivo — processos concluídos (itens todos em estado terminal)
+    path('arquivo/', arquivo_view, name='arquivo'),
     path('occurrences/<int:occurrence_id>/', occurrence_detail_view, name='occurrence_detail'),
     path(
         'occurrences/<int:occurrence_id>/intake/',
         occurrence_intake_view,
         name='occurrence_intake',
+    ),
+    # Encaminhar prova em lote (handoff, ADR-0016 v2) — ação in-place (modal)
+    path(
+        'occurrences/<int:occurrence_id>/encaminhar/',
+        occurrence_encaminhar_view,
+        name='occurrence_encaminhar',
     ),
 
     # Evidências
@@ -115,6 +145,14 @@ urlpatterns = [
     # Custódias
     path('custodies/', custody_list_view, name='custodies'),
 
+    # Caixa "prova a chegar" — avisos de encaminhamento para a minha instituição,
+    # por receber (2.ª metade do handoff, ADR-0016 v2). Liga ao intake/receber.
+    path('inbound/', inbound_view, name='inbound'),
+
+    # Instituições (pontos de controlo fixos) — gestão (staff/NACIONAL)
+    path('institutions/', institutions_view, name='institutions'),
+    path('institutions/new/', institution_new_view, name='institution_new'),
+
     # Relatórios PDF, estatísticas e definições
     path('reports/', reports_view, name='reports'),
     path('stats/', stats_view, name='stats'),
@@ -122,6 +160,10 @@ urlpatterns = [
 
     # Auditoria — relatório estático de investigação de erros
     path('audit/investigation/', investigation_report_view, name='investigation_report'),
+
+    # Centro de verificação / QR (operador EXPERT/staff) — gestão, não pesquisa
+    # pública (ADR-0012 §6). Resolve hash/código → ocorrência.
+    path('verificacoes/', verifications_view, name='verifications'),
 
     # Verificação pública via QR (ADR-0012 Vaga 1) — sem auth.
     # URL curta `/v/<hash>/` para QR codes denso (texto curto).

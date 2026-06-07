@@ -8,6 +8,10 @@ Formaliza o tema **T20** do `o plano interno de refactor` (Fase 2 do refactor). 
 
 Substitui o desenho de máquina-de-estados linear que descrevia a `ChainOfCustody` (`CustodyState` + `VALID_TRANSITIONS`). A descrição antiga do T20 no `plano interno de refactor` (grafo ramificado, `VALID_TRANSITIONS` alargado, +4 estados) fica **substituída** por este modelo de ledger de eventos.
 
+> **Nota de superveniência.** Os nomes dos eventos descritos neste ADR foram depois refinados, sem alterar a semântica de ledger aqui fixada. O ADR-0016 desdobrou a génese por proveniência — `APREENSAO` passou a `APREENSAO_OBJETO`/`APREENSAO_DADOS` e acrescentou-se `DERIVACAO_ITEM`; `VALIDACAO` passou a `VALIDACAO_APREENSAO`. O ADR-0017 separou a transferência de custódia nos dois lados do movimento — `TRANSFERENCIA` (push, entrega) e `ASSUNCAO_CUSTODIA` (pull, recepção). O código actual reflecte estes nomes (`EventType`, `src/backend/core/models.py:1315-1343`), com as guardas a operar sobre conjuntos de eventos de génese (`GENESIS_EVENTS`, `SEIZURE_GENESIS_EVENTS`) em vez da guarda literal `APREENSAO`. A guarda `INICIO_PERICIA` ⇐ `DESPACHO_PERICIA` mantém-se. Tudo o resto deste ADR permanece válido.
+>
+> **Âncoras de linha.** Os restantes números de linha citados ao longo deste ADR refletem o estado do `models.py` *à data da decisão* (a versão de partida a refatorar e o plano de execução do T20); o código atual é a fonte de verdade — p.ex. `derive_legal_state` em `core/models.py:1378`, `compute_record_hash` em `:1801`, e o `ChainOfCustodyViewSet`/`ChainOfCustodySerializer` cujos intervalos exactos se deslocaram com o crescimento dos ficheiros.
+
 ## Data
 
 2026-05-30
@@ -114,7 +118,7 @@ Abandono a máquina de estados. A `ChainOfCustody` passa a ser um **ledger de ev
 
 - **Gravar o estado legal como coluna materializada.** Rejeito — abriria a porta a um estado gravado que contradiz o log (a coluna e a sequência de eventos divergirem). A única fonte de verdade é o log; o estado é derivado em leitura.
 
-- **Tabela curada de instalações** (esquadras/labs/tribunais como dados de referência). Rejeito — o universo de locais (cena do crime incluída) é aberto e geográfico; uma tabela curada nunca cobriria as cenas de crime e duplicaria informação que o OSM já tem. Revisível se o orientador pedir uma lista controlada de laboratórios oficiais.
+- **Tabela curada de instalações** (esquadras/labs/tribunais como dados de referência). Rejeito — o universo de locais (cena do crime incluída) é aberto e geográfico; uma tabela curada nunca cobriria as cenas de crime e duplicaria informação que o OSM já tem. Revisível caso se justifique uma lista controlada de laboratórios oficiais.
 
 ## Consequences
 
@@ -133,14 +137,14 @@ Abandono a máquina de estados. A `ChainOfCustody` passa a ser um **ledger de ev
 - **Estado legal derivado tem de ser testado.** A função de derivação é lógica nova e precisa de cobertura (cada estado de leitura a partir de sequências representativas). É trabalho real, não cosmético.
 - **Dependência forte do ADR-0013.** A fórmula do hash — com `event_type`/`custodian_type`/`location_name`/`storage_location` — vive no ADR-0013. Este ADR consome-a; acoplamento assumido e sequenciado (T01 antes de T20, plano interno de refactor §5).
 - **Nova origem externa (Overpass).** A pesquisa de POIs introduz dependência de `overpass-api.de` (latência, rate-limits, disponibilidade). Mitigação: timeout curto à imagem dos 5s do Nominatim (`core/views.py:1019`), degradação graciosa (502 + entrada manual do `location_name`), e o mesmo throttle `reverse_geocode`.
-- **CSP a actualizar.** Autorizar Overpass exige acrescentar `https://overpass-api.de` ao `connect-src` em `core/middleware.py:123` (a regra do projecto pede middleware + ADR juntos — este ADR satisfaz o requisito). Sem isto, em produção (CSP enforced) a pesquisa de POIs falha silenciosamente.
+- **CSP sem alteração.** A pesquisa de POIs é um proxy server-side (`NearbyPOIsView`): o browser chama o endpoint próprio do ForensiQ, já coberto por `connect-src 'self'`, e é o servidor — não o browser — que contacta o Overpass. A CSP **não** precisa de listar `https://overpass-api.de`; o `connect-src` mantém-se `'self' https://nominatim.openstreetmap.org` (`core/middleware.py:150`). Mantém-se a garantia RGPD: as coordenadas não saem do browser para terceiros.
 
 ### Impactos noutros documentos
 
 - **`docs/architecture/adr/ADR-0013-gps-cadeia-custodia.md`**: dono único da fórmula do `record_hash`. A fórmula passa a referir `event_type`/`custodian_type` (em vez de `previous_state`/`new_state`) e inclui o segmento de localização (`location_name`, `storage_location`). Este ADR-0015 **consome** essa fórmula e define a semântica dos campos; não a redefine.
 - **`o plano interno de refactor`**: T20 passa de "decisão (FSM ramificada)" a "ADR escrito (ledger de eventos)"; a descrição antiga do T20 (grafo / `VALID_TRANSITIONS` / +4 estados) fica substituída. Referência cruzada a este ficheiro em §3 e §5.
 - **`a especificação de art direction`** (Fase 3): o `transition_modal` ganha selector de `event_type`, selector de `custodian_type`, captura GPS e selecção de POI (OSM). O mini-mapa "Cadeia" mostra a trajetória com nós nomeados; a timeline mostra evento + custódio + local por passo. A legenda passa a usar o estado legal derivado.
-- **`src/backend/core/middleware.py`**: `connect-src` a incluir `https://overpass-api.de` (a coordenar com a actualização de CSP do T08).
+- **`src/backend/core/middleware.py`**: sem alteração. Como a pesquisa de POIs é proxy server-side (`NearbyPOIsView`), o `connect-src` mantém-se `'self' https://nominatim.openstreetmap.org` — o browser nunca contacta o Overpass directamente.
 - **Documentação de conformidade ISO/IEC 27037 / `docs/scope/`**: o ledger de eventos reforça a rastreabilidade do percurso legal da prova; revisitar a matriz de traceabilidade para reflectir `event_type`/`custodian_type`/localização como campos cobertos pelos triggers de imutabilidade.
 
 ## Implementação
@@ -286,7 +290,7 @@ Não redefino a fórmula. O `compute_record_hash` (`core/models.py:1052-1094`) p
 - Acrescentar acção/endpoint de pesquisa de POIs próximos (ex.: `GET /api/nearby-pois/?lat=&lon=&radius=`), com `permission_classes = [IsAuthenticated, IsAgentOrExpert]`, `throttle_scope = 'reverse_geocode'` (reutilizar o scope), proxy server-side para Overpass (`https://overpass-api.de/api/interpreter`), timeout ≤5s (par com `_TIMEOUT_SECONDS`, `core/views.py:1019`), `User-Agent` `ForensiQ/1.0 (forensiq.pt)`, degradação graciosa (502 → entrada manual).
 - Filtrar POIs por tags OSM relevantes (`amenity=police`, `amenity=courthouse`, edifícios/marcos para cena de crime).
 - Devolver ao frontend só o necessário (nome, tipo, distância, lat/lon) — minimização, à imagem do `ReverseGeocodeView` (`core/views.py:1074-1088`).
-- **CSP (coordenar com T08):** acrescentar `https://overpass-api.de` ao `connect-src` (`core/middleware.py:123`). `connect-src` final esperado: `'self' https://nominatim.openstreetmap.org https://overpass-api.de`.
+- **CSP:** sem alteração. O Overpass é contactado pelo servidor (proxy server-side, `NearbyPOIsView`); o browser só fala com o endpoint próprio, coberto por `connect-src 'self'`. O `connect-src` mantém-se `'self' https://nominatim.openstreetmap.org` (`core/middleware.py:150`) — **não** se acrescenta `https://overpass-api.de`.
 
 ### Serializer / API
 

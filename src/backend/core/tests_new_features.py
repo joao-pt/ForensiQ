@@ -135,9 +135,9 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
         )
         # Avança ev_in_analysis até estar em perícia (estado derivado em_pericia).
         for event_type, custodian_type in [
-            (EventType.APREENSAO, CustodianType.OPC),
+            (EventType.APREENSAO_OBJETO, CustodianType.OPC),
             (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-            (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+            (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
             (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
         ]:
             ChainOfCustody.objects.create(
@@ -148,7 +148,7 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
             )
         ChainOfCustody.objects.create(
             evidence=self.ev_apreendida,
-            event_type=EventType.APREENSAO,
+            event_type=EventType.APREENSAO_OBJETO,
             custodian_type=CustodianType.OPC,
             agent=self.agent,
         )
@@ -157,7 +157,7 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
         qs = Evidence.objects.with_current_state().filter(occurrence=self.occurrence)
         events = {e.id: e.current_event_type for e in qs}
         self.assertEqual(events[self.ev_in_analysis.id], 'INICIO_PERICIA')
-        self.assertEqual(events[self.ev_apreendida.id], 'APREENSAO')
+        self.assertEqual(events[self.ev_apreendida.id], 'APREENSAO_OBJETO')
 
     def test_evidences_filter_by_state(self):
         self.client.force_authenticate(self.agent)
@@ -231,11 +231,18 @@ class CascadeCustodyTest(BaseAPITestCase):
             parent_evidence=self.parent,
             agent=self.agent,
         )
-        # Evento inicial APREENSAO para todos.
-        for ev in [self.parent, self.sim, self.sd]:
+        # Génese por proveniência (ADR-0016 §2): raiz por apreensão de objeto,
+        # sub-componentes por derivação de item.
+        ChainOfCustody.objects.create(
+            evidence=self.parent,
+            event_type=EventType.APREENSAO_OBJETO,
+            custodian_type=CustodianType.OPC,
+            agent=self.agent,
+        )
+        for ev in [self.sim, self.sd]:
             ChainOfCustody.objects.create(
                 evidence=ev,
-                event_type=EventType.APREENSAO,
+                event_type=EventType.DERIVACAO_ITEM,
                 custodian_type=CustodianType.OPC,
                 agent=self.agent,
             )
@@ -246,17 +253,17 @@ class CascadeCustodyTest(BaseAPITestCase):
             '/api/custody/cascade/',
             {
                 'evidence_ids': [self.parent.id, self.sim.id, self.sd.id],
-                'event_type': 'VALIDACAO',
+                'event_type': 'TRANSFERENCIA_CUSTODIA',
                 'custodian_type': 'OPC',
                 'observations': 'Validação em conjunto',
             },
             format='json',
         )
         self.assertEqual(resp.status_code, 201, resp.content)
-        # 3 novos eventos (em adição às 3 APREENSAO)
+        # 3 novos eventos (em adição às 3 APREENSAO_OBJETO)
         for ev in [self.parent, self.sim, self.sd]:
             last = ev.custody_chain.order_by('-sequence').first()
-            self.assertEqual(last.event_type, 'VALIDACAO')
+            self.assertEqual(last.event_type, 'TRANSFERENCIA_CUSTODIA')
 
     def test_cascade_partial_subset(self):
         """Pode-se passar só um subconjunto — restantes ficam no evento anterior."""
@@ -265,7 +272,7 @@ class CascadeCustodyTest(BaseAPITestCase):
             '/api/custody/cascade/',
             {
                 'evidence_ids': [self.parent.id, self.sim.id],
-                'event_type': 'VALIDACAO',
+                'event_type': 'TRANSFERENCIA_CUSTODIA',
                 'custodian_type': 'OPC',
                 'observations': 'Sem o SD',
             },
@@ -274,18 +281,18 @@ class CascadeCustodyTest(BaseAPITestCase):
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(
             self.parent.custody_chain.order_by('-sequence').first().event_type,
-            'VALIDACAO',
+            'TRANSFERENCIA_CUSTODIA',
         )
-        # SD não avançou — continua no evento de apreensão.
+        # SD não avançou — continua na sua génese (derivação de sub-componente).
         self.assertEqual(
             self.sd.custody_chain.order_by('-sequence').first().event_type,
-            'APREENSAO',
+            'DERIVACAO_ITEM',
         )
 
     def test_cascade_rolls_back_on_invalid_event(self):
         """Se o evento é inválido para uma evidência, todas revertem."""
         # Fecha o SIM com um evento terminal (RESTITUICAO): qualquer evento
-        # seguinte (incl. VALIDACAO) é rejeitado pela guarda dos terminais.
+        # seguinte (incl. TRANSFERENCIA_CUSTODIA) é rejeitado pela guarda dos terminais.
         ChainOfCustody.objects.create(
             evidence=self.sim,
             event_type=EventType.RESTITUICAO,
@@ -301,7 +308,7 @@ class CascadeCustodyTest(BaseAPITestCase):
             '/api/custody/cascade/',
             {
                 'evidence_ids': [self.parent.id, self.sim.id, self.sd.id],
-                'event_type': 'VALIDACAO',
+                'event_type': 'TRANSFERENCIA_CUSTODIA',
                 'custodian_type': 'OPC',
             },
             format='json',
@@ -317,7 +324,7 @@ class CascadeCustodyTest(BaseAPITestCase):
         other = User.objects.create_user(
             username='outro_agent',
             password='X12345678!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-OUTRO-99',
         )
         self.client.force_authenticate(other)
@@ -325,7 +332,7 @@ class CascadeCustodyTest(BaseAPITestCase):
             '/api/custody/cascade/',
             {
                 'evidence_ids': [self.parent.id],
-                'event_type': 'VALIDACAO',
+                'event_type': 'TRANSFERENCIA_CUSTODIA',
                 'custodian_type': 'OPC',
             },
             format='json',
@@ -336,7 +343,7 @@ class CascadeCustodyTest(BaseAPITestCase):
         self.client.force_authenticate(self.agent)
         resp = self.client.post(
             '/api/custody/cascade/',
-            {'evidence_ids': [], 'event_type': 'VALIDACAO'},
+            {'evidence_ids': [], 'event_type': 'TRANSFERENCIA_CUSTODIA'},
             format='json',
         )
         self.assertEqual(resp.status_code, 400)
@@ -386,7 +393,7 @@ class MediaServeTest(BaseAPITestCase):
         other = User.objects.create_user(
             username='outro_media',
             password='X12345678!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-MEDIA-99',
         )
         self.client.force_authenticate(other)
@@ -499,6 +506,27 @@ class NearbyPOIsViewTest(BaseAPITestCase):
             resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
         self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)
 
+    def test_overpass_url_from_settings(self):
+        """A URL do Overpass vem de ``settings.OVERPASS_API_URL`` (repointável
+        para uma instância self-hosted sem alterar código)."""
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {'elements': []}
+
+        self.authenticate_as(self.agent)
+        fake = 'https://overpass.interno.local/api/interpreter'
+        with (
+            self.settings(OVERPASS_API_URL=fake),
+            mock.patch('core.views.httpx.post', return_value=_Resp()) as mpost,
+        ):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(mpost.call_args.args[0], fake)
+
     def test_throttle_scope_is_reverse_geocode(self):
         """O endpoint reusa o scope de throttle 'reverse_geocode' (ADR-0015)."""
         from core.views import NearbyPOIsView
@@ -533,3 +561,73 @@ class NearbyPOIsViewTest(BaseAPITestCase):
             second = self.client.get(self.URL, {'lat': '38.7', 'lon': '-9.1'})
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+# ---------------------------------------------------------------------------
+# Geocodificação inversa — proxy Nominatim server-side (RGPD)
+# ---------------------------------------------------------------------------
+
+
+class ReverseGeocodeViewTest(BaseAPITestCase):
+    """Proxy server-side de geocodificação inversa: validação, payload e a
+    URL externa lida de ``settings.NOMINATIM_REVERSE_URL`` (repointável)."""
+
+    URL = '/api/reverse-geocode/'
+
+    def test_requires_lat_lon(self):
+        self.authenticate_as(self.agent)
+        resp = self.client.get(self.URL)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_success_returns_minimal_address(self):
+        """A resposta do Nominatim é reduzida aos campos que o frontend compõe."""
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    'display_name': 'Rua Augusta, Lisboa, Portugal',
+                    'address': {
+                        'road': 'Rua Augusta',
+                        'house_number': '10',
+                        'city': 'Lisboa',
+                        'country': 'Portugal',
+                    },
+                }
+
+        self.authenticate_as(self.agent)
+        with mock.patch('core.views.httpx.get', return_value=_Resp()):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertEqual(data['address']['road'], 'Rua Augusta')
+        self.assertEqual(data['address']['city'], 'Lisboa')
+
+    def test_nominatim_url_from_settings(self):
+        """A URL do Nominatim vem de ``settings.NOMINATIM_REVERSE_URL``."""
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {'display_name': '', 'address': {}}
+
+        self.authenticate_as(self.agent)
+        fake = 'https://nominatim.interno.local/reverse'
+        with (
+            self.settings(NOMINATIM_REVERSE_URL=fake),
+            mock.patch('core.views.httpx.get', return_value=_Resp()) as mget,
+        ):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(mget.call_args.args[0], fake)
+
+    def test_unavailable_returns_502(self):
+        """Indisponibilidade do Nominatim degrada graciosamente (502)."""
+        self.authenticate_as(self.agent)
+        with mock.patch('core.views.httpx.get', side_effect=httpx.ConnectError('down')):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)

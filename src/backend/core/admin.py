@@ -10,24 +10,62 @@ from .models import (
     CrimeSubcategoria,
     CrimeTipo,
     Evidence,
+    EvidenceFieldDef,
+    EvidenceTypeRef,
+    FieldOption,
+    Institution,
+    InstitutionMembership,
     Occurrence,
     PoliticaCriminalPrioridade,
+    Portador,
     PrioridadeCrimeTipo,
+    ProvaEmTransito,
     User,
 )
 
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ('username', 'email', 'get_full_name', 'profile', 'badge_number', 'is_active')
-    list_filter = ('profile', 'is_active', 'is_staff')
+    list_display = (
+        'username',
+        'email',
+        'get_full_name',
+        'profile',
+        'clearance',
+        'badge_number',
+        'is_active',
+    )
+    list_filter = ('profile', 'clearance', 'is_active', 'is_staff')
     search_fields = ('username', 'email', 'first_name', 'last_name', 'badge_number')
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('ForensiQ', {'fields': ('profile', 'badge_number', 'phone')}),
+        ('ForensiQ', {'fields': ('profile', 'clearance', 'badge_number', 'phone')}),
     )
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ('ForensiQ', {'fields': ('profile', 'badge_number')}),
+        ('ForensiQ', {'fields': ('profile', 'clearance', 'badge_number')}),
     )
+
+
+class InstitutionMembershipInline(admin.TabularInline):
+    model = InstitutionMembership
+    extra = 0
+    raw_id_fields = ('user',)
+
+
+@admin.register(Institution)
+class InstitutionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'type', 'sigla', 'is_active')
+    list_filter = ('type', 'is_active')
+    search_fields = ('name', 'sigla')
+    ordering = ('name',)
+    inlines = [InstitutionMembershipInline]
+
+
+@admin.register(InstitutionMembership)
+class InstitutionMembershipAdmin(admin.ModelAdmin):
+    list_display = ('user', 'institution', 'is_active', 'joined_at')
+    list_filter = ('is_active', 'institution__type')
+    search_fields = ('user__username', 'institution__name', 'institution__sigla')
+    raw_id_fields = ('user', 'institution')
 
 
 @admin.register(Occurrence)
@@ -128,6 +166,79 @@ class ChainOfCustodyAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Registos de custódia são imutáveis — sem eliminação."""
         return False
+
+
+@admin.register(Portador)
+class PortadorAdmin(admin.ModelAdmin):
+    """Portadores (ADR-0016 v2) — dado de referência mutável, gerido no admin.
+
+    O Portador NÃO concede acesso (é metadado); o que entra no ledger é o
+    *snapshot* no momento do encaminhamento, imutável.
+    """
+
+    list_display = ('matricula', 'apelido', 'nome', 'posto', 'is_active', 'user')
+    list_filter = ('is_active', 'posto')
+    search_fields = ('matricula', 'nome', 'apelido', 'posto')
+    raw_id_fields = ('user',)
+    ordering = ('apelido', 'nome')
+
+
+@admin.register(ProvaEmTransito)
+class ProvaEmTransitoAdmin(admin.ModelAdmin):
+    """Caixa "prova a chegar" (ADR-0016 v2) — leitura/reconhecimento manual."""
+
+    list_display = ('pk', 'evidence', 'destino_institution', 'created_at', 'acknowledged_at')
+    list_filter = ('destino_institution', 'acknowledged_at')
+    search_fields = ('evidence__code',)
+    raw_id_fields = ('evidence', 'encaminhamento_event', 'destino_institution')
+    readonly_fields = ('encaminhamento_event', 'created_at')
+
+
+# ---------------------------------------------------------------------------
+# Configuração de campos por tipo de evidência (dados de referência editáveis)
+# ---------------------------------------------------------------------------
+
+
+class FieldOptionInline(admin.TabularInline):
+    model = FieldOption
+    extra = 1
+
+
+@admin.register(EvidenceFieldDef)
+class EvidenceFieldDefAdmin(admin.ModelAdmin):
+    list_display = (
+        'evidence_type',
+        'key',
+        'label',
+        'input',
+        'required',
+        'validator',
+        'sensitive',
+        'order',
+        'is_active',
+    )
+    list_filter = ('evidence_type', 'input', 'required', 'sensitive', 'is_active')
+    search_fields = ('key', 'label', 'evidence_type')
+    ordering = ('evidence_type', 'order', 'key')
+    inlines = [FieldOptionInline]
+
+
+@admin.register(EvidenceTypeRef)
+class EvidenceTypeRefAdmin(admin.ModelAdmin):
+    """Catálogo editável de tipos de evidência (ADR-0018).
+
+    ``code`` é WRITE-ONCE (entra no registo e no hash): editável só na criação,
+    só-leitura depois. Acrescentam-se códigos novos; nunca se renomeiam.
+    """
+
+    list_display = ('code', 'label', 'is_active', 'order')
+    list_editable = ('label', 'is_active', 'order')
+    list_filter = ('is_active',)
+    search_fields = ('code', 'label')
+    ordering = ('order', 'code')
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('code',) if obj is not None else ()
 
 
 @admin.register(AuditLog)

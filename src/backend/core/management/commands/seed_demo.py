@@ -3,7 +3,8 @@
 O comando suporta três modos:
 
 * ``--users-only`` cria/actualiza apenas os dois utilizadores demo
-  (perfis AGENT e EXPERT). Idempotente, não destrutivo.
+  (FIRST_RESPONDER e FORENSIC_EXPERT) e as instituições base. Idempotente,
+  não destrutivo.
 * ``--reset`` apaga TODOS os dados em ``core_*`` e recria utilizadores +
   cinco ocorrências realistas com cadeia de custódia em vários estados.
 * Sem flags: comporta-se como ``--reset`` se a base estiver vazia. Se já
@@ -39,6 +40,7 @@ Exemplos:
 from __future__ import annotations
 
 import getpass
+import hashlib
 import shutil
 from datetime import timedelta
 from decimal import Decimal
@@ -63,7 +65,11 @@ from core.models import (
     CustodianType,
     EventType,
     Evidence,
+    Institution,
+    InstitutionMembership,
+    InstitutionType,
     Occurrence,
+    Portador,
 )
 
 User = get_user_model()
@@ -131,8 +137,9 @@ def _make_placeholder_photo(evidence_type: str, label: str, sub: str) -> Content
 
 class Command(BaseCommand):
     help = (
-        'Seed interactivo: cria utilizadores demo (AGENT/EXPERT) e, com '
-        '--reset, popula a BD com cinco ocorrências realistas + itens.'
+        'Seed interactivo: cria utilizadores demo (FIRST_RESPONDER/'
+        'FORENSIC_EXPERT) + instituições e, com --reset, popula a BD com '
+        'cinco ocorrências realistas + itens.'
     )
 
     def add_arguments(self, parser):
@@ -160,6 +167,15 @@ class Command(BaseCommand):
         parser.add_argument('--agent-password', help='Password para o perfil AGENT.')
         parser.add_argument('--expert-username', help='Username para o perfil EXPERT.')
         parser.add_argument('--expert-password', help='Password para o perfil EXPERT.')
+        parser.add_argument(
+            '--demo-password',
+            default='Forensiq#Demo2026',
+            help=(
+                'Password (DEMONSTRAÇÃO, não-produção) partilhada pelo roster de '
+                'utilizadores por instituição. Tem default conhecido para a demo; '
+                'substitua-a (ou use credenciais por utilizador) em qualquer uso real.'
+            ),
+        )
 
     # ----- entry point -----
 
@@ -206,6 +222,8 @@ class Command(BaseCommand):
             secret=True,
         )
 
+        demo_password = (options.get('demo_password') or 'Forensiq#Demo2026').strip()
+
         if agent_username == expert_username:
             raise CommandError('Username do AGENT e do EXPERT têm de ser distintos.')
 
@@ -215,7 +233,8 @@ class Command(BaseCommand):
         agent = self._upsert_user(
             username=agent_username,
             password=agent_password,
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
+            clearance=User.Clearance.NORMAL,
             first_name='Agente',
             last_name='Demo',
             email=f'{agent_username}@forensiq.demo',
@@ -224,20 +243,31 @@ class Command(BaseCommand):
         expert = self._upsert_user(
             username=expert_username,
             password=expert_password,
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
             first_name='Perito',
             last_name='Demo',
             email=f'{expert_username}@forensiq.demo',
             badge_number='EXPERT-DEMO',
         )
 
+        # Organização (ADR-0017): instituições custódias básicas + pertenças.
+        institutions = self._seed_organizations(agent, expert)
+
+        # Roster de demonstração: VÁRIOS utilizadores por instituição, cobrindo os
+        # 6 papéis do ADR-0017 em várias cidades/serviços. Sem isto a demo só tinha
+        # um agente e um perito; assim exibe o modelo função+credencial+instituição
+        # com pluralidade realista (várias esquadras, laboratórios, DIAP, tribunal).
+        extra = self._seed_org_roster(institutions, demo_password)
+        all_users = [agent, expert] + extra
+
         if users_only:
-            self._print_summary([agent, expert], cases_created=False)
+            self._print_summary(all_users, cases_created=False)
             return
 
         # Modo --reset (acabámos de truncar) ou BD vazia → criar cases.
-        cases = self._create_cases(agent, expert)
-        self._print_summary([agent, expert], cases_created=True, cases=cases)
+        cases = self._create_cases(agent, expert, institutions)
+        self._print_summary(all_users, cases_created=True, cases=cases)
 
     # ----- helpers de input -----
 
@@ -285,6 +315,328 @@ class Command(BaseCommand):
         self.stdout.write(f"   Utilizador '{username}' [{verb}, perfil={defaults['profile']}].")
         return user
 
+    def _seed_organizations(self, agent, expert):
+        """Cria instituições custódias básicas e liga os utilizadores (ADR-0017).
+
+        A custódia é institucional: o agente pertence a um OPC, o perito a um
+        laboratório público. Tribunal e serviço do MP ficam disponíveis para
+        os fluxos de encaminhamento/validação. Idempotente.
+        """
+        # Instituições REAIS do sistema de justiça/forense português (nomes
+        # oficiais, moradas e contactos públicos das páginas institucionais;
+        # GPS geocodificado via OpenStreetMap/Nominatim e verificado). A operação
+        # (casos, prova, pessoas) é fictícia — só a REFERÊNCIA é real, para a
+        # simulação dar um retrato fiel. As siglas são chaves de junção internas:
+        # PSP-LSB/LPC/TJ-LSB são usadas por _create_cases; o roster liga-se por
+        # sigla. A instituição fixa fornece a coordenada da RECEÇÃO (ADR-0016 v2),
+        # por isso cada uma traz lat/lng a 7 casas. Co-localizações são reais (a
+        # PJ-LSB, o LPC e o GRA partilham a sede da PJ; o Campus da Justiça reúne
+        # o tribunal criminal, o DIAP Regional e o GAB).
+        specs = [
+            # --- OPC — Órgãos de polícia criminal ---
+            {
+                'name': 'Polícia Judiciária — Diretoria de Lisboa e Vale do Tejo',
+                'type': InstitutionType.OPC, 'sigla': 'PJ-LSB',
+                'address': 'Rua Gomes Freire 174, 1169-007 Lisboa',
+                'gps_lat': Decimal('38.7242504'), 'gps_lng': Decimal('-9.1400002'),
+                'email': 'directoria.lisboa@pj.pt', 'phone': '+351 211 967 000',
+            },
+            {
+                'name': 'Polícia Judiciária — Diretoria do Norte',
+                'type': InstitutionType.OPC, 'sigla': 'PJ-PRT',
+                'address': 'Rua Assis Vaz 113, 4200-096 Porto',
+                'gps_lat': Decimal('41.1686723'), 'gps_lng': Decimal('-8.5949168'),
+                'email': 'directoria.porto@pj.pt', 'phone': '+351 225 582 000',
+            },
+            {
+                'name': 'Polícia de Segurança Pública — Comando Metropolitano de Lisboa',
+                'type': InstitutionType.OPC, 'sigla': 'PSP-LSB',
+                'address': 'Avenida de Moscavide 88, 1886-502 Moscavide',
+                'gps_lat': Decimal('38.7807906'), 'gps_lng': Decimal('-9.1022257'),
+                'email': 'cmlisboa@psp.pt', 'phone': '+351 217 654 242',
+            },
+            {
+                'name': 'Polícia de Segurança Pública — Comando Metropolitano do Porto',
+                'type': InstitutionType.OPC, 'sigla': 'PSP-PRT',
+                'address': 'Largo 1.º de Dezembro, 4000-404 Porto',
+                'gps_lat': Decimal('41.1428407'), 'gps_lng': Decimal('-8.6090011'),
+                'email': 'cmporto@psp.pt', 'phone': '+351 222 092 000',
+            },
+            {
+                'name': 'Guarda Nacional Republicana — Comando-Geral',
+                'type': InstitutionType.OPC, 'sigla': 'GNR',
+                'address': 'Largo do Carmo, 1200-092 Lisboa',
+                'gps_lat': Decimal('38.7119294'), 'gps_lng': Decimal('-9.1408449'),
+                'email': 'gnr@gnr.pt', 'phone': '+351 213 217 000',
+            },
+            # --- LAB_PUBLICO — Laboratórios públicos ---
+            {
+                'name': 'Laboratório de Polícia Científica da Polícia Judiciária',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'LPC',
+                'address': 'Rua Gomes Freire, 1169-007 Lisboa',
+                'gps_lat': Decimal('38.7242504'), 'gps_lng': Decimal('-9.1400002'),
+                'email': 'direccao.lpc@pj.pt', 'phone': '+351 211 967 000',
+            },
+            {
+                'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
+                        '— Delegação do Norte',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-N',
+                'address': 'Jardim Carrilho Videira, 4050-167 Porto',
+                'gps_lat': Decimal('41.1481278'), 'gps_lng': Decimal('-8.6182326'),
+                'email': '', 'phone': '+351 222 073 850',
+            },
+            {
+                'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
+                        '— Delegação do Centro',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-C',
+                'address': 'Pólo das Ciências da Saúde (Pólo III), Azinhaga de Santa Comba, '
+                           '3000-548 Coimbra',
+                # GPS corrigido na verificação: o ponto original caía na Baixa; este
+                # resolve o campus Pólo III (Montes Claros), coerente com 3000-548.
+                'gps_lat': Decimal('40.2194533'), 'gps_lng': Decimal('-8.4176226'),
+                'email': '', 'phone': '+351 239 854 220',
+            },
+            {
+                'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
+                        '— Delegação do Sul',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-S',
+                'address': 'Rua Manuel Bento de Sousa, n.º 3, 1169-201 Lisboa',
+                'gps_lat': Decimal('38.7197895'), 'gps_lng': Decimal('-9.1381493'),
+                'email': '', 'phone': '+351 218 811 800',
+            },
+            # --- LAB_PRIVADO — Laboratórios privados ---
+            {
+                'name': 'Foren — Perícias Técnico-Científicas e Consultoria em Ciências Forenses',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'FOREN',
+                'address': 'Avenida Dr. Mário Moutinho 33-A, 1400-136 Lisboa',
+                'gps_lat': Decimal('38.7121529'), 'gps_lng': Decimal('-9.2124609'),
+                'email': 'info@foren.pt', 'phone': '+351 211 972 079',
+            },
+            {
+                'name': 'Código ADN — Centro de Genética e Vida',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'CODIGO-ADN',
+                'address': 'Praça Mouzinho de Albuquerque 113, 5.º, 4100-359 Porto',
+                'gps_lat': Decimal('41.1579217'), 'gps_lng': Decimal('-8.6291209'),
+                'email': 'info@codigoadn.pt', 'phone': '+351 220 417 190',
+            },
+            {
+                'name': 'Ncforenses — Ciências Forenses, Lda.',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'NCFORENSES',
+                'address': 'Rua do Visconde de Bóbeda 70, 1.º Frente, 4000-108 Porto',
+                # GPS corrigido na verificação (morada geocodificada em Bonfim).
+                'gps_lat': Decimal('41.1463701'), 'gps_lng': Decimal('-8.6004296'),
+                'email': '', 'phone': '+351 224 022 684',
+            },
+            # --- TRIBUNAL ---
+            {
+                'name': 'Juízo Central Criminal de Lisboa (Tribunal Judicial da Comarca '
+                        'de Lisboa) — Campus de Justiça',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-LSB',
+                'address': 'Avenida D. João II, n.º 1.08.01, Edifício A, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7625153'), 'gps_lng': Decimal('-9.0983215'),
+                'email': 'lisboa.centralcriminal@tribunais.org.pt', 'phone': '+351 213 218 300',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca do Porto — Palácio da Justiça',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-PRT',
+                'address': 'Campo dos Mártires da Pátria, 4099-012 Porto',
+                'gps_lat': Decimal('41.1452814'), 'gps_lng': Decimal('-8.6174251'),
+                'email': 'porto.judicial@tribunais.org.pt', 'phone': '+351 220 949 400',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca de Coimbra — Juízo Local Criminal',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-CBR',
+                'address': 'Palácio da Justiça, Rua da Sofia, 3000-389 Coimbra',
+                'gps_lat': Decimal('40.2130436'), 'gps_lng': Decimal('-8.4307168'),
+                'email': 'coimbra.ministeriopublico@tribunais.org.pt', 'phone': '+351 239 852 950',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca de Faro — Núcleo de Faro',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-FAR',
+                'address': 'Rua Pedro Nunes, 8-10, 3.º Andar, 8000-405 Faro',
+                'gps_lat': Decimal('37.0174374'), 'gps_lng': Decimal('-7.9241627'),
+                'email': 'faro.judicial@tribunais.org.pt', 'phone': '+351 289 892 900',
+            },
+            # --- MP — Ministério Público ---
+            {
+                'name': 'Departamento de Investigação e Ação Penal Regional de Lisboa',
+                'type': InstitutionType.MP, 'sigla': 'DIAP-LSB',
+                'address': 'Avenida D. João II, n.º 1.08.01, Edifícios C, D e E, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7620161'), 'gps_lng': Decimal('-9.0984064'),
+                'email': 'lisboa.diapregional@tribunais.org.pt', 'phone': '+351 213 188 600',
+            },
+            {
+                'name': 'Departamento de Investigação e Ação Penal Regional do Porto',
+                'type': InstitutionType.MP, 'sigla': 'DIAP-PRT',
+                'address': 'Rua de Camões, 155, 4049-074 Porto',
+                'gps_lat': Decimal('41.1532754'), 'gps_lng': Decimal('-8.6103149'),
+                'email': 'porto.diapregional@tribunais.org.pt', 'phone': '+351 225 513 510',
+            },
+            {
+                'name': 'Departamento de Investigação e Ação Penal Regional de Coimbra',
+                'type': InstitutionType.MP, 'sigla': 'DIAP-CBR',
+                'address': 'Rua da Sofia, n.º 175-4.º, 3004-502 Coimbra',
+                'gps_lat': Decimal('40.2136438'), 'gps_lng': Decimal('-8.4315312'),
+                'email': 'coimbra.diapregional@tribunais.org.pt', 'phone': '+351 239 852 260',
+            },
+            {
+                'name': 'Procuradoria da República da Comarca de Braga',
+                'type': InstitutionType.MP, 'sigla': 'PR-BRAGA',
+                'address': 'Praça da Justiça, 4719-004 Braga',
+                'gps_lat': Decimal('41.5481782'), 'gps_lng': Decimal('-8.4125099'),
+                'email': 'braga.ministeriopublico@tribunais.org.pt', 'phone': '+351 253 081 110',
+            },
+            # --- DEPOSITARIO — Depositários de bens apreendidos ---
+            {
+                'name': 'Gabinete de Recuperação de Ativos',
+                'type': InstitutionType.DEPOSITARIO, 'sigla': 'GRA',
+                'address': 'Rua Gomes Freire, n.º 174, 1169-007 Lisboa',
+                'gps_lat': Decimal('38.7242504'), 'gps_lng': Decimal('-9.1400002'),
+                'email': 'gra@pj.pt', 'phone': '+351 211 967 000',
+            },
+            {
+                'name': 'Autoridade Tributária e Aduaneira',
+                'type': InstitutionType.DEPOSITARIO, 'sigla': 'AT',
+                'address': 'Rua da Prata, n.º 10, 1149-027 Lisboa',
+                'gps_lat': Decimal('38.7088122'), 'gps_lng': Decimal('-9.1359944'),
+                'email': '', 'phone': '+351 218 812 600',
+            },
+            {
+                'name': 'Gabinete de Administração de Bens',
+                'type': InstitutionType.DEPOSITARIO, 'sigla': 'GAB',
+                'address': 'Avenida D. João II, Lote 1.08.01 D – Edifício H, '
+                           'Campus da Justiça, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7620161'), 'gps_lng': Decimal('-9.0984064'),
+                'email': 'correio@igfej.mj.pt', 'phone': '+351 217 907 700',
+            },
+        ]
+        institutions = {}
+        for spec in specs:
+            inst, _ = Institution.objects.update_or_create(
+                name=spec['name'],
+                type=spec['type'],
+                defaults={
+                    'sigla': spec['sigla'],
+                    'is_active': True,
+                    'address': spec['address'],
+                    'gps_lat': spec['gps_lat'],
+                    'gps_lng': spec['gps_lng'],
+                    'email': spec['email'],
+                    'phone': spec['phone'],
+                },
+            )
+            institutions[spec['sigla']] = inst
+
+        for user, inst in ((agent, institutions['PSP-LSB']), (expert, institutions['LPC'])):
+            InstitutionMembership.objects.update_or_create(
+                user=user,
+                institution=inst,
+                defaults={'is_active': True},
+            )
+        self.stdout.write(
+            f'   Instituições: {len(institutions)} criadas/actualizadas; '
+            f'pertenças: {agent.username}@PSP-LSB, {expert.username}@LPC.'
+        )
+        return institutions
+
+    def _seed_org_roster(self, institutions, password):
+        """Provisiona VÁRIOS utilizadores por instituição (demo, ADR-0017).
+
+        Cobre os 6 papéis (FIRST_RESPONDER, FORENSIC_EXPERT, EVIDENCE_CUSTODIAN,
+        CASE_AUTHORITY, CHEFE_SERVICO, AUDITOR) em várias organizações/cidades,
+        com várias contas por organização. Todos com a MESMA password de
+        DEMONSTRAÇÃO (``password``, não-produção, impressa no resumo). Idempotente
+        (upsert por username); cada utilizador é ligado à sua instituição.
+
+        Notas de modelagem para a demo do controlo de acesso:
+        - inclui peritos com credencial NORMAL (perito.lpc2, perito.priv1) para
+          exibir a leitura total do perito POR FUNÇÃO (Emenda ADR-0017 2026-06-05);
+        - chefes/auditor/MP têm credencial NACIONAL (leitura nacional).
+        """
+        P = User.Profile
+        C = User.Clearance
+        # sigla -> [(username, profile, clearance, first_name, last_name, badge), ...]
+        roster = [
+            ('PSP-LSB', [
+                ('agente.lsb1', P.FIRST_RESPONDER, C.NORMAL, 'Rui', 'Almeida', 'PSP-LSB-101'),
+                ('agente.lsb2', P.FIRST_RESPONDER, C.NORMAL, 'Sofia', 'Marques', 'PSP-LSB-102'),
+                ('chefe.lsb', P.CHEFE_SERVICO, C.NACIONAL, 'Helena', 'Costa', 'PSP-LSB-CH'),
+            ]),
+            ('PSP-PRT', [
+                ('agente.prt1', P.FIRST_RESPONDER, C.NORMAL, 'Tiago', 'Ferreira', 'PSP-PRT-201'),
+                ('agente.prt2', P.FIRST_RESPONDER, C.NORMAL, 'Inês', 'Pinto', 'PSP-PRT-202'),
+                ('chefe.prt', P.CHEFE_SERVICO, C.NACIONAL, 'Paulo', 'Sousa', 'PSP-PRT-CH'),
+            ]),
+            ('GNR', [
+                ('agente.gnr1', P.FIRST_RESPONDER, C.NORMAL, 'Carla', 'Nunes', 'GNR-301'),
+                ('chefe.gnr', P.CHEFE_SERVICO, C.NACIONAL, 'Mário', 'Lopes', 'GNR-CH'),
+            ]),
+            ('LPC', [
+                ('perito.lpc1', P.FORENSIC_EXPERT, C.NACIONAL, 'André', 'Reis', 'LPC-E1'),
+                ('perito.lpc2', P.FORENSIC_EXPERT, C.NORMAL, 'Beatriz', 'Cardoso', 'LPC-E2'),
+                ('custodio.lpc', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Jorge', 'Tavares', 'LPC-CUS'),
+            ]),
+            ('FOREN', [
+                ('perito.priv1', P.FORENSIC_EXPERT, C.NORMAL, 'Núria', 'Gomes', 'PRIV-E1'),
+                ('custodio.priv', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Diogo', 'Antunes', 'PRIV-CUS'),
+            ]),
+            ('DIAP-LSB', [
+                ('mp.lsb1', P.CASE_AUTHORITY, C.NACIONAL, 'Teresa', 'Lima', 'MP-LSB-1'),
+                ('mp.lsb2', P.CASE_AUTHORITY, C.NACIONAL, 'Ricardo', 'Matos', 'MP-LSB-2'),
+            ]),
+            ('DIAP-PRT', [
+                ('mp.prt1', P.CASE_AUTHORITY, C.NACIONAL, 'Cláudia', 'Rocha', 'MP-PRT-1'),
+            ]),
+            ('TJ-LSB', [
+                ('escrivao.tj', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Manuel', 'Cunha', 'TJ-LSB-ESC'),
+            ]),
+        ]
+
+        users = []
+        self._roster_by_org = []
+        for sigla, members in roster:
+            inst = institutions.get(sigla)
+            usernames = []
+            for username, profile, clearance, fn, ln, badge in members:
+                u = self._upsert_user(
+                    username=username,
+                    password=password,
+                    profile=profile,
+                    clearance=clearance,
+                    first_name=fn,
+                    last_name=ln,
+                    email=f'{username}@forensiq.demo',
+                    badge_number=badge,
+                )
+                if inst is not None:
+                    InstitutionMembership.objects.update_or_create(
+                        user=u, institution=inst, defaults={'is_active': True},
+                    )
+                users.append(u)
+                usernames.append(username)
+            self._roster_by_org.append((sigla, usernames))
+
+        # Auditor nacional — supervisão transversal, sem instituição própria.
+        auditor = self._upsert_user(
+            username='auditor.geral',
+            password=password,
+            profile=P.AUDITOR,
+            clearance=C.NACIONAL,
+            first_name='Auditor',
+            last_name='Geral',
+            email='auditor.geral@forensiq.demo',
+            badge_number='AUD-GERAL',
+        )
+        users.append(auditor)
+        self._roster_by_org.append(('(nacional)', ['auditor.geral']))
+
+        self._demo_password = password
+        self.stdout.write(
+            f'   Roster por instituição: {len(users)} utilizadores demo em '
+            f'{len(self._roster_by_org)} grupos.'
+        )
+        return users
+
     @transaction.atomic
     def _reset_database(self, *, wipe_media):
         self.stdout.write(self.style.WARNING('A apagar dados existentes...'))
@@ -299,6 +651,8 @@ class Command(BaseCommand):
                         core_evidence,
                         core_occurrence,
                         core_auditlog,
+                        core_institutionmembership,
+                        core_institution,
                         core_user
                     RESTART IDENTITY CASCADE
                 """)
@@ -308,7 +662,8 @@ class Command(BaseCommand):
             Evidence.objects.all()._raw_delete(Evidence.objects.db)
             Occurrence.objects.all().delete()
             AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
-            User.objects.all().delete()
+            User.objects.all().delete()  # cascata remove as pertenças
+            Institution.objects.all().delete()
 
         if wipe_media:
             media_root = Path(settings.MEDIA_ROOT)
@@ -322,7 +677,7 @@ class Command(BaseCommand):
 
     # ----- criação de casos forenses -----
 
-    def _create_cases(self, agent, expert):
+    def _create_cases(self, agent, expert, institutions):
         """Cria 5 ocorrências realistas com itens e cadeia de custódia."""
         self.stdout.write('A criar ocorrências e itens...')
 
@@ -359,6 +714,11 @@ class Command(BaseCommand):
             serial_number='F2LXV3PJ9K',
             agent=agent,
             type_specific_data={'imei': '353918023456789'},
+            bag_number='SACO-2026-0001',
+            initial_seal_number='SELO-2026-0001',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.MOBILE_DEVICE,
                 'Lisboa · 01',
@@ -389,8 +749,8 @@ class Command(BaseCommand):
                 c1,
                 [e1a, e1b],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 ],
             )
         )
@@ -419,6 +779,15 @@ class Command(BaseCommand):
             gps_lng=Decimal('-8.6109'),
             serial_number='C02ABCDEFGHJ',
             agent=agent,
+            bag_number='SACO-2026-0002',
+            initial_seal_number='SELO-2026-0002',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
+            acquisition_hash=hashlib.sha256(b'aquisicao-C02ABCDEFGHJ').hexdigest(),
+            acquisition_hash_algo='SHA-256',
+            acquisition_verification_status=Evidence.AcquisitionVerification.VERIFICADO,
+            acquisition_verification_note='Cópia forense verificada (source == cópia) no terreno.',
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.COMPUTER,
                 'Porto · 01',
@@ -435,6 +804,11 @@ class Command(BaseCommand):
             serial_number='RZ8M407JKLM',
             agent=agent,
             type_specific_data={'imei': '358412345987650'},
+            bag_number='SACO-2026-0003',
+            initial_seal_number='SELO-2026-0003',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.MOBILE_DEVICE,
                 'Porto · 02',
@@ -457,16 +831,17 @@ class Command(BaseCommand):
                 'SIM NOS — sub-componente do Samsung.',
             ),
         )
-        # Encaminhada ao laboratório público e em perícia.
+        # Despachada, encaminhada (portador) e recebida no laboratório, em perícia.
         cases.append(
             (
                 c2,
                 [e2a, e2b, e2c],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                     (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PUBLICO),
                     (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 ],
             )
@@ -495,22 +870,32 @@ class Command(BaseCommand):
             gps_lng=None,
             serial_number='NA8ABCDXYZ',
             agent=agent,
+            bag_number='SACO-2026-0004',
+            initial_seal_number='SELO-2026-0004',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
+            acquisition_hash=hashlib.sha256(b'aquisicao-NA8ABCDXYZ').hexdigest(),
+            acquisition_hash_algo='SHA-256',
+            acquisition_verification_status=Evidence.AcquisitionVerification.VERIFICADO,
+            acquisition_verification_note='Cópia forense verificada (source == cópia) no terreno.',
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.STORAGE_MEDIA,
                 'Coimbra · 01',
                 'Disco externo Seagate 2TB — burla bancária.',
             ),
         )
-        # Perícia concluída e prova restituída ao proprietário (terminal).
+        # Perícia concluída e prova restituída ao proprietário (terminal/arquivada).
         cases.append(
             (
                 c3,
                 [e3],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                     (EventType.DESPACHO_PERICIA, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO),
+                    (EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PUBLICO),
                     (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                     (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
                     (EventType.RESTITUICAO, CustodianType.PROPRIETARIO),
@@ -541,6 +926,11 @@ class Command(BaseCommand):
             gps_lng=Decimal('-8.4265'),
             serial_number='1581F5A0B0C0D',
             agent=agent,
+            bag_number='SACO-2026-0005',
+            initial_seal_number='SELO-2026-0005',
+            seal_packaging_description='Saco de prova selado no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.DRONE,
                 'Braga · 01',
@@ -563,15 +953,17 @@ class Command(BaseCommand):
                 'microSD 256 GB recuperado do drone.',
             ),
         )
-        # Encaminhada ao laboratório público (aguarda despacho/perícia).
+        # Despachada e encaminhada ao laboratório público — EM TRÂNSITO (ainda por
+        # receber): demonstra a caixa "prova a chegar" (ProvaEmTransito) no destino.
         cases.append(
             (
                 c4,
                 [e4a, e4b],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
-                    (EventType.TRANSFERENCIA, CustodianType.LAB_PUBLICO),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
+                    (EventType.DESPACHO_PERICIA, CustodianType.OPC),
+                    (EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO),
                 ],
             )
         )
@@ -601,6 +993,11 @@ class Command(BaseCommand):
             serial_number='WAUZZZ8E5BA123456',
             agent=agent,
             type_specific_data={'vin': '1HGBH41JXMN109186'},
+            bag_number='SACO-2026-0006',
+            initial_seal_number='SELO-2026-0006',
+            seal_packaging_description='Viatura selada e imobilizada no local da apreensão.',
+            initial_condition=Evidence.SealCondition.INTACTO,
+            sealed_by=agent,
             photo=_make_placeholder_photo(
                 Evidence.EvidenceType.VEHICLE,
                 'Faro · 01',
@@ -662,32 +1059,81 @@ class Command(BaseCommand):
                 c5,
                 [e5a, e5b, e5c, e5d],
                 [
-                    (EventType.APREENSAO, CustodianType.OPC),
-                    (EventType.VALIDACAO, CustodianType.OPC),
+                    (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                    (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 ],
             )
         )
 
         # Ledger de eventos — registar a sequência coerente de cada item.
-        # ChainOfCustody.timestamp é sempre fixado em save() via
-        # timezone.now() (NTP-synced server-side, ISO/IEC 27037).
-        # A ordem canónica é dada pelo campo sequence (auto-incrementado).
-        # Eventos no laboratório são da responsabilidade do perito (EXPERT).
+        # ChainOfCustody.timestamp é sempre fixado em save() via timezone.now()
+        # (NTP-synced server-side, ISO/IEC 27037); a ordem canónica é dada pelo
+        # campo sequence. A custódia é institucional (ADR-0017): cada evento
+        # carrega a instituição titular + a pessoa que detém/assina. A génese
+        # depende da proveniência (ADR-0016 §2): objeto físico → APREENSAO_OBJETO;
+        # cópia de dados → APREENSAO_DADOS; sub-componente → DERIVACAO_ITEM (e a
+        # sua cadeia começa na derivação, sem validação própria).
         lab_custodians = (CustodianType.LAB_PUBLICO, CustodianType.LAB_PRIVADO)
+        ct_to_inst = {
+            CustodianType.OPC: institutions.get('PSP-LSB'),
+            CustodianType.LAB_PUBLICO: institutions.get('LPC'),
+            CustodianType.LAB_PRIVADO: institutions.get('LPC'),
+            CustodianType.TRIBUNAL: institutions.get('TJ-LSB'),
+        }
+        # Portador (ADR-0016 v2): conduz a prova no ENCAMINHAMENTO; o snapshot
+        # (matrícula/nome/apelido/posto) entra na cadeia de hash. Idempotente.
+        portador, _ = Portador.objects.get_or_create(
+            matricula='PSP-114520',
+            defaults={'nome': 'Rui', 'apelido': 'Marques', 'posto': 'Agente Principal'},
+        )
         for _occurrence, evidences, eventos in cases:
             for ev in evidences:
-                for event_type, custodian_type in eventos:
-                    record = ChainOfCustody(
+                if ev.parent_evidence_id is not None:
+                    # Sub-componente: génese por derivação (cadeia própria mínima).
+                    custodian_type = eventos[0][1] if eventos else CustodianType.OPC
+                    ChainOfCustody(
                         evidence=ev,
-                        event_type=event_type,
+                        event_type=EventType.DERIVACAO_ITEM,
                         custodian_type=custodian_type,
-                        agent=expert if custodian_type in lab_custodians else agent,
-                        observations=(
-                            f'Evento de demonstração: {event_type} '
-                            f'(custódio {custodian_type}).'
-                        ),
-                    )
-                    record.save()
+                        custodian_institution=ct_to_inst.get(custodian_type),
+                        custodian_user=agent,
+                        agent=agent,
+                        observations='Sub-componente autonomizado a partir do item-pai.',
+                    ).save()
+                    continue
+
+                genesis = (
+                    EventType.APREENSAO_DADOS
+                    if ev.type == Evidence.EvidenceType.DIGITAL_FILE
+                    else EventType.APREENSAO_OBJETO
+                )
+                for idx, (event_type, custodian_type) in enumerate(eventos):
+                    et = genesis if idx == 0 else event_type
+                    # ENCAMINHAMENTO (ADR-0016 v2): a origem (OPC) entrega a prova a
+                    # um portador; fica em trânsito (titular = instituição de destino,
+                    # sem detentor pessoal, sem GPS). A receção/atos no lab são do perito.
+                    if et == EventType.ENCAMINHAMENTO_CUSTODIA:
+                        ChainOfCustody(
+                            evidence=ev,
+                            event_type=et,
+                            custodian_type=custodian_type,
+                            custodian_institution=ct_to_inst.get(custodian_type),
+                            custodian_user=None,
+                            bearer=portador,
+                            agent=agent,
+                            observations=f'Encaminhamento via portador {portador.matricula}.',
+                        ).save()
+                        continue
+                    acting = expert if custodian_type in lab_custodians else agent
+                    ChainOfCustody(
+                        evidence=ev,
+                        event_type=et,
+                        custodian_type=custodian_type,
+                        custodian_institution=ct_to_inst.get(custodian_type),
+                        custodian_user=acting,
+                        agent=acting,
+                        observations=f'Evento de demonstração: {et} (custódio {custodian_type}).',
+                    ).save()
 
         return cases
 
@@ -699,7 +1145,17 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS('SEED COMPLETO'))
         self.stdout.write(self.style.SUCCESS('=' * 60))
         for user in users:
-            self.stdout.write(f'   {user.profile:<8}  {user.username}')
+            self.stdout.write(f'   {user.profile:<18} {user.clearance:<9} {user.username}')
+        roster = getattr(self, '_roster_by_org', None)
+        if roster:
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING('Roster de demonstração (uma password para todos):'))
+            for sigla, usernames in roster:
+                self.stdout.write(f'   {sigla:<12} {", ".join(usernames)}')
+            self.stdout.write('')
+            self.stdout.write(self.style.WARNING(
+                f'Password do roster (DEMO, não-produção): {self._demo_password}'
+            ))
         self.stdout.write('')
         if cases_created and cases:
             num_items = sum(len(es) for _, es, _ in cases)

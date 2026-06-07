@@ -1,161 +1,215 @@
-{% extends "base.html" %}
-{% load static %}
+{% extends 'base.html' %}
+{% load static l10n %}
 
-{% block title %}ForensiQ — Item de prova{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/evidences/">Itens</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current" id="breadcrumb-title">Item</span>
-{% endblock %}
+{% block title %}{{ ev.code }} — ForensiQ{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/pages/evidence_detail.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/evidences/">Itens de prova</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current mono">{{ ev.code }}</span>
+{% endblock %}
+
+{% block drawer_title %}Item de prova{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione um sub-componente para ver a ficha (estado, hash, localização).</p>
 {% endblock %}
 
 {% block content %}
-<div class="page" data-evidence-id="{{ evidence_id }}">
+<article class="detail fullbleed" aria-labelledby="ev-title">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title" id="evidence-title">Item</h1>
-            <p class="page-subtitle" id="evidence-subtitle">A carregar…</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="/evidences/" class="btn btn-ghost btn-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="m15 18-6-6 6-6"/>
-                </svg>
-                Voltar
-            </a>
-            <a href="/evidences/{{ evidence_id }}/custody/" class="btn btn-subtle btn-sm" id="btn-custody">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-                </svg>
-                Cadeia de custódia
-            </a>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-evidence-pdf">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                    <path d="M14 3v6h6M9 13h6M9 17h4"/>
-                </svg>
-                Descarregar PDF
-            </button>
-        </div>
-    </header>
-
-    <!-- Aviso quando este item é um sub-componente de outro -->
-    <div class="callout info" id="parent-banner" hidden>
-        <svg class="callout-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
-            <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
-        </svg>
-        <div class="callout-body">
-            <strong>Sub-componente</strong> —
-            parte integrante de <a id="parent-link" href="#" class="text-accent">—</a>.
-            A cadeia de custódia do item principal acompanha este componente.
-        </div>
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="ev-title">{{ ev.code }}</h1>
+      <p class="detail__sub">{{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></p>
     </div>
-
-    <!-- Hash (integridade SHA-256) — protagonista forense -->
-    <section class="card integrity-card" id="integrity-card" hidden>
-        <div class="integrity-label">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/>
-                <path d="m9 12 2 2 4-4"/>
-            </svg>
-            <span>Hash SHA-256 (integridade)</span>
-        </div>
-        <code class="integrity-hash hash" id="integrity-hash">—</code>
-        <div class="integrity-meta" id="integrity-meta"></div>
-    </section>
-
-    <!-- Foto + metadados -->
-    <div class="evidence-layout">
-        <div class="card evidence-photo-card" id="evidence-photo-card" hidden>
-            <img id="evidence-photo" src="" alt="Fotografia do item apreendido" loading="lazy" decoding="async">
-        </div>
-
-        <div class="card">
-            <div class="section-label mb-3 px-0">Metadados</div>
-            <dl class="meta-list" id="evidence-meta">
-                <div class="meta-row">
-                    <dt>Tipo</dt>
-                    <dd><span class="badge badge-accent" id="meta-type">—</span></dd>
-                </div>
-                <div class="meta-row">
-                    <dt>Descrição</dt>
-                    <dd id="meta-description">—</dd>
-                </div>
-                <div class="meta-row">
-                    <dt>Apreensão</dt>
-                    <dd class="mono" id="meta-timestamp">—</dd>
-                </div>
-                <div class="meta-row" id="meta-serial-row" hidden>
-                    <dt>Nº de série</dt>
-                    <dd class="mono" id="meta-serial">—</dd>
-                </div>
-                <div class="meta-row" id="meta-gps-row" hidden>
-                    <dt>GPS</dt>
-                    <dd class="mono" id="meta-gps">—</dd>
-                </div>
-                <div class="meta-row">
-                    <dt>Agente</dt>
-                    <dd id="meta-agent">—</dd>
-                </div>
-                <div class="meta-row">
-                    <dt>Ocorrência</dt>
-                    <dd><a href="#" id="meta-occurrence" class="text-accent">—</a></dd>
-                </div>
-            </dl>
-        </div>
+    <div class="detail__actions">
+      {% with last_event=events|last %}
+      {% if last_event.event_type != 'RESTITUICAO' and last_event.event_type != 'DESTRUICAO' %}
+      <a class="btn-accent" href="/evidences/{{ ev.id }}/custody/#custody-register">
+        {% include 'partials/icons/_plus.html' %}
+        Registar evento
+      </a>
+      {% endif %}
+      {% endwith %}
+      <a class="btn-ghost" href="/evidences/{{ ev.id }}/custody/">
+        {% include 'partials/icons/_link.html' %}
+        Cadeia de custódia
+      </a>
+      <a class="btn-ghost" href="/api/evidences/{{ ev.id }}/pdf/">
+        {% include 'partials/icons/_file.html' %}
+        Guia PDF
+      </a>
     </div>
+  </header>
 
-    <!-- Sub-componentes integrantes (Evidence.sub_components) -->
-    <section id="sub-section" hidden>
-        <div class="section-label-row">
-            <span class="section-label">
-                Componentes integrantes
-                <span class="section-count" id="sub-count">0</span>
-            </span>
-            <a href="#" class="btn btn-subtle btn-sm" id="btn-add-sub" hidden>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"/>
-                </svg>
-                Adicionar sub-componente
-            </a>
-        </div>
-        <div id="sub-container" class="stack"></div>
+  {% if ev.photo %}
+  <figure class="photo-hero">
+    <img class="photo-hero__img" src="{{ ev.photo.url }}"
+         alt="Fotografia da evidência {{ ev.code }}" fetchpriority="high">
+  </figure>
+  {% endif %}
+
+  <div class="cols-2">
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Ficha do item</h2></header>
+      <div class="section__body">
+        <dl class="facts">
+          <div class="facts__row"><dt>Tipo</dt><dd>{{ ev.type_label }}</dd></div>
+          <div class="facts__row"><dt>Estado</dt><dd><span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></dd></div>
+          <div class="facts__row"><dt>Ocorrência</dt><dd class="mono"><a class="dd__full" href="/occurrences/{{ ev.occurrence_id }}/">{{ ev.occ_label }}</a></dd></div>
+          {% if ev.parent_evidence %}
+          <div class="facts__row"><dt>Pertence a</dt><dd class="mono"><a class="dd__full" href="/evidences/{{ ev.parent_evidence_id }}/">{{ ev.parent_evidence.code }}</a></dd></div>
+          {% endif %}
+          <div class="facts__row"><dt>Nº série</dt><dd class="mono">{{ ev.serial_number|default:'—' }}</dd></div>
+          <div class="facts__row"><dt>Apreensão</dt><dd class="mono">{{ ev.timestamp_seizure|date:'Y-m-d H:i' }}</dd></div>
+          <div class="facts__row"><dt>Agente</dt><dd>{{ ev.agent_label }}</dd></div>
+          <div class="facts__row"><dt>Hash do registo</dt>
+            <dd class="mono"><span class="dd__hash">{{ ev.integrity_hash }}</span>
+              <button type="button" class="copy-btn" data-copy="{{ ev.integrity_hash }}" aria-label="Copiar hash do registo" title="Copiar hash SHA-256 do registo">⧉</button></dd></div>
+          {% if ev.gps_lat is not None %}
+          <div class="facts__row"><dt>GPS</dt>
+            <dd class="mono">{{ ev.gps_lat|unlocalize }}, {{ ev.gps_lng|unlocalize }}
+              <button type="button" class="copy-btn" data-copy="{{ ev.gps_lat|unlocalize }},{{ ev.gps_lng|unlocalize }}" aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+          {% endif %}
+        </dl>
+
+        {% if ev.acquisition_hash %}
+        <h3 class="subhead">Aquisição</h3>
+        <dl class="facts">
+          <div class="facts__row"><dt>Hash de aquisição</dt>
+            <dd class="mono"><span class="dd__hash">{{ ev.acquisition_hash }}</span>
+              <button type="button" class="copy-btn" data-copy="{{ ev.acquisition_hash }}" aria-label="Copiar hash de aquisição" title="Copiar hash de aquisição">⧉</button></dd></div>
+          {% if ev.acquisition_hash_algo %}
+          <div class="facts__row"><dt>Algoritmo</dt><dd class="mono">{{ ev.acquisition_hash_algo }}</dd></div>
+          {% endif %}
+          {% if ev.acquisition_verification_status %}
+          <div class="facts__row"><dt>Verificação</dt><dd>{{ ev.get_acquisition_verification_status_display }}</dd></div>
+          {% endif %}
+          {% if ev.acquisition_verification_note %}
+          <div class="facts__row"><dt>Nota</dt><dd>{{ ev.acquisition_verification_note }}</dd></div>
+          {% endif %}
+        </dl>
+        {% endif %}
+
+        {% if ev.initial_seal_number or ev.bag_number or ev.initial_condition or ev.seal_packaging_description or ev.sealed_by %}
+        <h3 class="subhead">Selagem</h3>
+        <dl class="facts">
+          {% if ev.bag_number %}
+          <div class="facts__row"><dt>Nº saco</dt><dd class="mono">{{ ev.bag_number }}</dd></div>
+          {% endif %}
+          {% if ev.initial_seal_number %}
+          <div class="facts__row"><dt>Nº selo inicial</dt><dd class="mono">{{ ev.initial_seal_number }}</dd></div>
+          {% endif %}
+          {% if ev.initial_condition %}
+          <div class="facts__row"><dt>Condição inicial</dt><dd>{{ ev.get_initial_condition_display }}</dd></div>
+          {% endif %}
+          {% if ev.seal_packaging_description %}
+          <div class="facts__row"><dt>Acondicionamento</dt><dd>{{ ev.seal_packaging_description }}</dd></div>
+          {% endif %}
+          {% if ev.sealed_by %}
+          <div class="facts__row"><dt>Selado por</dt><dd>{{ ev.sealed_by.get_full_name|default:ev.sealed_by.username }}</dd></div>
+          {% endif %}
+        </dl>
+        {% endif %}
+
+        {% if ev.type_specific_data %}
+        <h3 class="subhead">Dados específicos</h3>
+        <dl class="facts">
+          {% for k, v in ev.type_specific_data.items %}
+          <div class="facts__row"><dt>{{ k }}</dt><dd class="mono">{{ v }}</dd></div>
+          {% endfor %}
+        </dl>
+        {% endif %}
+
+        {% if ev.external_lookup_source %}
+        <h3 class="subhead">Consulta externa</h3>
+        <dl class="facts">
+          <div class="facts__row"><dt>Fonte</dt><dd class="mono">{{ ev.external_lookup_source }}</dd></div>
+          <div class="facts__row"><dt>Data</dt><dd class="mono">{{ ev.external_lookup_at|date:'Y-m-d H:i'|default:'—' }}</dd></div>
+          {% for k, v in ev.external_lookup_snapshot.items %}
+          <div class="facts__row"><dt>{{ k }}</dt><dd class="mono">{{ v }}</dd></div>
+          {% endfor %}
+        </dl>
+        {% endif %}
+
+        {% if ev.description %}
+        <h3 class="subhead">Descrição</h3>
+        <p class="detail__desc">{{ ev.description }}</p>
+        {% endif %}
+      </div>
     </section>
 
-    <!-- Estado de custódia (resumo) -->
-    <section id="custody-summary-section" hidden>
-        <div class="section-label-row">
-            <span class="section-label">Estado atual de custódia</span>
-            <a href="/evidences/{{ evidence_id }}/custody/" class="section-action">
-                Ver timeline completa
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                    <path d="m9 18 6-6-6-6"/>
-                </svg>
-            </a>
-        </div>
-        <div class="card custody-current" id="custody-current"></div>
+    <section class="section">
+      <header class="section__head">
+        <h2 class="section__title">{% if chain_json != '[]' %}Localização / Cadeia{% else %}Localização da apreensão{% endif %}</h2>
+      </header>
+      <div class="section__body section__body--flush">
+        {% if ev.gps_lat is not None or chain_json != '[]' %}
+        <div class="map-box" data-static-map
+             data-chain="{{ chain_json }}"
+             {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
+             data-label="{{ ev.code }}"></div>
+        {% if ev.gps_lat is not None and chain_json == '[]' %}
+        <p class="dd__nogeo">Sem georreferência nos eventos de custódia.</p>
+        {% endif %}
+        {% else %}
+        <p class="dd__nogeo">Sem georreferência (nem na apreensão, nem nos eventos de custódia).</p>
+        {% endif %}
+      </div>
     </section>
+  </div>
 
-</div>
+  {% if sub_components %}
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Sub-componentes · {{ sub_components|length }}</h2></header>
+    <div class="section__body section__body--flush">
+      <table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="Sub-componentes">
+        <thead><tr role="row">
+          <th role="columnheader" scope="col">Código</th>
+          <th role="columnheader" scope="col">Tipo</th>
+          <th role="columnheader" scope="col" class="col-hide-sm">Nº série</th>
+          <th role="columnheader" scope="col">Estado</th>
+        </tr></thead>
+        <tbody>
+          {% for s in sub_components %}
+          <tr role="row" tabindex="0" data-row data-id="{{ s.id }}"
+              aria-haspopup="dialog" aria-label="Abrir detalhe de {{ s.code }}"
+              hx-get="/evidences/?drawer={{ s.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
+            <td role="gridcell" class="mono grid__code">{{ s.code }}</td>
+            <td role="gridcell" class="grid__ellipsis">{{ s.type_label }}</td>
+            <td role="gridcell" class="mono grid__muted col-hide-sm">{{ s.serial_number|default:'—' }}</td>
+            <td role="gridcell"><span class="state state--{{ s.state_css }}">{{ s.state_label }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Cadeia de custódia · {{ events|length }} evento{{ events|length|pluralize }}</h2></header>
+    <div class="section__body">
+      {% if events %}
+      <ol class="timeline">
+        {% for r in events %}{% include 'partials/_timeline_event.html' %}{% endfor %}
+      </ol>
+      {% else %}
+      <div class="empty"><p class="empty__hint">Esta evidência ainda não tem eventos de custódia.</p></div>
+      {% endif %}
+    </div>
+  </section>
+
+</article>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/pages/evidence_detail.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 {% endblock %}

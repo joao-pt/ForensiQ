@@ -10,17 +10,22 @@ from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
+from . import access, evidence_type_config
 from .models import (
     AuditLog,
     ChainOfCustody,
+    CrimeCategoria,
+    CrimeSubcategoria,
     CrimeTipo,
     CustodianType,
     EventType,
     Evidence,
+    Institution,
     Occurrence,
     derive_legal_state,
 )
-from .validators import validate_imei, validate_imsi, validate_vin
+from .utils import get_user_display_name, sort_custody_chain
+from .validators import validate_gps_coherence
 
 User = get_user_model()
 
@@ -31,25 +36,12 @@ User = get_user_model()
 
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
-    """Verifica se ``user`` pode operar sobre uma ``occurrence``.
+    """Acesso à OCORRÊNCIA para operar sobre o dossier (IDOR a nível de payload).
 
-    Política (ver ADR-0010 e permissions.py):
-    - Staff / superuser: acesso total (admin).
-    - EXPERT: acesso a todas as ocorrências (é a única forma de receber
-      custódia no laboratório e escrever no dossier).
-    - AGENT: apenas às ocorrências de que é responsável (``agent`` FK).
-    - Outros perfis autenticados: sem acesso.
+    Need-to-know derivado do ledger (ADR-0017) — fonte única em
+    :mod:`core.access`: titular, credencial nacional, ou autoridade do caso.
     """
-    if user is None or not user.is_authenticated:
-        return False
-    if getattr(user, 'is_staff', False):
-        return True
-    profile = getattr(user, 'profile', None)
-    if profile == 'EXPERT':
-        return True
-    if profile == 'AGENT':
-        return occurrence.agent_id == user.id
-    return False
+    return access.can_access_occurrence(user, occurrence)
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +60,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_full_name(self, obj):
         """Nome completo, com fallback para username."""
-        return obj.get_full_name() or obj.username
+        return get_user_display_name(obj)
 
     class Meta:
         model = User
@@ -147,6 +139,56 @@ class UserCreateSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Institution (ponto de controlo) — criação manual
+# ---------------------------------------------------------------------------
+
+
+class InstitutionSerializer(serializers.ModelSerializer):
+    """Criação/edição manual de instituição (ponto de controlo fixo).
+
+    **Obrigatórios: nome, tipo, morada e GPS.** A georreferência é exigida porque
+    é COPIADA para o evento na receção (GPS-só-no-terreno). A obrigatoriedade vive
+    AQUI — não no ``clean()`` do modelo — para não invalidar instituições já
+    semeadas sem morada/GPS. O ``create``/``update`` corre ``full_clean()`` para
+    aplicar a coerência e a quantização GPS a 7 casas definidas no modelo.
+    """
+
+    class Meta:
+        model = Institution
+        fields = [
+            'id',
+            'name',
+            'type',
+            'sigla',
+            'address',
+            'gps_lat',
+            'gps_lng',
+            'email',
+            'phone',
+            'is_active',
+        ]
+        read_only_fields = ['id']
+        extra_kwargs = {
+            'address': {'required': True, 'allow_blank': False},
+            'gps_lat': {'required': True, 'allow_null': False},
+            'gps_lng': {'required': True, 'allow_null': False},
+        }
+
+    def create(self, validated_data):
+        instance = Institution(**validated_data)
+        instance.full_clean()  # coerência + quantização GPS + validadores de range
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.full_clean()
+        instance.save()
+        return instance
+
+
 class OccurrenceSerializer(serializers.ModelSerializer):
     """Serializer para ocorrências policiais.
 
@@ -170,7 +212,7 @@ class OccurrenceSerializer(serializers.ModelSerializer):
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
-        return obj.agent.get_full_name() or obj.agent.username
+        return get_user_display_name(obj.agent)
 
     def get_crime_type_label(self, obj):
         """Rótulo legível do tipo de crime (ex.: '40 — Roubo na via pública')."""
@@ -218,6 +260,46 @@ class OccurrenceSerializer(serializers.ModelSerializer):
 
 
 # ---------------------------------------------------------------------------
+# Taxonomia de crimes (read-only) — alimenta o seletor em cascata N1>N2>N3
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoriaSerializer(serializers.ModelSerializer):
+    """Nível 1 (categoria) — para o primeiro select da cascata."""
+
+    class Meta:
+        model = CrimeCategoria
+        fields = ['id', 'codigo', 'nome']
+
+
+class CrimeSubcategoriaSerializer(serializers.ModelSerializer):
+    """Nível 2 (subcategoria) — filtrada por categoria."""
+
+    class Meta:
+        model = CrimeSubcategoria
+        fields = ['id', 'codigo', 'nome']
+
+
+class CrimeTipoSimpleSerializer(serializers.ModelSerializer):
+    """Nível 3 (tipo) com a flag de prioridade derivada da lei vigente.
+
+    ``is_prioritaria`` é True se o tipo está no eixo INVESTIGAÇÃO (Art. 5.º)
+    da versão activa da Política Criminal — o que a vista de ocorrência usa
+    para a pré-visualização do badge P1. A vista pré-calcula o conjunto de
+    ids prioritários (``context['prioritaria_ids']``) para evitar N+1.
+    """
+
+    is_prioritaria = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CrimeTipo
+        fields = ['id', 'codigo', 'descritivo', 'is_prioritaria']
+
+    def get_is_prioritaria(self, obj):
+        return obj.id in (self.context.get('prioritaria_ids') or set())
+
+
+# ---------------------------------------------------------------------------
 # Evidence
 # ---------------------------------------------------------------------------
 
@@ -257,10 +339,14 @@ class EvidenceSerializer(serializers.ModelSerializer):
     type_specific_data = serializers.JSONField(required=False)
     sub_components = serializers.SerializerMethodField()
     current_state = serializers.SerializerMethodField()
+    # Declarado explicitamente (ADR-0018): o campo do modelo usa um ``choices``
+    # callable (catálogo vivo); validamos aqui contra os códigos ACTIVOS, sem
+    # depender de como o DRF mapearia um callable.
+    type = serializers.CharField(max_length=25)
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
-        return obj.agent.get_full_name() or obj.agent.username
+        return get_user_display_name(obj.agent)
 
     def get_parent_evidence_label(self, obj):
         """Rótulo amigável do pai (ex.: 'ITM-2026-00001 · Telemóvel — S23'),
@@ -312,8 +398,14 @@ class EvidenceSerializer(serializers.ModelSerializer):
         eventos = list(obj.custody_chain.all())
         if not eventos:
             return None
-        eventos.sort(key=lambda r: r.sequence)
+        eventos = sort_custody_chain(eventos)
         return derive_legal_state(eventos)
+
+    def validate_type(self, value):
+        """O tipo tem de ser um código ACTIVO do catálogo editável (ADR-0018)."""
+        if value not in evidence_type_config.active_codes():
+            raise serializers.ValidationError('Tipo de evidência inválido ou inactivo.')
+        return value
 
     class Meta:
         model = Evidence
@@ -387,33 +479,19 @@ class EvidenceSerializer(serializers.ModelSerializer):
 
         etype = attrs.get('type') or (self.instance and self.instance.type)
 
-        # --- Validadores por tipo (espelhados no Model.clean — defesa em
-        #     profundidade). Qualquer alteração num lado deve reflectir-se no
-        #     outro.
-        errors = {}
-        if etype == Evidence.EvidenceType.MOBILE_DEVICE:
-            imei = tsd.get('imei')
-            if imei:
-                try:
-                    validate_imei(imei)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'imei: {"; ".join(exc.messages)}'
-        elif etype == Evidence.EvidenceType.SIM_CARD:
-            imsi = tsd.get('imsi')
-            if imsi:
-                try:
-                    validate_imsi(imsi)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'imsi: {"; ".join(exc.messages)}'
-        elif etype == Evidence.EvidenceType.VEHICLE:
-            vin = tsd.get('vin')
-            if vin:
-                try:
-                    validate_vin(vin)
-                except DjangoValidationError as exc:
-                    errors['type_specific_data'] = f'vin: {"; ".join(exc.messages)}'
-        if errors:
-            raise serializers.ValidationError(errors)
+        # --- Validadores por tipo: fonte ÚNICA partilhada com Model.clean
+        #     (evidence_field_config.validate_type_specific_data). Cobre TODOS os
+        #     tipos/campos com validador (imei_2, GPS_TRACKER, IOT_DEVICE,
+        #     VEHICLE_COMPONENT…) e acumula um erro por campo — sem a escada
+        #     if/elif que tinha drift e sobrepunha iccid sobre imsi. Defesa em
+        #     profundidade: o Model.clean() reaplica os mesmos validadores.
+        from core import evidence_field_config
+
+        problems = evidence_field_config.validate_type_specific_data(etype, tsd)
+        if problems:
+            raise serializers.ValidationError(
+                {'type_specific_data': ' | '.join(problems)}
+            )
 
         # --- Parent evidence: tem de partilhar ocorrência.
         parent = attrs.get('parent_evidence')
@@ -457,12 +535,12 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
-        return obj.agent.get_full_name() or obj.agent.username
+        return get_user_display_name(obj.agent)
 
     def get_legal_state(self, obj):
         """Estado legal derivado da sequência completa de eventos da evidência."""
         eventos = list(obj.evidence.custody_chain.all())
-        eventos.sort(key=lambda r: r.sequence)
+        eventos = sort_custody_chain(eventos)
         return derive_legal_state(eventos)
 
     class Meta:
@@ -475,6 +553,8 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'sequence',
             'event_type',
             'custodian_type',
+            'custodian_institution',
+            'custodian_user',
             'location_name',
             'storage_location',
             'gps_lat',
@@ -485,7 +565,17 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'agent_name',
             'timestamp',
             'observations',
+            'sealed',
+            'seal_condition_on_receipt',
+            'new_seal_number',
+            'relinquished_by',
+            'bearer',
+            'bearer_matricula',
+            'bearer_nome',
+            'bearer_apelido',
+            'bearer_posto',
             'record_hash',
+            'hash_version',
         ]
         read_only_fields = [
             'id',
@@ -495,29 +585,44 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'sequence',
             'legal_state',
             'timestamp',
+            # Snapshot do portador + versão: derivados/gravados pelo modelo no
+            # save() (ADR-0016 v2) — só o FK ``bearer`` é input do cliente.
+            'bearer_matricula',
+            'bearer_nome',
+            'bearer_apelido',
+            'bearer_posto',
             'record_hash',
+            'hash_version',
         ]
 
     def validate(self, attrs):
-        """Coerência GPS: lat e lng ambas presentes ou ambas ausentes."""
+        """Coerência GPS + gate de ESCRITA item-level (ADR-0017 §5)."""
         lat = attrs.get('gps_lat')
         lng = attrs.get('gps_lng')
-        if (lat is None) != (lng is None):
-            raise serializers.ValidationError(
-                'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
-            )
+        try:
+            validate_gps_coherence(lat, lng)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+        # Gate de ESCRITA — FALHA FECHADA: se o serializer for instanciado sem
+        # request/utilizador autenticado não conseguimos autorizar, logo NEGA-SE
+        # (antes ignorava-se a verificação quando faltava o contexto — fail-open).
+        # Todos os chamadores reais passam contexto: o ViewSet via get_serializer e
+        # a view de intake define request.user + context={'request': request}.
+        evidence = attrs.get('evidence')
+        if evidence is not None:
+            request = self.context.get('request')
+            user = getattr(request, 'user', None)
+            if user is None or not user.is_authenticated:
+                raise serializers.ValidationError(
+                    'Autenticação necessária para registar eventos de custódia (ADR-0017).'
+                )
+            if not access.can_append_custody(user, evidence, attrs.get('event_type')):
+                raise serializers.ValidationError(
+                    'Não tem permissão para registar eventos de custódia neste item '
+                    '(ADR-0017): só o custódio atual, um membro da instituição que o '
+                    'detém, o perito ou a autoridade do caso.'
+                )
         return attrs
-
-    def validate_evidence(self, evidence):
-        """Só dono da ocorrência (AGENT), EXPERT ou staff registam custódia."""
-        request = self.context.get('request')
-        if request is None or not request.user.is_authenticated:
-            return evidence
-        if not _user_can_access_occurrence(request.user, evidence.occurrence):
-            raise serializers.ValidationError(
-                'Não tem permissão para registar custódia nesta evidência.'
-            )
-        return evidence
 
 
 # ---------------------------------------------------------------------------
@@ -528,7 +633,7 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 class CascadeCustodyRequestSerializer(serializers.Serializer):
     """Payload do endpoint de eventos de custódia em cascata.
 
-    Permite registar o mesmo evento (ex.: ``TRANSFERENCIA`` para
+    Permite registar o mesmo evento (ex.: ``TRANSFERENCIA_CUSTODIA`` para
     ``LAB_PUBLICO`` no intake do ADR-0012) em N evidências (item-pai +
     sub-componentes) numa única operação atómica. As guardas do ledger e a
     validação de ownership são feitas por evidência dentro da view; este
@@ -558,6 +663,31 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
         default='',
         max_length=2000,
     )
+    # Geolocalização/local do evento (ADR-0013) — aplicada a todas as evidências
+    # da cascata. Opcional; coerência lat/lng validada abaixo.
+    location_name = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=255
+    )
+    storage_location = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=120
+    )
+    gps_lat = serializers.DecimalField(
+        max_digits=10, decimal_places=7, required=False, allow_null=True, default=None
+    )
+    gps_lng = serializers.DecimalField(
+        max_digits=10, decimal_places=7, required=False, allow_null=True, default=None
+    )
+    gps_accuracy_m = serializers.IntegerField(
+        required=False, allow_null=True, default=None, min_value=0
+    )
+
+    def validate(self, attrs):
+        """Coerência GPS: latitude e longitude ambas presentes ou ambas ausentes."""
+        try:
+            validate_gps_coherence(attrs.get('gps_lat'), attrs.get('gps_lng'))
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages[0]) from exc
+        return attrs
 
 
 # ---------------------------------------------------------------------------
@@ -614,7 +744,7 @@ class ActivityFeedSerializer(serializers.ModelSerializer):
         """Nome legível do autor: nome completo > username > 'sistema'."""
         if obj.user_id is None:
             return 'sistema'
-        return obj.user.get_full_name() or obj.user.username
+        return get_user_display_name(obj.user)
 
     def get_is_priority_alert(self, obj):
         """True para criação de ocorrência PRIORITÁRIA (ADR-0014 §7).

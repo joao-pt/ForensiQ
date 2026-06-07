@@ -1,142 +1,79 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Ocorrências{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current">Ocorrências</span>
-{% endblock %}
+{% block title %}Ocorrências — ForensiQ{% endblock %}
 
 {% block extra_css %}
-{% include "_leaflet_head.html" %}
-<link rel="stylesheet" href="{% static 'css/pages/occurrences.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Ocorrências</span>{% endblock %}
+
+{% block drawer_title %}Detalhe da ocorrência{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione uma ocorrência na lista.</p>
 {% endblock %}
 
 {% block content %}
-<div class="page">
+<section class="fullbleed" aria-labelledby="occ-title">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title">Ocorrências</h1>
-            <p class="page-subtitle" id="occurrences-count">A carregar…</p>
-        </div>
-        <a href="/occurrences/new/" class="btn btn-primary" id="btn-new-occurrence">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 5v14M5 12h14"/>
-            </svg>
-            Nova
-        </a>
-    </header>
-
-    <!-- Toolbar: pesquisa + segmented control de vista -->
-    <div class="toolbar">
-        <div class="input-group toolbar-search">
-            <span class="input-group-prefix" aria-hidden="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="11" cy="11" r="7"/>
-                    <path d="m21 21-4.3-4.3"/>
-                </svg>
-            </span>
-            <input type="search" id="search-input" class="form-input"
-                   placeholder="NUIPC, código, descrição ou morada"
-                   aria-label="Pesquisar ocorrências"
-                   autocomplete="off" spellcheck="false">
-        </div>
-
-        <div class="toolbar-actions">
-            <div class="segmented" role="tablist" aria-label="Vista de ocorrências">
-                <button class="segmented-btn active" id="tab-list" role="tab" aria-selected="true"
-                        aria-controls="panel-list">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
-                    </svg>
-                    Lista
-                </button>
-                <button class="segmented-btn" id="tab-map" role="tab" aria-selected="false"
-                        aria-controls="panel-map">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/>
-                        <path d="M8 2v16M16 6v16"/>
-                    </svg>
-                    Mapa
-                </button>
-            </div>
-        </div>
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="occ-title">Ocorrências</h1>
+      <span class="page-head__count" id="occ-count" aria-live="polite">{{ total }} registo{{ total|pluralize }}</span>
     </div>
-    <div id="results-announce" class="visually-hidden" aria-live="polite"></div>
+    <a class="btn-accent" href="/occurrences/new/">
+      {% include 'partials/icons/_plus.html' %}
+      Nova ocorrência
+    </a>
+  </header>
 
-    <!-- Painel Lista — modo cards (mobile) ou tabela densa (desktop) -->
-    <section id="panel-list" role="tabpanel" aria-labelledby="tab-list">
-        <div class="list-page-grid">
-            <div>
-                <div id="occurrences-list" aria-live="polite"></div>
-            </div>
-            <aside class="list-page-sidebar" aria-label="Filtros">
-                <details open>
-                    <summary>Data</summary>
-                    <div class="form-group">
-                        <label class="form-label" for="filter-date-after">Desde</label>
-                        <input type="date" id="filter-date-after" class="form-input">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label" for="filter-date-before">Até</label>
-                        <input type="date" id="filter-date-before" class="form-input">
-                    </div>
-                </details>
-                <details>
-                    <summary>Localização</summary>
-                    <label class="form-checkbox">
-                        <input type="checkbox" id="filter-has-gps">
-                        Apenas com GPS registado
-                    </label>
-                </details>
-                <button type="button" id="filter-clear" class="btn btn-ghost btn-sm">
-                    Limpar filtros
-                </button>
-            </aside>
-        </div>
-    </section>
+  <form class="toolbar" role="search" action="/occurrences/" method="get"
+        hx-get="/occurrences/"
+        hx-target="#occ-grid"
+        hx-swap="innerHTML"
+        hx-trigger="submit, input changed delay:350ms"
+        hx-push-url="true"
+        hx-indicator="#occ-busy">
+    {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
+    <div class="toolbar__search">
+      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
+      <input type="search" name="q" value="{{ q }}"
+             placeholder="Pesquisar código, NUIPC, morada…"
+             autocomplete="off" aria-label="Pesquisar ocorrências">
+    </div>
+    <select name="pri" aria-label="Filtrar por prioridade">
+      <option value="">Prioridade: todas</option>
+      <option value="PRIORITARIA" {% if pri == 'PRIORITARIA' %}selected{% endif %}>Prioritárias</option>
+      <option value="NORMAL" {% if pri == 'NORMAL' %}selected{% endif %}>Normais</option>
+    </select>
+    <select name="cat" aria-label="Filtrar por categoria de crime">
+      <option value="">Crime: todos</option>
+      {% for c in crime_categories %}
+      <option value="{{ c.id }}" {% if cat == c.id|stringformat:"s" %}selected{% endif %}>{{ c.codigo }} — {{ c.nome }}</option>
+      {% endfor %}
+    </select>
+    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Data desde" title="Ocorrências desde">
+    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Data até" title="Ocorrências até">
+    <select name="sort" aria-label="Ordenar">
+      <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
+      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
+      <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
+      <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
+    </select>
+    <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
+  </form>
 
-    <!-- Painel Mapa -->
-    <section id="panel-map" role="tabpanel" aria-labelledby="tab-map" hidden>
-        <div class="map-wrap">
-            <div id="map-container" class="map-surface" aria-label="Mapa de ocorrências"></div>
-            <div class="map-legend">
-                <div class="map-legend-item">
-                    <span class="status-dot accent"></span> Com GPS
-                </div>
-                <div class="map-legend-item">
-                    <span class="status-dot"></span> Sem GPS
-                </div>
-            </div>
-        </div>
-        <details class="no-gps-section" id="no-gps-section" hidden>
-            <summary>
-                Ocorrências sem localização
-                (<span id="no-gps-count">0</span>)
-            </summary>
-            <div class="list" id="no-gps-list" aria-label="Ocorrências sem GPS"></div>
-        </details>
-    </section>
-</div>
+  <div id="occ-grid" class="gridwrap">
+    {% include 'partials/_occurrences_grid.html' %}
+  </div>
 
-<a href="/occurrences/new/" class="fab" aria-label="Nova ocorrência">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
-         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 5v14M5 12h14"/>
-    </svg>
-    <span class="fab-label">Nova</span>
-</a>
+</section>
 {% endblock %}
 
 {% block extra_js %}
-{% include "_leaflet_js.html" %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/pages/occurrences.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 {% endblock %}

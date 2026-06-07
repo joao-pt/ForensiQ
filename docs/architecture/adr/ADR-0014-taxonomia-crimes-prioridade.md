@@ -4,6 +4,8 @@
 
 Accepted — 2026-05-30. Formaliza a classificação do crime e a prioridade da `Occurrence`. Estende os campos da `Occurrence` e liga-se ao feed de actividade e à decisão de tornar a `OccurrenceViewSet` POST-only. Acompanha o ADR-0013 (GPS na custódia) como segundo ADR estrutural da Fase 2 do refactor.
 
+> **Âncoras de linha e nomenclatura.** Os números de linha citados refletem o estado do `models.py` à data da decisão (pré-implementação); o código atual é a fonte de verdade (`Occurrence` em `core/models.py:548`). A convenção de longitude é hoje `gps_lng` em todo o schema (rename `gps_lon`→`gps_lng`, migração `0018`, ADR-0013); leituras de `gps_lon` neste ADR referem-se ao nome pré-rename.
+
 ## Data
 
 2026-05-30
@@ -127,7 +129,7 @@ A **Lei n.º 51/2023, de 28 de agosto** (DR n.º 166/2023, Série I) é a Lei de
 ### Seed (management command idempotente)
 
 - Novo comando `seed_crime_taxonomy` (separado do `seed_demo`, que é dados de demonstração): popula `CrimeCategoria`→`CrimeSubcategoria`→`CrimeTipo` a partir de um dataset estruturado derivado da **Tabela 2024** (Modelo 262), e cria a `PoliticaCriminalPrioridade` de `'Lei 51/2023'` com as associações `PrioridadeCrimeTipo` (eixos `INVESTIGACAO`/`PREVENCAO`) a partir do **mapa curado** lei↔tabela. Idempotente (`update_or_create` por código oficial).
-- Pré-carregar a versão `2025-2027` como `is_active=False`, pronta a activar quando a lei for promulgada (sem código novo).
+- O seed carrega a versão `2023-2025` (Lei 51/2023) a partir do `meta` único de `mapa_politica_criminal.json` (`vigente_desde` `2023-08-29`). A pré-carga da versão `2025-2027` como `is_active=False` fica como trabalho futuro: requer um segundo bloco no JSON (ou mapa dedicado) e um laço sobre versões no `_seed_politica`, ainda não implementado.
 
 ### Mapeamento lei↔tabela
 

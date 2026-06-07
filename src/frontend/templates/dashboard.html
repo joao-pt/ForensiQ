@@ -3,248 +3,151 @@
 
 {% block title %}ForensiQ — Painel{% endblock %}
 
-{% block breadcrumb %}
-<span class="breadcrumb-current">Painel</span>
-{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">Painel</span>{% endblock %}
 
 {% block extra_css %}
-{% include '_leaflet_head.html' %}
-<link rel="stylesheet" href="{% static 'css/components/geo-hero.css' %}">
-<link rel="stylesheet" href="{% static 'css/pages/dashboard.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/geo-hero.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
 {% block content %}
-<div class="page">
+<div class="dash fullbleed">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title" id="greeting">
-                <span class="skeleton skeleton-text lg">&nbsp;</span>
-            </h1>
-            <p class="page-subtitle" id="profile-info">
-                <span class="skeleton skeleton-text sm">&nbsp;</span>
-            </p>
+  <div class="dash__greet">
+    <h1>Painel</h1>
+    <p>{{ u.get_full_name|default:u.username }} · {{ u.get_profile_display|default:u.profile }}</p>
+  </div>
+
+  <!-- Geo Hero — server-rendered (Fase 3): tiles do estado legal do ledger +
+       mapa panorâmico + insets, tudo a partir do ORM (sem drift). -->
+  <section class="geo-hero" aria-label="Cadeia de custódia e distribuição territorial">
+
+    <!-- Coluna 1 — Estado da cadeia (estado legal derivado, sem cor por estado) -->
+    <article class="geo-hero__col geo-hero__custody" aria-label="Estado da cadeia de custódia">
+      <header class="geo-hero__header">
+        <h2 class="geo-hero__title">Estado da cadeia</h2>
+        <span class="geo-hero__meta">{{ total_active }} ite{{ total_active|pluralize:"m,ns" }}</span>
+      </header>
+      <div class="geo-hero__custody-list" role="list">
+        {% for t in tiles %}
+        <a class="cs-tile" role="listitem" href="/evidences/?state={{ t.key }}"
+           title="Ver itens no estado: {{ t.label }}">
+          <span class="cs-tile__num">{{ t.n }}</span>
+          <span class="cs-tile__label">{{ t.label }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </article>
+
+    <!-- Coluna 2 — Mapa continental + legenda de prioridade -->
+    <article class="geo-hero__col geo-hero__continental" aria-label="Mapa de ocorrências em Portugal continental">
+      <header class="geo-hero__header">
+        <h2 class="geo-hero__title">Portugal continental</h2>
+        <span class="geo-hero__meta">ocorrências · {{ occ_total }}</span>
+      </header>
+      <div class="geo-hero__map" data-static-map data-fixed
+           data-points="{{ points_continental }}" data-bounds="{{ bounds_continental }}"
+           role="img" aria-label="Mapa de Portugal continental"></div>
+      <div class="geo-hero__legend" role="group" aria-label="Legenda de prioridade dos pontos">
+        <span class="geo-hero__legend-chip">
+          <span class="geo-hero__legend-dot geo-hero__legend-dot--p1" aria-hidden="true"></span>
+          <span class="geo-hero__legend-label">P1</span>
+        </span>
+        <span class="geo-hero__legend-chip">
+          <span class="geo-hero__legend-dot geo-hero__legend-dot--p2" aria-hidden="true"></span>
+          <span class="geo-hero__legend-label">P2</span>
+        </span>
+        <span class="geo-hero__legend-chip">
+          <span class="geo-hero__legend-dot geo-hero__legend-dot--normal" aria-hidden="true"></span>
+          <span class="geo-hero__legend-label">Normal</span>
+        </span>
+      </div>
+    </article>
+
+    <!-- Coluna 3 — Insets + CTA -->
+    <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas e acção rápida">
+      <div class="geo-hero__inset-row">
+        <div class="geo-hero__inset" data-static-map data-fixed
+             data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
+             role="img" aria-label="Mapa da Madeira">
+          <span class="geo-hero__inset-label">Madeira</span>
         </div>
+        <div class="geo-hero__inset" data-static-map data-fixed
+             data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
+             role="img" aria-label="Mapa dos Açores">
+          <span class="geo-hero__inset-label">Açores</span>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- Últimas ocorrências -->
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Últimas ocorrências</h2></header>
+    <div class="section__body section__body--flush">
+      {% if recent %}
+      <table class="grid" role="table" aria-label="Últimas ocorrências">
+        <thead>
+          <tr role="row">
+            <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
+            <th role="columnheader" scope="col">Código</th>
+            <th role="columnheader" scope="col">NUIPC</th>
+            <th role="columnheader" scope="col" class="col-hide-sm">Tipo de crime</th>
+            <th role="columnheader" scope="col">Data / hora</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in recent %}
+          <tr role="row">
+            <td role="cell" class="grid__pri">{% if o.pri %}<span class="pri pri--{{ o.pri.cls }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none">—</span>{% endif %}</td>
+            <td role="cell" class="mono grid__code"><a class="dd__full" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
+            <td role="cell" class="mono">{{ o.number }}</td>
+            <td role="cell" class="grid__ellipsis col-hide-sm">{{ o.crime_label }}</td>
+            <td role="cell" class="mono">{{ o.date_time|date:'Y-m-d H:i' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty"><p class="empty__hint">Ainda não há ocorrências.</p></div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Registo de atividade (AuditLog append-only). O âmbito segue a credencial
+       (has_national_read), não a lente: um perito NORMAL tem leitura total da
+       prova mas o seu feed são só os atos dele. -->
+  <section class="section">
+    <header class="section__head">
+      <h2 class="section__title">Registo de atividade</h2>
+      <span class="scope-badge" title="Âmbito do registo de auditoria">
+        {% if feed_is_national %}Registo nacional{% else %}Apenas as minhas ações{% endif %}
+      </span>
     </header>
+    <div class="section__body section__body--flush">
+      {% if logs %}
+      <ul class="feed" aria-label="Últimos eventos do sistema">
+        {% for r in logs %}
+        <li class="feed__item">
+          <span class="feed__time">{{ r.timestamp|date:'Y-m-d H:i' }}</span>
+          <span class="feed__action" data-act="{{ r.action }}">{{ r.action_label }}</span>
+          <span class="feed__what">{{ r.resource_label }} <span class="mono">#{{ r.resource_id }}</span>{% if r.extra %} · <span class="mono">{{ r.extra }}</span>{% endif %}</span>
+          <span class="feed__who">{{ r.user_label }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty"><p class="empty__hint">Sem atividade registada.</p></div>
+      {% endif %}
+    </div>
+  </section>
 
-    <!-- Geo Hero — 3 colunas:
-         (1) Cadeia vertical (7 tiles, sem cor por estado — V19)
-         (2) Mapa continental Leaflet + colorbar (priority)
-         (3) Insets Madeira/Açores + CTA "Nova ocorrência"
-         Ver a especificação de art direction §Hero (sweet spot V20). -->
-    <section class="geo-hero" id="geo-hero"
-             aria-label="Cadeia de custódia e distribuição territorial">
-
-        <!-- Coluna 1 — Estado da cadeia · 24h -->
-        <article class="geo-hero__col geo-hero__custody"
-                 aria-label="Distribuição actual da cadeia de custódia">
-            <header class="geo-hero__header">
-                <h2 class="geo-hero__title">Estado da cadeia · 24h</h2>
-                <span class="geo-hero__meta" id="cs-meta">— activos</span>
-            </header>
-            <div class="geo-hero__custody-list" id="cs-tiles" role="list">
-                <!-- preenchido por dashboard_geo_hero.js -->
-            </div>
-        </article>
-
-        <!-- Coluna 2 — Mapa continental + colorbar -->
-        <article class="geo-hero__col geo-hero__continental"
-                 aria-label="Mapa de ocorrências em Portugal continental">
-            <header class="geo-hero__header">
-                <h2 class="geo-hero__title">Portugal continental</h2>
-                <span class="geo-hero__meta">ocorrências · 100</span>
-            </header>
-            <div class="geo-hero__map" id="geo-hero-map-continental"
-                 role="application" aria-label="Mapa Leaflet de Portugal continental"></div>
-            <div class="geo-hero__colorbar" role="img"
-                 aria-label="Gradiente de prioridade — menor à esquerda, maior à direita">
-                <span class="geo-hero__colorbar-label-left">menor prioridade</span>
-                <span class="geo-hero__colorbar-track" aria-hidden="true"></span>
-                <span class="geo-hero__colorbar-label-right">maior prioridade</span>
-            </div>
-        </article>
-
-        <!-- Coluna 3 — Insets + CTA -->
-        <article class="geo-hero__col geo-hero__insets"
-                 aria-label="Regiões autónomas e acção rápida">
-            <div class="geo-hero__inset-row">
-                <div class="geo-hero__inset" id="geo-hero-map-madeira"
-                     role="application" aria-label="Mapa Leaflet da Madeira">
-                    <span class="geo-hero__inset-label">Madeira</span>
-                </div>
-                <div class="geo-hero__inset" id="geo-hero-map-acores"
-                     role="application" aria-label="Mapa Leaflet dos Açores">
-                    <span class="geo-hero__inset-label">Açores</span>
-                </div>
-            </div>
-            <div class="geo-hero__cta">
-                <a class="btn-new-occ" href="/occurrences/new/" data-nav="/occurrences/new/">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                         width="16" height="16" aria-hidden="true">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    <span>Nova ocorrência</span>
-                    <kbd class="btn-new-occ__kbd" data-kbd="Ctrl+N">Ctrl+N</kbd>
-                </a>
-            </div>
-        </article>
-
-    </section>
-
-    <!-- Quick actions — AGENT (full width).
-         A acção "Nova ocorrência" mudou para o CTA do hero (Ctrl+N). -->
-    <section id="agent-actions" class="hidden">
-        <div class="section-label">Acções rápidas</div>
-        <div class="quick-actions">
-            <button class="action-btn" data-nav="/evidences/new/" type="button">
-                <span class="action-icon success" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 3 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6l-8-3z"/>
-                        <path d="m9 12 2 2 4-4"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Novo Item</strong>
-                    <small>Apreender prova digital</small>
-                </span>
-            </button>
-            <button class="action-btn" data-nav="/occurrences/" type="button">
-                <span class="action-icon info" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Ocorrências</strong>
-                    <small>Ver todas as ocorrências</small>
-                </span>
-            </button>
-            <button class="action-btn" data-nav="/evidences/" type="button">
-                <span class="action-icon warning" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="5" y="11" width="14" height="9" rx="2"/>
-                        <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Itens</strong>
-                    <small>Consultar itens apreendidos</small>
-                </span>
-            </button>
-            <button class="action-btn" data-nav="/custodies/" type="button">
-                <span class="action-icon info" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
-                        <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Custódias</strong>
-                    <small>Transferências recentes</small>
-                </span>
-            </button>
-        </div>
-    </section>
-
-    <!-- Quick actions — EXPERT (full width) -->
-    <section id="expert-actions" class="hidden">
-        <div class="section-label">Acções rápidas</div>
-        <div class="quick-actions">
-            <button class="action-btn" data-nav="/custodies/" type="button">
-                <span class="action-icon info" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1.5 1.5"/>
-                        <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1.5-1.5"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Cadeia de Custódia</strong>
-                    <small>Gerir transferências</small>
-                </span>
-            </button>
-            <button class="action-btn" data-nav="/evidences/" type="button">
-                <span class="action-icon success" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="5" y="11" width="14" height="9" rx="2"/>
-                        <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Itens</strong>
-                    <small>Consultar itens em perícia</small>
-                </span>
-            </button>
-            <button class="action-btn" data-nav="/occurrences/" type="button">
-                <span class="action-icon info" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M3 7a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Ocorrências</strong>
-                    <small>Ver todas as ocorrências</small>
-                </span>
-            </button>
-            <button class="action-btn" data-nav="/reports/" type="button">
-                <span class="action-icon warning" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                        <path d="M14 3v6h6M9 13h6M9 17h4"/>
-                    </svg>
-                </span>
-                <span class="action-text">
-                    <strong>Relatórios PDF</strong>
-                    <small>Gerar relatórios forenses</small>
-                </span>
-            </button>
-        </div>
-    </section>
-
-    <!-- Últimas ocorrências (full width, debaixo das acções) -->
-    <section class="recent-section">
-        <div class="section-label">Últimas ocorrências</div>
-        <div class="card p-0">
-            <div id="recent-occurrences" class="list" aria-live="polite">
-                <div class="skeleton-row">
-                    <div class="skeleton-row-content">
-                        <div class="skeleton skeleton-row-title">&nbsp;</div>
-                        <div class="skeleton skeleton-row-subtitle">&nbsp;</div>
-                    </div>
-                    <div class="skeleton skeleton-row-date">&nbsp;</div>
-                </div>
-                <div class="skeleton-row">
-                    <div class="skeleton-row-content">
-                        <div class="skeleton skeleton-row-title">&nbsp;</div>
-                        <div class="skeleton skeleton-row-subtitle">&nbsp;</div>
-                    </div>
-                    <div class="skeleton skeleton-row-date">&nbsp;</div>
-                </div>
-                <div class="skeleton-row">
-                    <div class="skeleton-row-content">
-                        <div class="skeleton skeleton-row-title">&nbsp;</div>
-                        <div class="skeleton skeleton-row-subtitle">&nbsp;</div>
-                    </div>
-                    <div class="skeleton skeleton-row-date">&nbsp;</div>
-                </div>
-            </div>
-        </div>
-    </section>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-{% include '_leaflet_js.html' %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/custody_states.js' %}"></script>
-<script src="{% static 'js/pages/dashboard.js' %}"></script>
-<script src="{% static 'js/pages/dashboard_geo_hero.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 {% endblock %}

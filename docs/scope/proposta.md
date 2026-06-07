@@ -8,7 +8,7 @@
 | Orientador | Prof. Pedro Duarte Pestana |
 | UC | 21184 — Projecto de Engenharia Informática · UAb · 2025/26 |
 | Data | 22 de março de 2026 |
-| Versão | 1.0 (Markdown) — fonte autoritativa: [`proposta.tex`](./proposta.tex) → [PDF](../report/proposta.pdf) |
+| Versão | 1.0 (Markdown) — entregável: [proposta.pdf](../report/proposta.pdf) · fonte LaTeX arquivada fora do repositório |
 
 ---
 

@@ -1,0 +1,54 @@
+{% comment %}Fragmento HTMX do painel direito — detalhe (Local) de uma evidência.{% endcomment %}
+{% load l10n %}
+<article class="dd" data-evidence-detail>
+
+  <div class="dd__top" tabindex="-1" data-drawer-head>
+    <span class="dd__code mono">{{ ev.code|default:'—' }}</span>
+    <button type="button" class="copy-btn" data-copy="{{ ev.code }}"
+            aria-label="Copiar código" title="Copiar código">⧉</button>
+  </div>
+
+  <dl class="facts">
+    <div class="facts__row"><dt>Tipo</dt><dd>{{ ev.type_label }}</dd></div>
+    <div class="facts__row"><dt>Estado</dt><dd><span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></dd></div>
+    <div class="facts__row"><dt>Ocorrência</dt><dd class="mono"><a class="grid__link" href="/occurrences/{{ ev.occurrence_id }}/">{{ ev.occ_label }}</a></dd></div>
+    {% if ev.parent_evidence %}
+    <div class="facts__row"><dt>Pertence a</dt><dd class="mono"><a class="grid__link" href="/evidences/{{ ev.parent_evidence_id }}/">{{ ev.parent_evidence.code }}</a></dd></div>
+    {% endif %}
+    <div class="facts__row"><dt>Nº série</dt><dd class="mono">{{ ev.serial_number|default:'—' }}</dd></div>
+    <div class="facts__row"><dt>Apreensão</dt><dd class="mono">{{ ev.timestamp_seizure|date:'Y-m-d H:i' }}</dd></div>
+    <div class="facts__row"><dt>Agente</dt><dd>{{ ev.agent_label }}</dd></div>
+    <div class="facts__row"><dt>Hash</dt>
+      <dd class="mono"><span class="dd__hash">{{ ev.integrity_hash }}</span>
+        <button type="button" class="copy-btn" data-copy="{{ ev.integrity_hash }}"
+                aria-label="Copiar hash" title="Copiar hash SHA-256">⧉</button></dd></div>
+    {% if ev.gps_lat is not None %}
+    <div class="facts__row"><dt>GPS</dt>
+      <dd class="mono">{{ ev.gps_lat|unlocalize }}, {{ ev.gps_lng|unlocalize }}
+        <button type="button" class="copy-btn" data-copy="{{ ev.gps_lat|unlocalize }},{{ ev.gps_lng|unlocalize }}"
+                aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+    {% endif %}
+  </dl>
+
+  {% if ev.description %}
+  <div class="dd__desc">
+    <h3 class="subhead">Descrição</h3>
+    <p>{{ ev.description }}</p>
+  </div>
+  {% endif %}
+
+  {% if ev.gps_lat is not None %}
+  <h3 class="subhead">Local da apreensão</h3>
+  <div class="dd__map" id="drawer-map"
+       data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"
+       data-label="{{ ev.code }}"></div>
+  {% else %}
+  <p class="dd__nogeo">Sem georreferência de apreensão.</p>
+  {% endif %}
+
+  <div class="dd__links">
+    <a class="dd__full" href="/evidences/{{ ev.id }}/">Abrir item completo →</a>
+    <a class="dd__full" href="/evidences/{{ ev.id }}/custody/">Cadeia de custódia →</a>
+  </div>
+
+</article>

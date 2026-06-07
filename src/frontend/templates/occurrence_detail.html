@@ -1,137 +1,140 @@
-{% extends "base.html" %}
-{% load static %}
+{% extends 'base.html' %}
+{% load static l10n %}
 
-{% block title %}ForensiQ — Caso{% endblock %}
-
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/occurrences/">Ocorrências</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current" id="breadcrumb-title">Caso</span>
-{% endblock %}
+{% block title %}{{ occ.code }} — ForensiQ{% endblock %}
 
 {% block extra_css %}
-{% include "_leaflet_head.html" %}
-<link rel="stylesheet" href="{% static 'css/components/transition_modal.css' %}">
-<link rel="stylesheet" href="{% static 'css/pages/occurrence_detail.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/occurrences/">Ocorrências</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current mono">{{ occ.code|default:occ.number }}</span>
+{% endblock %}
+
+{% block drawer_title %}Item de prova{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">Selecione um item de prova para ver a ficha (estado, hash, localização).</p>
 {% endblock %}
 
 {% block content %}
-<div class="page" data-occurrence-id="{{ occurrence_id }}">
+<article class="detail fullbleed" aria-labelledby="occ-title">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title" id="page-title">Caso</h1>
-            <p class="page-subtitle" id="page-subtitle">A carregar…</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="/occurrences/" class="btn btn-ghost btn-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="m15 18-6-6 6-6"/>
-                </svg>
-                Voltar
-            </a>
-            <button type="button" class="btn btn-primary btn-sm" id="btn-occurrence-pdf">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                    <path d="M14 3v6h6M9 13h6M9 17h4"/>
-                </svg>
-                PDF do caso
-            </button>
-        </div>
-    </header>
-
-    <!-- Case header + mapa -->
-    <div class="case-layout">
-        <div class="card case-header" id="case-header" hidden>
-            <div class="case-number mono" id="case-number">—</div>
-            <div class="case-description" id="case-description">—</div>
-            <div class="case-meta">
-                <div class="case-meta-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9"/>
-                        <path d="M12 7v5l3 2"/>
-                    </svg>
-                    <span id="case-datetime">—</span>
-                </div>
-                <div class="case-meta-item">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="8" r="4"/>
-                        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
-                    </svg>
-                    <span id="case-agent">—</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="case-map-wrap">
-            <div id="case-map" class="case-map" hidden></div>
-            <!-- Morada + GPS debaixo do mapa, para concentrar toda a informação
-                 de localização num sítio (T3). -->
-            <div id="case-location" class="case-location" hidden>
-                <div class="case-location-row" id="case-address-row" hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 2a8 8 0 0 0-8 8c0 6 8 12 8 12s8-6 8-12a8 8 0 0 0-8-8z"/>
-                        <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                    <span id="case-address">—</span>
-                </div>
-                <div class="case-location-row mono" id="case-gps-row" hidden>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="9"/>
-                        <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>
-                    </svg>
-                    <span id="case-gps">—</span>
-                </div>
-                <div class="case-location-row case-location-empty" id="case-location-empty" hidden>
-                    Sem morada ou coordenadas registadas.
-                </div>
-            </div>
-        </div>
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="occ-title">
+        {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" role="img" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
+        {{ occ.code|default:occ.number }}
+      </h1>
+      <p class="detail__sub">{{ occ.crime_label }}</p>
     </div>
+    <div class="detail__actions">
+      <a class="btn-ghost" href="/api/occurrences/{{ occ.id }}/pdf/">
+        {% include 'partials/icons/_file.html' %}
+        Guia PDF
+      </a>
+      {% if can_handoff %}
+      {# Ação in-place: encaminhar a prova em lote (portador + destino) num modal. #}
+      <a class="btn-ghost" href="/occurrences/{{ occ.id }}/encaminhar/"
+         data-modal-open data-modal-title="Encaminhar prova"
+         hx-get="/occurrences/{{ occ.id }}/encaminhar/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        Encaminhar
+      </a>
+      {% endif %}
+      {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+      <a class="btn-accent" href="/evidences/new/?occurrence={{ occ.id }}">
+        {% include 'partials/icons/_plus.html' %}
+        Nova evidência
+      </a>
+      {% endif %}
+    </div>
+  </header>
 
-    <!-- Resumo de custódia -->
-    <section id="custody-summary-section" hidden>
-        <div class="section-label">Estado da custódia</div>
-        <div class="custody-summary" id="custody-summary"></div>
+  <div class="cols-2">
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Ficha da ocorrência</h2></header>
+      <div class="section__body">
+        <dl class="facts">
+          <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ occ.number }}</dd></div>
+          <div class="facts__row"><dt>Crime</dt><dd>{{ occ.crime_label }}</dd></div>
+          <div class="facts__row"><dt>Prioridade</dt>
+            <dd>{{ occ.get_priority_display }}{% if occ.pri %} <span class="facts__src">({{ occ.get_priority_source_display }})</span>{% endif %}</dd></div>
+          <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ occ.date_time|date:'Y-m-d H:i' }}</dd></div>
+          <div class="facts__row"><dt>Agente</dt><dd>{{ occ.agent_label }}</dd></div>
+          <div class="facts__row"><dt>Itens</dt><dd class="mono">{{ occ.evidence_count }}</dd></div>
+          <div class="facts__row"><dt>Local</dt><dd>{{ occ.address|default:'—' }}</dd></div>
+          {% if occ.gps_lat is not None %}
+          <div class="facts__row"><dt>GPS</dt>
+            <dd class="mono">{{ occ.gps_lat|unlocalize }}, {{ occ.gps_lng|unlocalize }}
+              <button type="button" class="copy-btn" data-copy="{{ occ.gps_lat|unlocalize }},{{ occ.gps_lng|unlocalize }}"
+                      aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+          {% endif %}
+        </dl>
+        {% if occ.description %}
+        <h3 class="subhead">Descrição</h3>
+        <p class="detail__desc">{{ occ.description }}</p>
+        {% endif %}
+      </div>
     </section>
 
-    <!-- Itens apreendidos (ISO/IEC 27037: fonte potencial de prova digital) -->
-    <section aria-labelledby="section-evidence">
-        <div class="section-label-row">
-            <span class="section-label" id="section-evidence">
-                Itens apreendidos
-                <span class="section-count" id="evidence-count">0</span>
-            </span>
-            <a href="/evidences/new/" class="btn btn-primary btn-sm" id="btn-new-evidence" hidden>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"/>
-                </svg>
-                Nova
-            </a>
-        </div>
-        <div id="evidence-container">
-            <div class="loading-overlay">
-                <span class="spinner"></span>
-            </div>
-        </div>
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Localização</h2></header>
+      <div class="section__body section__body--flush">
+        {% if occ.gps_lat is not None %}
+        <div class="map-box" data-static-map
+             data-lat="{{ occ.gps_lat|unlocalize }}" data-lng="{{ occ.gps_lng|unlocalize }}"
+             data-label="{{ occ.code|default:occ.number }}"></div>
+        {% else %}
+        <p class="dd__nogeo">Sem georreferência registada para esta ocorrência.</p>
+        {% endif %}
+      </div>
     </section>
+  </div>
 
-</div>
+  <section class="section">
+    <header class="section__head">
+      <h2 class="section__title">Itens de prova · {{ occ.evidence_count }}</h2>
+    </header>
+    <div class="section__body section__body--flush">
+      {% if evidences %}
+      <table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="Itens de prova da ocorrência">
+        <thead>
+          <tr role="row">
+            <th role="columnheader" scope="col">Código</th>
+            <th role="columnheader" scope="col">Tipo</th>
+            <th role="columnheader" scope="col">Estado</th>
+            <th role="columnheader" scope="col" class="col-hide-sm">Nº série</th>
+            <th role="columnheader" scope="col">Apreensão</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in evidences %}
+          <tr role="row" tabindex="0" data-row data-id="{{ e.id }}"
+              aria-haspopup="dialog" aria-label="Abrir detalhe de {{ e.code }}"
+              hx-get="/evidences/?drawer={{ e.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
+            <td role="gridcell" class="mono grid__code">{% if e.parent_evidence %}<span class="grid__muted">└ </span>{% endif %}{{ e.code }}</td>
+            <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>
+            <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span></td>
+            <td role="gridcell" class="mono grid__muted col-hide-sm">{{ e.serial_number|default:'—' }}</td>
+            <td role="gridcell" class="mono">{{ e.timestamp_seizure|date:'Y-m-d H:i' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty"><p class="empty__hint">Esta ocorrência ainda não tem itens de prova.</p></div>
+      {% endif %}
+    </div>
+  </section>
+
+</article>
 {% endblock %}
 
 {% block extra_js %}
-{% include "_leaflet_js.html" %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/custody_states.js' %}"></script>
-<script src="{% static 'js/transition_modal.js' %}"></script>
-<script src="{% static 'js/pages/occurrence_detail.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 {% endblock %}

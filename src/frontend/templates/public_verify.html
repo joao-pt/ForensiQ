@@ -1,81 +1,76 @@
-{% load static %}<!DOCTYPE html>
-<html lang="pt-PT">
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-PT" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <title>ForensiQ — Verificação de talão</title>
-    <link rel="stylesheet" href="{% static 'css/main.css' %}" nonce="{{ request.csp_nonce }}">
-    <style nonce="{{ request.csp_nonce }}">
-        body { background: #f5f5f5; }
-        .verify-wrap { max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
-        .verify-card { background: #fff; padding: 1.5rem; border-radius: 8px;
-                       box-shadow: 0 2px 8px rgba(0,0,0,.08); }
-        .verify-header { border-bottom: 2px solid #0F1115; padding-bottom: 1rem;
-                         margin-bottom: 1rem; }
-        .verify-occ-code { font-family: 'Courier New', monospace; font-size: 1.6rem;
-                           font-weight: bold; color: #0F1115; }
-        .verify-occ-number { color: #6B7280; font-size: .9rem; margin-top: .25rem; }
-        .verify-meta { display: flex; gap: 2rem; margin: 1rem 0; }
-        .verify-meta-item .label { font-size: .75rem; color: #6B7280;
-                                   text-transform: uppercase; letter-spacing: .05em; }
-        .verify-meta-item .value { font-size: 1.1rem; font-weight: 600; color: #0F1115; }
-        .verify-list { list-style: none; padding: 0; margin: 0; }
-        .verify-list li { padding: .75rem 0; border-bottom: 1px solid #E0E0E0; }
-        .verify-list li:last-child { border-bottom: none; }
-        .verify-list .code { font-family: 'Courier New', monospace; font-weight: 600; }
-        .verify-list .type { color: #6B7280; font-size: .85rem; margin-left: .5rem; }
-        .verify-list .hash { font-family: 'IBM Plex Mono', 'Courier New', monospace;
-                             font-size: .7rem;
-                             color: #B45309; word-break: break-all; display: block;
-                             margin-top: .25rem; }
-        .verify-footer { margin-top: 1.5rem; padding-top: 1rem;
-                         border-top: 1px solid #E0E0E0; font-size: .85rem;
-                         color: #6B7280; }
-        .verify-cta { background: #B45309; color: #fff; padding: .75rem 1.25rem;
-                      border-radius: 4px; text-decoration: none; font-weight: 600;
-                      display: inline-block; margin-top: 1rem; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0F1115">
+  <meta name="robots" content="noindex">
+  <title>Verificação · {{ occurrence_code }} — ForensiQ</title>
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 </head>
 <body>
-    <main class="verify-wrap">
-        <article class="verify-card">
-            <header class="verify-header">
-                <div class="verify-occ-code">{{ occurrence_code }}</div>
-                {% if occurrence_number %}
-                <div class="verify-occ-number">NUIPC / Número: {{ occurrence_number }}</div>
+  <main class="pubdoc">
+    <div class="pubdoc__brand">
+      <svg viewBox="0 0 56 48" aria-hidden="true">
+        <circle cx="22" cy="24" r="10" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+        <circle cx="34" cy="24" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      </svg>
+      ForensiQ
+    </div>
+
+    <span class="state state--info">Verificação pública de integridade</span>
+    <h1 class="pubdoc__title">{{ occurrence_code }}</h1>
+    <p class="pubdoc__sub">
+      {% if occurrence_number %}NUIPC {{ occurrence_number }} · {% endif %}{{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} de prova
+    </p>
+
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Itens e integridade (SHA-256)</h2></header>
+      <div class="section__body section__body--flush">
+        {% if evidences %}
+        <div class="gridwrap">
+        <table class="grid" role="table" aria-label="Itens e hashes de integridade">
+          <thead>
+            <tr role="row">
+              <th scope="col">Código</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Hash SHA-256</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in evidences %}
+            <tr role="row">
+              <td class="mono grid__code">{{ e.code }}</td>
+              <td>{{ e.get_type_display }}</td>
+              <td class="mono">
+                {% if e.integrity_hash %}
+                <span class="dd__hash">{{ e.integrity_hash }}</span>
+                <button type="button" class="copy-btn" data-copy="{{ e.integrity_hash }}" aria-label="Copiar hash" title="Copiar hash">⧉</button>
+                {% else %}
+                <span class="state state--warning">Hash por calcular</span>
                 {% endif %}
-            </header>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty"><p class="empty__hint">Sem itens de prova associados.</p></div>
+        {% endif %}
+      </div>
+    </section>
 
-            <section class="verify-meta">
-                <div class="verify-meta-item">
-                    <div class="label">Itens esperados</div>
-                    <div class="value">{{ evidence_count }}</div>
-                </div>
-            </section>
+    <p class="pubdoc__note">
+      Cada hash SHA-256 identifica univocamente os metadados e a fotografia de cada item à data do
+      registo (ISO/IEC 27037). Esta página expõe apenas dados não sensíveis para verificação externa;
+      o conteúdo forense completo está reservado a utilizadores autenticados.
+    </p>
+  </main>
 
-            <h2 style="font-size: 1rem; color: #0F1115;">Inventário de integridade</h2>
-            <ul class="verify-list">
-                {% for ev in evidences %}
-                <li>
-                    <span class="code">{{ ev.code }}</span>
-                    <span class="type">· {{ ev.get_type_display }}</span>
-                    <span class="hash">SHA-256: {{ ev.integrity_hash }}</span>
-                </li>
-                {% endfor %}
-            </ul>
-
-            <footer class="verify-footer">
-                <p>
-                    Esta página de verificação pública contém apenas dados
-                    não-sensíveis para confirmar a autenticidade do talão
-                    de transporte. Para aceder ao detalhe completo da
-                    ocorrência (descrições, GPS, agente, cadeia de custódia),
-                    é necessário autenticação como perito autorizado.
-                </p>
-                <a href="/login/" class="verify-cta">Aceder com login</a>
-            </footer>
-        </article>
-    </main>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
 </body>
 </html>

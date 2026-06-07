@@ -20,7 +20,7 @@ Em maio de 2026 o Django 6.0.5 (LTS) introduz correcções de três CVEs com imp
 
 | CVE | Severidade | Vector relevante para ForensiQ |
 | --- | --- | --- |
-| **CVE-2026-6907** | Medium | Cache de respostas quando o header `Vary` está em falta — risco de partilha de respostas sensíveis entre utilizadores em deployments com cache intermédio (CDN/edge). O ForensiQ usa DatabaseCache (ADR-0008) com TTL agressivo em `/api/stats/dashboard/`; o fix garante que respostas autenticadas nunca caem no escopo errado. |
+| **CVE-2026-6907** | Medium | Cache de respostas quando o header `Vary` está em falta — risco de partilha de respostas sensíveis entre utilizadores em deployments com cache intermédio (CDN/edge). O ForensiQ usa DatabaseCache (ADR-0008) no lookup IMEI (o `/api/stats/dashboard/` é calculado fresco, sem cache HTTP); o fix garante que, em qualquer deployment com cache intermédio, respostas autenticadas nunca caem no escopo errado. |
 | **CVE-2026-35192** | Medium | Header `Vary` não era emitido quando se alterava a sessão — abre a porta a *session fixation* via cache de edge. Crítico dado que toda a autenticação ForensiQ vive em cookies HttpOnly servidos pelo Django. |
 | **CVE-2026-5766** | High | `DATA_UPLOAD_MAX_MEMORY_SIZE` não era enforced em `MemoryFileUploadHandler` — DoS por upload grande em endpoints multipart. Aplica-se directamente a `/api/evidences/` (upload de fotos até 25 MB, ver `validate_image_max_size` em `core/models.py`). |
 
@@ -31,8 +31,8 @@ A migração foi proposta por Dependabot (PR #8) no dia 17 mai 2026 às 03:54 UT
 ## Decision
 
 1. **Alterar o pin** de `django>=5.0,<6.0` para `django>=6.0.5,<7.0` em `src/backend/requirements.txt`. Limite superior `<7.0` preserva o gate manual + ADR para o próximo salto major (Django 7).
-2. **Não introduzir alterações de código de aplicação.** A validação (293 testes verdes; `manage.py check --settings=forensiq_project.test_settings` sem erros) demonstrou que nenhum API removido em 6.0 está em uso no ForensiQ. As áreas de risco verificadas:
-   - `STORAGES` setting (Django 5+) já estava migrado de `DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` (ver `forensiq_project/settings.py:250–259`).
+2. **Não introduzir alterações de código de aplicação.** A validação (293 testes verdes à data do upgrade; a suite cresceu desde então) com `manage.py check --settings=forensiq_project.test_settings` sem erros demonstrou que nenhum API removido em 6.0 está em uso no ForensiQ. As áreas de risco verificadas:
+   - `STORAGES` setting (Django 5+) já estava migrado de `DEFAULT_FILE_STORAGE`/`STATICFILES_STORAGE` (ver `forensiq_project/settings.py:303–318`).
    - `LoginRequiredMiddleware` (novidade 5.1) não foi adoptado — continuamos a usar `@login_required` por view e `JWTCookieAuthentication` para a API (ADR-0009).
    - Composite primary keys (5.2) não aplicáveis ao schema actual.
    - DRF, SimpleJWT, drf-spectacular, django-cors-headers, django-filter, whitenoise, Pillow, psycopg2-binary, reportlab — todos compatíveis com 6.0 nas versões pinadas (verificado via `pip-audit` + `pip check`).
@@ -61,8 +61,8 @@ A migração foi proposta por Dependabot (PR #8) no dia 17 mai 2026 às 03:54 UT
 
 ### Impactos noutros documentos
 - **ADR-0002 §2** — referência a "Django 5.x" passa a "Django 6.x (LTS)".
-- **`docs/scope/changelog.md`** — entrada Sem.9 (17 mai 2026) regista o upgrade e os CVE refs.
-- **`README.md`** — badge "Django 5" actualizar para "Django 6" na próxima passagem editorial.
+- **`docs/scope/changelog.md`** — entrada Sem.9 (17 mai 2026) regista o upgrade e os CVE refs (`changelog.md`, concluído).
+- **`README.md`** — badge actualizado para "Django 6" (`README.md:7`, concluído).
 - **`.github/workflows/ci.yml`** — sem alterações (a versão Django vem do `requirements.txt`); o fix de `requirements-dev.txt` em `e2e9a54` é tratado como bug-fix de CI, não como decisão arquitectural.
 
 ## Referências

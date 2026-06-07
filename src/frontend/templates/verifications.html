@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Verificações — ForensiQ{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Verificações</span>{% endblock %}
+
+{% block content %}
+<section class="fullbleed" aria-labelledby="vf-title">
+
+  <header class="page-head">
+    <div class="page-head__heading">
+      <h1 class="page-head__title" id="vf-title">Verificações</h1>
+      <span class="page-head__count">Centro de gestão das guias de transporte (QR)</span>
+    </div>
+  </header>
+
+  <form class="toolbar" role="search" action="/verificacoes/" method="get">
+    <div class="toolbar__search">
+      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
+      <input type="search" name="q" value="{{ q }}" inputmode="latin"
+             placeholder="Hash do QR ou código (ex.: OC-2026-0001)…"
+             autocomplete="off" aria-label="Hash do QR ou código da ocorrência">
+    </div>
+    <button type="submit" class="btn-accent">Resolver</button>
+  </form>
+
+  {% if result %}
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Ocorrência resolvida</h2></header>
+    <div class="section__body">
+      <dl class="facts">
+        <div class="facts__row"><dt>Código</dt><dd class="mono">{{ result.code }}</dd></div>
+        <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ result.number }}</dd></div>
+        <div class="facts__row"><dt>Hash do QR</dt><dd class="mono">{{ result.short_hash }}</dd></div>
+        <div class="facts__row">
+          <dt>URL de verificação</dt>
+          <dd class="mono">{{ result.verify_url }}
+            <button type="button" class="copy-btn" data-copy="{{ result.verify_url }}" aria-label="Copiar URL" title="Copiar URL">⧉</button>
+          </dd>
+        </div>
+      </dl>
+      <div class="form-actions">
+        <a class="btn-accent" href="/occurrences/{{ result.id }}/">Abrir ocorrência</a>
+      </div>
+    </div>
+  </section>
+  {% elif not_found and q %}
+  <section class="section">
+    <div class="section__body">
+      <div class="empty">
+        <p class="empty__title">Sem correspondência</p>
+        <p class="empty__hint">Nenhuma ocorrência no teu âmbito corresponde a «<span class="mono">{{ q }}</span>».</p>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Como funciona</h2></header>
+    <div class="section__body">
+      <div class="detail__desc">
+        <p>Cada guia de transporte (PDF) leva um <strong>QR code</strong> que aponta para <span class="mono">/v/&lt;hash&gt;/</span>. O hash é derivado por <strong>HMAC-SHA256</strong> do identificador da ocorrência (48 bits, <strong>não-enumerável</strong> sem o segredo) — não revela o ID nem é adivinhável por contagem.</p>
+        <p>Ao ser lido, mostra uma <strong>vista adaptativa</strong>: a quem não está autenticado, apenas o código e os hashes de integridade dos itens (para confirmar que recebeu o talão certo, sem expor descrições/GPS/agente); a perito/staff, abre a ocorrência completa.</p>
+        <p>O PDF é uma <strong>guia de transporte</strong>, não uma prova autónoma (ADR-0012). Mitigações do endpoint público: <strong>throttle</strong> de 30 pedidos/minuto por IP, <strong>lockout</strong> de 15&nbsp;min após 20 tentativas falhadas (anti-brute-force), e a resposta de «não encontrado» não distingue inexistente de segredo rodado.</p>
+      </div>
+    </div>
+  </section>
+
+</section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
+{% endblock %}

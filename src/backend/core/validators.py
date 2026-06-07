@@ -26,6 +26,24 @@ import re
 from django.core.exceptions import ValidationError
 
 # ---------------------------------------------------------------------------
+# GPS — coerência de coordenadas (ADR-0013)
+# ---------------------------------------------------------------------------
+
+
+def validate_gps_coherence(lat, lng) -> None:
+    """Coerência GPS: latitude e longitude ambas presentes ou ambas ausentes.
+
+    Levanta ``ValidationError`` (Django) se só uma estiver definida. Fonte ÚNICA
+    da regra e da mensagem, partilhada por ``Model.clean()`` e pelos serializers
+    (que convertem para a ``ValidationError`` do DRF). ADR-0013.
+    """
+    if (lat is None) != (lng is None):
+        raise ValidationError(
+            'Latitude e longitude devem ser ambas definidas ou ambas vazias.'
+        )
+
+
+# ---------------------------------------------------------------------------
 # IMEI — International Mobile Equipment Identity
 # ---------------------------------------------------------------------------
 
@@ -245,3 +263,62 @@ def validate_imsi_advisory(value: str) -> str | None:
             'UE comum. Confirme se é roaming internacional ou erro de transcrição.'
         )
     return None
+
+
+# ---------------------------------------------------------------------------
+# ICCID — Integrated Circuit Card Identifier (ITU-T E.118)
+# ---------------------------------------------------------------------------
+
+_ICCID_RE = re.compile(r'^\d{18,22}$')
+
+
+def validate_iccid(value: str) -> None:
+    """Valida um ICCID (18-22 dígitos + check digit Luhn, ITU-T E.118).
+
+    Levanta ValidationError se:
+    - Não forem 18 a 22 dígitos numéricos.
+    - O check digit de Luhn falhar.
+
+    O ICCID identifica o cartão SIM físico (89 = código telecom + país +
+    emissor + nº de série + check digit). A norma ITU-T E.118 usa Luhn sobre
+    o número completo. Campo opcional — só validado quando preenchido.
+    """
+    if value is None:
+        raise ValidationError('ICCID não pode ser nulo.')
+    value = str(value).strip()
+    if not _ICCID_RE.match(value):
+        raise ValidationError(
+            'ICCID inválido: deve conter 18 a 22 dígitos numéricos (ITU-T E.118).'
+        )
+    if not _luhn_check(value):
+        raise ValidationError(
+            'ICCID inválido: falha na verificação do check digit (Luhn).'
+        )
+
+
+# ---------------------------------------------------------------------------
+# MAC — endereço IEEE 802 (48 bits)
+# ---------------------------------------------------------------------------
+
+# Formatos aceites: ``xx:xx:xx:xx:xx:xx``, ``xx-xx-xx-xx-xx-xx`` ou
+# ``xxxxxxxxxxxx`` (12 dígitos hexadecimais contíguos).
+_MAC_RE = re.compile(
+    r'^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$|^[0-9A-Fa-f]{12}$'
+)
+
+
+def validate_mac(value: str) -> None:
+    """Valida um endereço MAC IEEE 802 (48 bits).
+
+    Aceita as três notações comuns: ``00:1A:2B:3C:4D:5E``,
+    ``00-1A-2B-3C-4D-5E`` ou ``001A2B3C4D5E``. Levanta ValidationError em
+    qualquer outro formato. Campo opcional — só validado quando preenchido.
+    """
+    if value is None:
+        raise ValidationError('MAC não pode ser nulo.')
+    value = str(value).strip()
+    if not _MAC_RE.match(value):
+        raise ValidationError(
+            'MAC inválido: use o formato xx:xx:xx:xx:xx:xx, '
+            'xx-xx-xx-xx-xx-xx ou 12 dígitos hexadecimais.'
+        )

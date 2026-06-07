@@ -1,0 +1,61 @@
+/**
+ * ForensiQ — Folha de impressão.
+ *
+ * O produto é orientado a papel: guias de transporte, fichas de prova e
+ * relatórios saem impressos. Sem isto, o Ctrl+P de qualquer página imprime a
+ * casca three-pane inteira (sidebar, cabeçalho, drawer, rodapé) por cima do
+ * conteúdo útil. Esta folha esconde a casca e deixa só o conteúdo principal,
+ * a tinta preta sobre branco e quebras de página sensatas.
+ */
+@media print {
+    /* Esconder toda a cromática da casca e os controlos interativos. */
+    .app-top,
+    .app-sidebar,
+    .app-drawer,
+    .app-bottom,
+    #nav-toggle,
+    #nav-backdrop,
+    .toolbar,
+    .pager,
+    .skip-link,
+    .breadcrumb,
+    .form-actions,
+    .toast-container {
+        display: none !important;
+    }
+
+    /* Desfazer a grelha three-pane: o conteúdo ocupa a folha toda. */
+    .app-grid { display: block !important; }
+    .app-main {
+        width: 100% !important;
+        max-width: none !important;
+        padding: 0 !important;
+        overflow: visible !important;
+    }
+
+    /* Tinta: preto sobre branco (poupa toner e garante contraste no papel). */
+    body,
+    .app-body {
+        background: #fff !important;
+        color: #000 !important;
+    }
+
+    /* Bordas dos tokens translúcidos ficam invisíveis em branco — repor cinza. */
+    .grid th,
+    .grid td,
+    .section,
+    .detail {
+        border-color: #ccc !important;
+    }
+
+    /* Não partir blocos coesos entre páginas. */
+    .section,
+    .detail,
+    .grid tr {
+        break-inside: avoid;
+    }
+
+    * {
+        box-shadow: none !important;
+    }
+}

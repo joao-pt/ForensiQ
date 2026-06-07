@@ -43,3 +43,9 @@ const Toast = (() => {
 
     return { show, success, error, warning, info };
 })();
+
+// Exposto em window para scripts clássicos (sem módulos): app-shell.js
+// encaminha as mensagens server-side de Django e o login.js anuncia erros
+// de autenticação. Sem isto, `const` de topo fica no escopo do script e
+// `window.Toast` seria sempre undefined.
+window.Toast = Toast;

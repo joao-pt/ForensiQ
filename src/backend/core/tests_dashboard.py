@@ -24,6 +24,7 @@ instrumentação de teste para datar registos.
 
 from datetime import timedelta
 
+from django.db import connection
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -46,21 +47,22 @@ class DashboardBaseTestCase(TestCase):
         self.agent = User.objects.create_user(
             username='agente_dash',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             first_name='Ana',
             last_name='Silva',
         )
         self.other_agent = User.objects.create_user(
             username='agente_dash_2',
             password='TestPass123!',
-            profile=User.Profile.AGENT,
+            profile=User.Profile.FIRST_RESPONDER,
             first_name='Bruno',
             last_name='Mendes',
         )
         self.expert = User.objects.create_user(
             username='perito_dash',
             password='TestPass123!',
-            profile=User.Profile.EXPERT,
+            profile=User.Profile.FORENSIC_EXPERT,
+            clearance=User.Clearance.NACIONAL,
             first_name='Carlos',
             last_name='Costa',
         )
@@ -258,6 +260,25 @@ class ActivityFeedTest(DashboardBaseTestCase):
 class DashboardEnrichmentTest(DashboardBaseTestCase):
     """Testes das chaves aditivas de /api/stats/dashboard/ (T07)."""
 
+    # Estes testes posicionam registos no tempo com .update(created_at=...). Em
+    # PostgreSQL os triggers de imutabilidade (migração 0013, ISO/IEC 27037)
+    # bloqueiam qualquer UPDATE — desligamo-los SÓ durante o teste (o utilizador
+    # de testes é dono das tabelas, logo não precisa de superuser) para a
+    # instrumentação temporal. Não é caminho de produção; em SQLite é no-op.
+    _IMMUTABLE_TABLES = ('core_occurrence', 'core_evidence', 'core_chainofcustody')
+
+    def setUp(self):
+        # Desligar os triggers ANTES de criar qualquer dado: a transação do
+        # TestCase está vazia, logo não há eventos de trigger pendentes que
+        # bloqueiem o ALTER TABLE. O rollback do TestCase no fim do teste
+        # restaura o estado (o ALTER é DDL transacional), por isso não é preciso
+        # reativar explicitamente.
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                for table in self._IMMUTABLE_TABLES:
+                    cursor.execute(f'ALTER TABLE {table} DISABLE TRIGGER USER')
+        super().setUp()
+
     def _dashboard(self, user):
         self.authenticate_as(user)
         response = self.client.get(reverse('core:stats-dashboard'))
@@ -308,10 +329,10 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
         # Eventos de custódia: 3 nas últimas 24h, 0 nas anteriores.
         ev = EvidenceMobileFactory(agent=self.agent, occurrence=ancora)
         Evidence.objects.filter(pk=ev.pk).update(created_at=old)
-        # APREENSAO + DESPACHO_PERICIA + INICIO_PERICIA (sequência válida).
+        # APREENSAO_OBJETO + DESPACHO_PERICIA + INICIO_PERICIA (sequência válida).
         ChainOfCustody(
             evidence=ev,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
@@ -348,20 +369,20 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
         # ev_sem_custodia: activa (sem qualquer registo de custódia).
         EvidenceMobileFactory(agent=self.agent)
 
-        # ev_activa: APREENSAO (não terminal) → activa.
+        # ev_activa: APREENSAO_OBJETO (não terminal) → activa.
         ev_activa = EvidenceMobileFactory(agent=self.agent)
         ChainOfCustody(
             evidence=ev_activa,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
 
-        # ev_terminal: APREENSAO → RESTITUICAO (terminal) → NÃO activa.
+        # ev_terminal: APREENSAO_OBJETO → RESTITUICAO (terminal) → NÃO activa.
         ev_terminal = EvidenceMobileFactory(agent=self.agent)
         ChainOfCustody(
             evidence=ev_terminal,
-            event_type=ChainOfCustody.EventType.APREENSAO,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()

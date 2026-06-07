@@ -53,6 +53,7 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
+from . import access
 from .audit import log_access
 from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
@@ -60,16 +61,24 @@ from .models import (
     TERMINAL_EVENTS,
     AuditLog,
     ChainOfCustody,
+    CrimeCategoria,
+    CrimeSubcategoria,
+    CrimeTipo,
     Evidence,
     Occurrence,
+    PoliticaCriminalPrioridade,
+    PrioridadeCrimeTipo,
     derive_legal_state,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
-from .permissions import IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
+from .permissions import CanAccessCustodyApi, IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
     ActivityFeedSerializer,
     CascadeCustodyRequestSerializer,
     ChainOfCustodySerializer,
+    CrimeCategoriaSerializer,
+    CrimeSubcategoriaSerializer,
+    CrimeTipoSimpleSerializer,
     EvidenceSerializer,
     OccurrenceSerializer,
     UserCreateSerializer,
@@ -92,30 +101,17 @@ _LOOKUP_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 
 
 def _user_can_access_occurrence(user, occurrence) -> bool:
-    """Helper partilhado por views e serializers (IDOR / ownership).
-
-    Regra: staff / EXPERT vêem tudo; AGENT só ocorrências próprias.
-    Qualquer outro perfil autenticado é bloqueado.
-    """
-    if user is None or not user.is_authenticated:
-        return False
-    if getattr(user, 'is_staff', False):
-        return True
-    profile = getattr(user, 'profile', None)
-    if profile == 'EXPERT':
-        return True
-    if profile == 'AGENT':
-        return occurrence.agent_id == user.id
-    return False
+    """Acesso à OCORRÊNCIA (need-to-know — ADR-0017; fonte única em core.access)."""
+    return access.can_access_occurrence(user, occurrence)
 
 
 def _user_can_lookup(user) -> bool:
-    """Só AGENT / EXPERT (ou staff) podem consultar APIs externas."""
+    """Só FIRST_RESPONDER / FORENSIC_EXPERT (ou staff) consultam APIs externas."""
     if user is None or not user.is_authenticated:
         return False
     if getattr(user, 'is_staff', False):
         return True
-    return getattr(user, 'profile', None) in ('AGENT', 'EXPERT')
+    return getattr(user, 'profile', None) in ('FIRST_RESPONDER', 'FORENSIC_EXPERT')
 
 
 def _evidence_ids_in_legal_state(custody_qs, state):
@@ -202,8 +198,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(agent=user)
+        qs = access.scope_occurrences(user, base_qs=qs)
         # Filtro opcional por ESTADO LEGAL DERIVADO (ADR-0015) das evidências
         # da ocorrência. O estado não é coluna — deriva-se da sequência de
         # eventos via derive_legal_state, mantendo a definição coerente com os
@@ -219,9 +214,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
                         )
                     }
                 )
-            custody_qs = ChainOfCustody.objects.all()
-            if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-                custody_qs = custody_qs.filter(evidence__occurrence__agent=user)
+            custody_qs = access.scope_custody(user)
             ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
             occ_ids = (
                 Evidence.objects.filter(id__in=ev_ids)
@@ -365,8 +358,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         """
         qs = super().get_queryset().with_current_state()
         user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(occurrence__agent=user)
+        qs = access.scope_evidences(user, base_qs=qs)
         occurrence_id = self.request.query_params.get('occurrence')
         if occurrence_id:
             qs = qs.filter(occurrence_id=occurrence_id)
@@ -385,10 +377,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
                     }
                 )
             # Estado legal derivado (ADR-0015) — não é coluna; computa-se sobre
-            # a sequência de eventos. Universo de custódia já segue o ownership.
-            custody_qs = ChainOfCustody.objects.all()
-            if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-                custody_qs = custody_qs.filter(evidence__occurrence__agent=user)
+            # a sequência de eventos. Universo de custódia segue o need-to-know.
+            custody_qs = access.scope_custody(user)
             ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
             qs = qs.filter(id__in=ev_ids)
         return qs
@@ -481,8 +471,12 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     """
     API da cadeia de custódia.
 
-    - Criação: AGENT ou EXPERT (conforme a fase da custódia).
-    - Consulta: qualquer utilizador autenticado.
+    - Criação: qualquer perfil que o modelo de acesso autorize a escrever no item
+      (custódio atual, membro da instituição que o detém, override do perito,
+      despacho da autoridade do caso, ou staff) — a autorização é feita por
+      ``access.can_append_custody`` em ``perform_create``/``cascade``. Perfis
+      só-leitura (CHEFE_SERVICO/AUDITOR) nunca escrevem.
+    - Consulta: qualquer utilizador autenticado (com âmbito need-to-know).
     - Edição/eliminação: BLOQUEADAS (append-only — 405 Method Not Allowed).
     - O campo 'agent' é preenchido automaticamente.
     - Filtragem por evidência: ?evidence=<id>
@@ -490,7 +484,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 
     queryset = ChainOfCustody.objects.select_related('evidence', 'agent').all()
     serializer_class = ChainOfCustodySerializer
-    permission_classes = [IsAuthenticated, IsAgentOrExpert]
+    # CanAccessCustodyApi (não IsAgentOrExpert): admite os perfis que o modelo de
+    # acesso autoriza a escrever (inclui CASE_AUTHORITY e EVIDENCE_CUSTODIAN) e
+    # delega a decisão item-level a access.can_append_custody em perform_create/
+    # cascade. IsAgentOrExpert bloqueava indevidamente esses perfis.
+    permission_classes = [IsAuthenticated, CanAccessCustodyApi]
     http_method_names = ['get', 'post', 'head', 'options']  # sem PUT/PATCH/DELETE
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = CustodyFilter
@@ -510,14 +508,23 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if not user.is_staff and hasattr(user, 'profile') and user.profile == 'AGENT':
-            qs = qs.filter(evidence__occurrence__agent=user)
+        qs = access.scope_custody(user, base_qs=qs)
         evidence_id = self.request.query_params.get('evidence')
         if evidence_id:
             qs = qs.filter(evidence_id=evidence_id)
         return qs
 
     def perform_create(self, serializer):
+        # Gate de ESCRITA (ADR-0017 §5): só quem detém o item (ou pode assumi-lo),
+        # o perito (override) ou a autoridade do caso (atos de despacho) regista.
+        evidence = serializer.validated_data.get('evidence')
+        event_type = serializer.validated_data.get('event_type')
+        if evidence is not None and not access.can_append_custody(
+            self.request.user, evidence, event_type
+        ):
+            raise drf_serializers.ValidationError(
+                {'detail': 'Sem permissão para registar eventos de custódia neste item (ADR-0017).'}
+            )
         try:
             custody_record = serializer.save(agent=self.request.user)
             log_access(
@@ -553,7 +560,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         Permite ao utilizador registar o mesmo evento num item-pai e nos seus
         sub-componentes (ex: telemóvel + cartão SIM + cartão de memória) numa
         única acção, em vez de o fazer item a item. Caso de uso típico: o
-        intake EXPERT-only (ADR-0012) emite ``event_type=TRANSFERENCIA`` para
+        intake EXPERT-only (ADR-0012) emite ``event_type=TRANSFERENCIA_CUSTODIA`` para
         ``custodian_type=LAB_PUBLICO`` em lote.
 
         Garantias:
@@ -562,8 +569,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         - Cada ``ChainOfCustody.save()`` mantém o seu próprio
           ``select_for_update`` por evidência — não há contenção entre
           evidências distintas.
-        - Ownership: utilizador tem de poder operar sobre TODAS as
-          evidências (AGENT dono, EXPERT ou staff). Caso contrário 403.
+        - Ownership: o utilizador tem de poder ESCREVER em TODAS as evidências
+          (access.can_append_custody por item — custódio atual / override do
+          perito / despacho da autoridade do caso / staff). Caso contrário 403.
         - As guardas do ledger (ADR-0015) são validadas por cada
           ``ChainOfCustody.save()``; se uma evidência rejeitar o evento,
           todas revertem e o cliente recebe 400 com ``evidence_id`` e mensagem.
@@ -575,6 +583,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         event_type = payload.validated_data['event_type']
         custodian_type = payload.validated_data.get('custodian_type', '')
         observations = payload.validated_data.get('observations', '')
+        location_name = payload.validated_data.get('location_name', '')
+        storage_location = payload.validated_data.get('storage_location', '')
+        gps_lat = payload.validated_data.get('gps_lat')
+        gps_lng = payload.validated_data.get('gps_lng')
+        gps_accuracy_m = payload.validated_data.get('gps_accuracy_m')
 
         evidences = list(
             Evidence.objects.select_related('occurrence', 'occurrence__agent').filter(
@@ -586,10 +599,20 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 {'detail': 'Uma ou mais evidências não existem.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
+        # Gate de ESCRITA item-level (ADR-0017 §5) — o MESMO que perform_create.
+        # Antes usava _user_can_access_occurrence (acesso de LEITURA à ocorrência),
+        # o que deixava o titular da ocorrência injetar QUALQUER evento (incl.
+        # terminais) em itens detidos por outro custódio/laboratório. can_append_custody
+        # exige deter o item / override de perito / despacho da autoridade do caso.
         for ev in evidences:
-            if not _user_can_access_occurrence(request.user, ev.occurrence):
+            if not access.can_append_custody(request.user, ev, event_type):
                 return Response(
-                    {'detail': f'Sem permissão sobre a evidência {ev.code or ev.pk}.'},
+                    {
+                        'detail': (
+                            'Sem permissão para registar este evento na evidência '
+                            f'{ev.code or ev.pk} (ADR-0017).'
+                        )
+                    },
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
@@ -601,6 +624,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                         evidence=ev,
                         event_type=event_type,
                         custodian_type=custodian_type,
+                        location_name=location_name,
+                        storage_location=storage_location,
+                        gps_lat=gps_lat,
+                        gps_lng=gps_lng,
+                        gps_accuracy_m=gps_accuracy_m,
                         observations=observations,
                         agent=request.user,
                     )
@@ -615,6 +643,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                             'evidence_id': ev.pk,
                             'event_type': event_type,
                             'custodian_type': custodian_type,
+                            'location_name': location_name,
                             'cascade': True,
                         },
                     )
@@ -790,7 +819,6 @@ class ReverseGeocodeView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'reverse_geocode'
 
-    _NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
     _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
     _TIMEOUT_SECONDS = 5
 
@@ -828,7 +856,7 @@ class ReverseGeocodeView(APIView):
         # --- chamada ao Nominatim (server-side) ---
         try:
             resp = httpx.get(
-                self._NOMINATIM_URL,
+                settings.NOMINATIM_REVERSE_URL,
                 params={'lat': lat, 'lon': lon, 'format': 'json'},
                 headers={
                     'User-Agent': self._USER_AGENT,
@@ -890,7 +918,6 @@ class NearbyPOIsView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'reverse_geocode'
 
-    _OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
     _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
     _TIMEOUT_SECONDS = 5
     _DEFAULT_RADIUS_M = 500
@@ -962,7 +989,7 @@ class NearbyPOIsView(APIView):
 
         try:
             resp = httpx.post(
-                self._OVERPASS_URL,
+                settings.OVERPASS_API_URL,
                 data={'data': query},
                 headers={'User-Agent': self._USER_AGENT},
                 timeout=self._TIMEOUT_SECONDS,
@@ -1021,6 +1048,69 @@ def _haversine_m(lat1, lon1, lat2, lon2):
 
 
 # ---------------------------------------------------------------------------
+# Taxonomia de crimes — seletor em cascata N1>N2>N3 (read-only)
+# ---------------------------------------------------------------------------
+
+
+class CrimeCategoryListView(generics.ListAPIView):
+    """GET /api/crime-categories/ — categorias N1 da Tabela de Crimes Registados."""
+
+    queryset = CrimeCategoria.objects.order_by('codigo')
+    serializer_class = CrimeCategoriaSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+
+class CrimeSubcategoryListView(generics.ListAPIView):
+    """GET /api/crime-subcategories/?categoria=<id> — subcategorias N2."""
+
+    serializer_class = CrimeSubcategoriaSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CrimeSubcategoria.objects.order_by('codigo')
+        categoria = self.request.query_params.get('categoria')
+        if categoria:
+            qs = qs.filter(categoria_id=categoria)
+        return qs
+
+
+class CrimeTypeListView(generics.ListAPIView):
+    """GET /api/crime-types/?subcategoria=<id> — tipos N3 (+ flag de prioridade).
+
+    ``is_prioritaria`` deriva da versão activa da Política Criminal (eixo
+    INVESTIGAÇÃO, Art. 5.º). O conjunto de ids prioritários é pré-calculado
+    aqui e passado ao serializer (sem N+1). A derivação final continua a
+    ocorrer em ``Occurrence._aplicar_prioridade`` no momento do POST.
+    """
+
+    serializer_class = CrimeTipoSimpleSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = CrimeTipo.objects.filter(is_active=True).order_by('codigo')
+        subcategoria = self.request.query_params.get('subcategoria')
+        if subcategoria:
+            qs = qs.filter(subcategoria_id=subcategoria)
+        return qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        vigente = PoliticaCriminalPrioridade.objects.vigente()
+        prioritaria_ids = set()
+        if vigente is not None:
+            assoc = vigente.associacoes.filter(eixo=PrioridadeCrimeTipo.Eixo.INVESTIGACAO)
+            subcategoria = self.request.query_params.get('subcategoria')
+            if subcategoria:
+                assoc = assoc.filter(crime_tipo__subcategoria_id=subcategoria)
+            prioritaria_ids = set(assoc.values_list('crime_tipo_id', flat=True))
+        context['prioritaria_ids'] = prioritaria_ids
+        return context
+
+
+# ---------------------------------------------------------------------------
 # Stats (dashboard) — endpoint agregado para evitar round-trips do frontend
 # ---------------------------------------------------------------------------
 
@@ -1045,14 +1135,9 @@ class StatsView(APIView):
 
     def get(self, request):
         user = request.user
-        occ_qs = Occurrence.objects.all()
-        ev_qs = Evidence.objects.all()
-        coc_qs = ChainOfCustody.objects.all()
-
-        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-            occ_qs = occ_qs.filter(agent=user)
-            ev_qs = ev_qs.filter(occurrence__agent=user)
-            coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
+        occ_qs = access.scope_occurrences(user)
+        ev_qs = access.scope_evidences(user)
+        coc_qs = access.scope_custody(user)
 
         evidence_by_type = dict(
             ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
@@ -1102,14 +1187,9 @@ class DashboardStatsView(APIView):
 
     def get(self, request):
         user = request.user
-        occ_qs = Occurrence.objects.all()
-        ev_qs = Evidence.objects.all()
-        coc_qs = ChainOfCustody.objects.all()
-
-        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
-            occ_qs = occ_qs.filter(agent=user)
-            ev_qs = ev_qs.filter(occurrence__agent=user)
-            coc_qs = coc_qs.filter(evidence__occurrence__agent=user)
+        occ_qs = access.scope_occurrences(user)
+        ev_qs = access.scope_evidences(user)
+        coc_qs = access.scope_custody(user)
 
         total_occurrences = occ_qs.count()
         total_evidences = ev_qs.count()
@@ -1262,11 +1342,13 @@ class ActivityFeedView(generics.ListAPIView):
     paginado pela paginação default do projecto. Read-only: apenas GET é
     exposto (``ListAPIView``); POST/PUT/PATCH/DELETE devolvem 405.
 
-    Âmbito (documentado):
-    - EXPERT / staff vêem TODOS os eventos de auditoria.
-    - AGENT vê APENAS os eventos que ELE praticou (``user_id == request.user.id``).
-      Como o ``AuditLog`` regista acessos a prova potencialmente sob segredo de
-      justiça, não se expõe a um agente a actividade de terceiros.
+    Âmbito (documentado, ADR-0017):
+    - Leitura nacional (staff ou credencial NACIONAL) vê TODOS os eventos.
+    - Qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
+      CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou
+      (``user_id == request.user.id``). Como o ``AuditLog`` regista acessos a
+      prova potencialmente sob segredo de justiça, não se expõe a actividade de
+      terceiros a quem não tem leitura nacional.
 
     O sinal ``is_priority_alert`` (ADR-0014 §7) destaca a criação de
     ocorrências prioritárias. Para evitar N+1, os ids das ocorrências
@@ -1280,7 +1362,12 @@ class ActivityFeedView(generics.ListAPIView):
     def get_queryset(self):
         qs = AuditLog.objects.select_related('user').order_by('-timestamp')
         user = self.request.user
-        if not user.is_staff and getattr(user, 'profile', None) == 'AGENT':
+        # Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo de
+        # auditoria; qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
+        # CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
+        # *need-to-know* (ADR-0017). Antes só o FIRST_RESPONDER era restringido, o
+        # que vazava o registo global a todos os outros perfis não-nacionais.
+        if not access.has_national_read(user):
             qs = qs.filter(user_id=user.id)
         return qs
 

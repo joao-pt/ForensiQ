@@ -4,7 +4,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 1.0 · 22 mar 2026 (Markdown) — fonte autoritativa: [`requirements.tex`](./requirements.tex) |
+| Versão | 1.0 · 22 mar 2026 (Markdown) — fonte autoritativa neste repositório; fonte LaTeX arquivada fora do repositório |
 | Referência | [productplan.com/glossary/moscow-prioritization](https://www.productplan.com/glossary/moscow-prioritization/) |
 
 ---

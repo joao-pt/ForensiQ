@@ -25,6 +25,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ActivityFeedView,
     ChainOfCustodyViewSet,
+    CrimeCategoryListView,
+    CrimeSubcategoryListView,
+    CrimeTypeListView,
     DashboardStatsView,
     EvidenceIMEILookupView,
     EvidenceViewSet,
@@ -60,6 +63,10 @@ urlpatterns = [
     ),
     path('reverse-geocode/', ReverseGeocodeView.as_view(), name='reverse-geocode'),
     path('nearby-pois/', NearbyPOIsView.as_view(), name='nearby-pois'),
+    # Taxonomia de crimes — seletor em cascata N1>N2>N3 (occurrences_new)
+    path('crime-categories/', CrimeCategoryListView.as_view(), name='crime-categories'),
+    path('crime-subcategories/', CrimeSubcategoryListView.as_view(), name='crime-subcategories'),
+    path('crime-types/', CrimeTypeListView.as_view(), name='crime-types'),
     path('activity-feed/', ActivityFeedView.as_view(), name='activity-feed'),
     path('stats/', StatsView.as_view(), name='stats'),
     path('stats/dashboard/', DashboardStatsView.as_view(), name='stats-dashboard'),

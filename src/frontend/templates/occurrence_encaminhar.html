@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Encaminhar prova — ForensiQ{% endblock %}
+
+{% block lens_bar %}{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/occurrences/">Ocorrências</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a href="/occurrences/{{ occ.id }}/" class="mono">{{ occ.code|default:occ.number }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Encaminhar</span>
+{% endblock %}
+
+{% block content %}
+<article class="detail fullbleed" aria-labelledby="enc-title">
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="enc-title">Encaminhar prova</h1>
+      <p class="detail__sub">{{ occ.code|default:occ.number }} — entregar a um portador com destino (sem GPS; em trânsito até à receção)</p>
+    </div>
+  </header>
+  <section class="section">
+    <div class="section__body">
+      {% include 'partials/_encaminhar_form.html' %}
+    </div>
+  </section>
+</article>
+{% endblock %}

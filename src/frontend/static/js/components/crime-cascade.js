@@ -1,0 +1,167 @@
+/**
+ * ForensiQ — Seletor de crime em cascata N1>N2>N3 (occurrences_new).
+ * CSP-safe: ficheiro estático, sem eval/inline. fetch com cookie JWT.
+ *
+ * Categoria (N1, server-rendered) → Subcategoria (N2, /api/crime-subcategories/)
+ * → Tipo (N3, /api/crime-types/, com flag is_prioritaria). Ao escolher o tipo,
+ * mostra a pré-visualização do badge de prioridade (P1 se derivada da lei).
+ * A derivação final é sempre confirmada no servidor (Occurrence._aplicar_prioridade).
+ *
+ * Rehidratação (ação-in-place): o formulário também vive num modal cujo fragmento
+ * é injetado depois do load. `init(root)` liga a cascata ao formulário presente na
+ * raiz dada — corre no load (document) e de novo em `fq:modal-open` (raiz do modal).
+ * Um marcador no formulário evita religar o mesmo nó duas vezes.
+ */
+(function () {
+    'use strict';
+
+    // Idempotente: o módulo pode ser carregado globalmente (base.html) e por
+    // páginas à parte — corre a ligação (init + listener de modal) uma só vez.
+    if (window.__fqCrimeCascadeReady) return;
+    window.__fqCrimeCascadeReady = true;
+
+    function init(root) {
+        var scope = (root && root.querySelector) ? root : document;
+        var form = scope.querySelector('[data-crime-cascade]');
+        if (!form || form.hasAttribute('data-cascade-ready')) return;
+        var catSel = form.querySelector('[data-crime-cat]');
+        var subSel = form.querySelector('[data-crime-sub]');
+        var typeSel = form.querySelector('[data-crime-type]');
+        var badge = form.querySelector('[data-crime-priority]');
+        if (!catSel || !subSel || !typeSel) return;
+        form.setAttribute('data-cascade-ready', '1');
+
+        function reset(sel, placeholder) {
+            sel.innerHTML = '<option value="">' + placeholder + '</option>';
+            sel.disabled = true;
+            sel.removeAttribute('aria-busy');
+        }
+        function loading(sel) {
+            sel.innerHTML = '<option value="">— a carregar… —</option>';
+            sel.disabled = true;
+            sel.setAttribute('aria-busy', 'true');
+        }
+        function fill(sel, items, render) {
+            sel.innerHTML = '<option value="">— selecionar —</option>';
+            items.forEach(function (it) {
+                var o = document.createElement('option');
+                render(o, it);
+                sel.appendChild(o);
+            });
+            sel.disabled = false;
+            sel.removeAttribute('aria-busy');
+        }
+        function clearBadge() {
+            if (badge) { badge.textContent = ''; badge.className = 'form-hint'; }
+        }
+        // Mensagem por estado: distingue sessão expirada (401/403) de falha de servidor.
+        function statusMessage(status) {
+            if (status === 401 || status === 403) return '— sessão expirada, reautentique —';
+            return '— erro ao carregar —';
+        }
+        // GET JSON → window.FQFetch.getJSON (fonte única; rejeita em !ok com um
+        // Error a carregar `.status`, que o statusMessage usa p/ distinguir 401/403).
+
+        function loadSubs(catId) {
+            if (!catId) {
+                reset(subSel, '— selecione a categoria —');
+                reset(typeSel, '— selecione a subcategoria —');
+                clearBadge();
+                return Promise.resolve();
+            }
+            loading(subSel);
+            return window.FQFetch.getJSON('/api/crime-subcategories/?categoria=' + encodeURIComponent(catId))
+                .then(function (items) {
+                    fill(subSel, items, function (o, it) { o.value = it.id; o.textContent = it.codigo + ' — ' + it.nome; });
+                    reset(typeSel, '— selecione a subcategoria —');
+                    clearBadge();
+                })
+                .catch(function (e) { reset(subSel, statusMessage(e && e.status)); });
+        }
+
+        function loadTypes(subId) {
+            if (!subId) {
+                reset(typeSel, '— selecione a subcategoria —');
+                clearBadge();
+                return Promise.resolve();
+            }
+            loading(typeSel);
+            return window.FQFetch.getJSON('/api/crime-types/?subcategoria=' + encodeURIComponent(subId))
+                .then(function (items) {
+                    fill(typeSel, items, function (o, it) {
+                        o.value = it.id;
+                        o.textContent = it.codigo + ' — ' + it.descritivo;
+                        if (it.is_prioritaria) o.setAttribute('data-prioritaria', '1');
+                    });
+                    clearBadge();
+                })
+                .catch(function (e) { reset(typeSel, statusMessage(e && e.status)); });
+        }
+
+        function updateBadge() {
+            if (!badge) return;
+            var opt = typeSel.options[typeSel.selectedIndex];
+            if (opt && opt.getAttribute('data-prioritaria') === '1') {
+                badge.textContent = 'P1 · Prioritária (derivada da lei)';
+                badge.className = 'form-hint pri-hint--p1';
+            } else if (typeSel.value) {
+                badge.textContent = 'Sem prioridade pela lei — pode elevar manualmente abaixo.';
+                badge.className = 'form-hint';
+            } else {
+                clearBadge();
+            }
+        }
+
+        catSel.addEventListener('change', function () { loadSubs(catSel.value); });
+        subSel.addEventListener('change', function () { loadTypes(subSel.value); });
+        typeSel.addEventListener('change', updateBadge);
+
+        // Pré-seleção após re-render por erro de validação (mantém o crime escolhido).
+        // Se a cascata falhar a recarregar (rede/401), preserva o tipo escolhido
+        // numa opção de recurso para o formulário não ficar inutilizável.
+        var selCat = form.getAttribute('data-sel-cat');
+        var selSub = form.getAttribute('data-sel-sub');
+        var selType = form.getAttribute('data-sel-type');
+
+        function keepChosenType() {
+            if (!selType) return;
+            // Garante que o tipo previamente escolhido continua selecionável e submetível,
+            // mesmo que loadSubs/loadTypes não tenham repopulado os selects.
+            if (!typeSel.querySelector('option[value="' + selType + '"]')) {
+                var o = document.createElement('option');
+                o.value = selType;
+                o.textContent = 'Tipo escolhido (recuperado)';
+                typeSel.appendChild(o);
+            }
+            typeSel.disabled = false;
+            typeSel.removeAttribute('aria-busy');
+            typeSel.value = selType;
+            updateBadge();
+        }
+
+        if (selCat) {
+            catSel.value = selCat;
+            loadSubs(selCat).then(function () {
+                if (!selSub) return;
+                subSel.value = selSub;
+                return loadTypes(selSub).then(function () {
+                    if (selType) { typeSel.value = selType; updateBadge(); }
+                });
+            }).then(function () {
+                // Se algum passo falhou, o tipo escolhido pode não ter ficado selecionado.
+                if (selType && typeSel.value !== selType) keepChosenType();
+            }).catch(keepChosenType);
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { init(document); });
+    } else {
+        init(document);
+    }
+    // Modal ação-in-place: o fragmento é injetado depois do load → reinicializa
+    // a cascata sobre a raiz do modal quando este abre.
+    document.addEventListener('fq:modal-open', function (ev) {
+        init(ev.detail && ev.detail.root);
+    });
+})();

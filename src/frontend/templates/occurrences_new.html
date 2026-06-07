@@ -1,186 +1,44 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% load static %}
 
-{% block title %}ForensiQ — Nova ocorrência{% endblock %}
+{% block title %}Nova ocorrência — ForensiQ{% endblock %}
 
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/occurrences/">Ocorrências</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current">Nova</span>
-{% endblock %}
+{# Sem barra de lente: página de entrada de dados (clicar um chip perderia o formulário). #}
+{% block lens_bar %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/wizard.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
-{# extra_css_post desnecessário aqui (wizard.css já está em extra_css) — bloco
-   removido para evitar ruído. Mantemos apenas o markup do modal. #}
+{% block breadcrumb %}
+  <a href="/occurrences/">Ocorrências</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Nova</span>
+{% endblock %}
 
 {% block content %}
-<form id="occurrence-form" novalidate>
-<div class="wizard" id="occurrence-wizard">
-    <div class="wizard-track">
+<article class="detail fullbleed" aria-labelledby="on-title">
 
-        <section class="wizard-step" data-step="0">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 1 de 6</div>
-                <h2 class="wizard-step-title">Número da ocorrência</h2>
-                <p class="wizard-step-hint">NUIPC ou referência interna que identifica esta ocorrência.</p>
-            </div>
-            <div class="form-group">
-                <input type="text" id="number" name="number" class="form-control"
-                       placeholder="Ex.: NUIPC 2026/000123 ou INT-2026-001"
-                       required autocomplete="off" autocapitalize="characters">
-                <div class="form-error" id="number-error"></div>
-            </div>
-        </section>
-
-        <section class="wizard-step" data-step="1">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 2 de 6</div>
-                <h2 class="wizard-step-title">Descrição</h2>
-                <p class="wizard-step-hint">Descrição sumária da ocorrência ou cena de crime.</p>
-            </div>
-            <div class="form-group">
-                <textarea id="description" name="description" class="form-control" rows="5"
-                          placeholder="Ex.: Assalto a habitação. Recolhido 1 portátil e 2 smartphones…"
-                          required></textarea>
-                <div class="form-error" id="description-error"></div>
-            </div>
-        </section>
-
-        <section class="wizard-step" data-step="2">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 3 de 6</div>
-                <h2 class="wizard-step-title">Data e hora</h2>
-                <p class="wizard-step-hint">Momento em que ocorreu o incidente.</p>
-            </div>
-            <div class="form-group">
-                <input type="datetime-local" id="date_time" name="date_time" class="form-control" required>
-                <div class="form-error" id="date_time-error"></div>
-            </div>
-        </section>
-
-        <section class="wizard-step" data-step="3">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 4 de 6</div>
-                <h2 class="wizard-step-title">Localização GPS</h2>
-                <p class="wizard-step-hint">Coordenadas do local. Preferencialmente capturadas do dispositivo.</p>
-            </div>
-            <div id="gps-status" class="gps-status" hidden></div>
-            <div class="stack-sm mb-3">
-                <div class="form-group">
-                    <label for="gps_lat" class="form-label-sm">Latitude</label>
-                    <input type="number" id="gps_lat" name="gps_lat" class="form-control mono"
-                           placeholder="38.7169" step="0.0000001" min="-90" max="90" readonly>
-                </div>
-                <div class="form-group">
-                    <label for="gps_lng" class="form-label-sm">Longitude</label>
-                    <input type="number" id="gps_lng" name="gps_lng" class="form-control mono"
-                           placeholder="-9.1395" step="0.0000001" min="-180" max="180" readonly>
-                </div>
-            </div>
-            <button type="button" id="btn-gps" class="btn btn-primary btn-lg btn-block">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="10" r="3"/>
-                    <path d="M12 2a8 8 0 0 0-8 8c0 6 8 12 8 12s8-6 8-12a8 8 0 0 0-8-8z"/>
-                </svg>
-                Capturar localização atual
-            </button>
-            <button type="button" class="wizard-skip" data-skip>Saltar — sem GPS</button>
-        </section>
-
-        <section class="wizard-step" data-step="4">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 5 de 6</div>
-                <h2 class="wizard-step-title">Morada</h2>
-                <p class="wizard-step-hint">Morada aproximada. Preenchida automaticamente se GPS disponível.</p>
-            </div>
-            <div class="form-group">
-                <input type="text" id="address" name="address" class="form-control"
-                       placeholder="Ex.: Rua da República, Lisboa" autocomplete="street-address">
-            </div>
-            <button type="button" class="wizard-skip" data-skip>Saltar — sem morada</button>
-        </section>
-
-        <section class="wizard-step" data-step="5">
-            <div class="wizard-step-header">
-                <div class="wizard-step-label">Passo 6 de 6</div>
-                <h2 class="wizard-step-title">Confirmar registo</h2>
-                <p class="wizard-step-hint">Verifica os dados. Toca em Registar para submeter.</p>
-            </div>
-
-            <div class="wizard-summary" id="summary">
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Número</span>
-                    <span class="wizard-summary-value mono" id="sum-number">—</span>
-                </div>
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Descrição</span>
-                    <span class="wizard-summary-value" id="sum-description">—</span>
-                </div>
-                <div class="wizard-summary-item">
-                    <span class="wizard-summary-label">Data/hora</span>
-                    <span class="wizard-summary-value mono" id="sum-datetime">—</span>
-                </div>
-                <div class="wizard-summary-item" id="sum-gps-row">
-                    <span class="wizard-summary-label">GPS</span>
-                    <span class="wizard-summary-value mono" id="sum-gps">—</span>
-                </div>
-                <div class="wizard-summary-item" id="sum-address-row">
-                    <span class="wizard-summary-label">Morada</span>
-                    <span class="wizard-summary-value" id="sum-address">—</span>
-                </div>
-            </div>
-
-            <div id="submit-error" class="form-error mt-3"></div>
-            <div class="spinner spinner-submit mt-4 hidden" id="submit-spinner"></div>
-        </section>
-
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="on-title">Nova ocorrência</h1>
+      <p class="detail__sub">A prioridade é derivada do tipo de crime (Política Criminal)</p>
     </div>
+  </header>
 
-    <nav class="wizard-nav" aria-label="Navegação do wizard">
-        <button type="button" class="wizard-back" aria-label="Voltar">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="m15 18-6-6 6-6"/>
-            </svg>
-        </button>
-        <div class="wizard-dots"></div>
-        <button type="button" class="wizard-next">Seguinte</button>
-    </nav>
-</div>
-</form>
-
-<!-- Modal: pós-criação de ocorrência. Pergunta se o utilizador quer
-     adicionar dispositivos imediatamente, evitando que tenha de voltar
-     ao listing e abrir a ocorrência. Reutiliza o pattern modal-overlay
-     do wizard de evidências. -->
-<div class="modal-overlay" id="post-create-modal" hidden aria-hidden="true"
-     role="dialog" aria-modal="true" aria-labelledby="post-create-title">
-    <div class="modal">
-        <h3 class="modal-title" id="post-create-title">Ocorrência registada</h3>
-        <p>
-            Ocorrência <strong class="mono" id="post-create-number">—</strong> criada com sucesso.
-            Quer começar já a registar dispositivos apreendidos?
-        </p>
-        <div class="modal-actions">
-            <button type="button" class="btn btn-ghost" id="btn-post-view">
-                Ver ocorrência
-            </button>
-            <button type="button" class="btn btn-primary" id="btn-post-add">
-                Adicionar dispositivos
-            </button>
-        </div>
+  <section class="section">
+    <div class="section__body">
+      {% include 'partials/_occurrence_form.html' %}
     </div>
-</div>
+  </section>
+
+</article>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/wizard.js' %}"></script>
-<script src="{% static 'js/pages/occurrences_new.js' %}"></script>
+  <script src="{% static 'js/components/geo.js' %}"></script>
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/components/crime-cascade.js' %}"></script>
+  <script src="{% static 'js/components/reverse-geocode.js' %}"></script>
+  <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}

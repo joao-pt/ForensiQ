@@ -96,12 +96,16 @@ class ContentSecurityPolicyMiddleware:
       ou quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
       'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79). O Leaflet é
       self-hosted (sem CDN externo; cdnjs removido no T08).
-    - style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com: <style>
-      blocks (Leaflet runtime injecta um) precisam de nonce; o setter
-      element.style.X = ... do DOM API não é controlado pelo style-src.
+    - style-src 'self' 'nonce-{nonce}': sem unsafe-inline e SEM origens externas.
+      NOTA: o HTMX injetava um <style> de indicadores (bloqueado por esta CSP em
+      todas as páginas com HTMX); está desligado via <meta name="htmx-config"
+      includeIndicatorStyles:false> no base.html — a app usa indicadores próprios
+      (.toolbar__busy.htmx-request). O Leaflet NÃO injeta <style> (traz a CSS por
+      <link>). O setter element.style.X = ... do DOM API não é controlado pelo
+      style-src.
     - connect-src: AJAX ao próprio domínio e geocoding OSM (Nominatim)
     - img-src: imagens do domínio, data URIs e tiles OSM
-    - font-src: fontes do domínio e Google Fonts (IBM Plex)
+    - font-src 'self': IBM Plex é self-hosted (css/fonts.css); sem Google Fonts
     - base-uri 'self': bloqueia <base> injection
     - frame-ancestors 'none': anti-clickjacking (CWE-1021)
     - form-action 'self': restringe destino de formulários
@@ -138,14 +142,14 @@ class ContentSecurityPolicyMiddleware:
         """
         directives = [
             "default-src 'self'",
-            # cdnjs.cloudflare.com removido (T08): o Leaflet passou a self-hosted
-            # (drift do ADR-0007 alt. A2) e a swagger usa drf-spectacular-sidecar
-            # local — nenhum asset vivo vem de cdnjs. Fontes IBM Plex via Google Fonts.
+            # Sem origens externas para script/style/font: o Leaflet é self-hosted
+            # (T08), a swagger usa drf-spectacular-sidecar local, e o IBM Plex passou
+            # a self-hosted (css/fonts.css). Já não há Google Fonts — CSP mais apertada.
             f"script-src 'self' 'nonce-{nonce}'",
-            f"style-src 'self' 'nonce-{nonce}' https://fonts.googleapis.com",
+            f"style-src 'self' 'nonce-{nonce}'",
             "connect-src 'self' https://nominatim.openstreetmap.org",
             "img-src 'self' data: https://*.tile.openstreetmap.org",
-            "font-src 'self' https://fonts.gstatic.com",
+            "font-src 'self'",
             "object-src 'none'",
             "frame-src 'none'",
             "base-uri 'self'",

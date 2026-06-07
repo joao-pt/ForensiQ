@@ -32,8 +32,8 @@
     position: relative;
 }
 
-/* Vinheta decorativa — apenas teal (accent). Amarelo removido para não
-   diluir o seu papel semântico (warning). Ver audit finding #14. */
+/* Vinheta decorativa — apenas accent (âmbar). Usa --accent-tint nos dois
+   gradientes radiais; nenhuma outra cor entra na vinheta. */
 
 .lp-page::before {
     content: '';

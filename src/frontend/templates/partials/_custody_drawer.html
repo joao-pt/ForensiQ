@@ -1,0 +1,41 @@
+{% comment %}Fragmento HTMX do painel direito — detalhe de um evento de custódia.{% endcomment %}
+{% load l10n %}
+<article class="dd" data-custody-detail>
+
+  <div class="dd__top" tabindex="-1" data-drawer-head>
+    <span class="dd__code mono">{{ r.code|default:r.event_label }}</span>
+    {% if r.code %}<button type="button" class="copy-btn" data-copy="{{ r.code }}" aria-label="Copiar código" title="Copiar código">⧉</button>{% endif %}
+  </div>
+
+  <dl class="facts">
+    <div class="facts__row"><dt>Evento</dt><dd>{{ r.event_label }}</dd></div>
+    <div class="facts__row"><dt>Custódio</dt><dd>{{ r.custodian_label }}</dd></div>
+    <div class="facts__row"><dt>Item</dt><dd class="mono"><a class="grid__link" href="/evidences/{{ r.evidence_id }}/">{{ r.evidence.code }}</a></dd></div>
+    <div class="facts__row"><dt>Ocorrência</dt><dd class="mono"><a class="grid__link" href="/occurrences/{{ r.evidence.occurrence_id }}/">{{ r.evidence.occurrence.number }}</a></dd></div>
+    <div class="facts__row"><dt>Sequência</dt><dd class="mono">#{{ r.sequence }}</dd></div>
+    <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</dd></div>
+    <div class="facts__row"><dt>Responsável</dt><dd>{{ r.agent_label }}</dd></div>
+    {% if r.location_name %}<div class="facts__row"><dt>Local</dt><dd>{{ r.location_name }}</dd></div>{% endif %}
+    {% if r.storage_location %}<div class="facts__row"><dt>Armazenamento</dt><dd>{{ r.storage_location }}</dd></div>{% endif %}
+    {% if r.gps_lat is not None %}
+    <div class="facts__row"><dt>GPS</dt>
+      <dd class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}{% if r.gps_accuracy_m %} <span class="facts__src">±{{ r.gps_accuracy_m }}m</span>{% endif %}
+        <button type="button" class="copy-btn" data-copy="{{ r.gps_lat|unlocalize }},{{ r.gps_lng|unlocalize }}" aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+    {% endif %}
+    <div class="facts__row"><dt>Hash</dt><dd class="mono"><span class="dd__hash">{{ r.record_hash }}</span>
+      <button type="button" class="copy-btn" data-copy="{{ r.record_hash }}" aria-label="Copiar hash" title="Copiar hash do registo">⧉</button></dd></div>
+  </dl>
+
+  {% if r.observations %}
+  <div class="dd__desc"><h3 class="subhead">Observações</h3><p>{{ r.observations }}</p></div>
+  {% endif %}
+
+  {% if r.gps_lat is not None %}
+  <div class="dd__map" id="drawer-map" data-lat="{{ r.gps_lat|unlocalize }}" data-lng="{{ r.gps_lng|unlocalize }}" data-label="{{ r.event_label }}"></div>
+  {% elif r.evidence.gps_lat is not None %}
+  <div class="dd__map" id="drawer-map" data-lat="{{ r.evidence.gps_lat|unlocalize }}" data-lng="{{ r.evidence.gps_lng|unlocalize }}" data-label="{{ r.evidence.code }}"></div>
+  {% else %}
+  <p class="dd__nogeo">Sem georreferência neste evento.</p>
+  {% endif %}
+
+</article>

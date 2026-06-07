@@ -279,22 +279,36 @@ class TemplateScriptCollisionTest(SimpleTestCase):
                 + '\n  '.join(problems),
         )
 
-    def test_custody_states_helper_doesnt_leak_to_global(self):
-        """O helper custody_states.js deve expor APENAS window.CustodyStates."""
-        path = STATIC_JS_ROOT / 'custody_states.js'
-        ids = extract_top_level_identifiers(path.read_text(encoding='utf-8'))
-        self.assertEqual(
-            ids, set(),
-            msg=f'custody_states.js declara identifiers no global: {ids}. '
-                'Deve estar tudo encapsulado num IIFE e expor só '
-                'window.CustodyStates.',
+    def test_shared_components_dont_leak_to_global(self):
+        """Os componentes partilhados (js/components/*.js) são carregados em
+        vários templates de página ao mesmo tempo que a casca da base.html.
+        Para não correrem risco de colisão de namespace global, têm de estar
+        encapsulados num IIFE puro — zero bindings lexicais de topo.
+
+        Substitui os antigos testes a custody_states.js / transition_modal.js,
+        helpers removidos no rebuild server-rendered (Django + HTMX). O pattern
+        a garantir é o mesmo; só mudaram os ficheiros que o aplicam.
+        """
+        components_dir = STATIC_JS_ROOT / 'components'
+        self.assertTrue(
+            components_dir.is_dir(),
+            msg=f'Diretório de componentes não encontrado: {components_dir}',
+        )
+        component_files = sorted(components_dir.glob('*.js'))
+        self.assertNotEqual(
+            component_files, [],
+            msg='Nenhum componente JS partilhado encontrado em js/components/.',
         )
 
-    def test_transition_modal_helper_doesnt_leak_to_global(self):
-        path = STATIC_JS_ROOT / 'transition_modal.js'
-        ids = extract_top_level_identifiers(path.read_text(encoding='utf-8'))
+        leaks: list[str] = []
+        for path in component_files:
+            ids = extract_top_level_identifiers(path.read_text(encoding='utf-8'))
+            if ids:
+                leaks.append(f'{path.name}: {sorted(ids)}')
+
         self.assertEqual(
-            ids, set(),
-            msg=f'transition_modal.js declara identifiers no global: {ids}. '
-                'Deve estar tudo encapsulado num IIFE.',
+            leaks, [],
+            msg='Componentes partilhados declaram identifiers no escopo global '
+                '(devem estar todos dentro de um IIFE puro):\n  '
+                + '\n  '.join(leaks),
         )

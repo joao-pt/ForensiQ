@@ -1,0 +1,28 @@
+{% comment %}
+  Item único do ledger de custódia (.timeline__item).
+  Reutilizado em custody_timeline.html e evidence_detail.html para garantir o
+  MESMO conjunto de metadados (local, armazenamento, GPS, copiar hash) nas duas
+  páginas. Espera a variável `r` (evento decorado por _decorate_events).
+{% endcomment %}
+{% load l10n %}
+<li class="timeline__item">
+  <span class="timeline__dot"></span>
+  <div class="timeline__head">
+    <span class="timeline__seq mono">#{{ r.sequence }}</span>
+    <span class="timeline__event">{{ r.event_label }}</span>
+    <span class="timeline__time mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span>
+  </div>
+  <div class="timeline__meta">
+    <span>Custódio: <strong>{{ r.custodian_label }}</strong></span>
+    <span>Responsável: {{ r.agent_label }}</span>
+    {% if r.location_name %}<span>Local: {{ r.location_name }}</span>{% endif %}
+    {% if r.storage_location %}<span>Armazenamento: {{ r.storage_location }}</span>{% endif %}
+    {% if r.gps_lat is not None %}<span class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}</span>{% endif %}
+    {% if r.gps_accuracy_m %}<span class="mono {% if r.gps_accuracy_m > 50 %}timeline__acc--flag{% endif %}">±{{ r.gps_accuracy_m }}m</span>{% endif %}
+  </div>
+  <div class="timeline__meta">
+    <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…
+      <button type="button" class="copy-btn" data-copy="{{ r.record_hash }}" aria-label="Copiar hash" title="Copiar hash do registo">⧉</button></span>
+  </div>
+  {% if r.observations %}<p class="detail__desc">{{ r.observations }}</p>{% endif %}
+</li>

@@ -30,7 +30,7 @@ Browser ──HTTPS──► forensiq.pt (Fly.io, Frankfurt)
 - [Fly CLI](https://fly.io/docs/flyctl/install/) instalado (`fly version` para confirmar)
 - Conta Fly.io autenticada (`fly auth login`)
 - Acesso ao repositório ForensiQ
-- Variáveis de ambiente: `DATABASE_URL`, `SECRET_KEY`
+- Variáveis de ambiente obrigatórias em produção: `DATABASE_URL`, `SECRET_KEY`, `JWT_SIGNING_KEY` (a aplicação recusa arrancar com `DEBUG=False` se faltar — não reutilizo o `SECRET_KEY` para assinar JWT). Opcionais: `ALLOWED_HOSTS` (default `localhost,127.0.0.1`; em produção definido no `fly.toml`), `ADMIN_URL_PREFIX` (prefixo do `/admin/`, default `admin`), `QR_VERIFY_SECRET`, `IMEIDB_API_TOKEN`, `AUDIT_LOG_RETENTION_DAYS`, `MEDIA_ROOT`.
 
 ## Deploy — operação normal
 
@@ -40,12 +40,11 @@ Após alterar código, na pasta `ForensiQ/`:
 # 1. Deploy (build + release)
 fly deploy
 
-# 2. Se houver alterações nos modelos (novas migrations)
-fly ssh console -C "cd backend && python manage.py migrate"
-
-# 3. Verificar que está online
+# 2. Verificar que está online
 fly status
 ```
+
+> As migrations correm automaticamente em cada deploy — o `fly.toml` tem `release_command = "python manage.py migrate --noinput"`, executado pelo Fly antes de promover a nova versão. Só recorro a `fly ssh console` para migrate manual em diagnóstico (ex.: re-correr um `--fake`).
 
 O Fly.io faz automaticamente:
 - Build do Dockerfile (multi-stage)
@@ -143,6 +142,7 @@ python manage.py showmigrations
 
 Normalmente indica que o Gunicorn não arrancou:
 - Verificar se `DATABASE_URL` está definido (`fly secrets list`)
+- Verificar se `JWT_SIGNING_KEY` está definido (`fly secrets list`) — sem ele, com `DEBUG=False`, o arranque aborta com `ImproperlyConfigured`.
 - Verificar logs (`fly logs`)
 - Testar localmente com Docker: `docker build -t forensiq . && docker run -p 8000:8000 forensiq`
 
@@ -174,6 +174,6 @@ O `settings.py` activa automaticamente quando `DEBUG=False`:
 - **SSL redirect:** Todos os pedidos HTTP redireccionados para HTTPS
 - **Cookies secure:** Session e CSRF cookies só via HTTPS
 - **Proxy SSL header:** `X-Forwarded-Proto` do Fly.io
-- **CORS:** Apenas `forensiq.pt` e `www.forensiq.pt`
-- **CSRF trusted origins:** Apenas `forensiq.pt` e `www.forensiq.pt`
+- **CORS:** `forensiq.pt`, `www.forensiq.pt` e `forensiq.fly.dev` (host do Fly.io)
+- **CSRF trusted origins:** Idem — mesma lista canónica (`_FRONTEND_ORIGINS`) reutilizada em `settings.py`
 - **Container:** Corre como utilizador `forensiq` (não-root)

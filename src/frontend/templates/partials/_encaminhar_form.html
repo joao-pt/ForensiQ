@@ -1,0 +1,68 @@
+{% load l10n %}
+{% comment %}
+  Encaminhar prova em lote (handoff, ADR-0016 v2). Fonte ÚNICA partilhada pela
+  página completa (occurrence_encaminhar.html) e pelo fragmento modal (ação
+  in-place). Entrega vários itens a um portador, com destino — 1 evento
+  ENCAMINHAMENTO_CUSTODIA por item, SEM GPS (a prova fica em trânsito).
+{% endcomment %}
+<div data-modal-title="Encaminhar prova">
+
+  {% include 'partials/_form_errors.html' %}
+
+  {% if itens %}
+  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
+    {% csrf_token %}
+    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+
+    <p class="form-hint">A prova não fica no local: escolha o portador e o destino. Cada item gera um encaminhamento e fica <strong>em trânsito</strong> até à receção no destino.</p>
+
+    <fieldset class="form-field form-field--full">
+      <legend class="subhead">Itens a encaminhar</legend>
+      {% for e in itens %}
+      <label class="form-check">
+        <input type="checkbox" name="evidence_ids" value="{{ e.id }}" {% if e.checked %}checked{% endif %}>
+        <span class="mono">{{ e.code }}</span> · {{ e.type_label }}
+        <span class="state state--{{ e.state_css }}">{{ e.state_label }}</span>
+      </label>
+      {% endfor %}
+    </fieldset>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="f-enc-bearer">Portador *</label>
+        <select id="f-enc-bearer" name="bearer" required>
+          <option value="">— selecionar —</option>
+          {% for p in portadores %}
+          <option value="{{ p.id }}" {% if data.bearer == p.id|stringformat:'s' %}selected{% endif %}>{{ p.apelido }}, {{ p.nome }} · {{ p.matricula }} ({{ p.posto }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="f-enc-dest">Destino *</label>
+        <select id="f-enc-dest" name="custodian_institution" required>
+          <option value="">— selecionar —</option>
+          {% for inst in destinos %}
+          <option value="{{ inst.id }}" {% if data.custodian_institution == inst.id|stringformat:'s' %}selected{% endif %}>{{ inst.name }} ({{ inst.get_type_display }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-field form-field--full">
+        <label for="f-enc-obs">Observações</label>
+        <textarea id="f-enc-obs" name="observations" placeholder="Notas do encaminhamento (opcional)">{{ data.observations }}</textarea>
+      </div>
+    </div>
+
+    <p class="form-hint">Um laboratório não admite prova sem despacho prévio (CPP Art. 154.º) — o sistema bloqueia o encaminhamento se faltar.</p>
+
+    {% include 'partials/_form_actions.html' with cancel_url=cancel_url submit_label='Encaminhar' %}
+  </form>
+  {% else %}
+  <div class="empty">
+    <p class="empty__title">Sem itens para encaminhar</p>
+    <p class="empty__hint">Todos os itens desta ocorrência já foram encaminhados, estão concluídos, ou não tem permissão para os mover. Registe itens (a apreensão é automática no registo) antes de encaminhar.</p>
+    {% if modal %}
+    <div class="form-actions"><button type="button" class="btn-ghost" data-modal-close>Fechar</button></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

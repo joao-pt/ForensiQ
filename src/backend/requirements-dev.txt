@@ -21,3 +21,11 @@ black>=26.3.1,<27.0
 
 # Pre-commit hooks (ver `.pre-commit-config.yaml`)
 pre-commit>=4.6.0,<5.0
+
+# Testes E2E de browser (Playwright). Correm em separado da suite unitária:
+#   pytest e2e/ --ds=forensiq_project.e2e_settings
+# Requer os binários do browser uma vez:  python -m playwright install chromium
+# Ver docs/testing/ para o guia completo (estratégia, gotchas, Lighthouse).
+playwright>=1.49,<2.0
+pytest-playwright>=0.6,<1.0
+axe-playwright-python>=0.1.7,<0.2   # acessibilidade WCAG (axe-core) sobre o Playwright

@@ -1,106 +1,227 @@
-{% extends "base.html" %}
-{% load static %}
+{% extends 'base.html' %}
+{% load static l10n %}
 
-{% block title %}ForensiQ — Cadeia de custódia{% endblock %}
+{% block title %}Cadeia · {{ ev.code }} — ForensiQ{% endblock %}
 
-{% block breadcrumb %}
-<a href="/dashboard/">Início</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<a href="/evidences/">Itens</a>
-<span class="breadcrumb-sep" aria-hidden="true">/</span>
-<span class="breadcrumb-current" id="breadcrumb-title">Cadeia de custódia</span>
-{% endblock %}
+{# Sem barra de lente: tem formulário de registo de evento (clicar um chip perderia o que está por submeter). #}
+{% block lens_bar %}{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/components/transition_modal.css' %}">
-<link rel="stylesheet" href="{% static 'css/pages/custody_timeline.css' %}">
+  {% include '_leaflet_head.html' %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/evidences/">Itens de prova</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a href="/evidences/{{ ev.id }}/" class="mono">{{ ev.code }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Cadeia</span>
+{% endblock %}
+
+{% block drawer_title %}Item de prova{% endblock %}
+{% block drawer_content %}
+  <p class="app-drawer__placeholder">A ficha do item está aberta. O ledger abaixo regista cada evento de custódia.</p>
 {% endblock %}
 
 {% block content %}
-<div class="page">
+<article class="detail fullbleed" aria-labelledby="ct-title">
 
-    <header class="page-header">
-        <div>
-            <h1 class="page-title">Cadeia de custódia</h1>
-            <p class="page-subtitle" id="evidence-subtitle">A carregar…</p>
-        </div>
-        <div class="page-header-actions">
-            <a href="/evidences/" id="btn-back-evidence" class="btn btn-ghost btn-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="m15 18-6-6 6-6"/>
-                </svg>
-                Voltar ao item
-            </a>
-            <button class="btn btn-primary btn-sm" id="btn-new-transition" hidden>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 5v14M5 12h14"/>
-                </svg>
-                Registar transição
-            </button>
-        </div>
-    </header>
-
-    <div class="custody-layout">
-
-        <!-- Sidebar: identidade do item, em três blocos empilhados.
-             Cada bloco tem o seu próprio cartão para clareza visual:
-             1) Item de prova, 2) Apreensão, 3) Hash de integridade. -->
-        <aside class="custody-sidebar" id="evidence-header" hidden>
-            <section class="card sidebar-card">
-                <div class="section-label sidebar-card-label">Item de prova</div>
-                <h3 id="evidence-description">—</h3>
-                <dl class="sidebar-meta">
-                    <div>
-                        <dt>Tipo</dt>
-                        <dd id="evidence-type">—</dd>
-                    </div>
-                </dl>
-            </section>
-
-            <section class="card sidebar-card">
-                <div class="section-label sidebar-card-label">Apreensão</div>
-                <dl class="sidebar-meta">
-                    <div>
-                        <dt>Data / hora</dt>
-                        <dd class="mono" id="evidence-timestamp">—</dd>
-                    </div>
-                </dl>
-            </section>
-
-            <section class="card sidebar-card">
-                <div class="section-label sidebar-card-label">Hash SHA-256</div>
-                <div class="hash-block" id="evidence-hash"
-                     title="Hash de integridade — clique para copiar">—</div>
-            </section>
-        </aside>
-
-        <!-- Coluna principal: progresso + timeline -->
-        <div class="custody-main">
-
-            <!-- Barra de progresso dos estados (cabe no viewport, sem scroll) -->
-            <div class="state-progress" id="state-progress"
-                 aria-label="Progresso da cadeia de custódia"></div>
-
-            <!-- Timeline -->
-            <div id="timeline-container" class="timeline" aria-busy="true" aria-live="polite">
-                <span class="visually-hidden">A carregar cadeia de custódia</span>
-                <div class="loading-overlay" aria-hidden="true">
-                    <span class="spinner"></span>
-                    <span>A carregar cadeia</span>
-                </div>
-            </div>
-        </div>
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="ct-title">Cadeia de custódia</h1>
+      <p class="detail__sub"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></p>
     </div>
+    <div class="detail__actions">
+      <a class="btn-ghost" href="/evidences/{{ ev.id }}/">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+        Voltar ao item
+      </a>
+    </div>
+  </header>
 
-</div>
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Trajeto da prova</h2></header>
+    <div class="section__body section__body--flush">
+      {% if chain_json != '[]' or ev.gps_lat is not None %}
+      <div class="map-box map-box--tall" data-static-map
+           data-chain="{{ chain_json }}"
+           {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
+           data-label="{{ ev.code }}"></div>
+      {% else %}
+      <p class="dd__nogeo">Sem georreferência registada nos eventos desta evidência.</p>
+      {% endif %}
+    </div>
+  </section>
 
+  {% if ledger_closed %}
+  <section class="section" id="custody-register">
+    <div class="section__body">
+      <p class="dd__nogeo">Cadeia fechada — esta evidência tem um evento terminal (restituição/destruição). Não são aceites mais eventos.</p>
+    </div>
+  </section>
+  {% else %}
+  <details class="section custody-register" id="custody-register" {% if register_errors %}open{% endif %}>
+    <summary class="section__head">
+      <h2 class="section__title">Registar novo evento</h2>
+      <span class="custody-register__hint">+ adicionar ao ledger</span>
+    </summary>
+    <div class="section__body">
+      {% for e in register_errors %}<p class="form-error visible" role="alert">{{ e }}</p>{% endfor %}
+      <form method="post" action="/evidences/{{ ev.id }}/custody/">
+        {% csrf_token %}
+        <div class="form-grid">
+
+          <div class="form-field">
+            <label for="r-event">Tipo de evento *</label>
+            <select id="r-event" name="event_type" required>
+              <option value="">— selecionar —</option>
+              {% for val, label in valid_events %}
+              <option value="{{ val }}" {% if register_data.event_type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="r-custodian">Custódio após o evento</label>
+            <select id="r-custodian" name="custodian_type">
+              <option value="">— (não aplicável) —</option>
+              {% for val, label in custodian_types %}
+              <option value="{{ val }}" {% if register_data.custodian_type == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="r-institution">Instituição custódia (titular)</label>
+            <select id="r-institution" name="custodian_institution">
+              <option value="">— (não aplicável) —</option>
+              {% for inst in institutions %}
+              <option value="{{ inst.id }}" {% if register_data.custodian_institution == inst.id|stringformat:"s" %}selected{% endif %}>{{ inst.sigla|default:inst.name }} · {{ inst.get_type_display }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label for="r-bearer">Portador (encaminhamento)</label>
+            <select id="r-bearer" name="bearer">
+              <option value="">— (não aplicável) —</option>
+              {% for p in portadores %}
+              <option value="{{ p.id }}" {% if register_data.bearer == p.id|stringformat:"s" %}selected{% endif %}>{{ p.apelido }}, {{ p.nome }} · <span class="mono">{{ p.matricula }}</span>{% if p.posto %} · {{ p.posto }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <span class="form-hint">Obrigatório no encaminhamento: entra na cadeia de hash (snapshot).</span>
+          </div>
+
+          <div class="form-field">
+            <label for="r-loc">Local (POI)</label>
+            <input type="text" id="r-loc" name="location_name" value="{{ register_data.location_name }}"
+                   placeholder="Ex.: Laboratório de Informática Forense" autocomplete="off">
+            <div id="r-pois-list" class="poi-picker" role="group" aria-label="POIs próximos" hidden></div>
+          </div>
+
+          <div class="form-field">
+            <label for="r-storage">Armazenamento interno</label>
+            <input type="text" id="r-storage" name="storage_location" value="{{ register_data.storage_location }}"
+                   placeholder="Ex.: Armário A3, Prateleira 2" autocomplete="off">
+          </div>
+
+          <div class="form-field">
+            <label for="r-lat">Latitude</label>
+            <input class="mono" type="text" inputmode="decimal" id="r-lat" name="gps_lat" value="{{ register_data.gps_lat }}" placeholder="38.7197" aria-describedby="r-gps-hint">
+          </div>
+          <div class="form-field">
+            <label for="r-lng">Longitude</label>
+            <input class="mono" type="text" inputmode="decimal" id="r-lng" name="gps_lng" value="{{ register_data.gps_lng }}" placeholder="-9.1467" aria-describedby="r-gps-hint">
+          </div>
+          <div class="form-field form-field--full">
+            <span class="form-hint" id="r-gps-hint">Latitude e longitude com ponto decimal (ex.: 38.7197, -9.1467)</span>
+          </div>
+          <input type="hidden" id="r-acc" name="gps_accuracy_m" value="{{ register_data.gps_accuracy_m }}">
+
+          <div class="form-field form-field--full" role="group" aria-labelledby="r-geo-label">
+            <span class="subhead" id="r-geo-label">Geolocalização do evento</span>
+            <div class="form-inline">
+              <button type="button" class="btn-ghost" data-geo-capture
+                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-acc-target="#r-acc" data-decimals="4">
+                {% include 'partials/icons/_gps.html' %}
+                Capturar GPS
+              </button>
+              <button type="button" class="btn-ghost" data-nearby-pois
+                      data-lat-target="#r-lat" data-lng-target="#r-lng"
+                      data-input-target="#r-loc" data-pois-list-target="#r-pois-list" data-radius="500">
+                {% include 'partials/icons/_search.html' %}
+                POIs próximos
+              </button>
+              <span class="mono facts__src" data-geo-acc></span>
+              <span class="mono facts__src" data-nearby-pois-status></span>
+            </div>
+          </div>
+
+          <div class="form-field form-field--full">
+            <label for="r-obs">Observações</label>
+            <textarea id="r-obs" name="observations" placeholder="Estado das embalagens, selos, notas…">{{ register_data.observations }}</textarea>
+          </div>
+
+          <div class="form-field form-field--full">
+            <label class="form-check">
+              <input type="checkbox" name="sealed" value="1" {% if register_data.sealed %}checked{% endif %}>
+              <span>Item selado neste movimento (selagem por-evento)</span>
+            </label>
+          </div>
+          <div class="form-field">
+            <label for="r-sealcond">Condição do selo na receção</label>
+            <select id="r-sealcond" name="seal_condition_on_receipt">
+              <option value="">— (n/a) —</option>
+              {% for val, label in seal_conditions %}
+              <option value="{{ val }}" {% if register_data.seal_condition_on_receipt == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="r-newseal">Novo nº de selo (re-selagem)</label>
+            <input class="mono" type="text" id="r-newseal" name="new_seal_number" value="{{ register_data.new_seal_number }}" placeholder="Ex.: SEL-2026-0123" autocomplete="off">
+          </div>
+
+          {% if sub_components %}
+          <div class="form-field form-field--full">
+            <label class="form-check">
+              <input type="checkbox" name="apply_subcomponents" value="1" {% if register_data.apply_subcomponents %}checked{% endif %}>
+              Aplicar também aos {{ sub_components|length }} sub-componente{{ sub_components|length|pluralize }} (mesmo evento, cadeia atómica)
+            </label>
+          </div>
+          {% endif %}
+
+        </div>
+        <div class="form-actions form-actions--sticky">
+          <button type="submit" class="btn-accent">Registar evento</button>
+        </div>
+      </form>
+    </div>
+  </details>
+  {% endif %}
+
+  <section class="section">
+    <header class="section__head"><h2 class="section__title">Ledger de eventos · {{ events|length }}</h2></header>
+    <div class="section__body">
+      {% if events %}
+      <ol class="timeline">
+        {% for r in events %}{% include 'partials/_timeline_event.html' %}{% endfor %}
+      </ol>
+      {% else %}
+      <div class="empty"><p class="empty__hint">Esta evidência ainda não tem eventos de custódia.</p></div>
+      {% endif %}
+    </div>
+  </section>
+
+</article>
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/toast.js' %}"></script>
-<script src="{% static 'js/custody_states.js' %}"></script>
-<script src="{% static 'js/transition_modal.js' %}"></script>
-<script src="{% static 'js/pages/custody_timeline.js' %}"></script>
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
+  <script src="{% static 'js/components/geo.js' %}"></script>
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/components/nearby-pois.js' %}"></script>
 {% endblock %}

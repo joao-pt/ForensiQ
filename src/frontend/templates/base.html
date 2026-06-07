@@ -3,7 +3,7 @@
 <html lang="pt-PT" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta name="theme-color" content="#0F1115" id="meta-theme-color">
     <meta name="description" content="ForensiQ — Gestão de Prova Digital para First Responders">
     <title>{% block title %}ForensiQ{% endblock %}</title>
@@ -11,21 +11,31 @@
     <!-- Mobile-first: prevenir zoom em inputs (iOS) -->
     <meta name="format-detection" content="telephone=no">
 
+    <!-- HTMX: NÃO injetar o <style> de indicadores. Sob a CSP estrita
+         (style-src 'self' 'nonce-…', sem unsafe-inline) esse <style> sem nonce
+         é bloqueado em todas as páginas com HTMX. A app tem os seus próprios
+         indicadores (.toolbar__busy.htmx-request em forensic.css, via <link>),
+         logo desligá-lo é seguro. Config lida pelo HTMX ao inicializar. -->
+    <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
+
     <!-- Favicon — cadeia de custódia (aros entrelaçados) -->
     <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+
+    <!-- PWA — instalável, offline básico da casca -->
+    <link rel="manifest" href="/manifest.webmanifest">
 
     <!-- Tema — aplica antes do primeiro paint para evitar flash (FOUC) -->
     <script src="{% static 'js/theme-init.js' %}"></script>
 
+    <!-- Tipografia forense self-hosted: IBM Plex Sans (UI) + IBM Plex Mono
+         (hashes, IDs, timestamps). Sem Google Fonts — ver css/fonts.css. -->
+    <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+
     <!-- CSS principal + casca three-pane -->
     <link rel="stylesheet" href="{% static 'css/main.css' %}">
     <link rel="stylesheet" href="{% static 'css/components/app-shell.css' %}">
+    <link rel="stylesheet" href="{% static 'css/print.css' %}" media="print">
     {% block extra_css %}{% endblock %}
-
-    <!-- Tipografia forense: IBM Plex Sans (UI) + IBM Plex Mono (hashes, IDs, timestamps) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
 
 </head>
 <body class="{% block body_class %}app-body{% endblock %}">
@@ -40,6 +50,16 @@
          ========================= -->
     {% block app_top %}
     <header class="app-top" role="banner">
+        <!-- Navegação móvel (<1024px): abre o off-canvas com a sidebar -->
+        <button type="button" class="app-top__nav-toggle" id="nav-toggle"
+                aria-label="Abrir navegação" aria-expanded="false"
+                aria-controls="nav-offcanvas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M3 6h18M3 12h18M3 18h18"/>
+            </svg>
+        </button>
+
         <a href="/dashboard/" class="app-top__brand" aria-label="ForensiQ — Início">
             <svg class="app-top__brand-mark" viewBox="0 0 56 48" aria-hidden="true">
                 <defs>
@@ -57,26 +77,21 @@
             <span class="app-top__brand-name">ForensiQ</span>
         </a>
 
+        <!-- Chips de contexto operacional — papel e nome do utilizador da sessão. -->
+        {% if user.is_authenticated %}
         <span class="app-top__sep" aria-hidden="true">·</span>
-
-        <!-- Chips de contexto operacional (preenchidas em runtime via JS auth) -->
         <div class="app-top__chips" role="list" aria-label="Contexto operacional">
             <span class="app-top__chip" data-variant="role" role="listitem"
-                  id="ctx-role" data-priority="high">—</span>
+                  id="ctx-role" data-priority="high">{{ user.get_profile_display }}</span>
             <span class="app-top__chip" role="listitem"
-                  id="ctx-name" data-priority="high">—</span>
-            <span class="app-top__chip" role="listitem"
-                  id="ctx-shift" data-priority="low" title="Turno operacional">Diurno</span>
-            <span class="app-top__chip" role="listitem"
-                  id="ctx-zone" data-priority="low" title="Zona territorial">PT-CONT</span>
-            <span class="app-top__chip" role="listitem"
-                  id="ctx-device" data-priority="low" title="Dispositivo">DESKTOP</span>
+                  id="ctx-name" data-priority="high">{{ user.get_full_name|default:user.username }}</span>
         </div>
+        {% endif %}
 
         <div class="app-top__spacer"></div>
 
         <time class="app-top__clock" id="app-clock"
-              aria-label="Hora actual" datetime="">--:<span class="app-top__clock-sep">:</span>--:--</time>
+              aria-label="Hora actual" datetime="">--<span class="app-top__clock-sep">:</span>--:--</time>
 
         <!-- Alternar tema (dia / noite) -->
         <button type="button" class="icon-btn" id="theme-toggle"
@@ -159,11 +174,25 @@
     <div class="app-grid" id="app-grid" data-drawer="closed">
 
         {% block app_sidebar %}
-        <aside class="app-sidebar" aria-label="Navegação principal">
-            <nav>
-                <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Principal</h3>
-                    <a class="app-sidebar__link" href="/dashboard/" data-sidebar-link>
+        <!-- Fundo do off-canvas de navegação (só visível <1024px).
+             Decorativo: o fecho real é via Escape ou botão, por isso é
+             ocultado a leitores de ecrã. -->
+        <div class="nav-backdrop" id="nav-backdrop" hidden aria-hidden="true"></div>
+        <aside class="app-sidebar" id="nav-offcanvas" aria-label="Navegação principal">
+            <div class="app-sidebar__head">
+                <span class="app-sidebar__head-title">Navegação</span>
+                <button type="button" class="app-sidebar__close" id="nav-close"
+                        aria-label="Fechar navegação" title="Fechar navegação">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <nav data-lens="{{ lens|default:'' }}">
+                <div class="app-sidebar__group" data-axis="mine">
+                    <p class="app-sidebar__group-title" role="presentation">Principal</p>
+                    <a class="app-sidebar__link" href="/dashboard/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -172,7 +201,7 @@
                         </svg>
                         <span class="app-sidebar__label">Painel</span>
                     </a>
-                    <a class="app-sidebar__link" href="/occurrences/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/occurrences/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -181,11 +210,34 @@
                         </svg>
                         <span class="app-sidebar__label">Ocorrências</span>
                     </a>
+                    {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+                    {# Atalho ação-in-place: abre o modal de nova ocorrência sobre a
+                       página (degrada para a página completa via href sem JS/HTMX). #}
+                    <a class="app-sidebar__link app-sidebar__link--action" href="/occurrences/new/"
+                       hx-get="/occurrences/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML"
+                       data-modal-open data-modal-title="Nova ocorrência" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        <span class="app-sidebar__label">Nova ocorrência</span>
+                    </a>
+                    {% endif %}
+                    <a class="app-sidebar__link" href="/arquivo/{{ lens_qs }}" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="4" rx="1"/>
+                            <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>
+                        </svg>
+                        <span class="app-sidebar__label">Arquivo</span>
+                    </a>
                 </div>
 
-                <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Laboratório</h3>
-                    <a class="app-sidebar__link" href="/evidences/" data-sidebar-link>
+                <div class="app-sidebar__group" data-axis="any">
+                    <p class="app-sidebar__group-title" role="presentation">Laboratório</p>
+                    <a class="app-sidebar__link" href="/evidences/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -194,7 +246,21 @@
                         </svg>
                         <span class="app-sidebar__label">Evidências</span>
                     </a>
-                    <a class="app-sidebar__link" href="/custodies/" data-sidebar-link>
+                    {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+                    {# Atalho ação-in-place: registar = apreender. Abre o modal de novo
+                       item sobre a página (degrada para a página completa via href). #}
+                    <a class="app-sidebar__link app-sidebar__link--action" href="/evidences/new/"
+                       hx-get="/evidences/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML"
+                       data-modal-open data-modal-title="Novo item de prova" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        <span class="app-sidebar__label">Novo item</span>
+                    </a>
+                    {% endif %}
+                    <a class="app-sidebar__link" href="/custodies/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -203,11 +269,37 @@
                         </svg>
                         <span class="app-sidebar__label">Custódias</span>
                     </a>
+                    {% if inbound_member %}
+                    {# Prova a chegar — avisos de encaminhamento por receber. Só para
+                       membros de instituição (a caixa é institucional). #}
+                    <a class="app-sidebar__link" href="/inbound/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5M12 3v10M8 9l4 4 4-4"/>
+                        </svg>
+                        <span class="app-sidebar__label">Prova a chegar</span>
+                        {% if inbound_count %}<span class="app-sidebar__badge" aria-label="{{ inbound_count }} por receber">{{ inbound_count }}</span>{% endif %}
+                    </a>
+                    {% endif %}
+                    {% if user.is_staff or user.profile == 'FORENSIC_EXPERT' %}
+                    <a class="app-sidebar__link" href="/verificacoes/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="3" width="7" height="7" rx="1"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1"/>
+                            <path d="M14 14h3v3M20 20v.01M17 20v.01M20 17v.01"/>
+                        </svg>
+                        <span class="app-sidebar__label">Verificações</span>
+                    </a>
+                    {% endif %}
                 </div>
 
-                <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Análise</h3>
-                    <a class="app-sidebar__link" href="/reports/" data-sidebar-link>
+                <div class="app-sidebar__group" data-axis="any">
+                    <p class="app-sidebar__group-title" role="presentation">Análise</p>
+                    <a class="app-sidebar__link" href="/reports/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -216,7 +308,7 @@
                         </svg>
                         <span class="app-sidebar__label">Relatórios</span>
                     </a>
-                    <a class="app-sidebar__link" href="/stats/" data-sidebar-link>
+                    <a class="app-sidebar__link" href="/stats/{{ lens_qs }}" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
                              stroke-linejoin="round" aria-hidden="true">
@@ -226,8 +318,18 @@
                     </a>
                 </div>
 
-                <div class="app-sidebar__group">
-                    <h3 class="app-sidebar__group-title">Sistema</h3>
+                <div class="app-sidebar__group" data-axis="any">
+                    <p class="app-sidebar__group-title" role="presentation">Sistema</p>
+                    {% if user.is_staff or user.has_national_clearance %}
+                    <a class="app-sidebar__link" href="/institutions/" data-sidebar-link>
+                        <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                             stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M9 11h.01M15 11h.01"/>
+                        </svg>
+                        <span class="app-sidebar__label">Instituições</span>
+                    </a>
+                    {% endif %}
                     <a class="app-sidebar__link" href="/settings/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -252,7 +354,8 @@
         {% endblock %}
 
         {% block app_main %}
-        <main class="app-main" id="main-content" tabindex="-1">
+        <main class="app-main" id="main-content" tabindex="-1" data-console-mode="{{ console_mode|default:'mine' }}">
+            {% block lens_bar %}{% include 'partials/_lens_bar.html' %}{% endblock %}
             <nav class="breadcrumb app-breadcrumb" aria-label="Navegação">
                 {% block breadcrumb %}<span class="breadcrumb-current">Início</span>{% endblock %}
             </nav>
@@ -263,7 +366,8 @@
         {% endblock %}
 
         {% block app_drawer %}
-        <aside class="app-drawer" id="app-drawer" aria-label="Painel contextual" hidden>
+        <aside class="app-drawer" id="app-drawer" role="dialog" aria-modal="true"
+               aria-labelledby="app-drawer-title" hidden>
             <div class="app-drawer__rail" aria-hidden="true">
                 <button type="button" class="app-drawer__btn" data-drawer-action="expand"
                         aria-label="Expandir painel" title="Expandir painel">
@@ -342,15 +446,52 @@
     <!-- Notificações / alertas -->
     <div class="toast-container" id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
+    <!-- Modal de AÇÃO (ação-in-place) — <dialog> nativo central, preenchido via
+         HTMX pelo gatilho [data-modal-open]. Vazio até abrir. Ver modal-action.js. -->
+    <dialog id="app-modal" class="app-modal" aria-labelledby="app-modal-title">
+        <div class="app-modal__panel">
+            <header class="app-modal__head">
+                <h2 class="app-modal__title" id="app-modal-title">Ação</h2>
+                <button type="button" class="app-modal__close" data-modal-close
+                        aria-label="Fechar" title="Fechar">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </header>
+            <div class="app-modal__body" id="app-modal-body"></div>
+        </div>
+    </dialog>
+
+    <!-- Mensagens server-side entregues como dados; app-shell.js encaminha-as para o toast. -->
+    {% if messages %}
+    <div id="server-messages" hidden>
+        {% for m in messages %}
+        <span class="server-message" data-text="{{ m.message }}" data-level="{{ m.level_tag }}"></span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Scripts base -->
     <script src="{% static 'js/config.js' %}"></script>
-    <script src="{% static 'js/icons.js' %}"></script>
     <script src="{% static 'js/auth.js' %}"></script>
-    <script src="{% static 'js/api.js' %}"></script>
-    <script src="{% static 'js/components/data-table.js' %}"></script>
     <script src="{% static 'js/theme-switch.js' %}"></script>
     <script src="{% static 'js/user-menu.js' %}"></script>
+    <script src="{% static 'js/toast.js' %}"></script>
     <script src="{% static 'js/app-shell.js' %}"></script>
+    <script src="{% static 'js/modal-action.js' %}"></script>
+    <script src="{% static 'js/sticky-toolbar.js' %}"></script>
+    <script src="{% static 'js/field-keyboard.js' %}"></script>
+    <!-- Helpers partilhados (fonte única) — carregados ANTES dos componentes de página -->
+    <script src="{% static 'js/utils/map-helpers.js' %}"></script>
+    <script src="{% static 'js/utils/dom-helpers.js' %}"></script>
+    <script src="{% static 'js/utils/fetch-helpers.js' %}"></script>
+    <!-- Componentes dos formulários ação-in-place — globais e idempotentes, para
+         que os modais "Nova X" da sidebar funcionem a partir de qualquer página
+         com HTMX (desistem sem alvo; reinicializam-se em fq:modal-open). -->
+    {% include 'partials/_action_form_scripts.html' %}
     {% block extra_js %}{% endblock %}
+    <script src="{% static 'js/pwa-register.js' %}"></script>
 </body>
 </html>

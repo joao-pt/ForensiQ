@@ -1,0 +1,53 @@
+{% comment %}
+  Fragmento HTMX do painel direito — detalhe (modo Local) de uma ocorrência.
+  Carregado em #app-drawer-body ao clicar numa linha da grelha. O mini-mapa
+  é inicializado por occurrences.js (CSP-safe) a partir dos data-attributes.
+{% endcomment %}
+{% load l10n %}
+<article class="dd" data-occ-detail>
+
+  <div class="dd__top" tabindex="-1" data-drawer-head>
+    {% if occ.pri %}<span class="pri pri--{{ occ.pri.cls }}" role="img" title="{{ occ.pri.title }}" aria-label="{{ occ.pri.title }}">{{ occ.pri.level }}</span>{% endif %}
+    <span class="dd__code mono">{{ occ.code|default:occ.number }}</span>
+    <button type="button" class="copy-btn" data-copy="{{ occ.code|default:occ.number }}"
+            aria-label="Copiar código" title="Copiar código">⧉</button>
+  </div>
+
+  <dl class="facts">
+    <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ occ.number }}</dd></div>
+    <div class="facts__row"><dt>Crime</dt><dd>{{ occ.crime_label }}</dd></div>
+    <div class="facts__row"><dt>Prioridade</dt>
+      <dd>{{ occ.get_priority_display }}{% if occ.pri %} <span class="facts__src">({{ occ.get_priority_source_display }})</span>{% endif %}</dd></div>
+    <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ occ.date_time|date:'Y-m-d H:i' }}</dd></div>
+    <div class="facts__row"><dt>Agente</dt><dd>{{ occ.agent_label }}</dd></div>
+    <div class="facts__row"><dt>Itens</dt><dd class="mono">{{ occ.evidence_count }}</dd></div>
+    <div class="facts__row"><dt>Local</dt><dd>{{ occ.address|default:'—' }}</dd></div>
+    {% if occ.gps_lat is not None %}
+    <div class="facts__row"><dt>GPS</dt>
+      <dd class="mono">{{ occ.gps_lat|unlocalize }}, {{ occ.gps_lng|unlocalize }}
+        <button type="button" class="copy-btn" data-copy="{{ occ.gps_lat|unlocalize }},{{ occ.gps_lng|unlocalize }}"
+                aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+    {% endif %}
+  </dl>
+
+  {% if occ.description %}
+  <div class="dd__desc">
+    <h3 class="subhead">Descrição</h3>
+    <p>{{ occ.description }}</p>
+  </div>
+  {% endif %}
+
+  {% if occ.gps_lat is not None %}
+  <h3 class="subhead">Local da ocorrência</h3>
+  <div class="dd__map" id="drawer-map"
+       data-lat="{{ occ.gps_lat|unlocalize }}" data-lng="{{ occ.gps_lng|unlocalize }}"
+       data-label="{{ occ.code|default:occ.number }}"></div>
+  {% else %}
+  <p class="dd__nogeo">Sem georreferência registada.</p>
+  {% endif %}
+
+  <div class="dd__links">
+    <a class="dd__full" href="/occurrences/{{ occ.id }}/">Abrir caso completo →</a>
+  </div>
+
+</article>

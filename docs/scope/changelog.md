@@ -4,6 +4,21 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 13 · 3–8 jun 2026 (refactor de fundo — Fase 2/3)
+
+**Feito:**
+- refactor(custody): **ADR-0015** — `ChainOfCustody` deixa de ser máquina de estados linear e passa a **ledger de eventos** append-only. Novos `EventType` (génese + actos subsequentes + dois terminais) e `CustodianType` (eixo ortogonal: quem detém a prova após o evento) em `core/models.py:1315-1356`. O estado legal deixa de ser persistido e passa a ser **derivado** por `derive_legal_state(eventos_ordenados)` (`core/models.py:1378-1432`) — função pura, fonte única das strings de estado em filtros, serializer, stats e CSS. `VALID_TRANSITIONS`/`CustodyState` eliminados. Migration 0021. Sem retrocompatibilidade (princípio da Fase 2): a demo é regerada
+- refactor(ids): **ADR-0016** — identificação **hierárquica enraizada na ocorrência** substitui os três contadores globais `OCC-/ITM-/CC-YYYY-NNNNN`. A ocorrência mantém `OC-YYYY-NNNN` (ano de registo, `core/models.py:691`); o item ganha código derivado da forma **`OC-2026-0001.1.1`** — sufixo posicional no âmbito (na ocorrência se item-raiz, no pai se sub-componente), `local_index` + `code` em `core/models.py:814-830`. Génese da custódia desdobrada por proveniência: `APREENSAO_OBJETO` (objeto físico, CPP art. 178.º), `APREENSAO_DADOS` (dados copiados no terreno para suporte autónomo, Lei do Cibercrime art. 16.º) e `DERIVACAO_ITEM` (sub-componente autonomizado em laboratório) — `core/models.py:1331-1333`. Migration 0023 (génese/aquisição/selagem)
+- feat(access): **ADR-0017** — modelo de **2 perfis** (`AGENT`/`EXPERT`) substituído por **seis funções** (`FIRST_RESPONDER`, `FORENSIC_EXPERT`, `EVIDENCE_CUSTODIAN`, `CASE_AUTHORITY`, `CHEFE_SERVICO`, `AUDITOR`) num eixo, e **credencial** (`NORMAL`/`NACIONAL`) noutro — `User.Profile`/`User.Clearance` em `core/models.py:217-242`. A visibilidade nacional é credencial, não papel; o acesso de leitura é *need-to-know* derivado do ledger ao nível do ITEM. Custódia institucional (instituição detém, pessoa assina). Migration 0022
+- refactor(model): **T05** remoção do modelo `DigitalDevice` (princípio "sem legado") — subsumido por `Evidence` + `type_specific_data` (ADR-0010): IMEI, marca, modelo e estado passam a viver na evidência digital-first. Migration 0020 remove explicitamente os triggers PostgreSQL órfãos (`trg_device_no_update`/`trg_device_no_delete` + função `prevent_device_modification`) antes do `DeleteModel` — `DROP TABLE` não dispara os triggers de imutabilidade de linha (migração 0002), mas a função ficaria órfã
+- refactor(frontend): rebuild **server-rendered Django + HTMX + Leaflet** (branch `refactor/frontend-rebuild`) — a SPA de JS por página é abandonada a favor de templates renderizados no servidor com fragmentos HTMX (`partials/_{occurrences,evidences,custody,reports}_grid.html`) e Leaflet servido localmente. HTMX vendorizado em `static/vendor/htmx/htmx.min.js`. Removidos os módulos JS de página (`static/js/pages/*.js`) e os CSS por página, agora subsumidos pelos parciais e por CSS partilhado. O frontend deixa de ler o modelo de estados antigo e passa a consumir directamente o estado derivado pelo backend (mata o *contract drift*)
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Retomar a redacção do relatório final sobre o modelo refactorizado; semear os 6 perfis na demo; concluir a página núcleo do frontend rebuild.
+
+---
+
 ## Sem. 12 · 27 mai – 2 jun 2026 (sprint de código pré-relatório)
 
 **Feito:**

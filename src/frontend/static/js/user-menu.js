@@ -1,9 +1,11 @@
 /**
  * ForensiQ — User menu (navbar).
  *
- * Dropdown simples: clique no trigger abre/fecha o panel. Fecha com
- * clique fora, tecla Escape ou perda de foco. Popula nome, avatar
- * (iniciais) e papel a partir do Auth.getUser() / /api/users/me/.
+ * Dropdown com role="menu": clique no trigger abre/fecha o panel. Como o
+ * markup declara role="menu"/role="menuitem", honra-se o padrão de teclado
+ * WAI-ARIA — ao abrir o foco move-se para o 1.º item; ↑/↓/Home/End percorrem
+ * os itens; Escape e Tab fecham. Fecha também com clique fora. Popula nome,
+ * avatar (iniciais) e papel a partir do Auth.getUser() / /api/users/me/.
  *
  * CSP-safe: sem inline handlers. Sem dependências externas.
  */
@@ -52,9 +54,15 @@
         }
 
         function roleLabel(profile) {
-            if (profile === 'AGENT')  return 'Agente / First Responder';
-            if (profile === 'EXPERT') return 'Perito Forense Digital';
-            return '';
+            var labels = {
+                'FIRST_RESPONDER': 'Agente / Primeiro interveniente',
+                'FORENSIC_EXPERT': 'Perito forense digital',
+                'EVIDENCE_CUSTODIAN': 'Custódio / Fiel depositário',
+                'CASE_AUTHORITY': 'Autoridade judiciária (MP)',
+                'CHEFE_SERVICO': 'Chefe de serviço',
+                'AUDITOR': 'Auditor',
+            };
+            return labels[profile] || '';
         }
 
         function setText(id, value) {
@@ -62,7 +70,11 @@
             if (el) el.textContent = value;
         }
 
-        // ---- Open / close ----
+        // ---- Open / close (padrão WAI-ARIA menu) ----
+        function items() {
+            return Array.prototype.slice.call(panel.querySelectorAll('[role="menuitem"]'));
+        }
+
         function isOpen() {
             return !panel.hasAttribute('hidden');
         }
@@ -70,6 +82,7 @@
         function open() {
             panel.hidden = false;
             trigger.setAttribute('aria-expanded', 'true');
+            focusItem(0);
             // clique fora
             setTimeout(function () {
                 document.addEventListener('click', onDocClick);
@@ -84,14 +97,53 @@
             document.removeEventListener('keydown', onKey);
         }
 
+        function focusItem(index) {
+            var list = items();
+            if (!list.length) return;
+            if (index < 0) index = list.length - 1;
+            if (index >= list.length) index = 0;
+            list[index].focus();
+        }
+
+        function moveFocus(delta) {
+            var list = items();
+            if (!list.length) return;
+            var i = list.indexOf(document.activeElement);
+            focusItem((i < 0 ? 0 : i) + delta);
+        }
+
         function onDocClick(e) {
             if (!panel.contains(e.target) && !trigger.contains(e.target)) close();
         }
 
         function onKey(e) {
-            if (e.key === 'Escape') {
-                close();
-                trigger.focus();
+            switch (e.key) {
+                case 'Escape':
+                    close();
+                    trigger.focus();
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    moveFocus(1);
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    moveFocus(-1);
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    focusItem(0);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    focusItem(items().length - 1);
+                    break;
+                case 'Tab':
+                    // O menu não retém o Tab: fecha e deixa o foco sair.
+                    close();
+                    break;
+                default:
+                    break;
             }
         }
 

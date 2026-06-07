@@ -94,6 +94,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'core.context_processors.app_metadata',
+                'core.context_processors.lens_nav',
+                'core.context_processors.inbound_nav',
             ],
         },
     },
@@ -178,6 +180,7 @@ if TESTING:
         'reverse_geocode': '10000/minute',
         'imei_lookup': '10000/minute',
         'verify_public': '10000/minute',
+        'healthcheck': '10000/minute',
     }
 
 # --- SimpleJWT ---
@@ -239,6 +242,27 @@ SITE_URL = os.environ.get(
 IMEIDB_API_TOKEN = os.environ.get('IMEIDB_API_TOKEN', '')
 IMEIDB_BASE_URL = os.environ.get('IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
 IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
+
+# --- Parâmetros de domínio forense (ADR-0013) ---
+# Casas decimais de quantização GPS. O valor quantizado ENTRA na cadeia de hash
+# (record_hash): servidor e perito TÊM de quantizar exatamente igual. Fonte
+# ÚNICA — antes duplicado em Institution.clean e ChainOfCustody.clean. NÃO
+# alterar em sistemas com prova já registada (muda os hashes futuros).
+GPS_DECIMAL_PLACES = int(os.environ.get('GPS_DECIMAL_PLACES', 7))
+# Prazo legal de validação da apreensão (CPP Art. 178.º/6). Só assinala a flag
+# validation_overdue (nunca bloqueia). Externalizado para revisão de compliance.
+VALIDATION_DEADLINE_HOURS = int(os.environ.get('VALIDATION_DEADLINE_HOURS', 72))
+# Limite de tamanho de upload de imagem (OWASP — proteção DoS). Externalizado
+# para afinação por operador sem alterar código (default 25 MB).
+MAX_IMAGE_UPLOAD_BYTES = int(os.environ.get('MAX_IMAGE_UPLOAD_BYTES', 25 * 1024 * 1024))
+
+# Endpoints externos de geocodificação. As chamadas são PROXY server-side (o
+# browser do agente nunca contacta terceiros — minimização RGPD), por isso
+# repontá-los para instâncias self-hosted em produção não exige tocar na CSP.
+NOMINATIM_REVERSE_URL = os.environ.get(
+    'NOMINATIM_REVERSE_URL', 'https://nominatim.openstreetmap.org/reverse'
+)
+OVERPASS_API_URL = os.environ.get('OVERPASS_API_URL', 'https://overpass-api.de/api/interpreter')
 
 # --- drf-spectacular (Swagger / OpenAPI) ---
 # SWAGGER_UI_DIST/FAVICON_HREF: por defeito o drf-spectacular carrega assets

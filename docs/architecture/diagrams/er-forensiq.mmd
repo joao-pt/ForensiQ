@@ -1,14 +1,22 @@
-%% ForensiQ — Modelo Entidade-Relação
-%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i er-forensiq.mmd -o er-forensiq.png -b transparent -w 2000
-
 erDiagram
-    User ||--o{ Occurrence : "regista (agent)"
-    User ||--o{ Evidence   : "regista (agent)"
-    User ||--o{ ChainOfCustody : "actua (agent)"
-    Occurrence ||--o{ Evidence : "contém"
-    Evidence ||--o{ Evidence : "sub_components (parent_evidence)"
-    Evidence ||--o{ ChainOfCustody : "tem custódia"
-    Evidence ||--o{ DigitalDevice : "(legacy) descreve"
+    User                       ||--o{ InstitutionMembership : "pertence a"
+    Institution                ||--o{ InstitutionMembership : "tem membros"
+    User                       ||--o{ Occurrence       : "regista (agent)"
+    User                       ||--o{ Evidence         : "apreende (agent)"
+    User                       ||--o{ ChainOfCustody   : "executa (agent)"
+    User                       ||--o{ ChainOfCustody   : "custodio pessoal"
+    Institution                ||--o{ ChainOfCustody   : "detem custodia"
+    User                       ||--o{ AuditLog         : "actor"
+
+    CrimeCategoria             ||--o{ CrimeSubcategoria : "N1 to N2"
+    CrimeSubcategoria          ||--o{ CrimeTipo         : "N2 to N3"
+    CrimeTipo                  ||--o{ Occurrence        : "classifica"
+    PoliticaCriminalPrioridade ||--o{ PrioridadeCrimeTipo : "prioriza"
+    CrimeTipo                  ||--o{ PrioridadeCrimeTipo : "e priorizado em"
+
+    Occurrence                 ||--o{ Evidence          : "contem"
+    Evidence                   ||--o{ Evidence          : "sub-componentes (parent_evidence, max. 3 niveis)"
+    Evidence                   ||--o{ ChainOfCustody    : "tem ledger de custodia"
 
     User {
         int id PK
@@ -16,67 +24,119 @@ erDiagram
         string first_name
         string last_name
         string email
-        enum profile "AGENT | EXPERT"
+        enum profile "FIRST_RESPONDER | FORENSIC_EXPERT | EVIDENCE_CUSTODIAN | CASE_AUTHORITY | CHEFE_SERVICO | AUDITOR"
+        enum clearance "NORMAL | NACIONAL"
         string badge_number
         string phone
         bool is_staff
-        datetime date_joined
+    }
+
+    Institution {
+        int id PK
+        string name
+        enum type "OPC | LAB_PUBLICO | LAB_PRIVADO | TRIBUNAL | MP | DEPOSITARIO"
+        string sigla
+        bool is_active
+    }
+
+    InstitutionMembership {
+        int id PK
+        int user_id FK
+        int institution_id FK
+        bool is_active
+        datetime joined_at
+    }
+
+    CrimeCategoria {
+        int id PK
+        int codigo UK "N1 (nao contiguo)"
+        string nome
+    }
+
+    CrimeSubcategoria {
+        int id PK
+        int categoria_id FK
+        int codigo "N2 (unico por categoria)"
+        string nome
+    }
+
+    CrimeTipo {
+        int id PK
+        int subcategoria_id FK
+        int codigo UK "N3 (codigo oficial INE/DGPJ)"
+        string descritivo
+        bool is_active
+    }
+
+    PoliticaCriminalPrioridade {
+        int id PK
+        string lei
+        string biennium
+        date vigente_desde
+        date vigente_ate
+        bool is_active "uma so versao activa"
+    }
+
+    PrioridadeCrimeTipo {
+        int id PK
+        int politica_id FK
+        int crime_tipo_id FK
+        enum eixo "INVESTIGACAO | PREVENCAO"
     }
 
     Occurrence {
         int id PK
-        string code UK "OCC-YYYY-NNNNN"
-        string number "NUIPC ou referência"
+        string code UK "OC-YYYY-NNNN (ano de registo) — ADR-0016"
+        string number UK "NUIPC ou referencia"
         string description
         datetime date_time
         decimal gps_lat
-        decimal gps_lon
+        decimal gps_lng
         string address
         int agent_id FK
+        int crime_type_id FK
+        enum priority "PRIORITARIA | NORMAL (derivada da lei)"
+        enum priority_source "LEI | MANUAL"
     }
 
     Evidence {
         int id PK
-        string code UK "ITM-YYYY-NNNNN"
+        string code UK "hierarquico OC-2026-0001.1.1 — ADR-0016"
+        int local_index "posicao no ambito (ocorrencia ou pai)"
         int occurrence_id FK
-        int parent_evidence_id FK "self · profundidade max 3"
-        enum type "18 tipos taxonómicos"
+        int parent_evidence_id FK "self · profundidade max. 3"
+        enum type "EvidenceType (18 tipos digitais) — ADR-0010"
         string description
         datetime timestamp_seizure
         decimal gps_lat
-        decimal gps_lon
+        decimal gps_lng
         string serial_number
-        json type_specific_data
+        json type_specific_data "IMEI, VIN, IMSI, MAC, etc."
         image photo
-        string integrity_hash "SHA-256 ISO 27037"
+        string integrity_hash "SHA-256 (verificacao do registo)"
+        string acquisition_hash "carimbado sobre os dados copiados (genese de dados)"
+        string initial_seal_number "selagem inicial — ADR-0016"
         int agent_id FK
     }
 
     ChainOfCustody {
         int id PK
-        string code UK "CC-YYYY-NNNNN"
+        string code UK "movimento {item}-Mnn (OC-2026-0001.1-M01)"
         int evidence_id FK
-        int sequence "ordem inalterável"
-        enum previous_state
-        enum new_state "máquina de estados"
+        enum event_type "APREENSAO_OBJETO/DADOS, DERIVACAO_ITEM, VALIDACAO, TRANSFERENCIA/ASSUNCAO, RESTITUICAO, DESTRUICAO — ADR-0015"
+        enum custodian_type "LOCAL_CRIME | OPC | LAB_PUBLICO | ... (quem detem apos o evento)"
+        int custodian_institution_id FK "instituicao titular — ADR-0017"
+        int custodian_user_id FK "custodio pessoal (null = institucional)"
+        string location_name "POI OSM"
+        decimal gps_lat
+        decimal gps_lng
+        int gps_accuracy_m
         int agent_id FK
         datetime timestamp
-        text observations
-        string record_hash "SHA-256 encadeado"
+        bool sealed "selagem por handover — ADR-0016"
+        string record_hash "SHA-256 encadeado (estado legal derivado, nao gravado)"
     }
 
-    DigitalDevice {
-        int id PK
-        int evidence_id FK
-        enum type
-        string brand
-        string commercial_name
-        string model
-        string imei
-        enum condition
-    }
-
-    AuditLog ||--o{ User : "actor"
     AuditLog {
         int id PK
         string correlation_id

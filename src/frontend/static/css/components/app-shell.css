@@ -15,8 +15,8 @@
  * O estado do drawer vive em `.app-grid[data-drawer="..."]` e é gerido
  * por `app-shell.js` (persiste em localStorage entre páginas).
  *
- * Em <1024px: sidebar oculta (hamburger virá no Sem.9 mobile-first),
- * drawer torna-se overlay fullscreen quando aberto.
+ * Em <1024px: sidebar em off-canvas (aberta pelo hamburger do header,
+ * com fundo e foco preso); drawer torna-se overlay fullscreen quando aberto.
  *
  * Ver a especificação de art direction §Layout.
  */
@@ -37,13 +37,6 @@ body.app-body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-}
-
-.app-shell-root {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
 }
 
 /* Skip-link (a11y) */
@@ -77,6 +70,48 @@ body.app-body {
     padding: 0 var(--sp-3);
     background: var(--bg-subtle);
     border-bottom: 1px solid var(--border);
+}
+
+/* Hamburger — navegação móvel (<1024px) */
+.app-top__nav-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    margin-left: calc(var(--sp-1) * -1);
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--r-2);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+}
+.app-top__nav-toggle:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-top__nav-toggle:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+.app-top__nav-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+@media (pointer: coarse) {
+    .app-top__nav-toggle {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
+}
+/* A partir de 1024px a sidebar é fixa: o hamburger desaparece. */
+@media (min-width: 1024px) {
+    .app-top__nav-toggle {
+        display: none;
+    }
 }
 
 .app-top__brand {
@@ -134,10 +169,23 @@ body.app-body {
     white-space: nowrap;
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
+    /* Nome/papel longo em ecrã estreito: trunca com reticências em vez de
+       cortar o texto a meio do glifo (perde-se contexto operacional). */
+    min-width: 0;
+    max-width: 22ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Em <480px o chip de nome encolhe ainda mais, mantendo o papel legível. */
+@media (max-width: 479px) {
+    #ctx-name {
+        max-width: 12ch;
+    }
 }
 
 .app-top__chip[data-variant="role"] {
-    color: var(--accent);
+    color: var(--accent-on-tint);
     border-color: var(--accent-tint);
     background: var(--accent-tint);
 }
@@ -164,9 +212,6 @@ body.app-body {
 
 /* Em < 768px, esconde chips secundárias (mantém role + name) */
 @media (max-width: 767px) {
-    .app-top__chip[data-priority="low"] {
-        display: none;
-    }
     .app-top__brand-name {
         display: none;
     }
@@ -202,17 +247,109 @@ body.app-body {
    ===================================================================== */
 
 .app-sidebar {
-    display: none;
     background: var(--bg-subtle);
     border-right: 1px solid var(--border);
     overflow-y: auto;
     overflow-x: hidden;
-    padding: var(--sp-3) 0 var(--sp-6);
+    padding: 0 0 var(--sp-6);
 }
 
+/* Cabeçalho do off-canvas — só no modo móvel (<1024px) */
+.app-sidebar__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    height: var(--app-top-h);
+    padding: 0 var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+.app-sidebar__head-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
+    text-transform: uppercase;
+}
+.app-sidebar__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--r-2);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+}
+.app-sidebar__close:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.app-sidebar__close:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
+}
+.app-sidebar__close svg {
+    width: 18px;
+    height: 18px;
+}
+@media (pointer: coarse) {
+    .app-sidebar__close {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
+}
+
+/* -------------------------------------------------------------------
+   <1024px — sidebar como off-canvas controlado por body.nav-open
+   ------------------------------------------------------------------- */
+@media (max-width: 1023px) {
+    .app-sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 80;
+        width: min(86vw, var(--app-sidebar-w));
+        padding-top: 0;
+        transform: translateX(-100%);
+        transition: transform var(--t-base) var(--ease);
+        box-shadow: var(--shadow-lg);
+    }
+    body.nav-open .app-sidebar {
+        transform: translateX(0);
+    }
+
+    .nav-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        background: rgba(0, 0, 0, 0.5);
+        border: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-sidebar {
+        transition: none;
+    }
+}
+
+/* A partir de 1024px a sidebar é fixa na grelha; o off-canvas desliga-se. */
 @media (min-width: 1024px) {
     .app-sidebar {
-        display: block;
+        padding-top: var(--sp-3);
+    }
+    .app-sidebar__head {
+        display: none;
+    }
+    .nav-backdrop {
+        display: none;
     }
 }
 
@@ -255,7 +392,7 @@ body.app-body {
 }
 .app-sidebar__link[aria-current="page"] {
     background: var(--accent-tint);
-    color: var(--accent);
+    color: var(--accent-on-tint);  /* âmbar legível sobre a tinta (AA) */
     border-left-color: var(--accent);
     font-weight: var(--fw-medium);
 }
@@ -272,15 +409,42 @@ body.app-body {
     min-width: 0;
 }
 
-.app-sidebar__kbd {
+/* Badge de contagem (ex.: "prova a chegar" por receber). Pílula âmbar discreta,
+   dígitos em mono — alinhada à direita do link, sinaliza sem dominar. */
+.app-sidebar__badge {
+    flex-shrink: 0;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     font-family: var(--font-mono);
     font-size: 10px;
-    color: var(--text-subtle);
-    padding: 1px 4px;
-    border: 1px solid var(--border);
-    border-radius: var(--r-1);
-    background: var(--bg-inset);
-    white-space: nowrap;
+    font-weight: var(--fw-semi);
+    line-height: 1;
+    color: var(--accent-on-tint);
+    background: var(--accent-tint);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-pill);
+}
+
+/* Atalho de ação rápida ("Nova ocorrência", "Novo item") — distinto dos links de
+   navegação: rótulo discreto, afordância "+" em âmbar, tinta no hover. Abre o
+   modal ação-in-place; degrada para a página completa via href. */
+.app-sidebar__link--action {
+    color: var(--text-muted);
+    font-weight: var(--fw-medium);
+}
+.app-sidebar__link--action .app-sidebar__icon {
+    color: var(--accent);
+}
+.app-sidebar__link--action:hover {
+    background: var(--accent-tint);
+    color: var(--accent-on-tint);
+}
+.app-sidebar__link--action:hover .app-sidebar__icon {
+    color: var(--accent-on-tint);
 }
 
 /* =====================================================================
@@ -303,6 +467,14 @@ body.app-body {
     border-bottom: 1px solid var(--border);
     background: var(--bg);
     flex-shrink: 0;
+}
+
+/* Páginas raiz (ex.: /dashboard/) só emitem o rótulo `Início` (sem <a> de
+   navegação). Em mobile o `.breadcrumb-current` é escondido, deixando uma
+   faixa fantasma com padding + borda inferior. Quando o strip não tem
+   navegação real (nenhum <a>), oculta o contentor por inteiro. */
+.app-main > .app-breadcrumb:not(:has(a)) {
+    display: none;
 }
 
 /* =====================================================================
@@ -397,6 +569,15 @@ body.app-body {
     height: 14px;
 }
 
+/* Em dispositivos de toque o drawer pode ocupar o ecrã todo (overlay):
+   garante alvo de >=44px para fechar/minimizar/expandir de forma fiável. */
+@media (pointer: coarse) {
+    .app-drawer__btn {
+        width: var(--min-touch);
+        height: var(--min-touch);
+    }
+}
+
 .app-drawer__body {
     flex: 1;
     overflow-y: auto;
@@ -477,4 +658,214 @@ body.app-body {
         0%, 100% { opacity: 0.6; transform: scale(0.9); }
         50%      { opacity: 1;   transform: scale(1.05); }
     }
+}
+
+/* =====================================================================
+   Lente de acesso (consolas por papel — ADR-0017)
+   Barra de chips (topo do app-main) + sidebar adaptativa ao eixo ativo.
+   Tudo CSS estático servido por <link> (sem inline → compatível com a CSP).
+   ===================================================================== */
+
+.lens-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    padding: var(--sp-2) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+    flex-shrink: 0;
+}
+.lens-bar__label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    margin-right: var(--sp-1);
+}
+.lens-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--sp-1) var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+    color: var(--text);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease),
+                border-color var(--t-fast) var(--ease);
+}
+.lens-chip:hover {
+    background: var(--surface-hover);
+    color: var(--text-emphasis);
+}
+.lens-chip:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+.lens-chip.is-active,
+.lens-chip[aria-current="page"] {
+    background: var(--accent-tint);
+    color: var(--accent-on-tint);
+    border-color: var(--accent);
+    font-weight: var(--fw-medium);
+}
+
+/* Modo Instituição (zona "Instituição" da consola): a casca ganha uma cor FRIA
+   (--info) — sinaliza que se vê o PROCESSO INTEIRO da instituição (a instituição
+   é dona do processo), não só "as minhas". Tudo por seletor [data-console-mode]:
+   CSP-safe, sem JS nem estilo inline. */
+.app-main[data-console-mode="institution"] {
+    box-shadow: inset 0 3px 0 0 var(--info);
+}
+.app-main[data-console-mode="institution"] .lens-bar {
+    background: var(--info-tint);
+    border-bottom-color: var(--info);
+}
+.lens-bar[data-console-mode="institution"] .lens-chip.is-active,
+.lens-bar[data-console-mode="institution"] .lens-chip[aria-current="page"] {
+    background: var(--info-tint);
+    color: var(--text-emphasis);
+    border-color: var(--info);
+}
+
+/* Sidebar adaptativa: o grupo "Principal" (eixo mine) fica no topo nas duas
+   zonas; o seu título ganha a cor da zona ativa (âmbar em "as minhas",
+   --info em "Instituição"). Apresentação pura — nenhum link sai do DOM. */
+.app-sidebar nav {
+    display: flex;
+    flex-direction: column;
+}
+.app-sidebar__group { order: 2; }
+.app-sidebar nav[data-lens="mine"]        [data-axis="mine"],
+.app-sidebar nav[data-lens="institution"] [data-axis="mine"] {
+    order: 1;
+}
+.app-sidebar nav[data-lens="mine"]        [data-axis="mine"] > .app-sidebar__group-title {
+    color: var(--accent);
+}
+.app-sidebar nav[data-lens="institution"] [data-axis="mine"] > .app-sidebar__group-title {
+    color: var(--info);
+}
+
+/* Pílula de âmbito (ex.: rótulo do feed de auditoria no painel). */
+.scope-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: var(--fw-semi);
+    letter-spacing: var(--tracking-wide);
+    text-transform: uppercase;
+    color: var(--text-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    padding: 2px var(--sp-2);
+    white-space: nowrap;
+}
+
+/* =====================================================================
+   app-modal — modal de AÇÃO (<dialog> nativo, top-layer)
+
+   Modelo "ação-in-place" (Fase 7): formulários de ação de propósito único
+   abertos SOBRE a página atual, sem trocar de janela. Distinto do drawer
+   (que é para detalhe read-only). A abertura é via showModal() em
+   modal-action.js; aqui é só apresentação. CSP-safe (sem estilo inline).
+   ===================================================================== */
+.app-modal {
+    padding: 0;
+    border: none;
+    background: transparent;
+    width: 100%;
+    max-width: min(560px, calc(100vw - 2 * var(--sp-4)));
+    max-height: calc(100dvh - 2 * var(--sp-6));
+    overflow: visible;
+}
+.app-modal::backdrop {
+    background: rgba(8, 10, 14, 0.62);
+    backdrop-filter: blur(2px);
+}
+.app-modal__panel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100dvh - 2 * var(--sp-6));
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2, 10px);
+    box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.55);
+    isolation: isolate;  /* contém o stacking de mapas Leaflet internos */
+    overflow: hidden;
+}
+.app-modal__head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+}
+.app-modal__title {
+    flex: 1;
+    margin: 0;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.app-modal__close {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--r-1);
+    cursor: pointer;
+    transition: background var(--t-fast) var(--ease),
+                color var(--t-fast) var(--ease);
+}
+.app-modal__close:hover { background: var(--surface-hover); color: var(--text-emphasis); }
+.app-modal__close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.app-modal__close svg { width: 16px; height: 16px; }
+.app-modal__body {
+    overflow-y: auto;
+    padding: var(--sp-4);
+    min-height: 0;
+}
+@media (pointer: coarse) {
+    .app-modal__close { width: var(--min-touch); height: var(--min-touch); }
+}
+/* Em ecrãs pequenos o modal ocupa o ecrã (folha inteira). */
+@media (max-width: 560px) {
+    .app-modal {
+        width: 100vw;
+        max-width: 100vw;
+        max-height: 100dvh;
+        margin: 0;
+    }
+    .app-modal__panel { max-height: 100dvh; border: none; border-radius: 0; }
+}
+
+/* Seletor de localização no mapa (map-picker.js) — precisa de altura explícita
+   ou o Leaflet arranca sem dimensões. */
+.map-picker {
+    height: 240px;
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: var(--r-1);
+    overflow: hidden;
+}
+.map-picker__hint {
+    margin: var(--sp-1, 4px) 0 0;
+    font-size: var(--fs-xs, 11px);
+    color: var(--text-subtle);
 }
