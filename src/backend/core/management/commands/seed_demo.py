@@ -322,67 +322,192 @@ class Command(BaseCommand):
         laboratório público. Tribunal e serviço do MP ficam disponíveis para
         os fluxos de encaminhamento/validação. Idempotente.
         """
-        # Nomes das 4 primeiras mantidos EXATAMENTE (match idempotente por
-        # nome+tipo, ADR-0017); as siglas PSP-LSB/LPC/TJ-LSB são usadas por
-        # _create_cases. Acrescentam-se mais OPC/laboratório/MP para a demo ter
-        # várias organizações.
-        # Coordenadas/contactos aproximados mas plausíveis (dados públicos). A
-        # instituição fixa fornece a coordenada da RECEÇÃO (ADR-0016 v2 — não há
-        # captura GPS no laboratório); por isso cada uma traz lat/lng registados.
+        # Instituições REAIS do sistema de justiça/forense português (nomes
+        # oficiais, moradas e contactos públicos das páginas institucionais;
+        # GPS geocodificado via OpenStreetMap/Nominatim e verificado). A operação
+        # (casos, prova, pessoas) é fictícia — só a REFERÊNCIA é real, para a
+        # simulação dar um retrato fiel. As siglas são chaves de junção internas:
+        # PSP-LSB/LPC/TJ-LSB são usadas por _create_cases; o roster liga-se por
+        # sigla. A instituição fixa fornece a coordenada da RECEÇÃO (ADR-0016 v2),
+        # por isso cada uma traz lat/lng a 7 casas. Co-localizações são reais (a
+        # PJ-LSB, o LPC e o GRA partilham a sede da PJ; o Campus da Justiça reúne
+        # o tribunal criminal, o DIAP Regional e o GAB).
         specs = [
+            # --- OPC — Órgãos de polícia criminal ---
             {
-                'name': 'Polícia de Segurança Pública — Esquadra de Lisboa',
-                'type': InstitutionType.OPC, 'sigla': 'PSP-LSB',
-                'address': 'Largo da Severa 7, 1100-585 Lisboa',
-                'gps_lat': Decimal('38.7140000'), 'gps_lng': Decimal('-9.1357000'),
-                'email': 'lisboa@psp.pt', 'phone': '+351 213 466 141',
-            },
-            {
-                'name': 'Polícia de Segurança Pública — Esquadra do Porto',
-                'type': InstitutionType.OPC, 'sigla': 'PSP-PRT',
-                'address': 'Largo 1.º de Dezembro, 4000-407 Porto',
-                'gps_lat': Decimal('41.1496000'), 'gps_lng': Decimal('-8.6109000'),
-                'email': 'porto@psp.pt', 'phone': '+351 222 092 000',
-            },
-            {
-                'name': 'Guarda Nacional Republicana — Destacamento de Faro',
-                'type': InstitutionType.OPC, 'sigla': 'GNR-FAR',
-                'address': 'Rua da Polícia de Segurança Pública, 8000-408 Faro',
-                'gps_lat': Decimal('37.0194000'), 'gps_lng': Decimal('-7.9304000'),
-                'email': 'faro@gnr.pt', 'phone': '+351 289 888 800',
-            },
-            {
-                'name': 'Laboratório de Polícia Científica',
-                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'LPC',
+                'name': 'Polícia Judiciária — Diretoria de Lisboa e Vale do Tejo',
+                'type': InstitutionType.OPC, 'sigla': 'PJ-LSB',
                 'address': 'Rua Gomes Freire 174, 1169-007 Lisboa',
-                'gps_lat': Decimal('38.7256000'), 'gps_lng': Decimal('-9.1430000'),
-                'email': 'lpc@pj.pt', 'phone': '+351 211 967 000',
+                'gps_lat': Decimal('38.7242504'), 'gps_lng': Decimal('-9.1400002'),
+                'email': 'directoria.lisboa@pj.pt', 'phone': '+351 211 967 000',
             },
             {
-                'name': 'PeritaLab — laboratório privado acreditado',
-                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'LAB-PRIV',
-                'address': 'Av. da República 50, 1069-211 Lisboa',
-                'gps_lat': Decimal('38.7400000'), 'gps_lng': Decimal('-9.1466000'),
-                'email': 'pericias@peritalab.pt', 'phone': '+351 217 900 000',
+                'name': 'Polícia Judiciária — Diretoria do Norte',
+                'type': InstitutionType.OPC, 'sigla': 'PJ-PRT',
+                'address': 'Rua Assis Vaz 113, 4200-096 Porto',
+                'gps_lat': Decimal('41.1686723'), 'gps_lng': Decimal('-8.5949168'),
+                'email': 'directoria.porto@pj.pt', 'phone': '+351 225 582 000',
             },
             {
-                'name': 'DIAP de Lisboa', 'type': InstitutionType.MP, 'sigla': 'DIAP-LSB',
-                'address': 'Rua Marquês de Fronteira 70, 1098-001 Lisboa',
-                'gps_lat': Decimal('38.7290000'), 'gps_lng': Decimal('-9.1570000'),
-                'email': 'diap.lisboa@mp.pt', 'phone': '+351 213 846 500',
+                'name': 'Polícia de Segurança Pública — Comando Metropolitano de Lisboa',
+                'type': InstitutionType.OPC, 'sigla': 'PSP-LSB',
+                'address': 'Avenida de Moscavide 88, 1886-502 Moscavide',
+                'gps_lat': Decimal('38.7807906'), 'gps_lng': Decimal('-9.1022257'),
+                'email': 'cmlisboa@psp.pt', 'phone': '+351 217 654 242',
             },
             {
-                'name': 'DIAP do Porto', 'type': InstitutionType.MP, 'sigla': 'DIAP-PRT',
-                'address': 'Rua de Santos Pousada 117, 4000-478 Porto',
-                'gps_lat': Decimal('41.1530000'), 'gps_lng': Decimal('-8.5960000'),
-                'email': 'diap.porto@mp.pt', 'phone': '+351 222 069 900',
+                'name': 'Polícia de Segurança Pública — Comando Metropolitano do Porto',
+                'type': InstitutionType.OPC, 'sigla': 'PSP-PRT',
+                'address': 'Largo 1.º de Dezembro, 4000-404 Porto',
+                'gps_lat': Decimal('41.1428407'), 'gps_lng': Decimal('-8.6090011'),
+                'email': 'cmporto@psp.pt', 'phone': '+351 222 092 000',
             },
             {
-                'name': 'Tribunal Judicial da Comarca de Lisboa',
+                'name': 'Guarda Nacional Republicana — Comando-Geral',
+                'type': InstitutionType.OPC, 'sigla': 'GNR',
+                'address': 'Largo do Carmo, 1200-092 Lisboa',
+                'gps_lat': Decimal('38.7119294'), 'gps_lng': Decimal('-9.1408449'),
+                'email': 'gnr@gnr.pt', 'phone': '+351 213 217 000',
+            },
+            # --- LAB_PUBLICO — Laboratórios públicos ---
+            {
+                'name': 'Laboratório de Polícia Científica da Polícia Judiciária',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'LPC',
+                'address': 'Rua Gomes Freire, 1169-007 Lisboa',
+                'gps_lat': Decimal('38.7242504'), 'gps_lng': Decimal('-9.1400002'),
+                'email': 'direccao.lpc@pj.pt', 'phone': '+351 211 967 000',
+            },
+            {
+                'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
+                        '— Delegação do Norte',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-N',
+                'address': 'Jardim Carrilho Videira, 4050-167 Porto',
+                'gps_lat': Decimal('41.1481278'), 'gps_lng': Decimal('-8.6182326'),
+                'email': '', 'phone': '+351 222 073 850',
+            },
+            {
+                'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
+                        '— Delegação do Centro',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-C',
+                'address': 'Pólo das Ciências da Saúde (Pólo III), Azinhaga de Santa Comba, '
+                           '3000-548 Coimbra',
+                # GPS corrigido na verificação: o ponto original caía na Baixa; este
+                # resolve o campus Pólo III (Montes Claros), coerente com 3000-548.
+                'gps_lat': Decimal('40.2194533'), 'gps_lng': Decimal('-8.4176226'),
+                'email': '', 'phone': '+351 239 854 220',
+            },
+            {
+                'name': 'Instituto Nacional de Medicina Legal e Ciências Forenses, I.P. '
+                        '— Delegação do Sul',
+                'type': InstitutionType.LAB_PUBLICO, 'sigla': 'INMLCF-S',
+                'address': 'Rua Manuel Bento de Sousa, n.º 3, 1169-201 Lisboa',
+                'gps_lat': Decimal('38.7197895'), 'gps_lng': Decimal('-9.1381493'),
+                'email': '', 'phone': '+351 218 811 800',
+            },
+            # --- LAB_PRIVADO — Laboratórios privados ---
+            {
+                'name': 'Foren — Perícias Técnico-Científicas e Consultoria em Ciências Forenses',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'FOREN',
+                'address': 'Avenida Dr. Mário Moutinho 33-A, 1400-136 Lisboa',
+                'gps_lat': Decimal('38.7121529'), 'gps_lng': Decimal('-9.2124609'),
+                'email': 'info@foren.pt', 'phone': '+351 211 972 079',
+            },
+            {
+                'name': 'Código ADN — Centro de Genética e Vida',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'CODIGO-ADN',
+                'address': 'Praça Mouzinho de Albuquerque 113, 5.º, 4100-359 Porto',
+                'gps_lat': Decimal('41.1579217'), 'gps_lng': Decimal('-8.6291209'),
+                'email': 'info@codigoadn.pt', 'phone': '+351 220 417 190',
+            },
+            {
+                'name': 'Ncforenses — Ciências Forenses, Lda.',
+                'type': InstitutionType.LAB_PRIVADO, 'sigla': 'NCFORENSES',
+                'address': 'Rua do Visconde de Bóbeda 70, 1.º Frente, 4000-108 Porto',
+                # GPS corrigido na verificação (morada geocodificada em Bonfim).
+                'gps_lat': Decimal('41.1463701'), 'gps_lng': Decimal('-8.6004296'),
+                'email': '', 'phone': '+351 224 022 684',
+            },
+            # --- TRIBUNAL ---
+            {
+                'name': 'Juízo Central Criminal de Lisboa (Tribunal Judicial da Comarca '
+                        'de Lisboa) — Campus de Justiça',
                 'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-LSB',
-                'address': 'Campus de Justiça, Av. D. João II, 1990-097 Lisboa',
-                'gps_lat': Decimal('38.7686000'), 'gps_lng': Decimal('-9.0966000'),
-                'email': 'lisboa.tribunal@tribunais.org.pt', 'phone': '+351 218 472 800',
+                'address': 'Avenida D. João II, n.º 1.08.01, Edifício A, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7625153'), 'gps_lng': Decimal('-9.0983215'),
+                'email': 'lisboa.centralcriminal@tribunais.org.pt', 'phone': '+351 213 218 300',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca do Porto — Palácio da Justiça',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-PRT',
+                'address': 'Campo dos Mártires da Pátria, 4099-012 Porto',
+                'gps_lat': Decimal('41.1452814'), 'gps_lng': Decimal('-8.6174251'),
+                'email': 'porto.judicial@tribunais.org.pt', 'phone': '+351 220 949 400',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca de Coimbra — Juízo Local Criminal',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-CBR',
+                'address': 'Palácio da Justiça, Rua da Sofia, 3000-389 Coimbra',
+                'gps_lat': Decimal('40.2130436'), 'gps_lng': Decimal('-8.4307168'),
+                'email': 'coimbra.ministeriopublico@tribunais.org.pt', 'phone': '+351 239 852 950',
+            },
+            {
+                'name': 'Tribunal Judicial da Comarca de Faro — Núcleo de Faro',
+                'type': InstitutionType.TRIBUNAL, 'sigla': 'TJ-FAR',
+                'address': 'Rua Pedro Nunes, 8-10, 3.º Andar, 8000-405 Faro',
+                'gps_lat': Decimal('37.0174374'), 'gps_lng': Decimal('-7.9241627'),
+                'email': 'faro.judicial@tribunais.org.pt', 'phone': '+351 289 892 900',
+            },
+            # --- MP — Ministério Público ---
+            {
+                'name': 'Departamento de Investigação e Ação Penal Regional de Lisboa',
+                'type': InstitutionType.MP, 'sigla': 'DIAP-LSB',
+                'address': 'Avenida D. João II, n.º 1.08.01, Edifícios C, D e E, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7620161'), 'gps_lng': Decimal('-9.0984064'),
+                'email': 'lisboa.diapregional@tribunais.org.pt', 'phone': '+351 213 188 600',
+            },
+            {
+                'name': 'Departamento de Investigação e Ação Penal Regional do Porto',
+                'type': InstitutionType.MP, 'sigla': 'DIAP-PRT',
+                'address': 'Rua de Camões, 155, 4049-074 Porto',
+                'gps_lat': Decimal('41.1532754'), 'gps_lng': Decimal('-8.6103149'),
+                'email': 'porto.diapregional@tribunais.org.pt', 'phone': '+351 225 513 510',
+            },
+            {
+                'name': 'Departamento de Investigação e Ação Penal Regional de Coimbra',
+                'type': InstitutionType.MP, 'sigla': 'DIAP-CBR',
+                'address': 'Rua da Sofia, n.º 175-4.º, 3004-502 Coimbra',
+                'gps_lat': Decimal('40.2136438'), 'gps_lng': Decimal('-8.4315312'),
+                'email': 'coimbra.diapregional@tribunais.org.pt', 'phone': '+351 239 852 260',
+            },
+            {
+                'name': 'Procuradoria da República da Comarca de Braga',
+                'type': InstitutionType.MP, 'sigla': 'PR-BRAGA',
+                'address': 'Praça da Justiça, 4719-004 Braga',
+                'gps_lat': Decimal('41.5481782'), 'gps_lng': Decimal('-8.4125099'),
+                'email': 'braga.ministeriopublico@tribunais.org.pt', 'phone': '+351 253 081 110',
+            },
+            # --- DEPOSITARIO — Depositários de bens apreendidos ---
+            {
+                'name': 'Gabinete de Recuperação de Ativos',
+                'type': InstitutionType.DEPOSITARIO, 'sigla': 'GRA',
+                'address': 'Rua Gomes Freire, n.º 174, 1169-007 Lisboa',
+                'gps_lat': Decimal('38.7242504'), 'gps_lng': Decimal('-9.1400002'),
+                'email': 'gra@pj.pt', 'phone': '+351 211 967 000',
+            },
+            {
+                'name': 'Autoridade Tributária e Aduaneira',
+                'type': InstitutionType.DEPOSITARIO, 'sigla': 'AT',
+                'address': 'Rua da Prata, n.º 10, 1149-027 Lisboa',
+                'gps_lat': Decimal('38.7088122'), 'gps_lng': Decimal('-9.1359944'),
+                'email': '', 'phone': '+351 218 812 600',
+            },
+            {
+                'name': 'Gabinete de Administração de Bens',
+                'type': InstitutionType.DEPOSITARIO, 'sigla': 'GAB',
+                'address': 'Avenida D. João II, Lote 1.08.01 D – Edifício H, '
+                           'Campus da Justiça, 1990-097 Lisboa',
+                'gps_lat': Decimal('38.7620161'), 'gps_lng': Decimal('-9.0984064'),
+                'email': 'correio@igfej.mj.pt', 'phone': '+351 217 907 700',
             },
         ]
         institutions = {}
@@ -442,16 +567,16 @@ class Command(BaseCommand):
                 ('agente.prt2', P.FIRST_RESPONDER, C.NORMAL, 'Inês', 'Pinto', 'PSP-PRT-202'),
                 ('chefe.prt', P.CHEFE_SERVICO, C.NACIONAL, 'Paulo', 'Sousa', 'PSP-PRT-CH'),
             ]),
-            ('GNR-FAR', [
-                ('agente.far1', P.FIRST_RESPONDER, C.NORMAL, 'Carla', 'Nunes', 'GNR-FAR-301'),
-                ('chefe.far', P.CHEFE_SERVICO, C.NACIONAL, 'Mário', 'Lopes', 'GNR-FAR-CH'),
+            ('GNR', [
+                ('agente.gnr1', P.FIRST_RESPONDER, C.NORMAL, 'Carla', 'Nunes', 'GNR-301'),
+                ('chefe.gnr', P.CHEFE_SERVICO, C.NACIONAL, 'Mário', 'Lopes', 'GNR-CH'),
             ]),
             ('LPC', [
                 ('perito.lpc1', P.FORENSIC_EXPERT, C.NACIONAL, 'André', 'Reis', 'LPC-E1'),
                 ('perito.lpc2', P.FORENSIC_EXPERT, C.NORMAL, 'Beatriz', 'Cardoso', 'LPC-E2'),
                 ('custodio.lpc', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Jorge', 'Tavares', 'LPC-CUS'),
             ]),
-            ('LAB-PRIV', [
+            ('FOREN', [
                 ('perito.priv1', P.FORENSIC_EXPERT, C.NORMAL, 'Núria', 'Gomes', 'PRIV-E1'),
                 ('custodio.priv', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Diogo', 'Antunes', 'PRIV-CUS'),
             ]),
