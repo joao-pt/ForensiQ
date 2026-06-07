@@ -33,7 +33,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
-from core import access, evidence_field_config
+from core import access, evidence_field_config, evidence_type_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
@@ -265,8 +265,10 @@ def _evidence_state(evidence):
 
 
 def _decorate_evidences(evidences):
+    # labels() uma vez (evita N+1 com o choices-callable de Evidence.type — ADR-0018).
+    type_labels = evidence_type_config.labels()
     for e in evidences:
-        e.type_label = e.get_type_display()
+        e.type_label = type_labels.get(e.type, e.type)
         e.agent_label = get_user_display_name(e.agent)
         e.occ_label = e.occurrence.code or e.occurrence.number
         e.state_label, e.state_css = _evidence_state(e)
@@ -1186,7 +1188,7 @@ def evidences_view(request):
         )
 
     etype = (request.GET.get('type') or '').strip()
-    if etype in Evidence.EvidenceType.values:
+    if etype in evidence_type_config.active_codes():
         qs = qs.filter(type=etype)
 
     # Filtro por estado legal DERIVADO (entrada a partir dos tiles do Painel).
@@ -1230,7 +1232,7 @@ def evidences_view(request):
         'date_before': date_before,
         'sort': sort_key,
         'qs_base': qs_base,
-        'evidence_types': Evidence.EvidenceType.choices,
+        'evidence_types': evidence_type_config.active_choices(),
         'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
@@ -1305,7 +1307,7 @@ def evidences_new_view(request):
                     {
                         'occurrences': occurrences,
                         'parents': parents,
-                        'evidence_types': Evidence.EvidenceType.choices,
+                        'evidence_types': evidence_type_config.active_choices(),
                         'transversal_fields': transversal_fields,
                         'type_fields': type_fields,
                         # Input cru (não validated_data) é intencional: repopula
@@ -1339,7 +1341,7 @@ def evidences_new_view(request):
             {
                 'occurrences': occurrences,
                 'parents': parents,
-                'evidence_types': Evidence.EvidenceType.choices,
+                'evidence_types': evidence_type_config.active_choices(),
                 'transversal_fields': transversal_fields,
                 'type_fields': type_fields,
                 'preselect': request.POST.get('occurrence', ''),
@@ -1357,7 +1359,7 @@ def evidences_new_view(request):
         {
             'occurrences': occurrences,
             'parents': parents,
-            'evidence_types': Evidence.EvidenceType.choices,
+            'evidence_types': evidence_type_config.active_choices(),
             'transversal_fields': transversal_fields,
             'type_fields': type_fields,
             'preselect': request.GET.get('occurrence', ''),
@@ -2052,7 +2054,7 @@ def stats_view(request):
     # Lookup tolerante: EnumValue(x) levantaria ValueError (→ 500) se a BD tivesse
     # um valor fora dos choices actuais (ex.: dado anterior a um rename de tipo/
     # evento). dict(choices).get cai no valor cru em vez de rebentar.
-    type_labels = dict(Evidence.EvidenceType.choices)
+    type_labels = evidence_type_config.labels()
     event_labels = dict(EventType.choices)
     by_type = [
         {'label': type_labels.get(r['type'], r['type']), 'n': r['n']}

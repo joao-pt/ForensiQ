@@ -11,6 +11,7 @@ from .models import (
     CrimeTipo,
     Evidence,
     EvidenceFieldDef,
+    EvidenceTypeRef,
     FieldOption,
     Institution,
     InstitutionMembership,
@@ -220,6 +221,24 @@ class EvidenceFieldDefAdmin(admin.ModelAdmin):
     search_fields = ('key', 'label', 'evidence_type')
     ordering = ('evidence_type', 'order', 'key')
     inlines = [FieldOptionInline]
+
+
+@admin.register(EvidenceTypeRef)
+class EvidenceTypeRefAdmin(admin.ModelAdmin):
+    """Catálogo editável de tipos de evidência (ADR-0018).
+
+    ``code`` é WRITE-ONCE (entra no registo e no hash): editável só na criação,
+    só-leitura depois. Acrescentam-se códigos novos; nunca se renomeiam.
+    """
+
+    list_display = ('code', 'label', 'is_active', 'order')
+    list_editable = ('label', 'is_active', 'order')
+    list_filter = ('is_active',)
+    search_fields = ('code', 'label')
+    ordering = ('order', 'code')
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('code',) if obj is not None else ()
 
 
 @admin.register(AuditLog)

@@ -856,6 +856,26 @@ def evidence_photo_path(instance, filename):
     return f'evidencias/{instance.occurrence.code}/{uuid.uuid4().hex[:8]}_{filename}'
 
 
+def _evidence_type_choices():
+    """Choices VIVOS do catálogo editável (``EvidenceTypeRef``, ADR-0018) para o
+    campo ``Evidence.type``. Callable: ``get_type_display``/``full_clean``/admin
+    reflectem a tabela sem novo deploy; o *slug* gravado mantém-se a verdade do
+    hash. Import tardio para evitar ciclo models ↔ evidence_type_config.
+
+    O ``_check_choices`` do Django (e qualquer ``manage.py``) avalia este callable
+    ao arrancar; se a tabela ainda não existe (makemigrations/migrate antes da
+    0029, ou BD vazia em CI) devolve-se ``[]`` — choices vazios são válidos para
+    o system check, e em runtime a tabela existe e está semeada."""
+    from django.db import DatabaseError
+
+    from core import evidence_type_config
+
+    try:
+        return evidence_type_config.all_choices()
+    except DatabaseError:
+        return []
+
+
 class Evidence(models.Model):
     """Evidência apreendida numa ocorrência (com integridade SHA-256).
 
@@ -946,7 +966,7 @@ class Evidence(models.Model):
     )
     type = models.CharField(
         max_length=25,
-        choices=EvidenceType.choices,
+        choices=_evidence_type_choices,
         verbose_name='Tipo de evidência',
     )
     parent_evidence = models.ForeignKey(
@@ -1523,6 +1543,41 @@ class FieldOption(models.Model):
 
     def __str__(self):
         return f'{self.field.key}: {self.value}'
+
+
+class EvidenceTypeRef(models.Model):
+    """Catálogo editável dos tipos de evidência (ADR-0018).
+
+    Fonte do ``choices`` VIVO de ``Evidence.type`` (via ``evidence_type_config``):
+    permite acrescentar tipos, rever rótulos, reordenar e activar/desactivar SEM
+    deploy. Não tem triggers de imutabilidade — é dado de referência, não prova.
+    O ``code`` é a chave natural e é WRITE-ONCE: está congelado nos registos
+    selados e no hash, e há lógica que ramifica por valor (tipos-folha, génese),
+    pelo que só se acrescentam códigos novos — nunca se renomeia um existente.
+    Editável: apenas ``label``/``is_active``/``order``.
+    """
+
+    code = models.CharField(
+        max_length=32,
+        primary_key=True,
+        verbose_name='Código (slug)',
+        help_text='Identificador estável, WRITE-ONCE (entra no registo e no hash).',
+    )
+    label = models.CharField(max_length=120, verbose_name='Rótulo')
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='Activo',
+        help_text='Falso esconde o tipo do formulário sem afectar itens já registados.',
+    )
+    order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem')
+
+    class Meta:
+        verbose_name = 'Tipo de evidência (catálogo)'
+        verbose_name_plural = 'Tipos de evidência (catálogo)'
+        ordering = ['order', 'code']
+
+    def __str__(self):
+        return f'{self.code} — {self.label}'
 
 
 # ---------------------------------------------------------------------------

@@ -9,6 +9,8 @@ pelo ``SearchFilter`` ou ``OrderingFilter``.
 
 from django_filters import rest_framework as filters
 
+from core import evidence_type_config
+
 from .models import (
     LEGAL_STATES,
     ChainOfCustody,
@@ -47,9 +49,11 @@ class EvidenceFilter(filters.FilterSet):
     ModelFilter). Mantemos coerência com a queixa de UX 2026-05-02.
     """
 
+    # Choices VIVOS do catálogo editável (ADR-0018); callable → reavaliado por
+    # request, em sintonia com o <select> do frontend.
     type = filters.MultipleChoiceFilter(
         field_name='type',
-        choices=Evidence.EvidenceType.choices,
+        choices=evidence_type_config.active_choices,
     )
     date_after = filters.DateFilter(
         field_name='timestamp_seizure', lookup_expr='gte',

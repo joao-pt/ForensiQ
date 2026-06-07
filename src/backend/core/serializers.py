@@ -10,7 +10,7 @@ from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from . import access
+from . import access, evidence_type_config
 from .models import (
     AuditLog,
     ChainOfCustody,
@@ -339,6 +339,10 @@ class EvidenceSerializer(serializers.ModelSerializer):
     type_specific_data = serializers.JSONField(required=False)
     sub_components = serializers.SerializerMethodField()
     current_state = serializers.SerializerMethodField()
+    # Declarado explicitamente (ADR-0018): o campo do modelo usa um ``choices``
+    # callable (catálogo vivo); validamos aqui contra os códigos ACTIVOS, sem
+    # depender de como o DRF mapearia um callable.
+    type = serializers.CharField(max_length=25)
 
     def get_agent_name(self, obj):
         """Retorna nome completo do agente, com fallback para username."""
@@ -396,6 +400,12 @@ class EvidenceSerializer(serializers.ModelSerializer):
             return None
         eventos = sort_custody_chain(eventos)
         return derive_legal_state(eventos)
+
+    def validate_type(self, value):
+        """O tipo tem de ser um código ACTIVO do catálogo editável (ADR-0018)."""
+        if value not in evidence_type_config.active_codes():
+            raise serializers.ValidationError('Tipo de evidência inválido ou inactivo.')
+        return value
 
     class Meta:
         model = Evidence
