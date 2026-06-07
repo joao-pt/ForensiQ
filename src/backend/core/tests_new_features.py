@@ -506,6 +506,27 @@ class NearbyPOIsViewTest(BaseAPITestCase):
             resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
         self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)
 
+    def test_overpass_url_from_settings(self):
+        """A URL do Overpass vem de ``settings.OVERPASS_API_URL`` (repointável
+        para uma instância self-hosted sem alterar código)."""
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {'elements': []}
+
+        self.authenticate_as(self.agent)
+        fake = 'https://overpass.interno.local/api/interpreter'
+        with (
+            self.settings(OVERPASS_API_URL=fake),
+            mock.patch('core.views.httpx.post', return_value=_Resp()) as mpost,
+        ):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(mpost.call_args.args[0], fake)
+
     def test_throttle_scope_is_reverse_geocode(self):
         """O endpoint reusa o scope de throttle 'reverse_geocode' (ADR-0015)."""
         from core.views import NearbyPOIsView
@@ -540,3 +561,73 @@ class NearbyPOIsViewTest(BaseAPITestCase):
             second = self.client.get(self.URL, {'lat': '38.7', 'lon': '-9.1'})
         self.assertEqual(first.status_code, status.HTTP_200_OK)
         self.assertEqual(second.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+
+# ---------------------------------------------------------------------------
+# Geocodificação inversa — proxy Nominatim server-side (RGPD)
+# ---------------------------------------------------------------------------
+
+
+class ReverseGeocodeViewTest(BaseAPITestCase):
+    """Proxy server-side de geocodificação inversa: validação, payload e a
+    URL externa lida de ``settings.NOMINATIM_REVERSE_URL`` (repointável)."""
+
+    URL = '/api/reverse-geocode/'
+
+    def test_requires_lat_lon(self):
+        self.authenticate_as(self.agent)
+        resp = self.client.get(self.URL)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_success_returns_minimal_address(self):
+        """A resposta do Nominatim é reduzida aos campos que o frontend compõe."""
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {
+                    'display_name': 'Rua Augusta, Lisboa, Portugal',
+                    'address': {
+                        'road': 'Rua Augusta',
+                        'house_number': '10',
+                        'city': 'Lisboa',
+                        'country': 'Portugal',
+                    },
+                }
+
+        self.authenticate_as(self.agent)
+        with mock.patch('core.views.httpx.get', return_value=_Resp()):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        data = resp.json()
+        self.assertEqual(data['address']['road'], 'Rua Augusta')
+        self.assertEqual(data['address']['city'], 'Lisboa')
+
+    def test_nominatim_url_from_settings(self):
+        """A URL do Nominatim vem de ``settings.NOMINATIM_REVERSE_URL``."""
+
+        class _Resp:
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return {'display_name': '', 'address': {}}
+
+        self.authenticate_as(self.agent)
+        fake = 'https://nominatim.interno.local/reverse'
+        with (
+            self.settings(NOMINATIM_REVERSE_URL=fake),
+            mock.patch('core.views.httpx.get', return_value=_Resp()) as mget,
+        ):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(mget.call_args.args[0], fake)
+
+    def test_unavailable_returns_502(self):
+        """Indisponibilidade do Nominatim degrada graciosamente (502)."""
+        self.authenticate_as(self.agent)
+        with mock.patch('core.views.httpx.get', side_effect=httpx.ConnectError('down')):
+            resp = self.client.get(self.URL, {'lat': '38.7223', 'lon': '-9.1393'})
+        self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)

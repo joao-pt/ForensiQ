@@ -819,7 +819,6 @@ class ReverseGeocodeView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'reverse_geocode'
 
-    _NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
     _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
     _TIMEOUT_SECONDS = 5
 
@@ -857,7 +856,7 @@ class ReverseGeocodeView(APIView):
         # --- chamada ao Nominatim (server-side) ---
         try:
             resp = httpx.get(
-                self._NOMINATIM_URL,
+                settings.NOMINATIM_REVERSE_URL,
                 params={'lat': lat, 'lon': lon, 'format': 'json'},
                 headers={
                     'User-Agent': self._USER_AGENT,
@@ -919,7 +918,6 @@ class NearbyPOIsView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'reverse_geocode'
 
-    _OVERPASS_URL = 'https://overpass-api.de/api/interpreter'
     _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
     _TIMEOUT_SECONDS = 5
     _DEFAULT_RADIUS_M = 500
@@ -991,7 +989,7 @@ class NearbyPOIsView(APIView):
 
         try:
             resp = httpx.post(
-                self._OVERPASS_URL,
+                settings.OVERPASS_API_URL,
                 data={'data': query},
                 headers={'User-Agent': self._USER_AGENT},
                 timeout=self._TIMEOUT_SECONDS,

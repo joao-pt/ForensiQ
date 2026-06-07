@@ -112,22 +112,22 @@ def _derive_evidence_code(evidence):
 # ---------------------------------------------------------------------------
 
 ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'WEBP'}
-MAX_IMAGE_BYTES = 25 * 1024 * 1024  # 25 MB
 
 
 def validate_image_max_size(value):
     """
     Validação de upload conforme OWASP:
-    - Tamanho <= 25 MB (proteção DoS).
+    - Tamanho <= ``settings.MAX_IMAGE_UPLOAD_BYTES`` (proteção DoS; default 25 MB).
     - MIME real via Pillow.verify() (protege contra SVG/polyglots).
     - Formato na whitelist (JPEG/PNG/WEBP).
 
     Nota: Pillow.verify() fecha o ficheiro; o stream é reposicionado
     no fim para que o Django possa voltar a gravar.
     """
-    if value.size > MAX_IMAGE_BYTES:
+    max_bytes = settings.MAX_IMAGE_UPLOAD_BYTES
+    if value.size > max_bytes:
         raise ValidationError(
-            f'O ficheiro excede o tamanho máximo permitido de 25 MB '
+            f'O ficheiro excede o tamanho máximo permitido de {max_bytes / (1024 * 1024):.0f} MB '
             f'(tamanho actual: {value.size / (1024 * 1024):.1f} MB).'
         )
 

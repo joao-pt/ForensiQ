@@ -1248,6 +1248,28 @@ class ImageUploadValidationTest(BaseAPITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_image_limit_read_from_settings(self):
+        """O limite vem de ``settings.MAX_IMAGE_UPLOAD_BYTES`` (não hard-coded):
+        baixando-o, um ficheiro normalmente aceite passa a ser rejeitado."""
+        self.authenticate_as(self.agent)
+        url = reverse('core:evidence-list')
+
+        image_content = self._make_valid_jpeg(4 * 1024)  # 4 KB — OK no default 25 MB
+        image_file = SimpleUploadedFile(
+            name='test_image_over_override.jpg', content=image_content, content_type='image/jpeg'
+        )
+        with self.settings(MAX_IMAGE_UPLOAD_BYTES=2 * 1024):  # 2 KB
+            response = self.client.post(
+                url,
+                {
+                    'occurrence': self.occurrence.pk,
+                    'type': 'MOBILE_DEVICE',
+                    'description': 'Evidência acima do limite reduzido.',
+                    'photo': image_file,
+                },
+            )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_invalid_file_type_rejected(self):
         """Upload de ficheiro não-imagem deve ser rejeitado pelo ImageField."""
         self.authenticate_as(self.agent)
