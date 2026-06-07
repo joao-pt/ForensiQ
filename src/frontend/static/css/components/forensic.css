@@ -264,12 +264,13 @@
 .grid { width: 100%; min-width: max-content; border-collapse: collapse; font-size: var(--fs-sm); }
 .grid thead th {
     position: sticky;
-    /* Offset = altura REAL da toolbar (medida por sticky-toolbar.js para
-       --toolbar-h). Substitui o antigo top:51px fixo, que assumia uma toolbar
-       de uma só linha e falhava quando ela embrulhava (mobile, drawer aberto,
-       ou com mais filtros) — colando o cabeçalho por cima da 1.ª linha. O 51px
-       fica como fallback até o JS medir. */
-    top: var(--toolbar-h, 51px);
+    /* O cabeçalho cola ao TOPO do seu contentor de scroll — que é a .gridwrap,
+       não a página: `.gridwrap { overflow-x: auto }` promove o overflow-y a
+       `auto` (regra do CSS), tornando-a um contentor de scroll nos dois eixos.
+       Logo o offset é 0. Um offset pela altura da toolbar (a antiga
+       --toolbar-h) era medido no espaço errado e empurrava o cabeçalho para
+       DENTRO da gridwrap, por cima da 1.ª linha (cabeçalhos descolados). */
+    top: 0;
     z-index: 1;
     text-align: left;
     padding: var(--sp-2) var(--sp-3);
@@ -283,7 +284,6 @@
     border-bottom: 1px solid var(--border-strong);
     white-space: nowrap;
 }
-.grid--no-toolbar thead th { top: 0; }
 .grid__th--pri { width: 52px; text-align: center; }
 .grid tbody tr {
     border-bottom: 1px solid var(--divider);
