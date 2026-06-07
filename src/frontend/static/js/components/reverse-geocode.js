@@ -13,11 +13,7 @@
     // script seja carregado globalmente (base.html) e por páginas à parte.
     if (window.__fqReverseGeocodeReady) return;
     window.__fqReverseGeocodeReady = true;
-    document.body.addEventListener('click', function (ev) {
-        var btn = ev.target.closest ? ev.target.closest('[data-reverse-geocode]') : null;
-        if (!btn) return;
-        ev.preventDefault();
-
+    window.FQDom.onClick('[data-reverse-geocode]', function (btn) {
         var Geo = window.ForensiQGeo;
         var latEl = document.querySelector(btn.getAttribute('data-lat-target'));
         var lngEl = document.querySelector(btn.getAttribute('data-lng-target'));

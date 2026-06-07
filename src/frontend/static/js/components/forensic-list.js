@@ -352,6 +352,10 @@
         return ok;
     }
 
+    // Copiar para a área de transferência. NÃO usa FQDom.onClick (utils/dom-helpers):
+    // este ficheiro corre também na página pública de verificação (public_verify.html),
+    // que é autónoma e não carrega os helpers de base.html; e o handler precisa de
+    // stopPropagation para o clique no botão não abrir o drawer da linha.
     document.body.addEventListener('click', function (ev) {
         var btn = ev.target.closest ? ev.target.closest('[data-copy]') : null;
         if (!btn) return;

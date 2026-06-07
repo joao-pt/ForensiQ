@@ -77,11 +77,7 @@
         listEl.hidden = false;
     }
 
-    document.body.addEventListener('click', function (ev) {
-        var btn = ev.target.closest ? ev.target.closest('[data-nearby-pois]') : null;
-        if (!btn) return;
-        ev.preventDefault();
-
+    window.FQDom.onClick('[data-nearby-pois]', function (btn) {
         var Geo = window.ForensiQGeo;
         var latEl = q(btn.getAttribute('data-lat-target'));
         var lngEl = q(btn.getAttribute('data-lng-target'));

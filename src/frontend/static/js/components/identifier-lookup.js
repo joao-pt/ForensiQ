@@ -104,10 +104,7 @@
 
     // Handler de lookup — delegado em document.body (cobre também os fragmentos
     // de modal injetados), liga UMA vez no load para não duplicar pedidos.
-    document.body.addEventListener('click', function (ev) {
-        var btn = ev.target.closest ? ev.target.closest('[data-lookup]') : null;
-        if (!btn) return;
-        ev.preventDefault();
+    window.FQDom.onClick('[data-lookup]', function (btn) {
         var kind = btn.getAttribute('data-lookup');
         var input = document.querySelector(btn.getAttribute('data-target'));
         if (!input) return;

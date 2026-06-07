@@ -18,11 +18,7 @@
     // não duplicar a captura de GPS por clique.
     if (window.__fqGeoCaptureReady) return;
     window.__fqGeoCaptureReady = true;
-    document.body.addEventListener('click', function (ev) {
-        var btn = ev.target.closest ? ev.target.closest('[data-geo-capture]') : null;
-        if (!btn) return;
-        ev.preventDefault();
-
+    window.FQDom.onClick('[data-geo-capture]', function (btn) {
         var Geo = window.ForensiQGeo;
         // Resolve o indicador de precisão relativamente ao botão clicado: cada
         // bloco de geolocalização (.form-inline) tem o seu próprio [data-geo-acc].
