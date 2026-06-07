@@ -105,6 +105,16 @@ class InboundCaixaTest(TestCase):
             {'evidence_ids': [self.ev1.id, self.ev2.id], 'location_name': 'Receção PJ'},
         )
         self.assertEqual(r2.status_code, 302)
+        # location_name é DERIVADO da instituição de destino (não do POST): a
+        # receção não pede local — herda-o da ficha. O 'Receção PJ' enviado no
+        # corpo é ignorado, o ledger fica com o nome canónico da instituição.
+        from core.models import ChainOfCustody
+
+        rec = ChainOfCustody.objects.filter(
+            evidence=self.ev1, event_type=ChainOfCustody.EventType.RECEPCAO_CUSTODIA
+        ).first()
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.location_name, self.opc2.name)
         # Avisos reconhecidos pela receção → caixa vazia.
         self.assertFalse(
             ProvaEmTransito.objects.filter(

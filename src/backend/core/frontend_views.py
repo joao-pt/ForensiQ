@@ -1888,14 +1888,32 @@ def occurrence_intake_view(request, occurrence_id):
     # evidência — N+1 a cada carregamento da página de intake). Agrupa por
     # evidência e deriva o estado uma vez por item.
     eventos_por_ev = {}
-    for rec in ChainOfCustody.objects.filter(evidence__occurrence=occurrence).order_by(
-        'evidence_id', 'sequence'
+    for rec in (
+        ChainOfCustody.objects.filter(evidence__occurrence=occurrence)
+        .select_related('custodian_institution')
+        .order_by('evidence_id', 'sequence')
     ):
         eventos_por_ev.setdefault(rec.evidence_id, []).append(rec)
     state_by_evidence = {
         ev.id: (derive_legal_state(eventos_por_ev[ev.id]) if ev.id in eventos_por_ev else '')
         for ev in evidences
     }
+
+    # Instituição(ões) de DESTINO onde a prova é recebida — derivada do último
+    # encaminhamento de cada item em trânsito. Em trânsito ⇒ o último evento É o
+    # ENCAMINHAMENTO_CUSTODIA (derive_legal_state), logo o seu `custodian_institution`
+    # é o destino. A coordenada e o local da receção vêm DESTE registo (não se pedem
+    # ao operador): a instituição é fixa e já tem GPS/morada na ficha. Pré-selecionar
+    # o destino aqui torna a receção um gesto de confirmação, não de captura.
+    reception_institutions = []
+    _seen_inst = set()
+    for ev in evidences:
+        if state_by_evidence[ev.id] != 'em_transito':
+            continue
+        destino = eventos_por_ev[ev.id][-1].custodian_institution
+        if destino is not None and destino.id not in _seen_inst:
+            _seen_inst.add(destino.id)
+            reception_institutions.append(destino)
 
     # POST — registar a RECEÇÃO (fase 2 do handoff, ADR-0016 v2) dos itens em
     # trânsito marcados, em lote atómico, reusando o ChainOfCustodySerializer. O
@@ -1908,12 +1926,14 @@ def occurrence_intake_view(request, occurrence_id):
         from core.serializers import ChainOfCustodySerializer
 
         selected = set(request.POST.getlist('evidence_ids'))
-        location = (request.POST.get('location_name') or '').strip()
         storage = (request.POST.get('storage_location') or '').strip()
         observations = (request.POST.get('observations') or '').strip()
-        gps_lat = (request.POST.get('gps_lat') or '').strip()
-        gps_lng = (request.POST.get('gps_lng') or '').strip()
-        gps_accuracy = (request.POST.get('gps_accuracy_m') or '').strip()
+        # GPS e local NÃO se pedem na receção: a instituição de destino é fixa e o seu
+        # registo (coordenada + morada) é a fonte. O clean() do modelo copia o GPS da
+        # instituição herdada do encaminhamento; aqui só se deriva o `location_name`
+        # (rótulo legível no ledger) do mesmo destino. Pedir captura de GPS num
+        # laboratório com coordenada já conhecida seria ruído (ADR-0016 v2 — GPS só no
+        # terreno).
         to_receive = [
             ev
             for ev in evidences
@@ -1931,17 +1951,16 @@ def occurrence_intake_view(request, occurrence_id):
                             'evidence': ev.id,
                             'event_type': EventType.RECEPCAO_CUSTODIA,
                         }
-                        if location:
-                            payload['location_name'] = location
+                        # Rótulo de local = nome da instituição de destino (herdado do
+                        # encaminhamento). O FK custodian_institution identifica o
+                        # destino com precisão; location_name é só a etiqueta legível.
+                        destino = eventos_por_ev[ev.id][-1].custodian_institution
+                        if destino is not None:
+                            payload['location_name'] = destino.name
                         if storage:
                             payload['storage_location'] = storage
                         if observations:
                             payload['observations'] = observations
-                        if gps_lat and gps_lng:
-                            payload['gps_lat'] = gps_lat
-                            payload['gps_lng'] = gps_lng
-                            if gps_accuracy:
-                                payload['gps_accuracy_m'] = gps_accuracy
                         s = ChainOfCustodySerializer(
                             data=payload, context={'request': request}
                         )
@@ -2007,6 +2026,8 @@ def occurrence_intake_view(request, occurrence_id):
             # itens em trânsito. O destino/coordenada vêm do encaminhamento.
             'intake_action_label': 'Receção de prova encaminhada',
             'target_state': EventType.RECEPCAO_CUSTODIA,
+            # Destino(s) de receção — coordenada/morada herdadas da ficha (read-only).
+            'reception_institutions': reception_institutions,
         },
     )
 

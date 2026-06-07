@@ -433,6 +433,43 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .facts__src { color: var(--text-subtle); font-size: var(--fs-xs); }
 
 /* ============================================================
+   Destino de receção (read-only) — a instituição de destino e a sua
+   coordenada vêm da ficha; a receção confirma-as, não as captura.
+   ============================================================ */
+.intake-dest { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0 0 var(--sp-4); }
+.intake-dest__card {
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--accent);
+    background: var(--accent-tint);
+    border-radius: var(--r-2);
+    padding: var(--sp-3) var(--sp-4);
+}
+.intake-dest__tag {
+    display: block;
+    font-family: var(--font-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    color: var(--accent); font-weight: var(--fw-semi);
+    margin-bottom: 2px;
+}
+.intake-dest__name {
+    margin: 0; font-size: var(--fs-base); font-weight: var(--fw-semi);
+    color: var(--text-emphasis); line-height: var(--lh-tight);
+}
+.intake-dest__sigla {
+    font-size: var(--fs-xs); color: var(--text-muted);
+    padding: 1px 6px; border: 1px solid var(--border-strong);
+    border-radius: var(--r-1); margin-left: var(--sp-1);
+}
+.intake-dest__addr { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.intake-dest__gps {
+    margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text);
+    font-feature-settings: "zero" 1, "tnum" 1;
+    display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap;
+}
+.intake-dest__src { font-family: var(--font-sans); font-size: var(--fs-xs); color: var(--text-subtle); }
+.intake-dest__gps--missing { color: var(--state-warn-text, var(--text-muted)); }
+
+/* ============================================================
    Secção (blocos em páginas de detalhe)
    ============================================================ */
 .section { border: 1px solid var(--border); border-radius: var(--r-3); margin-bottom: var(--sp-4); overflow: hidden; }
