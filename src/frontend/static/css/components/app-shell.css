@@ -188,6 +188,10 @@ body.app-body {
     color: var(--accent-on-tint);
     border-color: var(--accent-tint);
     background: var(--accent-tint);
+    /* Papel é vocabulário fechado e prioritário: encaixa o texto todo, sem o
+       corte do max-width genérico (ex.: "Perito forense digital" cabia a meio).
+       Em ecrã estreito o flex-shrink + reticências ainda tratam do overflow. */
+    max-width: none;
 }
 
 .app-top__spacer { flex: 1 1 auto; min-width: var(--sp-2); }
