@@ -564,7 +564,20 @@ class Command(BaseCommand):
         P = User.Profile
         C = User.Clearance
         # sigla -> [(username, profile, clearance, first_name, last_name, badge), ...]
+        # Cada uma das 23 instituições recebe pelo menos um utilizador, com o(s)
+        # papel(éis) coerente(s) com o seu tipo (ADR-0017): OPC→agente+chefia,
+        # LAB→perito/legista (+custódio nos públicos), MP→procurador,
+        # TRIBUNAL→escrivão (cofre), DEPOSITÁRIO→gestor de bens apreendidos.
         roster = [
+            # --- OPC (órgãos de polícia criminal) ---
+            ('PJ-LSB', [
+                ('inspetor.pj.lsb', P.FIRST_RESPONDER, C.NORMAL, 'Bruno', 'Carvalho', 'PJ-LSB-101'),
+                ('coord.pj.lsb', P.CHEFE_SERVICO, C.NACIONAL, 'Sandra', 'Esteves', 'PJ-LSB-CH'),
+            ]),
+            ('PJ-PRT', [
+                ('inspetor.pj.prt', P.FIRST_RESPONDER, C.NORMAL, 'Hugo', 'Macedo', 'PJ-PRT-201'),
+                ('coord.pj.prt', P.CHEFE_SERVICO, C.NACIONAL, 'Raquel', 'Barbosa', 'PJ-PRT-CH'),
+            ]),
             ('PSP-LSB', [
                 ('agente.lsb1', P.FIRST_RESPONDER, C.NORMAL, 'Rui', 'Almeida', 'PSP-LSB-101'),
                 ('agente.lsb2', P.FIRST_RESPONDER, C.NORMAL, 'Sofia', 'Marques', 'PSP-LSB-102'),
@@ -579,15 +592,33 @@ class Command(BaseCommand):
                 ('agente.gnr1', P.FIRST_RESPONDER, C.NORMAL, 'Carla', 'Nunes', 'GNR-301'),
                 ('chefe.gnr', P.CHEFE_SERVICO, C.NACIONAL, 'Mário', 'Lopes', 'GNR-CH'),
             ]),
+            # --- LAB_PUBLICO (laboratórios públicos) ---
             ('LPC', [
                 ('perito.lpc1', P.FORENSIC_EXPERT, C.NACIONAL, 'André', 'Reis', 'LPC-E1'),
                 ('perito.lpc2', P.FORENSIC_EXPERT, C.NORMAL, 'Beatriz', 'Cardoso', 'LPC-E2'),
                 ('custodio.lpc', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Jorge', 'Tavares', 'LPC-CUS'),
             ]),
+            ('INMLCF-N', [
+                ('legista.inml.n', P.FORENSIC_EXPERT, C.NORMAL, 'Vasco', 'Teixeira', 'INML-N-E1'),
+            ]),
+            ('INMLCF-C', [
+                ('legista.inml.c', P.FORENSIC_EXPERT, C.NORMAL, 'Marta', 'Figueiredo', 'INML-C-E1'),
+            ]),
+            ('INMLCF-S', [
+                ('legista.inml.s', P.FORENSIC_EXPERT, C.NACIONAL, 'Luís', 'Henriques', 'INML-S-E1'),
+            ]),
+            # --- LAB_PRIVADO (laboratórios privados) ---
             ('FOREN', [
                 ('perito.priv1', P.FORENSIC_EXPERT, C.NORMAL, 'Núria', 'Gomes', 'PRIV-E1'),
                 ('custodio.priv', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Diogo', 'Antunes', 'PRIV-CUS'),
             ]),
+            ('CODIGO-ADN', [
+                ('perito.adn', P.FORENSIC_EXPERT, C.NORMAL, 'Catarina', 'Morais', 'ADN-E1'),
+            ]),
+            ('NCFORENSES', [
+                ('perito.ncf', P.FORENSIC_EXPERT, C.NORMAL, 'Filipe', 'Cordeiro', 'NCF-E1'),
+            ]),
+            # --- MP (Ministério Público) ---
             ('DIAP-LSB', [
                 ('mp.lsb1', P.CASE_AUTHORITY, C.NACIONAL, 'Teresa', 'Lima', 'MP-LSB-1'),
                 ('mp.lsb2', P.CASE_AUTHORITY, C.NACIONAL, 'Ricardo', 'Matos', 'MP-LSB-2'),
@@ -595,8 +626,34 @@ class Command(BaseCommand):
             ('DIAP-PRT', [
                 ('mp.prt1', P.CASE_AUTHORITY, C.NACIONAL, 'Cláudia', 'Rocha', 'MP-PRT-1'),
             ]),
+            ('DIAP-CBR', [
+                ('mp.cbr1', P.CASE_AUTHORITY, C.NACIONAL, 'Gonçalo', 'Freitas', 'MP-CBR-1'),
+            ]),
+            ('PR-BRAGA', [
+                ('mp.braga1', P.CASE_AUTHORITY, C.NACIONAL, 'Susana', 'Maia', 'MP-BRG-1'),
+            ]),
+            # --- TRIBUNAL (escrivães / cofre do tribunal) ---
             ('TJ-LSB', [
                 ('escrivao.tj', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Manuel', 'Cunha', 'TJ-LSB-ESC'),
+            ]),
+            ('TJ-PRT', [
+                ('escrivao.tj.prt', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Anabela', 'Pereira', 'TJ-PRT-ESC'),
+            ]),
+            ('TJ-CBR', [
+                ('escrivao.tj.cbr', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Nuno', 'Faria', 'TJ-CBR-ESC'),
+            ]),
+            ('TJ-FAR', [
+                ('escrivao.tj.far', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Patrícia', 'Vieira', 'TJ-FAR-ESC'),
+            ]),
+            # --- DEPOSITARIO (gestores de bens apreendidos) ---
+            ('GRA', [
+                ('gestor.gra', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Fernando', 'Lourenço', 'GRA-CUS'),
+            ]),
+            ('AT', [
+                ('deposit.at', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Isabel', 'Ramos', 'AT-CUS'),
+            ]),
+            ('GAB', [
+                ('gestor.gab', P.EVIDENCE_CUSTODIAN, C.NORMAL, 'Ângelo', 'Pacheco', 'GAB-CUS'),
             ]),
         ]
 
