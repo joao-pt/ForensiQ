@@ -921,6 +921,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
             'data': data or {},
             'modal': modal,
             'action': f'/occurrences/{occ.id}/encaminhar/',
+            'cancel_url': f'/occurrences/{occ.id}/',
         }
 
     if request.method == 'POST':

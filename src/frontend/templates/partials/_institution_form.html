@@ -9,14 +9,7 @@
 {% endcomment %}
 <div data-modal-title="Nova instituição">
 
-  {% if errors.non_field_errors or errors.geral %}
-  <div class="section" role="alert">
-    <div class="section__body">
-      {% for e in errors.non_field_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
-      {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
-    </div>
-  </div>
-  {% endif %}
+  {% include 'partials/_form_errors.html' %}
 
   <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
     {% csrf_token %}
@@ -101,13 +94,6 @@
 
     </div>
 
-    <div class="form-actions">
-      {% if modal %}
-      <button type="button" class="btn-ghost" data-modal-close>Cancelar</button>
-      {% else %}
-      <a class="btn-ghost" href="/institutions/">Cancelar</a>
-      {% endif %}
-      <button type="submit" class="btn-accent">Criar instituição</button>
-    </div>
+    {% include 'partials/_form_actions.html' with cancel_url='/institutions/' submit_label='Criar instituição' %}
   </form>
 </div>

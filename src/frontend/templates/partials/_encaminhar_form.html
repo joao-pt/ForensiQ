@@ -7,13 +7,7 @@
 {% endcomment %}
 <div data-modal-title="Encaminhar prova">
 
-  {% if errors.geral %}
-  <div class="section" role="alert">
-    <div class="section__body">
-      {% for e in errors.geral %}<p class="form-error visible">{{ e }}</p>{% endfor %}
-    </div>
-  </div>
-  {% endif %}
+  {% include 'partials/_form_errors.html' %}
 
   {% if itens %}
   <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
@@ -60,14 +54,7 @@
 
     <p class="form-hint">Um laboratório não admite prova sem despacho prévio (CPP Art. 154.º) — o sistema bloqueia o encaminhamento se faltar.</p>
 
-    <div class="form-actions">
-      {% if modal %}
-      <button type="button" class="btn-ghost" data-modal-close>Cancelar</button>
-      {% else %}
-      <a class="btn-ghost" href="/occurrences/{{ occ.id }}/">Cancelar</a>
-      {% endif %}
-      <button type="submit" class="btn-accent">Encaminhar</button>
-    </div>
+    {% include 'partials/_form_actions.html' with cancel_url=cancel_url submit_label='Encaminhar' %}
   </form>
   {% else %}
   <div class="empty">

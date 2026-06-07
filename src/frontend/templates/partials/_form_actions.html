@@ -1,0 +1,16 @@
+{% comment %}
+  Rodapé de ações dos formulários ação-in-place (fonte ÚNICA). Em modal, Cancelar
+  fecha o `<dialog>` (data-modal-close); em página, é um link para a lista de
+  origem (`cancel_url`). Parâmetros do include:
+    • cancel_url   — destino do Cancelar em modo página (ignorado em modal);
+    • submit_label — texto do botão de submissão;
+    • sticky       — fixa o rodapé em página (só quando NÃO é modal).
+{% endcomment %}
+<div class="form-actions{% if sticky and not modal %} form-actions--sticky{% endif %}">
+  {% if modal %}
+  <button type="button" class="btn-ghost" data-modal-close>Cancelar</button>
+  {% else %}
+  <a class="btn-ghost" href="{{ cancel_url }}">Cancelar</a>
+  {% endif %}
+  <button type="submit" class="btn-accent">{{ submit_label }}</button>
+</div>
