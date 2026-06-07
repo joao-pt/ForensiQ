@@ -135,15 +135,24 @@ valor serializado é a mesma string). Verificado: `makemigrations --check` sem a
   canónicos + `derive_legal_state`) e `core/policy/__init__.py` (re-exporta a API pública).
   `core/models.py` importa e re-exporta. Sem ciclo, `makemigrations --check` sem
   alterações, `ruff` limpo, 658 testes core verdes.
-- **Etapa 2 (§3) — em curso.** `core/policy/custody_transitions.py` com os predicados das
-  guardas + `next_events`/`genesis_event_for`/mapa de custódio; `clean()` e o espelho do
-  frontend passam a delegar; cada predicado coberto por teste de tabela, 0 regressões
-  exigidas (baterias `tests_custody_v2`, `tests_encaminhar`, `tests_access`, e os casos de
-  `derive_legal_state` em `tests.py`), mais imutabilidade contra PostgreSQL e e2e.
+- **Etapa 2 (§3) — FEITA.** `core/policy/custody_transitions.py` com os predicados das
+  guardas (`ledger_has_terminal`/`has_prior_seizure`/`validation_done`/`despacho_done`/
+  `is_in_transit`/`lab_gate_blocks`), `next_events`, `genesis_event_for` e o mapa
+  `CUSTODIAN_TYPE_BY_INSTITUTION`. O `ChainOfCustody.clean()` chama os predicados (guardas
+  de terminal, validação-única, início-perícia, receção e gate de laboratório); o frontend
+  (`_valid_next_events`/`_genesis_event_for`) deixou de re-derivar e passou a delegar em
+  `next_events`/`genesis_event_for`, e o dict inline `_CUSTODIAN_TYPE_BY_INSTITUTION` foi
+  substituído pelo do módulo. Como ambos chamam os MESMOS predicados, não há duas
+  implementações que possam divergir. O mapa de custódio é chaveado por slug de
+  `InstitutionType` (string) para o módulo ficar no fundo do grafo, sem importar `core.models`.
 
 ## Verificação
 
 A invariância do comportamento é dada pelas baterias existentes (que importam
 `derive_legal_state` e os conjuntos de `core.models` — caminho preservado pela
-re-exportação) e, na Etapa 2, por testes de tabela por predicado. Verificação da Etapa 1:
-658 testes core verdes; `makemigrations --check` sem alterações; `ruff` limpo.
+re-exportação) e, na Etapa 2, por testes de tabela por predicado
+(`tests_policy_custody_transitions.py`). Como o `clean()` e o `next_events` passam a chamar
+os mesmos predicados, a unificação é estrutural (uma só implementação), e as baterias de BD
+de custódia (`tests_custody_v2`, `tests_encaminhar`, `tests_access`, `tests`) confirmam que
+o `clean()` mantém o comportamento. Verificação: 678 testes core + e2e 39/39 verdes;
+`makemigrations --check` sem alterações; `ruff` limpo (Etapa 1: 658 testes; Etapa 2: +20).

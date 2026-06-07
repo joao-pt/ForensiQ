@@ -18,6 +18,12 @@ append-only (contrato de integridade, em ``core.models``), os validadores técni
 (``core.validators``) e a política de acesso ReBAC (``core.access``).
 """
 
+from core.policy.custody_transitions import (
+    CUSTODIAN_TYPE_BY_INSTITUTION,
+    genesis_event_for,
+    lab_gate_blocks,
+    next_events,
+)
 from core.policy.event_states import (
     GENESIS_EVENTS,
     HANDOFF_EVENTS,
@@ -32,6 +38,7 @@ from core.policy.event_states import (
 )
 
 __all__ = [
+    'CUSTODIAN_TYPE_BY_INSTITUTION',
     'GENESIS_EVENTS',
     'HANDOFF_EVENTS',
     'LAB_CUSTODIANS',
@@ -42,4 +49,7 @@ __all__ = [
     'CustodianType',
     'EventType',
     'derive_legal_state',
+    'genesis_event_for',
+    'lab_gate_blocks',
+    'next_events',
 ]

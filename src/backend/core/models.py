@@ -24,10 +24,10 @@ from django.db import IntegrityError, models, transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
+from core.policy import custody_transitions
 from core.policy.event_states import (
     GENESIS_EVENTS,
     HANDOFF_EVENTS as HANDOFF_EVENTS,
-    LAB_CUSTODIANS,
     LEGAL_STATES as LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
     TERMINAL_EVENTS,
@@ -1947,7 +1947,7 @@ class ChainOfCustody(models.Model):
         # Terminais fecham o ledger — nenhum evento depois de RESTITUICAO/DESTRUICAO,
         # em QUALQUER posição (semântica de presença, ADR-0015; robusto a sequences
         # fora de ordem hipotéticas).
-        if any(t in TERMINAL_EVENTS for t in prior_types):
+        if custody_transitions.ledger_has_terminal(prior_types):
             raise ValidationError(
                 {
                     'event_type': (
@@ -1966,7 +1966,7 @@ class ChainOfCustody(models.Model):
                 raise ValidationError(
                     {'event_type': 'VALIDACAO_APREENSAO requer uma apreensão prévia.'}
                 )
-            if EventType.VALIDACAO_APREENSAO in prior_types:
+            if custody_transitions.validation_done(prior_types):
                 raise ValidationError(
                     {'event_type': 'A apreensão só pode ser validada uma vez.'}
                 )
@@ -1976,7 +1976,7 @@ class ChainOfCustody(models.Model):
         # INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º).
         if (
             self.event_type == EventType.INICIO_PERICIA
-            and EventType.DESPACHO_PERICIA not in prior_types
+            and not custody_transitions.despacho_done(prior_types)
         ):
             raise ValidationError(
                 {
@@ -2026,7 +2026,7 @@ class ChainOfCustody(models.Model):
         # destino do encaminhamento e, em instituição fixa, a coordenada vem do
         # registo da instituição (não há captura no terreno).
         if self.event_type == EventType.RECEPCAO_CUSTODIA:
-            if not prior or prior[-1].event_type != EventType.ENCAMINHAMENTO_CUSTODIA:
+            if not custody_transitions.is_in_transit(prior_types):
                 raise ValidationError(
                     {
                         'event_type': (
@@ -2055,11 +2055,7 @@ class ChainOfCustody(models.Model):
         # laboratório não admite prova sem despacho, nem que seja para arquivo. Não
         # se aplica à génese (a derivação de um sub-componente no laboratório herda
         # a base legal do item-pai já lá presente).
-        if (
-            prior
-            and self.custodian_type in LAB_CUSTODIANS
-            and EventType.DESPACHO_PERICIA not in prior_types
-        ):
+        if custody_transitions.lab_gate_blocks(self.custodian_type, prior_types):
             raise ValidationError(
                 {
                     'custodian_type': (

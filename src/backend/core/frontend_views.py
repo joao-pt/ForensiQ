@@ -38,10 +38,7 @@ from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.models import (
-    GENESIS_EVENTS,
     LEGAL_STATES,
-    SEIZURE_GENESIS_EVENTS,
-    TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
@@ -56,6 +53,7 @@ from core.models import (
     Portador,
     derive_legal_state,
 )
+from core.policy import custody_transitions
 from core.utils import get_user_display_name, sort_custody_chain
 
 logger = logging.getLogger(__name__)
@@ -808,19 +806,6 @@ def occurrence_detail_view(request, occurrence_id):
     )
 
 
-# Destino do encaminhamento promove o custódio (eixo CustodianType, ortogonal ao
-# event_type). MP não tem CustodianType próprio → custódio em branco (estado
-# derivado 'encaminhada'). Derivar AQUI (servidor) e não no cliente é o que faz o
-# gate de laboratório disparar: encaminhar para um LAB_* leva custodian_type LAB_*.
-_CUSTODIAN_TYPE_BY_INSTITUTION = {
-    InstitutionType.OPC: CustodianType.OPC,
-    InstitutionType.LAB_PUBLICO: CustodianType.LAB_PUBLICO,
-    InstitutionType.LAB_PRIVADO: CustodianType.LAB_PRIVADO,
-    InstitutionType.TRIBUNAL: CustodianType.TRIBUNAL,
-    InstitutionType.DEPOSITARIO: CustodianType.DEPOSITARIO,
-}
-
-
 def _encaminhaveis(user, occ):
     """Itens da ocorrência que o utilizador pode ENCAMINHAR agora: génese feita,
     não terminais nem já em trânsito (ENCAMINHAMENTO é próximo evento válido) E com
@@ -860,7 +845,7 @@ def _register_handoff(request, evidences, bearer_id, destino):
         'custodian_institution': destino.id,
         'observations': (request.POST.get('observations') or '').strip(),
     }
-    ctype = _CUSTODIAN_TYPE_BY_INSTITUTION.get(destino.type)
+    ctype = custody_transitions.CUSTODIAN_TYPE_BY_INSTITUTION.get(destino.type)
     if ctype:
         base['custodian_type'] = ctype
     errors = []
@@ -1422,12 +1407,20 @@ def evidence_detail_view(request, evidence_id):
 
 
 def _genesis_event_for(evidence):
-    """Evento de génese aplicável à evidência, por proveniência (ADR-0016 §2)."""
-    if evidence is not None and evidence.parent_evidence_id is not None:
-        return EventType.DERIVACAO_ITEM
-    if evidence is not None and evidence.type == Evidence.EvidenceType.DIGITAL_FILE:
-        return EventType.APREENSAO_DADOS
-    return EventType.APREENSAO_OBJETO
+    """Evento de génese aplicável à evidência, por proveniência (ADR-0016 §2).
+
+    Fina ponte para a fonte única ``custody_transitions.genesis_event_for``
+    (ADR-0019): traduz a evidência (pode ser ``None``) nos dois sinais de
+    proveniência e delega a regra.
+    """
+    has_parent = evidence is not None and evidence.parent_evidence_id is not None
+    is_digital_file = (
+        evidence is not None
+        and evidence.type == Evidence.EvidenceType.DIGITAL_FILE
+    )
+    return custody_transitions.genesis_event_for(
+        has_parent=has_parent, is_digital_file=is_digital_file
+    )
 
 
 def _register_seizure_genesis(request, ev):
@@ -1492,35 +1485,18 @@ def _valid_next_events(events, evidence=None):
     (LEGADO) já não são oferecidos. O backend (serializer + clean) continua a ser
     a fonte de verdade — isto é só para não oferecer transições impossíveis.
     """
-    types = {e.event_type for e in events}
-    if not events:
-        genesis = _genesis_event_for(evidence)
-        return [(genesis.value, genesis.label)]
-    if types & TERMINAL_EVENTS:
-        return []
-    # Em trânsito: o único próximo evento possível é a receção (ADR-0016 v2).
-    if events[-1].event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
-        return [(EventType.RECEPCAO_CUSTODIA.value, EventType.RECEPCAO_CUSTODIA.label)]
-    seizure_done = bool(types & SEIZURE_GENESIS_EVENTS)
-    out = []
-    for et in EventType:
-        if et in GENESIS_EVENTS:
-            continue  # génese só na posição 1
-        # Movimentação LEGADO (um só tempo) — mantida no enum p/ ledgers
-        # históricos, mas já não oferecida.
-        if et in (EventType.TRANSFERENCIA_CUSTODIA, EventType.ASSUNCAO_CUSTODIA):
-            continue
-        # RECEPCAO só fecha um encaminhamento em curso (tratado acima).
-        if et == EventType.RECEPCAO_CUSTODIA:
-            continue
-        if et == EventType.VALIDACAO_APREENSAO and (
-            not seizure_done or EventType.VALIDACAO_APREENSAO in types
-        ):
-            continue
-        if et == EventType.INICIO_PERICIA and EventType.DESPACHO_PERICIA not in types:
-            continue
-        out.append((et.value, et.label))
-    return out
+    prior_types = [e.event_type for e in events]
+    has_parent = evidence is not None and evidence.parent_evidence_id is not None
+    is_digital_file = (
+        evidence is not None
+        and evidence.type == Evidence.EvidenceType.DIGITAL_FILE
+    )
+    return [
+        (et.value, et.label)
+        for et in custody_transitions.next_events(
+            prior_types, has_parent=has_parent, is_digital_file=is_digital_file
+        )
+    ]
 
 
 def _flatten_validation_error(exc):
