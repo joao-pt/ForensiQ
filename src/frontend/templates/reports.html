@@ -24,9 +24,7 @@
         hx-trigger="submit, input changed delay:350ms" hx-push-url="true" hx-indicator="#rpt-busy">
     {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
     <div class="toolbar__search">
-      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
-      </svg>
+      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
       <input type="search" name="q" value="{{ q }}"
              placeholder="Pesquisar código, NUIPC, morada…" autocomplete="off" aria-label="Pesquisar ocorrências">
     </div>

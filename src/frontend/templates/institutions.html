@@ -23,16 +23,14 @@
     <a class="btn-accent" href="/institutions/new/"
        data-modal-open data-modal-title="Nova instituição"
        hx-get="/institutions/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      {% include 'partials/icons/_plus.html' %}
       Nova instituição
     </a>
   </header>
 
   <form class="toolbar" role="search" action="/institutions/" method="get">
     <div class="toolbar__search">
-      <svg class="toolbar__search-icon" viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
-      </svg>
+      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
       <input type="search" name="q" value="{{ q }}"
              placeholder="Pesquisar nome ou sigla…" autocomplete="off" aria-label="Pesquisar instituições">
     </div>

@@ -29,7 +29,7 @@
       <td role="gridcell" class="mono col-hide-sm">{{ o.date_time|date:'Y-m-d' }}</td>
       <td role="gridcell">
         <a class="btn-ghost" href="/api/occurrences/{{ o.id }}/pdf/" aria-label="Descarregar guia PDF de {{ o.code }}">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></svg>
+          {% include 'partials/icons/_file.html' %}
           PDF
         </a>
       </td>
