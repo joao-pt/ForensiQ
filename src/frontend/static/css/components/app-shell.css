@@ -870,6 +870,76 @@ body.app-body {
     .app-modal__panel { max-height: 100dvh; border: none; border-radius: 0; }
 }
 
+/* =====================================================================
+   Diálogo de CONFIRMAÇÃO (<dialog> nativo central) — decisões de propósito
+   único, potencialmente destrutivas (terminar sessão, …). showModal()
+   escurece e inativa o resto da página (::backdrop) e prende o foco até o
+   utilizador decidir. CSP-safe (sem estilo inline).
+   ===================================================================== */
+.confirm-dialog {
+    padding: 0;
+    border: none;
+    background: transparent;
+    width: 100%;
+    max-width: min(420px, calc(100vw - 2 * var(--sp-4)));
+    overflow: visible;
+}
+.confirm-dialog::backdrop {
+    background: rgba(8, 10, 14, 0.62);
+    backdrop-filter: blur(2px);
+}
+.confirm-dialog__panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--sp-3);
+    padding: var(--sp-6) var(--sp-5) var(--sp-5);
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2, 10px);
+    box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.55);
+}
+.confirm-dialog__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-pill);
+    background: var(--accent-tint);
+    color: var(--accent-on-tint);
+}
+.confirm-dialog__icon[data-tone="danger"] {
+    background: var(--danger-tint);
+    color: var(--danger);
+}
+.confirm-dialog__icon svg { width: 22px; height: 22px; }
+.confirm-dialog__title {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+}
+.confirm-dialog__text {
+    margin: 0;
+    max-width: 34ch;
+    font-size: var(--fs-sm);
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+.confirm-dialog__actions {
+    display: flex;
+    gap: var(--sp-3);
+    width: 100%;
+    margin-top: var(--sp-2);
+}
+.confirm-dialog__actions .btn { flex: 1; }
+/* Em ecrã muito estreito empilha: a ação primária (última no DOM) fica em cima. */
+@media (max-width: 420px) {
+    .confirm-dialog__actions { flex-direction: column-reverse; }
+}
+
 /* Seletor de localização no mapa (map-picker.js) — precisa de altura explícita
    ou o Leaflet arranca sem dimensões. */
 .map-picker {

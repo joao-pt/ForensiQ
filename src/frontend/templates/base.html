@@ -111,60 +111,22 @@
             </svg>
         </button>
 
-        <!-- Menu de utilizador -->
+        <!-- Fim de sessão — único controlo deste canto do cabeçalho. As iniciais
+             identificam a sessão (o nome completo está no chip de contexto, à
+             esquerda; estatísticas, relatórios e definições vivem na navegação
+             lateral). Clicar abre a confirmação modal central (#logout-dialog). -->
         <div class="user-menu">
             <button type="button" class="user-menu-trigger" id="user-menu-trigger"
-                    aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu-panel">
+                    aria-haspopup="dialog" aria-label="Terminar sessão">
                 <span class="user-avatar" id="user-avatar" aria-hidden="true">—</span>
-                <span class="user-menu-name" id="user-menu-name">Utilizador</span>
+                <span class="user-menu-label">Terminar sessão</span>
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
-                     width="14" height="14">
-                    <path d="m6 9 6 6 6-6"/>
+                     width="16" height="16">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <path d="m16 17 5-5-5-5M21 12H9"/>
                 </svg>
             </button>
-
-            <div class="user-menu-panel" id="user-menu-panel" role="menu" hidden>
-                <div class="user-menu-header">
-                    <div class="user-menu-header-name" id="user-menu-full-name">—</div>
-                    <div class="user-menu-header-role" id="user-menu-role">—</div>
-                </div>
-
-                <a href="/stats/" class="user-menu-item" role="menuitem">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3 20h18M6 16V9M11 16V5M16 16v-8M21 16V11"/>
-                    </svg>
-                    Estatísticas
-                </a>
-                <a href="/reports/" class="user-menu-item" role="menuitem">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/>
-                        <path d="M14 3v6h6M9 13h6M9 17h4"/>
-                    </svg>
-                    Relatórios PDF
-                </a>
-                <a href="/settings/" class="user-menu-item" role="menuitem">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="3"/>
-                        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
-                    </svg>
-                    Definições
-                </a>
-
-                <hr>
-
-                <button type="button" class="user-menu-item danger" id="btn-logout" role="menuitem">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                        <path d="m16 17 5-5-5-5M21 12H9"/>
-                    </svg>
-                    Terminar sessão
-                </button>
-            </div>
         </div>
     </header>
     {% endblock %}
@@ -462,6 +424,31 @@
                 </button>
             </header>
             <div class="app-modal__body" id="app-modal-body"></div>
+        </div>
+    </dialog>
+
+    <!-- Confirmação de fim de sessão — <dialog> nativo central. showModal()
+         escurece e inativa o resto da página (::backdrop) e prende o foco até
+         o utilizador decidir; só sai após confirmação explícita. Lógica em
+         user-menu.js. CSP-safe (sem estilo nem handlers inline). -->
+    <dialog id="logout-dialog" class="confirm-dialog"
+            aria-labelledby="logout-dialog-title" aria-describedby="logout-dialog-text">
+        <div class="confirm-dialog__panel">
+            <div class="confirm-dialog__icon" data-tone="danger" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                    <path d="m16 17 5-5-5-5M21 12H9"/>
+                </svg>
+            </div>
+            <h2 class="confirm-dialog__title" id="logout-dialog-title">Terminar sessão</h2>
+            <p class="confirm-dialog__text" id="logout-dialog-text">
+                Pretende terminar a sessão? Terá de voltar a autenticar-se para continuar.
+            </p>
+            <div class="confirm-dialog__actions">
+                <button type="button" class="btn btn-ghost" id="logout-cancel">Cancelar</button>
+                <button type="button" class="btn btn-danger" id="logout-confirm">Terminar sessão</button>
+            </div>
         </div>
     </dialog>
 
