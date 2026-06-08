@@ -74,12 +74,12 @@
   {% if is_archive %}
   <p class="empty__title">Arquivo vazio</p>
   <p class="empty__hint">
-    {% if q %}Nenhum processo arquivado para a pesquisa.{% else %}Ainda não há processos concluídos — todos os itens em estado terminal (restituídos, perdidos a favor do Estado ou destruídos).{% endif %}
+    {% if has_filters %}Nenhum processo arquivado para os filtros aplicados.{% else %}Ainda não há processos concluídos — todos os itens em estado terminal (restituídos, perdidos a favor do Estado ou destruídos).{% endif %}
   </p>
   {% else %}
   <p class="empty__title">Sem ocorrências</p>
   <p class="empty__hint">
-    {% if q or pri or cat or date_after or date_before %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências ativas que possa ver. Os processos concluídos estão no <a href="/arquivo/{{ lens_qs }}">Arquivo</a>.{% endif %}
+    {% if has_filters %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências ativas que possa ver. Os processos concluídos estão no <a href="/arquivo/{{ lens_qs }}">Arquivo</a>.{% endif %}
   </p>
   {% endif %}
 </div>

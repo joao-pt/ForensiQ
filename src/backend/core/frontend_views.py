@@ -687,32 +687,36 @@ def _occurrences_list_response(request, archived=False):
     access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens)
 
+    # Valores crus dos filtros — ainda lidos pelo toolbar antigo do Arquivo
+    # (arquivo.html, por migrar). A aplicação ao queryset é genérica (spec abaixo).
     query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(number__icontains=query)
-            | Q(code__icontains=query)
-            | Q(description__icontains=query)
-            | Q(address__icontains=query)
-        )
-
     priority = (request.GET.get('pri') or '').strip()
-    if priority in (Occurrence.Priority.PRIORITARIA, Occurrence.Priority.NORMAL):
-        qs = qs.filter(priority=priority)
-
-    # Filtro por categoria de crime (N1). Um dropdown dos N3 (centenas de tipos)
-    # seria mau de UX; filtra-se pela categoria de topo via a cascata N3→N2→N1.
     cat = (request.GET.get('cat') or '').strip()
-    if cat.isdigit():
-        qs = qs.filter(crime_type__subcategoria__categoria_id=int(cat))
-
     date_after = (request.GET.get('date_after') or '').strip()
     date_before = (request.GET.get('date_before') or '').strip()
-    d_after, d_before = parse_date(date_after), parse_date(date_before)
-    if d_after:
-        qs = qs.filter(date_time__date__gte=d_after)
-    if d_before:
-        qs = qs.filter(date_time__date__lte=d_before)
+
+    # Filtros por coluna — fonte única transversal (core.list_filters). A barra
+    # acima da grelha reflete estas colunas; «ao escrever filtra» é o HTMX.
+    from core.list_filters import (
+        ColFilter, active_params, apply_col_filters, filter_bar_context,
+    )
+    crime_categories = CrimeCategoria.objects.order_by('codigo')
+    occ_filters = [
+        ColFilter('q', 'Pesquisar', kind='text',
+                  fields=('code', 'number', 'description', 'address'),
+                  placeholder='Código, NUIPC, descrição, morada…'),
+        ColFilter('pri', 'Prioridade', kind='select', field='priority',
+                  choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
+                           (Occurrence.Priority.NORMAL, 'Normais'))),
+        ColFilter('cat', 'Crime', kind='select',
+                  field='crime_type__subcategoria__categoria_id',
+                  choices=tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)),
+        ColFilter('date', 'Data', kind='date_range', field='date_time'),
+        ColFilter('q_agent', 'Agente', kind='text',
+                  fields=('agent__first_name', 'agent__last_name', 'agent__username'),
+                  placeholder='Nome do agente…'),
+    ]
+    qs = apply_col_filters(qs, request, occ_filters)
 
     # Arquivo vs ativo: processo CONCLUÍDO = todos os itens em estado legal
     # terminal. Deriva-se sobre o âmbito já filtrado (sem coluna nova) e divide-se.
@@ -728,14 +732,17 @@ def _occurrences_list_response(request, archived=False):
 
     list_endpoint = '/arquivo/' if archived else '/occurrences/'
     # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
-    qs_base = urlencode({k: v for k, v in (
-        ('lens', lens), ('q', query), ('pri', priority), ('cat', cat),
-        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
-    ) if v})
+    base_params = active_params(occ_filters, request)
+    if lens:
+        base_params['lens'] = lens
+    base_params['sort'] = sort_key
+    qs_base = urlencode(base_params)
 
     ctx = {
         'page_obj': page_obj,
         'total': paginator.count,
+        'filters': filter_bar_context(occ_filters, request),
+        'has_filters': bool(active_params(occ_filters, request)),
         'q': query,
         'pri': priority,
         'cat': cat,
@@ -746,7 +753,7 @@ def _occurrences_list_response(request, archived=False):
         'lens': lens,
         'is_archive': archived,
         'list_endpoint': list_endpoint,
-        'crime_categories': CrimeCategoria.objects.order_by('codigo'),
+        'crime_categories': crime_categories,
         'selected_id': request.GET.get('selected') or '',
         'is_htmx': bool(request.headers.get('HX-Request')),
     }

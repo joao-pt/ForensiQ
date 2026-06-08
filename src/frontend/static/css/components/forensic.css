@@ -128,6 +128,59 @@
     z-index: 3;
     flex-wrap: wrap;
 }
+
+/* Barra de filtros por coluna (_filter_bar.html, fonte única). Cada campo é
+   rotulado com a coluna que reflete; quebra em ecrã estreito. Reusa o look dos
+   controlos do toolbar. O «ao escrever filtra» é o HTMX no <form> que a envolve. */
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--sp-2) var(--sp-3);
+    margin: 0;
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+.filter-bar__field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.filter-bar__label {
+    font-size: var(--fs-micro);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
+    font-weight: var(--fw-medium);
+}
+.filter-bar input[type="search"],
+.filter-bar input[type="text"],
+.filter-bar input[type="date"],
+.filter-bar select {
+    height: 34px;
+    padding: 0 var(--sp-2);
+    font-family: var(--font-sans);
+    font-size: var(--fs-sm);
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--r-1);
+}
+.filter-bar input[type="search"],
+.filter-bar input[type="text"] { min-width: 150px; }
+.filter-bar input[type="date"] { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); max-width: 140px; }
+.filter-bar input::placeholder { color: var(--text-placeholder); }
+.filter-bar select { max-width: 200px; cursor: pointer; }
+.filter-bar__daterange { display: inline-flex; gap: 4px; }
+.filter-bar input:focus-visible,
+.filter-bar select:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+@media (max-width: 767px) {
+    .filter-bar input[type="search"],
+    .filter-bar input[type="text"],
+    .filter-bar input[type="date"],
+    .filter-bar select { height: var(--min-touch); }
+    .filter-bar__field { flex: 1 1 140px; }
+}
 .toolbar__search { position: relative; flex: 1 1 auto; min-width: 180px; max-width: 440px; }
 .toolbar__search-icon {
     position: absolute;

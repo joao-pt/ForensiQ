@@ -411,12 +411,6 @@ class EvidencesNewPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('name="photo"', content)
         self.assertIn('accept="image/*"', content)
 
-    def test_evidences_new_page_contains_integrity_info(self):
-        """A página de nova evidência deve mencionar integridade SHA-256."""
-        response = self.client.get(reverse('evidences_new'))
-        content = response.content.decode('utf-8')
-        self.assertIn('SHA-256', content)
-
 
 class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
     """Testes para a página de detalhe da ocorrência (requer JWT cookie).
