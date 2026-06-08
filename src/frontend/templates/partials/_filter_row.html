@@ -19,10 +19,18 @@
     {% endfor %}
   </select>
   {% elif f.kind == 'date_range' %}
-  <span class="grid__filter-daterange">
-    <input type="date" id="filter-{{ f.param }}-after" name="{{ f.param }}_after" value="{{ f.after }}" aria-label="{{ f.label }} desde" title="Desde">
-    <input type="date" id="filter-{{ f.param }}-before" name="{{ f.param }}_before" value="{{ f.before }}" aria-label="{{ f.label }} até" title="Até">
-  </span>
+  {# Botão + popover (nativo <details>); hx-preserve mantém aberto/valores no swap. #}
+  <details class="filter-pop{% if f.after or f.before %} filter-pop--active{% endif %}" id="filter-{{ f.param }}-pop" hx-preserve="true">
+    <summary class="filter-pop__btn" aria-label="Filtrar por {{ f.label }}">{{ f.label }}{% if f.after or f.before %} ●{% endif %}</summary>
+    <div class="filter-pop__panel">
+      <label>Desde
+        <input type="date" id="filter-{{ f.param }}-after" name="{{ f.param }}_after" value="{{ f.after }}" aria-label="{{ f.label }} desde">
+      </label>
+      <label>Até
+        <input type="date" id="filter-{{ f.param }}-before" name="{{ f.param }}_before" value="{{ f.before }}" aria-label="{{ f.label }} até">
+      </label>
+    </div>
+  </details>
   {% else %}
   <input type="search" id="filter-{{ f.param }}" name="{{ f.param }}" value="{{ f.value }}"
          placeholder="{{ f.placeholder }}" autocomplete="off" aria-label="Filtrar por {{ f.label }}">
