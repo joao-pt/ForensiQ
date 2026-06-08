@@ -29,9 +29,7 @@
     </a>
   </header>
 
-  {# Filtros por coluna: vivem no <thead> da grelha (_filter_row.html). O <form>
-     envolve a grelha para os campos pertencerem ao form; filtra ao escrever
-     (HTMX, server-side, re-pagina). A ordenação fica numa barra fina à parte. #}
+  {# Filtros por coluna no cabecalho da grelha (_filter_row.html); o form envolve a grelha e filtra ao escrever (HTMX, server-side, re-pagina). Ordenacao numa barra fina a parte. #}
   <form class="grid-form" role="search" action="/occurrences/" method="get"
         hx-get="/occurrences/"
         hx-target="#occ-grid"
