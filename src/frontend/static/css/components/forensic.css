@@ -547,6 +547,9 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .geo-field__status { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
 .geo-field__status--flag { color: var(--warning); }
 .geo-field__status--error { color: var(--danger); }
+/* Coordenadas bloqueadas (vindas de GPS/mapa): legíveis mas claramente
+   não-editáveis — o ajuste fino é clicar no mapa. A morada fica editável. */
+.geo-field input[readonly] { opacity: 0.7; cursor: default; }
 
 /* Foto da prova — hero no detalhe do item (object-fit: contain p/ não recortar prova) */
 .photo-hero { margin: 0 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--bg-inset); }

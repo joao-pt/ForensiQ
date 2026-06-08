@@ -76,6 +76,18 @@
             if (lngEl) lngEl.value = lng.toFixed(dec);
         }
 
+        // Coordenadas vindas de GPS/mapa são autoritativas → bloqueiam-se para
+        // edição livre (evita erros de digitação); o ajuste fino faz-se clicando
+        // no mapa. A morada NÃO bloqueia (pode acrescentar-se o andar, etc.).
+        // readonly (não disabled): o campo continua a ser submetido.
+        function lockCoords(locked) {
+            [latEl, lngEl].forEach(function (el) {
+                if (!el) return;
+                if (locked) el.setAttribute('readonly', '');
+                else el.removeAttribute('readonly');
+            });
+        }
+
         function reverse(lat, lng) {
             if (!doReverse || !addrEl || !Geo) return;
             if (addrTouched && addrEl.value.trim()) return;  // respeita edição manual
@@ -96,6 +108,7 @@
             if (has0) place(la0, ln0);
             map.on('click', function (ev) {
                 place(ev.latlng.lat, ev.latlng.lng);
+                lockCoords(true);
                 if (accEl) accEl.value = '';   // já não é a precisão do GPS
                 setStatus('Localização escolhida no mapa.', 'ok');
                 reverse(ev.latlng.lat, ev.latlng.lng);
@@ -113,6 +126,7 @@
                 .then(function (pos) {
                     var lat = pos.coords.latitude, lng = pos.coords.longitude;
                     place(lat, lng);
+                    lockCoords(true);
                     var m = Math.round(pos.coords.accuracy);
                     if (accEl) accEl.value = m;
                     if (m > 50) {
@@ -144,9 +158,14 @@
         // Auto-localiza ao abrir — mas nunca atropela coordenadas já presentes
         // (ex.: re-render após erro de validação preserva o que o utilizador pôs).
         var hasCoords = !!(latEl && lngEl && latEl.value && lngEl.value);
-        if (hasCoords) setStatus('Coordenadas preenchidas — ajuste no mapa se necessário.', 'ok');
-        else if (autolocate) locate();
-        else setStatus('Clique no mapa para marcar a localização.', '');
+        if (hasCoords) {
+            lockCoords(true);   // coordenadas já fixadas (ex.: re-render após erro)
+            setStatus('Coordenadas preenchidas — ajuste no mapa se necessário.', 'ok');
+        } else if (autolocate) {
+            locate();
+        } else {
+            setStatus('Clique no mapa para marcar a localização.', '');
+        }
     }
 
     function initAll(root) {
