@@ -43,10 +43,6 @@
         {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
         <input type="search" name="q" value="{{ q }}" placeholder="Procurar código, NUIPC, crime, local, agente…" autocomplete="off" aria-label="Procurar em tudo">
       </div>
-      {# Botao so visivel no telemovel: abre/fecha o painel de filtros por coluna. #}
-      <button type="button" class="grid-filters-btn" data-filters-toggle aria-expanded="false" aria-controls="occ-grid">
-        Filtros<span id="occ-filter-count" class="grid-filters-btn__count">{% if filter_count %}{{ filter_count }}{% endif %}</span>
-      </button>
       <label class="grid-toolbar__sort">
         <span class="grid-toolbar__sort-label">Ordenar</span>
         <select name="sort" aria-label="Ordenar">
@@ -72,5 +68,4 @@
   <script src="{% static 'js/components/forensic-list.js' %}"></script>
   <script src="{% static 'js/components/column-resize.js' %}"></script>
   <script src="{% static 'js/components/filter-popover.js' %}"></script>
-  <script src="{% static 'js/components/grid-filters.js' %}"></script>
 {% endblock %}

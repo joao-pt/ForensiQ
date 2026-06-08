@@ -142,16 +142,6 @@
 }
 .grid-toolbar__sort { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .grid-toolbar__sort-label { font-size: var(--fs-xs); color: var(--text-muted); }
-/* Botão "Filtros (n)" — escondido no desktop (os filtros estão inline no cabeçalho);
-   no telemóvel abre/fecha o painel. A contagem (OOB no swap) some quando é zero. */
-.grid-filters-btn { display: none; }
-.grid-filters-btn__count {
-    display: inline-flex; align-items: center; justify-content: center;
-    min-width: 18px; height: 18px; padding: 0 5px; margin-left: var(--sp-1);
-    font-family: var(--font-mono); font-size: 11px; font-weight: var(--fw-semi);
-    color: var(--accent-on-tint); background: var(--accent-tint); border-radius: 9px;
-}
-.grid-filters-btn__count:empty { display: none; }
 .grid-toolbar select {
     height: 30px; padding: 0 var(--sp-2);
     font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text);
@@ -171,7 +161,6 @@
     border-bottom: 1px solid var(--border-strong);
 }
 .grid__col-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.grid__filter-label { display: none; }   /* nome está na linha de cima; só aparece no painel mobile */
 .grid__filter-cell input,
 .grid__filter-cell select {
     width: 100%;
@@ -219,47 +208,17 @@
    Telemóvel: grelha de ocorrências reduzida a 4 colunas + painel de filtros
    ============================================================ */
 @media (max-width: 767px) {
-    /* Pri · Código · NUIPC · Data. Tipo de crime e Local (col-reduce-hide) escondem-se
-       — cobertos pela busca transversal e pela gaveta; Agente (col-hide-sm) já some.
+    /* Prioridade, Tipo de crime e Local escondem-se (col-reduce-hide); Agente
+       (col-hide-sm) também. Sobram Código · NUIPC · Data. SEM filtros por coluna no
+       telemóvel — só a busca global; a linha de filtros do <thead> fica escondida.
        SEM scroll lateral: a tabela passa a auto/100%, anulando as larguras % do desktop. */
     .grid--mobile-reduce { table-layout: auto; min-width: 0; }
     .grid--mobile-reduce .col-reduce-hide { display: none; }
     .grid--mobile-reduce.grid--filterable thead tr:first-child th:nth-child(n) { width: auto; }
     .grid--mobile-reduce .grid__cell-time { display: none; }   /* data sem hora (vai p/ gaveta) */
-
-    /* "Filtros (n)" visível só aqui; abre/fecha o painel. */
-    .grid-filters-btn {
-        display: inline-flex; align-items: center;
-        min-height: var(--min-touch); padding: 0 var(--sp-3);
-        font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text-muted);
-        background: var(--bg-inset); border: 1px solid var(--border-input);
-        border-radius: var(--r-2); cursor: pointer; white-space: nowrap;
-    }
-    .grid-form[data-filters-open] .grid-filters-btn {
-        color: var(--accent-on-tint); border-color: var(--accent-tint); background: var(--accent-tint);
-    }
-
-    /* A linha de filtros vira PAINEL: escondida; "Filtros" abre-a empilhada. Fonte
-       ÚNICA (a mesma linha do <thead>) → sobrevive aos swaps do HTMX. As colunas
-       escondidas (Tipo/Local/Agente) ficam de fora do painel (a busca cobre-as). */
-    .grid--mobile-reduce .grid__filter-row { display: none; }
-    .grid-form[data-filters-open] .grid--mobile-reduce .grid__filter-row {
-        display: block;
-        padding: var(--sp-2) var(--sp-3) var(--sp-3);
-        background: var(--bg-inset);
-        border-bottom: 1px solid var(--border-strong);
-    }
-    .grid-form[data-filters-open] .grid--mobile-reduce .grid__filter-row > td:not(.col-reduce-hide):not(.col-hide-sm) {
-        display: block; width: 100%;
-        padding: var(--sp-1) 0 0;
-        background: transparent; border: none;
-    }
-    .grid--mobile-reduce .grid__filter-label {
-        display: block; margin-bottom: 3px;
-        font-family: var(--font-mono); font-size: 10px; font-weight: var(--fw-semi);
-        letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-subtle);
-    }
-    .grid--mobile-reduce .grid__filter-row .filter-pop__btn { width: 100%; }
+    .grid--mobile-reduce .grid__filter-row { display: none; }  /* sem filtros por coluna no telemóvel */
+    /* busca global ocupa a largura toda da barra */
+    .grid-toolbar .toolbar__search { flex: 1 1 100%; max-width: none; }
 }
 
 /* Filtro de DATA como botão + popover (elemento nativo <details>, CSP-safe). */

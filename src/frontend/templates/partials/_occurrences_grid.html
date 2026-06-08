@@ -8,7 +8,6 @@
 {% endcomment %}
 {% if is_htmx %}
 <span id="occ-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} {% if is_archive %}processo{{ total|pluralize }}{% else %}registo{{ total|pluralize }}{% endif %}</span>
-{% if mobile_reduce %}<span id="occ-filter-count" class="grid-filters-btn__count" hx-swap-oob="true">{% if filter_count %}{{ filter_count }}{% endif %}</span>{% endif %}
 {% endif %}
 
 <table class="grid grid--clickable grid--filterable grid--resizable{% if mobile_reduce %} grid--mobile-reduce{% endif %}" id="occ-table" role="grid" aria-label="{% if is_archive %}Processos arquivados{% else %}Lista de ocorrências{% endif %}">
@@ -29,7 +28,7 @@
         hx-get="{{ list_endpoint|default:'/occurrences/' }}?drawer={{ o.id }}"
         hx-target="#app-drawer-body"
         hx-swap="innerHTML">
-      <td role="gridcell" class="grid__pri">
+      <td role="gridcell" class="grid__pri col-reduce-hide">
         {% if o.pri %}
           <span class="pri pri--{{ o.pri.cls }}" title="{{ o.pri.title }}" aria-label="{{ o.pri.title }}">{{ o.pri.level }}</span>
         {% else %}

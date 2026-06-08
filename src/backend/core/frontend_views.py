@@ -697,7 +697,7 @@ def _occurrences_list_response(request, archived=False):
     )
     crime_categories = CrimeCategoria.objects.order_by('codigo')
     occ_filters = [  # ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente
-        ColFilter('pri', 'Prioridade', kind='select', field='priority',
+        ColFilter('pri', 'Prioridade', kind='select', field='priority', css='col-reduce-hide',
                   choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
                            (Occurrence.Priority.NORMAL, 'Normais'))),
         ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código'),
@@ -758,7 +758,6 @@ def _occurrences_list_response(request, archived=False):
         'total': paginator.count,
         'filters': filter_bar_context(occ_filters, request),
         'has_filters': bool(col_active) or bool(query),
-        'filter_count': len(col_active),   # filtros POR COLUNA ativos (botão "Filtros (n)")
         'q': query,
         'sort': sort_key,
         'qs_base': qs_base,

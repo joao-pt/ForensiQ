@@ -1,15 +1,13 @@
 {% comment %}
   Linha de FILTROS por coluna (fonte ÚNICA, reutilizável) — 2.ª linha do <thead>,
-  por baixo dos nomes (_col_names.html). Cada célula é o filtro da sua coluna; o
-  rótulo (.grid__filter-label) está escondido no desktop (o nome está na linha de
-  cima) e aparece só no PAINEL "Filtros" do telemóvel. No desktop estas células
-  ficam coladas à linha de nomes (parecem uma só). Ids estáveis deixam o HTMX
+  por baixo dos nomes (_col_names.html), colada a eles (parecem uma só célula). É
+  uma funcionalidade de DESKTOP: no telemóvel a grelha reduz-se a 3 colunas e esta
+  linha esconde-se (lá só a busca global filtra). Ids estáveis deixam o HTMX
   restaurar o foco no swap. Server-side via o HTMX do <form> que envolve a grelha.
   CSP-safe.
 {% endcomment %}
 {% for f in filters %}
 <td class="grid__filter-cell {{ f.css }}">
-  <span class="grid__filter-label">{{ f.label }}</span>
   {% if f.kind == 'select' %}
   <select id="filter-{{ f.param }}" name="{{ f.param }}" aria-label="Filtrar por {{ f.label }}">
     <option value="">Todos</option>
