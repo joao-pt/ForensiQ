@@ -684,6 +684,13 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-inline { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .form-check { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text); text-transform: none; letter-spacing: 0; cursor: pointer; }
 .form-check input { width: auto; }
+/* O atributo `hidden` tem de vencer o display:flex acima (regra de autor bate o
+   [hidden] da UA stylesheet) — usado p.ex. na elevação manual de prioridade,
+   que o crime-cascade.js mostra/esconde conforme o tipo de crime. */
+.form-check[hidden] { display: none; }
+/* Elevação de prioridade encostada ao texto-guia da prioridade (sem o salto do
+   form-grid), para se ler como continuação do que a lei deriva. */
+.form-check--inline-hint { margin-top: var(--sp-2); }
 
 /* Coluna de seleção por linha (occurrence_intake) — toda a célula é tocável,
    para marcar/desmarcar itens com luvas em operação de campo em lote. */

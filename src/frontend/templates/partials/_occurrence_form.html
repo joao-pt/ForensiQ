@@ -64,6 +64,13 @@
           <option value="">— selecione a subcategoria —</option>
         </select>
         <span class="form-hint" data-crime-priority aria-live="polite"></span>
+        {# Elevação manual logo abaixo do texto-guia. Só aparece quando o tipo #}
+        {# escolhido NÃO é prioritário pela lei (crime-cascade.js mostra/esconde): #}
+        {# não faz sentido marcar como prioritária algo que a lei já prioriza. #}
+        <label class="form-check form-check--inline-hint" data-elevate-wrap hidden>
+          <input type="checkbox" name="elevar_prioridade" value="true" data-elevate-input{% if data.elevar_prioridade %} checked{% endif %}>
+          Marcar como prioritária mesmo que a lei não o exija
+        </label>
         {% if errors.crime_type %}<span class="form-error visible" id="f-crime-err">{{ errors.crime_type.0 }}</span>{% endif %}
       </div>
 
@@ -101,16 +108,6 @@
         <label for="f-lng">Longitude</label>
         <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
         {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
-      </div>
-
-      {# --- Secção 4: prioridade (avançado) --- #}
-      <div class="form-field form-field--full"><h3 class="subhead">Prioridade</h3></div>
-
-      <div class="form-field form-field--full">
-        <label class="form-check">
-          <input type="checkbox" name="elevar_prioridade" value="true" {% if data.elevar_prioridade %}checked{% endif %}>
-          Marcar como prioritária mesmo que a lei não o exija
-        </label>
       </div>
 
     </div>
