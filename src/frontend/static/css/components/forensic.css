@@ -146,10 +146,11 @@
     background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1); cursor: pointer;
 }
 
-/* Linha de filtros POR COLUNA no <thead> (_filter_row.html, fonte única). Cada
-   célula tem o campo da sua coluna, alinhado por baixo do título; opaca para a
-   sticky-header não deixar ver as linhas por baixo. */
-.grid__filter-row th { padding: var(--sp-1) var(--sp-2) var(--sp-2); vertical-align: top; background: var(--bg-subtle); }
+/* Cabeçalho-filtro por coluna no <thead> (_filter_row.html, fonte única): cada
+   célula é o cabeçalho da coluna E o seu filtro — nome (.grid__col-label) por
+   cima, controlo por baixo. Herda o look de cabeçalho de `.grid thead th`. */
+.grid thead th.grid__filter-cell { padding: var(--sp-1) var(--sp-2) var(--sp-2); vertical-align: top; }
+.grid__col-label { display: block; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid__filter-cell input,
 .grid__filter-cell select {
     width: 100%;
@@ -196,10 +197,10 @@
 /* Filtro de DATA como botão + popover (elemento nativo <details>, CSP-safe). */
 .filter-pop { position: relative; }
 .filter-pop__btn {
-    list-style: none; cursor: pointer; height: 28px;
-    display: flex; align-items: center; gap: 4px;
+    list-style: none; cursor: pointer; height: 28px; line-height: 26px;
     padding: 0 var(--sp-1); font-size: var(--fs-xs); color: var(--text-muted);
     background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .filter-pop__btn::-webkit-details-marker { display: none; }
 .filter-pop[open] .filter-pop__btn { border-color: var(--accent); }

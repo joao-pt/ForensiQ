@@ -150,15 +150,15 @@ class OccurrencesPageTest(AuthenticatedFrontendTestCase):
     def test_occurrences_page_contains_search(self):
         """A página de ocorrências deve conter os filtros por coluna.
 
-        Os filtros vivem numa linha no ``<thead>`` (``grid__filter-row``), um
-        campo por coluna, dentro de um formulário ``role="search"`` (HTMX,
+        Os filtros vivem no cabeçalho da grelha (cada ``<th>`` é coluna + filtro,
+        ``grid__filter-cell``), dentro de um formulário ``role="search"`` (HTMX,
         debounce). A pesquisa global ``name="q"`` deu lugar a campos por coluna
         (ex.: ``name="q_number"`` para o NUIPC).
         """
         response = self.client.get(reverse('occurrences'))
         content = response.content.decode('utf-8')
         self.assertIn('role="search"', content)
-        self.assertIn('grid__filter-row', content)
+        self.assertIn('grid__filter-cell', content)
         self.assertIn('name="q_number"', content)
 
     def test_occurrences_page_contains_new_button(self):

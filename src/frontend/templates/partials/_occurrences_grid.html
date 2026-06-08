@@ -12,17 +12,9 @@
 
 <table class="grid grid--clickable grid--filterable grid--resizable" id="occ-table" role="grid" aria-label="{% if is_archive %}Processos arquivados{% else %}Lista de ocorrências{% endif %}">
   <thead>
-    <tr role="row">
-      <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
-      <th role="columnheader" scope="col">Código</th>
-      <th role="columnheader" scope="col">NUIPC</th>
-      <th role="columnheader" scope="col">Tipo de crime</th>
-      <th role="columnheader" scope="col">Data / hora</th>
-      <th role="columnheader" scope="col">Local</th>
-      <th role="columnheader" scope="col" class="col-hide-sm">Agente</th>
-    </tr>
-    {# Filtros por coluna (fonte única _filter_row.html), alinhados às colunas. #}
-    <tr class="grid__filter-row" role="row">
+    {# Cabeçalho-filtro: cada coluna mostra o nome E o seu filtro (dupla função,
+       _filter_row.html) — substitui a linha de títulos separada. #}
+    <tr class="grid__head-row" role="row">
       {% include 'partials/_filter_row.html' %}
     </tr>
   </thead>

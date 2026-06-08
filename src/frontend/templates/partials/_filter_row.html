@@ -1,16 +1,15 @@
 {% comment %}
-  Linha de filtros por coluna (fonte ÚNICA, reutilizável em QUALQUER grelha). Uma
-  célula <th> por coluna, na ORDEM da spec (= ordem das colunas da tabela), para
-  ficar alinhada por baixo do respetivo título. Vive no <thead> da grelha; filtra
-  ao escrever via o HTMX do <form> que envolve a grelha — server-side, sobre o
-  dataset todo, re-paginando (procura em tudo o que o utilizador vê, não só na 1.ª
-  página). Os ids estáveis deixam o HTMX restaurar o foco no swap. CSP-safe.
-
-  Uso: declara a spec por coluna (core.list_filters.ColFilter) e
-  `{% include 'partials/_filter_row.html' %}` dentro de um <tr> no <thead>.
+  Cabeçalho-filtro por coluna (fonte ÚNICA, reutilizável). Cada coluna é UMA
+  célula <th scope="col"> com DUPLA função: o nome da coluna (.grid__col-label,
+  herda o look de cabeçalho de `.grid thead th`) por cima e o seu filtro por
+  baixo — substitui a antiga linha de títulos separada. Ordem da spec = ordem
+  das colunas da tabela. Filtra ao escrever via o HTMX do <form> que envolve a
+  grelha (server-side, sobre o dataset todo, re-paginando). Ids estáveis deixam
+  o HTMX restaurar o foco no swap. CSP-safe.
 {% endcomment %}
 {% for f in filters %}
-<th class="grid__filter-cell {{ f.css }}" scope="col">
+<th scope="col" class="grid__filter-cell {{ f.css }}">
+  <span class="grid__col-label">{{ f.label }}</span>
   {% if f.kind == 'select' %}
   <select id="filter-{{ f.param }}" name="{{ f.param }}" aria-label="Filtrar por {{ f.label }}">
     <option value="">Todos</option>
@@ -19,9 +18,10 @@
     {% endfor %}
   </select>
   {% elif f.kind == 'date_range' %}
-  {# Botão + popover (nativo <details>); hx-preserve mantém aberto/valores no swap. #}
+  {# Botão + popover (nativo <details>); filter-popover.js posiciona em fixed e
+     hx-preserve mantém aberto/valores no swap. #}
   <details class="filter-pop{% if f.after or f.before %} filter-pop--active{% endif %}" id="filter-{{ f.param }}-pop" hx-preserve="true">
-    <summary class="filter-pop__btn" aria-label="Filtrar por {{ f.label }}">{{ f.label }}{% if f.after or f.before %} ●{% endif %}</summary>
+    <summary class="filter-pop__btn" aria-label="Filtrar por {{ f.label }}">{% if f.after or f.before %}{{ f.after|default:'…' }} – {{ f.before|default:'…' }}{% else %}Todas{% endif %}</summary>
     <div class="filter-pop__panel">
       <label>Desde
         <input type="date" id="filter-{{ f.param }}-after" name="{{ f.param }}_after" value="{{ f.after }}" aria-label="{{ f.label }} desde">
@@ -32,8 +32,7 @@
     </div>
   </details>
   {% else %}
-  <input type="search" id="filter-{{ f.param }}" name="{{ f.param }}" value="{{ f.value }}"
-         placeholder="{{ f.placeholder }}" autocomplete="off" aria-label="Filtrar por {{ f.label }}">
+  <input type="search" id="filter-{{ f.param }}" name="{{ f.param }}" value="{{ f.value }}" autocomplete="off" aria-label="Filtrar por {{ f.label }}">
   {% endif %}
 </th>
 {% endfor %}
