@@ -488,7 +488,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .section__body--flush { padding: 0; }
 
 /* Páginas de detalhe (hub do caso / item) */
-.detail { padding: var(--sp-4); max-width: 1120px; }
+.detail { padding: var(--sp-4); }
 .detail__head {
     display: flex; align-items: flex-start; justify-content: space-between;
     gap: var(--sp-3); margin-bottom: var(--sp-4); flex-wrap: wrap;
