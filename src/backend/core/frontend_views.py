@@ -1375,7 +1375,7 @@ def _chain_points(events):
     for r in events:
         if r.gps_lat is None or r.gps_lng is None:
             continue
-        label = f'{r.sequence}. {r.get_event_type_display()} · {r.timestamp:%H:%M}'
+        label = f'M{r.sequence:02d} · {r.get_event_type_display()} · {r.timestamp:%d/%m %H:%M}'
         if r.gps_accuracy_m:
             label += f' · ±{r.gps_accuracy_m}m'
         pts.append({'lat': float(r.gps_lat), 'lng': float(r.gps_lng), 'label': label})

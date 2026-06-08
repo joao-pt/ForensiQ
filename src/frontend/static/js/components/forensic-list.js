@@ -181,28 +181,54 @@
     // Modo Cadeia — desenha o trajeto a partir de #drawer-map[data-chain].
     function renderChain(el) { return drawChainOn(drawerMap, el.dataset.chain); }
 
-    // Desenha uma cadeia (polyline tracejada amber + pins por evento) num mapa.
+    // Desenha uma cadeia de custódia num mapa: o trajeto (linha âmbar tracejada
+    // sobre um casing escuro, para contrastar em qualquer tile) e marcadores
+    // NUMERADOS por ordem de passagem — a origem (1) e a localização ATUAL (N)
+    // ficam destacadas. A ordem dos eventos vem do servidor (antigo→recente).
     function drawChainOn(map, raw) {
         if (!raw || !map) return false;
         var pts;
         try { pts = JSON.parse(raw); } catch (e) { return false; }
         if (!pts || !pts.length) return false;
         var amber = token('--accent', '#F6AD55');
-        var latlngs = [];
+
+        // Pontos válidos, preservando a ordem.
+        var valid = [];
         pts.forEach(function (p) {
             var la = parseFloat(p.lat), ln = parseFloat(p.lng);
             if (isNaN(la) || isNaN(ln)) return;
-            latlngs.push([la, ln]);
-            L.circleMarker([la, ln], { radius: 5, color: amber, weight: 2, fillColor: amber, fillOpacity: 0.85 })
-                .addTo(map).bindTooltip(p.label || '', { permanent: false });
+            valid.push({ ll: [la, ln], label: p.label || '' });
         });
-        if (!latlngs.length) return false;
+        if (!valid.length) return false;
+        var latlngs = valid.map(function (v) { return v.ll; });
+
+        // Trajeto: casing escuro por baixo + linha âmbar tracejada por cima.
         if (latlngs.length > 1) {
-            L.polyline(latlngs, { color: amber, weight: 2, dashArray: '5,6', opacity: 0.9 }).addTo(map);
-            map.fitBounds(latlngs, { padding: [26, 26] });
-        } else {
-            map.setView(latlngs[0], 15);
+            L.polyline(latlngs, { color: '#11151c', weight: 7, opacity: 0.45,
+                lineJoin: 'round', lineCap: 'round' }).addTo(map);
+            L.polyline(latlngs, { color: amber, weight: 3.5, opacity: 0.95,
+                dashArray: '8,7', lineJoin: 'round', lineCap: 'round' }).addTo(map);
         }
+
+        // Marcadores numerados (1 = origem; N = localização atual, maior).
+        var last = valid.length - 1;
+        valid.forEach(function (v, i) {
+            var role = (i === 0 ? ' fq-chain-pin--first' : '')
+                     + (i === last ? ' fq-chain-pin--current' : '');
+            var size = (i === last) ? 34 : 26;
+            var icon = L.divIcon({
+                className: 'fq-chain-pin' + role,
+                html: '<span class="fq-chain-pin__num">' + (i + 1) + '</span>',
+                iconSize: [size, size],
+                iconAnchor: [size / 2, size / 2],
+            });
+            L.marker(v.ll, { icon: icon, riseOnHover: true })
+                .addTo(map)
+                .bindTooltip(v.label, { permanent: false, direction: 'top', offset: [0, -size / 2] });
+        });
+
+        if (latlngs.length > 1) map.fitBounds(latlngs, { padding: [34, 34] });
+        else map.setView(latlngs[0], 15);
         return true;
     }
 

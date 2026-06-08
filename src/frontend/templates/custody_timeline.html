@@ -48,6 +48,11 @@
            data-chain="{{ chain_json }}"
            {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
            data-label="{{ ev.code }}"></div>
+      <ul class="map-legend" aria-label="Legenda do trajeto">
+        <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--first" aria-hidden="true">1</span>Origem</li>
+        <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--current" aria-hidden="true">N</span>Localização atual</li>
+        <li class="map-legend__item"><span class="map-legend__dash" aria-hidden="true"></span>Trajeto</li>
+      </ul>
       {% else %}
       <p class="dd__nogeo">Sem georreferência registada nos eventos desta evidência.</p>
       {% endif %}

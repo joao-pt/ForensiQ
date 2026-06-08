@@ -505,6 +505,38 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .map-box { height: 280px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
 .map-box--tall { height: 380px; }
 
+/* Marcadores da trajetória de custódia (forensic-list.js, modo Cadeia).
+   Carregado DEPOIS do leaflet.css → o reset sobrepõe-se ao .leaflet-div-icon
+   default (caixa branca com borda). Sem estilo inline (CSP estrita). */
+.fq-chain-pin { background: transparent; border: 0; display: flex; align-items: center; justify-content: center; }
+.fq-chain-pin__num {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: var(--r-pill);
+    background: var(--accent); color: var(--on-accent);
+    font-family: var(--font-mono); font-size: 11px; font-weight: var(--fw-semi); line-height: 1;
+    border: 2px solid var(--bg-subtle); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+}
+/* Origem (1.º ponto): contorno âmbar, fundo sóbrio. */
+.fq-chain-pin--first .fq-chain-pin__num { background: var(--bg-subtle); color: var(--accent); border-color: var(--accent); }
+/* Localização atual (último ponto): maior + halo de destaque. */
+.fq-chain-pin--current .fq-chain-pin__num {
+    width: 30px; height: 30px; font-size: 12px;
+    box-shadow: 0 0 0 3px var(--accent-tint), 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* Legenda do trajeto (sob o mapa da cadeia). */
+.map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: 0; padding: var(--sp-2) var(--sp-4); list-style: none; font-size: var(--fs-xs); color: var(--text-muted); }
+.map-legend__item { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend__pin {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: var(--r-pill);
+    background: var(--accent); color: var(--on-accent);
+    font-family: var(--font-mono); font-size: 10px; font-weight: var(--fw-semi); line-height: 1;
+}
+.map-legend__pin--first { background: var(--bg-subtle); color: var(--accent); border: 1.5px solid var(--accent); }
+.map-legend__pin--current { box-shadow: 0 0 0 2px var(--accent-tint); }
+.map-legend__dash { width: 22px; height: 0; border-top: 3px dashed var(--accent); }
+
 /* Foto da prova — hero no detalhe do item (object-fit: contain p/ não recortar prova) */
 .photo-hero { margin: 0 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--bg-inset); }
 .photo-hero__img { display: block; width: 100%; max-height: 340px; object-fit: contain; background: var(--bg-inset); }
