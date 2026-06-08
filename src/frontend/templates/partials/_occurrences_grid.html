@@ -1,15 +1,16 @@
 {% comment %}
-  Fragmento da grelha de ocorrências (HTMX-swappable).
-  Renderizado standalone em pedidos HTMX (filtros/paginação) e incluído na
-  página completa. A contagem do cabeçalho é atualizada out-of-band apenas
-  quando chega por HTMX (evita id duplicado no carregamento inicial).
+  Fragmento da grelha de ocorrências / arquivo (HTMX-swappable). Renderizado
+  standalone em pedidos HTMX (filtros/paginação) e incluído na página completa.
+  A tabela é SEMPRE renderizada (mesmo sem resultados) para a linha de filtros do
+  <thead> se manter à vista — o utilizador ajusta sem recarregar. A contagem do
+  cabeçalho atualiza-se out-of-band só quando chega por HTMX (evita id duplicado
+  no carregamento inicial).
 {% endcomment %}
 {% if is_htmx %}
-<span id="occ-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} registo{{ total|pluralize }}</span>
+<span id="occ-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} {% if is_archive %}processo{{ total|pluralize }}{% else %}registo{{ total|pluralize }}{% endif %}</span>
 {% endif %}
 
-{% if page_obj.object_list %}
-<table class="grid grid--clickable" role="grid" aria-label="Lista de ocorrências">
+<table class="grid grid--clickable grid--filterable" role="grid" aria-label="{% if is_archive %}Processos arquivados{% else %}Lista de ocorrências{% endif %}">
   <thead>
     <tr role="row">
       <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
@@ -19,6 +20,10 @@
       <th role="columnheader" scope="col">Data / hora</th>
       <th role="columnheader" scope="col">Local</th>
       <th role="columnheader" scope="col" class="col-hide-sm">Agente</th>
+    </tr>
+    {# Filtros por coluna (fonte única _filter_row.html), alinhados às colunas. #}
+    <tr class="grid__filter-row" role="row">
+      {% include 'partials/_filter_row.html' %}
     </tr>
   </thead>
   <tbody>
@@ -47,6 +52,16 @@
       </td>
       <td role="gridcell" class="grid__muted col-hide-sm">{{ o.agent_label }}</td>
     </tr>
+    {% empty %}
+    <tr class="grid__empty-row">
+      <td colspan="7" class="grid__empty-cell">
+        {% if is_archive %}
+          {% if has_filters %}Nenhum processo arquivado para os filtros aplicados.{% else %}Ainda não há processos concluídos — todos os itens em estado terminal (restituídos, perdidos a favor do Estado ou destruídos).{% endif %}
+        {% else %}
+          {% if has_filters %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências ativas que possa ver. Os processos concluídos estão no <a href="/arquivo/{{ lens_qs }}">Arquivo</a>.{% endif %}
+        {% endif %}
+      </td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>
@@ -67,20 +82,4 @@
      hx-target="#occ-grid" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
   {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
 </nav>
-{% endif %}
-
-{% else %}
-<div class="empty">
-  {% if is_archive %}
-  <p class="empty__title">Arquivo vazio</p>
-  <p class="empty__hint">
-    {% if has_filters %}Nenhum processo arquivado para os filtros aplicados.{% else %}Ainda não há processos concluídos — todos os itens em estado terminal (restituídos, perdidos a favor do Estado ou destruídos).{% endif %}
-  </p>
-  {% else %}
-  <p class="empty__title">Sem ocorrências</p>
-  <p class="empty__hint">
-    {% if has_filters %}Nenhum resultado para os filtros aplicados.{% else %}Ainda não há ocorrências ativas que possa ver. Os processos concluídos estão no <a href="/arquivo/{{ lens_qs }}">Arquivo</a>.{% endif %}
-  </p>
-  {% endif %}
-</div>
 {% endif %}

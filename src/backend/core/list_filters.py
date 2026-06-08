@@ -30,6 +30,7 @@ class ColFilter:
     lookup: str = 'icontains'        # text
     choices: tuple = ()              # select: iterável de (valor, rótulo)
     placeholder: str = ''
+    css: str = ''                    # classe extra na célula (ex.: alinhar col-hide-sm)
 
 
 def _text_q(f, value):
@@ -69,19 +70,19 @@ def filter_bar_context(spec, request):
     for f in spec:
         if f.kind == 'date_range':
             out.append({
-                'kind': 'date_range', 'param': f.param, 'label': f.label,
+                'kind': 'date_range', 'param': f.param, 'label': f.label, 'css': f.css,
                 'after': (request.GET.get(f.param + '_after') or '').strip(),
                 'before': (request.GET.get(f.param + '_before') or '').strip(),
             })
         elif f.kind == 'select':
             out.append({
-                'kind': 'select', 'param': f.param, 'label': f.label,
+                'kind': 'select', 'param': f.param, 'label': f.label, 'css': f.css,
                 'value': (request.GET.get(f.param) or '').strip(),
                 'choices': list(f.choices),
             })
         else:
             out.append({
-                'kind': 'text', 'param': f.param, 'label': f.label,
+                'kind': 'text', 'param': f.param, 'label': f.label, 'css': f.css,
                 'value': (request.GET.get(f.param) or '').strip(),
                 'placeholder': f.placeholder or f.label,
             })

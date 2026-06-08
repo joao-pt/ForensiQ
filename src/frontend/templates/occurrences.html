@@ -29,8 +29,10 @@
     </a>
   </header>
 
-  {# Barra de filtros por coluna (fonte única _filter_bar.html, a partir de `filters`). #}
-  <form class="filter-bar" role="search" action="/occurrences/" method="get"
+  {# Filtros por coluna: vivem no <thead> da grelha (_filter_row.html). O <form>
+     envolve a grelha para os campos pertencerem ao form; filtra ao escrever
+     (HTMX, server-side, re-pagina). A ordenação fica numa barra fina à parte. #}
+  <form class="grid-form" role="search" action="/occurrences/" method="get"
         hx-get="/occurrences/"
         hx-target="#occ-grid"
         hx-swap="innerHTML"
@@ -38,22 +40,22 @@
         hx-push-url="true"
         hx-indicator="#occ-busy">
     {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
-    {% include 'partials/_filter_bar.html' %}
-    <label class="filter-bar__field">
-      <span class="filter-bar__label">Ordenar</span>
-      <select name="sort" aria-label="Ordenar">
-        <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
-        <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
-        <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
-        <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
-      </select>
-    </label>
-    <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
+    <div class="grid-toolbar">
+      <label class="grid-toolbar__sort">
+        <span class="grid-toolbar__sort-label">Ordenar</span>
+        <select name="sort" aria-label="Ordenar">
+          <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
+          <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
+          <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
+          <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
+        </select>
+      </label>
+      <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
+    </div>
+    <div id="occ-grid" class="gridwrap">
+      {% include 'partials/_occurrences_grid.html' %}
+    </div>
   </form>
-
-  <div id="occ-grid" class="gridwrap">
-    {% include 'partials/_occurrences_grid.html' %}
-  </div>
 
 </section>
 {% endblock %}

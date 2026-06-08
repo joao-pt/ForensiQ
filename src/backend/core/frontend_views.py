@@ -687,34 +687,28 @@ def _occurrences_list_response(request, archived=False):
     access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens)
 
-    # Valores crus dos filtros — ainda lidos pelo toolbar antigo do Arquivo
-    # (arquivo.html, por migrar). A aplicação ao queryset é genérica (spec abaixo).
-    query = (request.GET.get('q') or '').strip()
-    priority = (request.GET.get('pri') or '').strip()
-    cat = (request.GET.get('cat') or '').strip()
-    date_after = (request.GET.get('date_after') or '').strip()
-    date_before = (request.GET.get('date_before') or '').strip()
-
-    # Filtros por coluna — fonte única transversal (core.list_filters). A barra
-    # acima da grelha reflete estas colunas; «ao escrever filtra» é o HTMX.
+    # Filtros por coluna — fonte única transversal (core.list_filters). A linha
+    # de filtros vive no <thead> da grelha, UMA célula por coluna e ALINHADA com
+    # ela; por isso a spec segue a ORDEM das colunas da tabela. Filtra ao escrever
+    # (HTMX) sobre o queryset TODO (âmbito de acesso) e só depois pagina → procura
+    # em tudo o que o utilizador vê, não só na 1.ª página (server-side).
     from core.list_filters import (
         ColFilter, active_params, apply_col_filters, filter_bar_context,
     )
     crime_categories = CrimeCategoria.objects.order_by('codigo')
-    occ_filters = [
-        ColFilter('q', 'Pesquisar', kind='text',
-                  fields=('code', 'number', 'description', 'address'),
-                  placeholder='Código, NUIPC, descrição, morada…'),
+    occ_filters = [  # ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente
         ColFilter('pri', 'Prioridade', kind='select', field='priority',
                   choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
                            (Occurrence.Priority.NORMAL, 'Normais'))),
-        ColFilter('cat', 'Crime', kind='select',
+        ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código'),
+        ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC'),
+        ColFilter('cat', 'Tipo de crime', kind='select',
                   field='crime_type__subcategoria__categoria_id',
                   choices=tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)),
         ColFilter('date', 'Data', kind='date_range', field='date_time'),
-        ColFilter('q_agent', 'Agente', kind='text',
-                  fields=('agent__first_name', 'agent__last_name', 'agent__username'),
-                  placeholder='Nome do agente…'),
+        ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local'),
+        ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente', css='col-hide-sm',
+                  fields=('agent__first_name', 'agent__last_name', 'agent__username')),
     ]
     qs = apply_col_filters(qs, request, occ_filters)
 
@@ -743,17 +737,11 @@ def _occurrences_list_response(request, archived=False):
         'total': paginator.count,
         'filters': filter_bar_context(occ_filters, request),
         'has_filters': bool(active_params(occ_filters, request)),
-        'q': query,
-        'pri': priority,
-        'cat': cat,
-        'date_after': date_after,
-        'date_before': date_before,
         'sort': sort_key,
         'qs_base': qs_base,
         'lens': lens,
         'is_archive': archived,
         'list_endpoint': list_endpoint,
-        'crime_categories': crime_categories,
         'selected_id': request.GET.get('selected') or '',
         'is_htmx': bool(request.headers.get('HX-Request')),
     }

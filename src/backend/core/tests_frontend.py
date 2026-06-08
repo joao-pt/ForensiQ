@@ -148,16 +148,18 @@ class OccurrencesPageTest(AuthenticatedFrontendTestCase):
         self.assertTemplateUsed(response, 'occurrences.html')
 
     def test_occurrences_page_contains_search(self):
-        """A página de ocorrências deve conter a barra de pesquisa.
+        """A página de ocorrências deve conter os filtros por coluna.
 
-        Fase 3: a pesquisa é um formulário ``role="search"`` com input
-        ``name="q"`` (HTMX, debounce); o antigo ``id="search-input"`` deixou
-        de existir.
+        Os filtros vivem numa linha no ``<thead>`` (``grid__filter-row``), um
+        campo por coluna, dentro de um formulário ``role="search"`` (HTMX,
+        debounce). A pesquisa global ``name="q"`` deu lugar a campos por coluna
+        (ex.: ``name="q_number"`` para o NUIPC).
         """
         response = self.client.get(reverse('occurrences'))
         content = response.content.decode('utf-8')
         self.assertIn('role="search"', content)
-        self.assertIn('name="q"', content)
+        self.assertIn('grid__filter-row', content)
+        self.assertIn('name="q_number"', content)
 
     def test_occurrences_page_contains_new_button(self):
         """A página de ocorrências deve conter o botão de nova ocorrência.

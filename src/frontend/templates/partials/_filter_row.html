@@ -1,0 +1,31 @@
+{% comment %}
+  Linha de filtros por coluna (fonte ÚNICA, reutilizável em QUALQUER grelha). Uma
+  célula <th> por coluna, na ORDEM da spec (= ordem das colunas da tabela), para
+  ficar alinhada por baixo do respetivo título. Vive no <thead> da grelha; filtra
+  ao escrever via o HTMX do <form> que envolve a grelha — server-side, sobre o
+  dataset todo, re-paginando (procura em tudo o que o utilizador vê, não só na 1.ª
+  página). Os ids estáveis deixam o HTMX restaurar o foco no swap. CSP-safe.
+
+  Uso: declara a spec por coluna (core.list_filters.ColFilter) e
+  `{% include 'partials/_filter_row.html' %}` dentro de um <tr> no <thead>.
+{% endcomment %}
+{% for f in filters %}
+<th class="grid__filter-cell {{ f.css }}" scope="col">
+  {% if f.kind == 'select' %}
+  <select id="filter-{{ f.param }}" name="{{ f.param }}" aria-label="Filtrar por {{ f.label }}">
+    <option value="">Todos</option>
+    {% for val, lbl in f.choices %}
+    <option value="{{ val }}"{% if f.value == val|stringformat:'s' %} selected{% endif %}>{{ lbl }}</option>
+    {% endfor %}
+  </select>
+  {% elif f.kind == 'date_range' %}
+  <span class="grid__filter-daterange">
+    <input type="date" id="filter-{{ f.param }}-after" name="{{ f.param }}_after" value="{{ f.after }}" aria-label="{{ f.label }} desde" title="Desde">
+    <input type="date" id="filter-{{ f.param }}-before" name="{{ f.param }}_before" value="{{ f.before }}" aria-label="{{ f.label }} até" title="Até">
+  </span>
+  {% else %}
+  <input type="search" id="filter-{{ f.param }}" name="{{ f.param }}" value="{{ f.value }}"
+         placeholder="{{ f.placeholder }}" autocomplete="off" aria-label="Filtrar por {{ f.label }}">
+  {% endif %}
+</th>
+{% endfor %}

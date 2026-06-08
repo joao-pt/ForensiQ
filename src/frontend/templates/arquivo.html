@@ -25,7 +25,9 @@
     </div>
   </header>
 
-  <form class="toolbar" role="search" action="/arquivo/" method="get"
+  {# Filtros por coluna no <thead> (_filter_row.html), iguais às ocorrências —
+     partilham a view e a grelha. Ordenação numa barra fina à parte. #}
+  <form class="grid-form" role="search" action="/arquivo/" method="get"
         hx-get="/arquivo/"
         hx-target="#occ-grid"
         hx-swap="innerHTML"
@@ -33,37 +35,22 @@
         hx-push-url="true"
         hx-indicator="#occ-busy">
     {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
-    <div class="toolbar__search">
-      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
-      <input type="search" name="q" value="{{ q }}"
-             placeholder="Pesquisar código, NUIPC, morada…"
-             autocomplete="off" aria-label="Pesquisar no arquivo">
+    <div class="grid-toolbar">
+      <label class="grid-toolbar__sort">
+        <span class="grid-toolbar__sort-label">Ordenar</span>
+        <select name="sort" aria-label="Ordenar">
+          <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
+          <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
+          <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
+          <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
+        </select>
+      </label>
+      <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
     </div>
-    <select name="pri" aria-label="Filtrar por prioridade">
-      <option value="">Prioridade: todas</option>
-      <option value="PRIORITARIA" {% if pri == 'PRIORITARIA' %}selected{% endif %}>Prioritárias</option>
-      <option value="NORMAL" {% if pri == 'NORMAL' %}selected{% endif %}>Normais</option>
-    </select>
-    <select name="cat" aria-label="Filtrar por categoria de crime">
-      <option value="">Crime: todos</option>
-      {% for c in crime_categories %}
-      <option value="{{ c.id }}" {% if cat == c.id|stringformat:"s" %}selected{% endif %}>{{ c.codigo }} — {{ c.nome }}</option>
-      {% endfor %}
-    </select>
-    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Data desde" title="Ocorrências desde">
-    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Data até" title="Ocorrências até">
-    <select name="sort" aria-label="Ordenar">
-      <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
-      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
-      <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
-      <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
-    </select>
-    <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
+    <div id="occ-grid" class="gridwrap">
+      {% include 'partials/_occurrences_grid.html' %}
+    </div>
   </form>
-
-  <div id="occ-grid" class="gridwrap">
-    {% include 'partials/_occurrences_grid.html' %}
-  </div>
 
 </section>
 {% endblock %}
