@@ -537,6 +537,17 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .map-legend__pin--current { box-shadow: 0 0 0 2px var(--accent-tint); }
 .map-legend__dash { width: 22px; height: 0; border-top: 3px dashed var(--accent); }
 
+/* Campo de localização auto-localizado (geo-field.js): mapa no topo + barra de
+   estado + inputs. Reutilizável em qualquer formulário com localização. */
+.geo-field { margin-bottom: var(--sp-5); }
+.geo-field__title { margin: 0 0 var(--sp-2); }
+.geo-field__map { height: 300px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
+.geo-field__map[hidden] { display: none; }
+.geo-field__bar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-2) 0 var(--sp-3); }
+.geo-field__status { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
+.geo-field__status--flag { color: var(--warning); }
+.geo-field__status--error { color: var(--danger); }
+
 /* Foto da prova — hero no detalhe do item (object-fit: contain p/ não recortar prova) */
 .photo-hero { margin: 0 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--bg-inset); }
 .photo-hero__img { display: block; width: 100%; max-height: 340px; object-fit: contain; background: var(--bg-inset); }

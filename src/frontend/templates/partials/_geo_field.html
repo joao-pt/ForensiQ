@@ -1,0 +1,48 @@
+{% comment %}
+  Campo de localização reutilizável: mapa logo carregado + auto-GPS + morada.
+  Conduzido por geo-field.js sobre o ForensiQGeo (motor único). Inclui com:
+    {% include 'partials/_geo_field.html' with title='Onde — localização' reverse=True autolocate=True decimals=3 %}
+  Parâmetros: title, decimals (def 3), autolocate (def False), reverse (def
+  False), required (def False). Convenção de ids/names fixa (um por página):
+  f-lat/f-lng/f-addr · gps_lat/gps_lng/address. Lê `data`/`errors` do contexto.
+  Requer Leaflet na página (full-page: _leaflet_head/_leaflet_js); sem ele o
+  mapa esconde-se e o resto (auto-GPS + campos) continua a funcionar.
+{% endcomment %}
+<div class="geo-field" data-geo-field
+     data-lat-target="#f-lat" data-lng-target="#f-lng"
+     {% if reverse %}data-addr-target="#f-addr" data-reverse="true"{% endif %}
+     data-decimals="{{ decimals|default:3 }}"
+     data-autolocate="{% if autolocate %}true{% else %}false{% endif %}">
+
+  <h3 class="subhead geo-field__title">{{ title|default:"Localização" }}</h3>
+
+  <div class="geo-field__map" data-geo-field-map role="application"
+       aria-label="Mapa de localização (clique para marcar o ponto)"></div>
+
+  <div class="geo-field__bar">
+    <button type="button" class="btn-ghost" data-geo-field-locate>
+      {% include 'partials/icons/_gps.html' %}
+      Usar a minha localização
+    </button>
+    <span class="geo-field__status" data-geo-field-status role="status" aria-live="polite"></span>
+  </div>
+
+  <div class="form-grid">
+    {% if reverse %}
+    <div class="form-field form-field--full">
+      <label for="f-addr">Morada aproximada</label>
+      <input type="text" id="f-addr" name="address" value="{{ data.address }}" placeholder="Rua, nº, localidade — resolvida automaticamente">
+    </div>
+    {% endif %}
+    <div class="form-field">
+      <label for="f-lat">Latitude{% if required %} *{% endif %}</label>
+      <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if required %} required{% endif %}{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
+      {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
+    </div>
+    <div class="form-field">
+      <label for="f-lng">Longitude{% if required %} *{% endif %}</label>
+      <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if required %} required{% endif %}{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
+      {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
+    </div>
+  </div>
+</div>

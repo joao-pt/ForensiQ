@@ -1043,7 +1043,12 @@ def occurrences_new_view(request):
             request, template, _ctx(serializer.errors, request.POST), status=400
         )
 
-    return render(request, template, _ctx({}, {}))
+    # GET: data/hora pré-preenchida com o agora local (ajustável; o input
+    # datetime-local usa o formato YYYY-MM-DDTHH:MM). A localização é
+    # auto-capturada no cliente (geo-field.js).
+    from django.utils import timezone
+    initial = {'date_time': timezone.localtime().strftime('%Y-%m-%dT%H:%M')}
+    return render(request, template, _ctx({}, initial))
 
 
 def _can_manage_institutions(user):
