@@ -29,7 +29,7 @@
     </a>
   </header>
 
-  {# Filtros por coluna no cabecalho da grelha (_filter_row.html); o form envolve a grelha e filtra ao escrever (HTMX, server-side, re-pagina). Ordenacao numa barra fina a parte. #}
+  {# Busca transversal (procura em tudo) + filtros por coluna no cabecalho da grelha (_filter_row.html). O form envolve a grelha e filtra ao escrever (HTMX, server-side, re-pagina). No telemovel a grelha reduz a 4 colunas e os filtros colapsam no botao "Filtros". #}
   <form class="grid-form" role="search" action="/occurrences/" method="get"
         hx-get="/occurrences/"
         hx-target="#occ-grid"
@@ -39,6 +39,14 @@
         hx-indicator="#occ-busy">
     {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
     <div class="grid-toolbar">
+      <div class="toolbar__search">
+        {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
+        <input type="search" name="q" value="{{ q }}" placeholder="Procurar código, NUIPC, crime, local, agente…" autocomplete="off" aria-label="Procurar em tudo">
+      </div>
+      {# Botao so visivel no telemovel: abre/fecha o painel de filtros por coluna. #}
+      <button type="button" class="grid-filters-btn" data-filters-toggle aria-expanded="false" aria-controls="occ-grid">
+        Filtros<span id="occ-filter-count" class="grid-filters-btn__count">{% if filter_count %}{{ filter_count }}{% endif %}</span>
+      </button>
       <label class="grid-toolbar__sort">
         <span class="grid-toolbar__sort-label">Ordenar</span>
         <select name="sort" aria-label="Ordenar">
@@ -64,4 +72,5 @@
   <script src="{% static 'js/components/forensic-list.js' %}"></script>
   <script src="{% static 'js/components/column-resize.js' %}"></script>
   <script src="{% static 'js/components/filter-popover.js' %}"></script>
+  <script src="{% static 'js/components/grid-filters.js' %}"></script>
 {% endblock %}

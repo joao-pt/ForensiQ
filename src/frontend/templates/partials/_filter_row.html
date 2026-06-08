@@ -1,15 +1,15 @@
 {% comment %}
-  Cabeçalho-filtro por coluna (fonte ÚNICA, reutilizável). Cada coluna é UMA
-  célula <th scope="col"> com DUPLA função: o nome da coluna (.grid__col-label,
-  herda o look de cabeçalho de `.grid thead th`) por cima e o seu filtro por
-  baixo — substitui a antiga linha de títulos separada. Ordem da spec = ordem
-  das colunas da tabela. Filtra ao escrever via o HTMX do <form> que envolve a
-  grelha (server-side, sobre o dataset todo, re-paginando). Ids estáveis deixam
-  o HTMX restaurar o foco no swap. CSP-safe.
+  Linha de FILTROS por coluna (fonte ÚNICA, reutilizável) — 2.ª linha do <thead>,
+  por baixo dos nomes (_col_names.html). Cada célula é o filtro da sua coluna; o
+  rótulo (.grid__filter-label) está escondido no desktop (o nome está na linha de
+  cima) e aparece só no PAINEL "Filtros" do telemóvel. No desktop estas células
+  ficam coladas à linha de nomes (parecem uma só). Ids estáveis deixam o HTMX
+  restaurar o foco no swap. Server-side via o HTMX do <form> que envolve a grelha.
+  CSP-safe.
 {% endcomment %}
 {% for f in filters %}
-<th scope="col" class="grid__filter-cell {{ f.css }}">
-  <span class="grid__col-label">{{ f.label }}</span>
+<td class="grid__filter-cell {{ f.css }}">
+  <span class="grid__filter-label">{{ f.label }}</span>
   {% if f.kind == 'select' %}
   <select id="filter-{{ f.param }}" name="{{ f.param }}" aria-label="Filtrar por {{ f.label }}">
     <option value="">Todos</option>
@@ -33,5 +33,5 @@
   {% else %}
   <input type="search" id="filter-{{ f.param }}" name="{{ f.param }}" value="{{ f.value }}" autocomplete="off" aria-label="Filtrar por {{ f.label }}">
   {% endif %}
-</th>
+</td>
 {% endfor %}

@@ -702,15 +702,33 @@ def _occurrences_list_response(request, archived=False):
                            (Occurrence.Priority.NORMAL, 'Normais'))),
         ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código'),
         ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC'),
-        ColFilter('cat', 'Tipo de crime', kind='select',
+        ColFilter('cat', 'Tipo de crime', kind='select', css='col-reduce-hide',
                   field='crime_type__subcategoria__categoria_id',
                   choices=tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)),
         ColFilter('date', 'Data', kind='date_range', field='date_time'),
-        ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local'),
+        ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local', css='col-reduce-hide'),
         ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente', css='col-hide-sm',
                   fields=('agent__first_name', 'agent__last_name', 'agent__username')),
     ]
     qs = apply_col_filters(qs, request, occ_filters)
+
+    # Busca transversal: um campo único que procura em VÁRIOS campos de uma vez
+    # (código, NUIPC, crime, local, agente). Complementa os filtros por coluna e
+    # é o que permite encolher a grelha no telemóvel (menos colunas, mas encontra
+    # tudo). Server-side, soma-se aos filtros por coluna.
+    query = (request.GET.get('q') or '').strip()
+    if query:
+        qs = qs.filter(
+            Q(code__icontains=query)
+            | Q(number__icontains=query)
+            | Q(address__icontains=query)
+            | Q(agent__first_name__icontains=query)
+            | Q(agent__last_name__icontains=query)
+            | Q(agent__username__icontains=query)
+            | Q(crime_type__descritivo__icontains=query)
+            | Q(crime_type__subcategoria__nome__icontains=query)
+            | Q(crime_type__subcategoria__categoria__nome__icontains=query)
+        )
 
     # Arquivo vs ativo: processo CONCLUÍDO = todos os itens em estado legal
     # terminal. Deriva-se sobre o âmbito já filtrado (sem coluna nova) e divide-se.
@@ -726,7 +744,10 @@ def _occurrences_list_response(request, archived=False):
 
     list_endpoint = '/arquivo/' if archived else '/occurrences/'
     # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
-    base_params = active_params(occ_filters, request)
+    col_active = active_params(occ_filters, request)
+    base_params = dict(col_active)
+    if query:
+        base_params['q'] = query
     if lens:
         base_params['lens'] = lens
     base_params['sort'] = sort_key
@@ -736,11 +757,16 @@ def _occurrences_list_response(request, archived=False):
         'page_obj': page_obj,
         'total': paginator.count,
         'filters': filter_bar_context(occ_filters, request),
-        'has_filters': bool(active_params(occ_filters, request)),
+        'has_filters': bool(col_active) or bool(query),
+        'filter_count': len(col_active),   # filtros POR COLUNA ativos (botão "Filtros (n)")
+        'q': query,
         'sort': sort_key,
         'qs_base': qs_base,
         'lens': lens,
         'is_archive': archived,
+        # Vista mobile reduzida (4 colunas + busca + painel) SÓ nas ocorrências
+        # ativas, por agora; o Arquivo mantém-se como está até implementarmos lá.
+        'mobile_reduce': not archived,
         'list_endpoint': list_endpoint,
         'selected_id': request.GET.get('selected') or '',
         'is_htmx': bool(request.headers.get('HX-Request')),

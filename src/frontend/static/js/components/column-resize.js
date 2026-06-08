@@ -90,9 +90,23 @@
         applySaved(table);
     }
 
+    function isMobile() {
+        return !!(window.matchMedia && window.matchMedia('(max-width: 767px)').matches);
+    }
+    // Ao toque o resize não faz sentido; e as larguras px do desktop (style inline)
+    // venceriam o CSS mobile (4 colunas) → há que LIMPÁ-LAS ao cruzar o breakpoint.
+    function clearInline(table) {
+        headerCells(table).forEach(function (c) { c.style.width = ''; });
+        table.style.width = '';
+    }
+
     function initAll() {
         var tables = document.querySelectorAll('table.grid--resizable');
-        for (var i = 0; i < tables.length; i++) attach(tables[i]);
+        var mobile = isMobile();
+        for (var i = 0; i < tables.length; i++) {
+            if (mobile) clearInline(tables[i]);   // sem resize ao toque + sem larguras a vazar
+            else attach(tables[i]);
+        }
     }
 
     if (document.readyState === 'loading') {
@@ -101,4 +115,10 @@
         initAll();
     }
     document.body.addEventListener('htmx:afterSwap', initAll);  // grelha nova → religa + reaplica
+    // Cruzar o breakpoint: em desktop reaplica larguras guardadas; em mobile limpa-as.
+    if (window.matchMedia) {
+        var mq = window.matchMedia('(max-width: 767px)');
+        if (mq.addEventListener) mq.addEventListener('change', initAll);
+        else if (mq.addListener) mq.addListener(initAll);
+    }
 })();

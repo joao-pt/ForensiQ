@@ -8,12 +8,16 @@
 {% endcomment %}
 {% if is_htmx %}
 <span id="occ-count" class="page-head__count" aria-live="polite" hx-swap-oob="true">{{ total }} {% if is_archive %}processo{{ total|pluralize }}{% else %}registo{{ total|pluralize }}{% endif %}</span>
+{% if mobile_reduce %}<span id="occ-filter-count" class="grid-filters-btn__count" hx-swap-oob="true">{% if filter_count %}{{ filter_count }}{% endif %}</span>{% endif %}
 {% endif %}
 
-<table class="grid grid--clickable grid--filterable grid--resizable" id="occ-table" role="grid" aria-label="{% if is_archive %}Processos arquivados{% else %}Lista de ocorrências{% endif %}">
+<table class="grid grid--clickable grid--filterable grid--resizable{% if mobile_reduce %} grid--mobile-reduce{% endif %}" id="occ-table" role="grid" aria-label="{% if is_archive %}Processos arquivados{% else %}Lista de ocorrências{% endif %}">
   <thead>
-    {# Cabecalho-filtro: cada coluna mostra o nome e o seu filtro (_filter_row.html), substituindo a linha de titulos separada. #}
+    {# Cabecalho em 2 linhas (nomes + filtros, fonte unica `filters`): no desktop coladas parecem uma celula; no telemovel a linha de filtros vira o painel "Filtros". #}
     <tr class="grid__head-row" role="row">
+      {% include 'partials/_col_names.html' %}
+    </tr>
+    <tr class="grid__filter-row" role="row">
       {% include 'partials/_filter_row.html' %}
     </tr>
   </thead>
@@ -34,9 +38,9 @@
       </td>
       <td role="gridcell" class="mono grid__code">{{ o.code|default:'—' }}</td>
       <td role="gridcell" class="mono">{{ o.number }}</td>
-      <td role="gridcell" class="grid__ellipsis">{{ o.crime_label }}</td>
-      <td role="gridcell" class="mono">{{ o.date_time|date:'Y-m-d H:i' }}</td>
-      <td role="gridcell" class="grid__ellipsis grid__muted">
+      <td role="gridcell" class="grid__ellipsis col-reduce-hide">{{ o.crime_label }}</td>
+      <td role="gridcell" class="mono">{{ o.date_time|date:'Y-m-d' }}<span class="grid__cell-time"> {{ o.date_time|date:'H:i' }}</span></td>
+      <td role="gridcell" class="grid__ellipsis grid__muted col-reduce-hide">
         {% if o.gps_lat is not None %}
         {% include 'partials/icons/_gps.html' with icon_class='grid__geo' %}
         {% endif %}{{ o.address|default:'—' }}

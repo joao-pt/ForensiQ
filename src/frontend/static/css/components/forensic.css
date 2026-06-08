@@ -129,7 +129,8 @@
     flex-wrap: wrap;
 }
 
-/* Barra fina sobre a grelha — só ordenação (os filtros vivem no <thead>). */
+/* Barra fina sobre a grelha — busca transversal + ordenação (filtros por coluna
+   vivem no <thead>; no telemóvel colapsam no botão "Filtros"). */
 .grid-toolbar {
     display: flex;
     align-items: center;
@@ -137,20 +138,40 @@
     padding: var(--sp-2) var(--sp-4);
     border-bottom: 1px solid var(--border);
     background: var(--bg-subtle);
+    flex-wrap: wrap;
 }
 .grid-toolbar__sort { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .grid-toolbar__sort-label { font-size: var(--fs-xs); color: var(--text-muted); }
+/* Botão "Filtros (n)" — escondido no desktop (os filtros estão inline no cabeçalho);
+   no telemóvel abre/fecha o painel. A contagem (OOB no swap) some quando é zero. */
+.grid-filters-btn { display: none; }
+.grid-filters-btn__count {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px; margin-left: var(--sp-1);
+    font-family: var(--font-mono); font-size: 11px; font-weight: var(--fw-semi);
+    color: var(--accent-on-tint); background: var(--accent-tint); border-radius: 9px;
+}
+.grid-filters-btn__count:empty { display: none; }
 .grid-toolbar select {
     height: 30px; padding: 0 var(--sp-2);
     font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text);
     background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1); cursor: pointer;
 }
 
-/* Cabeçalho-filtro por coluna no <thead> (_filter_row.html, fonte única): cada
-   célula é o cabeçalho da coluna E o seu filtro — nome (.grid__col-label) por
-   cima, controlo por baixo. Herda o look de cabeçalho de `.grid thead th`. */
-.grid thead th.grid__filter-cell { padding: var(--sp-1) var(--sp-2) var(--sp-2); vertical-align: top; }
-.grid__col-label { display: block; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Cabeçalho em 2 linhas COLADAS (nomes _col_names.html + filtros _filter_row.html):
+   no desktop parecem uma só célula por coluna. Linha de nomes (th) = cabeçalho
+   sticky; linha de filtros (td) cola-se por baixo (mesmo fundo, sem borda entre as
+   duas; a borda inferior do cabeçalho fica na linha de filtros). No telemóvel a
+   linha de filtros vira o painel "Filtros". */
+.grid thead tr.grid__head-row > th { border-bottom: none; padding-bottom: 2px; }
+.grid thead td.grid__filter-cell {
+    padding: 0 var(--sp-3) var(--sp-2);
+    vertical-align: top;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-strong);
+}
+.grid__col-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid__filter-label { display: none; }   /* nome está na linha de cima; só aparece no painel mobile */
 .grid__filter-cell input,
 .grid__filter-cell select {
     width: 100%;
@@ -194,6 +215,53 @@
 .col-resize { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; user-select: none; touch-action: none; z-index: 2; }
 .col-resize:hover, .col-resize--active { background: var(--accent); opacity: 0.5; }
 
+/* ============================================================
+   Telemóvel: grelha de ocorrências reduzida a 4 colunas + painel de filtros
+   ============================================================ */
+@media (max-width: 767px) {
+    /* Pri · Código · NUIPC · Data. Tipo de crime e Local (col-reduce-hide) escondem-se
+       — cobertos pela busca transversal e pela gaveta; Agente (col-hide-sm) já some.
+       SEM scroll lateral: a tabela passa a auto/100%, anulando as larguras % do desktop. */
+    .grid--mobile-reduce { table-layout: auto; min-width: 0; }
+    .grid--mobile-reduce .col-reduce-hide { display: none; }
+    .grid--mobile-reduce.grid--filterable thead tr:first-child th:nth-child(n) { width: auto; }
+    .grid--mobile-reduce .grid__cell-time { display: none; }   /* data sem hora (vai p/ gaveta) */
+
+    /* "Filtros (n)" visível só aqui; abre/fecha o painel. */
+    .grid-filters-btn {
+        display: inline-flex; align-items: center;
+        min-height: var(--min-touch); padding: 0 var(--sp-3);
+        font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text-muted);
+        background: var(--bg-inset); border: 1px solid var(--border-input);
+        border-radius: var(--r-2); cursor: pointer; white-space: nowrap;
+    }
+    .grid-form[data-filters-open] .grid-filters-btn {
+        color: var(--accent-on-tint); border-color: var(--accent-tint); background: var(--accent-tint);
+    }
+
+    /* A linha de filtros vira PAINEL: escondida; "Filtros" abre-a empilhada. Fonte
+       ÚNICA (a mesma linha do <thead>) → sobrevive aos swaps do HTMX. As colunas
+       escondidas (Tipo/Local/Agente) ficam de fora do painel (a busca cobre-as). */
+    .grid--mobile-reduce .grid__filter-row { display: none; }
+    .grid-form[data-filters-open] .grid--mobile-reduce .grid__filter-row {
+        display: block;
+        padding: var(--sp-2) var(--sp-3) var(--sp-3);
+        background: var(--bg-inset);
+        border-bottom: 1px solid var(--border-strong);
+    }
+    .grid-form[data-filters-open] .grid--mobile-reduce .grid__filter-row > td:not(.col-reduce-hide):not(.col-hide-sm) {
+        display: block; width: 100%;
+        padding: var(--sp-1) 0 0;
+        background: transparent; border: none;
+    }
+    .grid--mobile-reduce .grid__filter-label {
+        display: block; margin-bottom: 3px;
+        font-family: var(--font-mono); font-size: 10px; font-weight: var(--fw-semi);
+        letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--text-subtle);
+    }
+    .grid--mobile-reduce .grid__filter-row .filter-pop__btn { width: 100%; }
+}
+
 /* Filtro de DATA como botão + popover (elemento nativo <details>, CSP-safe). */
 .filter-pop { position: relative; }
 .filter-pop__btn {
@@ -224,7 +292,8 @@
     pointer-events: none;
 }
 .toolbar input[type="search"],
-.toolbar input[type="text"] {
+.toolbar input[type="text"],
+.grid-toolbar input[type="search"] {
     width: 100%;
     height: 34px;
     padding: 0 var(--sp-3) 0 32px;
@@ -235,9 +304,11 @@
     border: 1px solid var(--border-input);
     border-radius: var(--r-2);
 }
-.toolbar input::placeholder { color: var(--text-placeholder); }
+.toolbar input::placeholder,
+.grid-toolbar input::placeholder { color: var(--text-placeholder); }
 .toolbar input:focus-visible,
-.toolbar select:focus-visible {
+.toolbar select:focus-visible,
+.grid-toolbar input:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -1px;
     border-color: transparent;
@@ -275,7 +346,8 @@
     .toolbar input[type="search"],
     .toolbar input[type="text"],
     .toolbar input[type="date"],
-    .toolbar select { height: var(--min-touch); }
+    .toolbar select,
+    .grid-toolbar input[type="search"] { height: var(--min-touch); }
 }
 .toolbar__busy {
     flex-shrink: 0;

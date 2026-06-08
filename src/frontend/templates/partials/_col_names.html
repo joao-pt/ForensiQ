@@ -1,0 +1,11 @@
+{% comment %}
+  Linha de NOMES das colunas (fonte única: a mesma spec `filters`, em ordem). Cada
+  <th scope="col"> é o cabeçalho REAL da coluna (acessibilidade). Os filtros vão na
+  linha seguinte (_filter_row.html): no desktop ficam colados (parecem uma só célula
+  por coluna), no telemóvel a linha de filtros vira o painel "Filtros". As classes
+  por coluna ({{ f.css }}) controlam o que se esconde no telemóvel (col-reduce-hide /
+  col-hide-sm).
+{% endcomment %}
+{% for f in filters %}
+<th scope="col" class="grid__col {{ f.css }}"><span class="grid__col-label">{{ f.label }}</span></th>
+{% endfor %}
