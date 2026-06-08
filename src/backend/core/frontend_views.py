@@ -986,11 +986,9 @@ def occurrences_new_view(request):
         return HttpResponseForbidden('Apenas agentes podem registar ocorrências.')
 
     crime_categories = CrimeCategoria.objects.order_by('codigo')
-    # Duas superfícies da MESMA lógica: página completa (fallback no-JS) e
-    # fragmento modal (ação-in-place, ?modal=1). O sucesso no modal devolve
-    # 204 + HX-Redirect (o HTMX navega); o erro devolve o fragmento.
-    modal = _wants_modal(request)
-    template = 'partials/_occurrence_form.html' if modal else 'occurrences_new.html'
+    # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
+    # → redireciona para a ocorrência criada; erro → re-render com os erros.
+    template = 'occurrences_new.html'
 
     def _ctx(errors, data):
         """Contexto da página, com a ascendência N1/N2 do crime escolhido
@@ -1013,7 +1011,6 @@ def occurrences_new_view(request):
             'sel_cat': sel_cat,
             'sel_sub': sel_sub,
             'sel_type': sel_type,
-            'modal': modal,
             'action': '/occurrences/new/',
         }
 
@@ -1034,10 +1031,6 @@ def occurrences_new_view(request):
                 resource_id=occ.pk,
             )
             messages.success(request, f'Ocorrência {occ.code or occ.number} registada.')
-            if modal:
-                resp = HttpResponse(status=204)
-                resp['HX-Redirect'] = f'/occurrences/{occ.pk}/'
-                return resp
             return HttpResponseRedirect(f'/occurrences/{occ.pk}/')
         return render(
             request, template, _ctx(serializer.errors, request.POST), status=400
@@ -1262,11 +1255,9 @@ def evidences_new_view(request):
     transversal_fields, type_fields = _evd_field_ctx(
         request.POST if request.method == 'POST' else {}
     )
-    # Duas superfícies da MESMA lógica: página completa (fallback no-JS) e
-    # fragmento modal (ação-in-place, ?modal=1). Sucesso no modal → 204 +
-    # HX-Redirect; erro → fragmento com os erros.
-    modal = _wants_modal(request)
-    template = 'partials/_evidence_form.html' if modal else 'evidences_new.html'
+    # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
+    # → redireciona para o item criado; erro → re-render com os erros.
+    template = 'evidences_new.html'
 
     if request.method == 'POST':
         tsd_keys = evidence_field_config.all_keys()
@@ -1307,7 +1298,6 @@ def evidences_new_view(request):
                         'preselect': request.POST.get('occurrence', ''),  # nosemgrep
                         'errors': {'geral': _flatten_validation_error(exc)},
                         'data': request.POST,  # nosemgrep
-                        'modal': modal,
                         'action': '/evidences/new/',
                     },
                     status=400,
@@ -1320,10 +1310,6 @@ def evidences_new_view(request):
                 details={'hash': ev.integrity_hash},
             )
             messages.success(request, f'Item de prova {ev.code} apreendido e registado.')
-            if modal:
-                resp = HttpResponse(status=204)
-                resp['HX-Redirect'] = f'/evidences/{ev.pk}/'
-                return resp
             return HttpResponseRedirect(f'/evidences/{ev.pk}/')
         return render(
             request,
@@ -1337,7 +1323,6 @@ def evidences_new_view(request):
                 'preselect': request.POST.get('occurrence', ''),
                 'errors': serializer.errors,
                 'data': request.POST,
-                'modal': modal,
                 'action': '/evidences/new/',
             },
             status=400,
@@ -1355,7 +1340,6 @@ def evidences_new_view(request):
             'preselect': request.GET.get('occurrence', ''),
             'errors': {},
             'data': {},
-            'modal': modal,
             'action': '/evidences/new/',
         },
     )
