@@ -18,8 +18,7 @@
     {% endfor %}
   </select>
   {% elif f.kind == 'date_range' %}
-  {# Botão + popover (nativo <details>); filter-popover.js posiciona em fixed e
-     hx-preserve mantém aberto/valores no swap. #}
+  {# Botao + popover nativo (details); filter-popover.js posiciona em fixed e hx-preserve mantem aberto/valores no swap. #}
   <details class="filter-pop{% if f.after or f.before %} filter-pop--active{% endif %}" id="filter-{{ f.param }}-pop" hx-preserve="true">
     <summary class="filter-pop__btn" aria-label="Filtrar por {{ f.label }}">{% if f.after or f.before %}{{ f.after|default:'…' }} – {{ f.before|default:'…' }}{% else %}Todas{% endif %}</summary>
     <div class="filter-pop__panel">

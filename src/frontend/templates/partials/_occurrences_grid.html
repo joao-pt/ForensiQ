@@ -12,8 +12,7 @@
 
 <table class="grid grid--clickable grid--filterable grid--resizable" id="occ-table" role="grid" aria-label="{% if is_archive %}Processos arquivados{% else %}Lista de ocorrências{% endif %}">
   <thead>
-    {# Cabeçalho-filtro: cada coluna mostra o nome E o seu filtro (dupla função,
-       _filter_row.html) — substitui a linha de títulos separada. #}
+    {# Cabecalho-filtro: cada coluna mostra o nome e o seu filtro (_filter_row.html), substituindo a linha de titulos separada. #}
     <tr class="grid__head-row" role="row">
       {% include 'partials/_filter_row.html' %}
     </tr>
