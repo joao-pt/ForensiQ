@@ -20,11 +20,9 @@
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="on-title">
 
-  <header class="detail__head">
-    <div>
-      <h1 class="detail__title" id="on-title">Nova ocorrência</h1>
-    </div>
-  </header>
+  {# Título redundante com o breadcrumb (Ocorrências › Nova): escondido à vista
+     mas mantido para leitores de ecrã e como alvo do aria-labelledby. #}
+  <h1 class="visually-hidden" id="on-title">Nova ocorrência</h1>
 
   <section class="section">
     <div class="section__body">
