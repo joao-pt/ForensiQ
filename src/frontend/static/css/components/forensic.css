@@ -177,13 +177,15 @@
    full-width). Larguras por coluna em CSS (sem estilo inline → CSP-safe). */
 .grid--filterable { table-layout: fixed; width: 100%; }
 .grid--filterable > tbody > tr > td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.grid--filterable thead tr:first-child th:nth-child(1) { width: 52px; }   /* Pri */
-.grid--filterable thead tr:first-child th:nth-child(2) { width: 12%; }    /* Código */
-.grid--filterable thead tr:first-child th:nth-child(3) { width: 15%; }    /* NUIPC */
-.grid--filterable thead tr:first-child th:nth-child(4) { width: 22%; }    /* Tipo de crime */
-.grid--filterable thead tr:first-child th:nth-child(5) { width: 13%; }    /* Data */
-.grid--filterable thead tr:first-child th:nth-child(6) { width: 22%; }    /* Local */
-.grid--filterable thead tr:first-child th:nth-child(7) { width: 14%; }    /* Agente */
+/* Somam 100% (sem px fixo) → não há overflow inicial; a barra horizontal só
+   aparece (overflow-x:auto) depois de o utilizador alargar uma coluna. */
+.grid--filterable thead tr:first-child th:nth-child(1) { width: 6%; }     /* Pri */
+.grid--filterable thead tr:first-child th:nth-child(2) { width: 13%; }    /* Código */
+.grid--filterable thead tr:first-child th:nth-child(3) { width: 16%; }    /* NUIPC */
+.grid--filterable thead tr:first-child th:nth-child(4) { width: 21%; }    /* Tipo de crime */
+.grid--filterable thead tr:first-child th:nth-child(5) { width: 12%; }    /* Data */
+.grid--filterable thead tr:first-child th:nth-child(6) { width: 20%; }    /* Local */
+.grid--filterable thead tr:first-child th:nth-child(7) { width: 12%; }    /* Agente */
 
 /* Coluna redimensionável: pega arrastável (column-resize.js mexe em style.width
    por JS — CSSOM, permitido pelo CSP; não é estilo inline no HTML). */
