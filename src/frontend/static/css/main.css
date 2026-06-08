@@ -415,10 +415,10 @@ hr {
    3. LAYOUT — container edge-to-edge no mobile
    ============================================================ */
 
-/* Edge-to-edge no mobile: children com conteúdo (headers, toolbars) adicionam
-   `padding: 0 var(--sp-4)`; cards ocupam a largura toda para produzir a
-   estética Notion-list. Nota: o audit #21 sugere inverter este padrão
-   (padding no container + opt-out para full-bleed) — trade-off registado. */
+/* Edge-to-edge no mobile; a partir de ≥768px ganha padding mas ocupa toda a
+   largura da coluna principal — as páginas adaptam-se a monitores grandes em
+   vez de ficarem fixas/centradas (era 1160px, 1360px em ≥1440px). Aplica o
+   sentido do audit #21: padding no container, sem cap de largura. */
 .container {
     width: 100%;
     padding: 0;
@@ -427,15 +427,7 @@ hr {
 
 @media (min-width: 768px) {
     .container {
-        max-width: 1160px;
         padding: var(--sp-6) var(--sp-6);
-        margin: 0 auto;
-    }
-}
-
-@media (min-width: 1440px) {
-    .container {
-        max-width: 1360px;
     }
 }
 
