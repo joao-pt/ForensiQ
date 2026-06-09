@@ -7,14 +7,20 @@ grelha — cabeçalho de 2 linhas, larguras por classe (CSP-safe), células com
 ``role=gridcell``, bolinha de urgência, hora restaurada, ícone GPS e vista
 mobile reduzida.
 """
+from django.contrib.auth import get_user_model
 from django.template import Context, Template
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from django.urls import reverse
+from rest_framework_simplejwt.tokens import AccessToken
 
+from core.auth import ACCESS_COOKIE_NAME
 from core.grid import GridColumn, grid_list_response
 from core.templatetags.grid_extras import cellattr
+from core.tests_access import _evidence, _event, _occ, _user
 from core.tests_factories import OccurrenceFactory
 from core.tests_frontend import AuthenticatedFrontendTestCase
+
+User = get_user_model()
 
 
 class _Obj:
@@ -114,3 +120,39 @@ class GridGeneratorRenderTest(AuthenticatedFrontendTestCase):
         OccurrenceFactory(agent=self.test_user)
         content = self.client.get(reverse('occurrences')).content.decode('utf-8')
         self.assertNotIn('style="width', content)
+
+
+class CustodyListRenderTest(TestCase):
+    """Smoke real da LISTA de custódias (a timeline já tinha testes; a lista não).
+
+    Tranca que o gerador renderiza com os filtros por coluna PRESERVADOS (incl.
+    Instituição + Estado, que viviam numa gaveta à parte) e a bolinha por estado.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = _user('grid_cc', User.Profile.FIRST_RESPONDER)
+        occ = _occ(cls.user, 'CC-1')
+        ev = _evidence(occ, cls.user)
+        _event(ev, cls.user)   # apreensão → item à guarda (estado derivado)
+
+    def _get(self, url):
+        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(self.user))
+        return self.client.get(url)
+
+    def test_custody_list_renders_with_filters_and_dot(self):
+        response = self._get('/custodies/')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('id="cc-grid"', content)
+        self.assertIn('grid--mobile-reduce', content)
+        self.assertIn('aria-label="Eventos de custódia"', content)
+        # Filtros por coluna preservados (igual às ocorrências), incl. os 2 que
+        # antes viviam na gaveta: Instituição e Estado.
+        self.assertIn('name="event"', content)
+        self.assertIn('name="custodian"', content)
+        self.assertIn('name="institution"', content)
+        self.assertIn('name="state"', content)
+        # Bolinha de estado (host = Código) + badge de estado na coluna própria.
+        self.assertIn('urgency-dot', content)
+        self.assertIn('state state--', content)

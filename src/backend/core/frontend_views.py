@@ -1373,6 +1373,7 @@ def _decorate_events(events):
         r.custodian_label = r.get_custodian_type_display() if r.custodian_type else '—'
         r.agent_label = get_user_display_name(r.agent)
         r.hash_short = (r.record_hash or '')[:16]
+        r.aria_code = r.code or r.event_label   # rótulo da linha (fallback evento)
 
 
 def _chain_points(events):
@@ -1693,7 +1694,11 @@ def _custody_drawer(request, user, drawer_id):
 
 @jwt_cookie_user
 def custody_list_view(request):
-    """Lista do ledger de custódia — server-rendered (Fase 3, Django + HTMX)."""
+    """Lista do ledger de custódia — server-rendered (Fase 3) via gerador único.
+
+    Filtros por coluna iguais às ocorrências, INCLUSIVE Instituição titular e
+    Estado legal DERIVADO do item (computed_filters). A bolinha/legenda mostram o
+    estado legal no telemóvel (mesma fonte das evidências)."""
     user = request.user
 
     drawer_id = request.GET.get('drawer')
@@ -1702,79 +1707,73 @@ def custody_list_view(request):
 
     lens = access.console_mode(request, user)
     access.remember_console_mode(request, lens)
-    qs = _lens_custody(user, lens)
+    qs = _lens_custody(user, lens).select_related('custodian_institution')
 
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(code__icontains=query)
-            | Q(evidence__code__icontains=query)
-            | Q(evidence__occurrence__number__icontains=query)
-        )
+    institutions = Institution.objects.filter(is_active=True).order_by('name')
+    inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
 
-    event = (request.GET.get('event') or '').strip()
-    if event in EventType.values:
-        qs = qs.filter(event_type=event)
-
-    # Custódio (coluna visível, antes não filtrável) e instituição titular.
-    custodian = (request.GET.get('custodian') or '').strip()
-    if custodian in CustodianType.values:
-        qs = qs.filter(custodian_type=custodian)
-
-    institution = (request.GET.get('institution') or '').strip()
-    if institution.isdigit():
-        qs = qs.filter(custodian_institution_id=int(institution))
-
-    # Estado legal DERIVADO do item a que o evento pertence (mesmo padrão WI-E),
-    # restrito à lente ativa (cadeias completas dos itens da lente).
-    state = (request.GET.get('state') or '').strip()
-    if state in LEGAL_STATES:
+    def apply_cc_state(filtered_qs, _request, value):
+        # Estado legal DERIVADO do item (mesmo padrão WI-E), restrito à lente.
         states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
-        matching = [ev_id for ev_id, st in states.items() if st == state]
-        qs = qs.filter(evidence_id__in=matching)
+        matching = [ev_id for ev_id, st in states.items() if st == value]
+        return filtered_qs.filter(evidence_id__in=matching)
 
-    date_after = (request.GET.get('date_after') or '').strip()
-    date_before = (request.GET.get('date_before') or '').strip()
-    d_after, d_before = parse_date(date_after), parse_date(date_before)
-    if d_after:
-        qs = qs.filter(timestamp__date__gte=d_after)
-    if d_before:
-        qs = qs.filter(timestamp__date__lte=d_before)
+    def decorate_custody(events):
+        _decorate_events(events)
+        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
+        for r in events:
+            st = states.get(r.evidence_id)
+            label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
+            css = LEGAL_STATE_CSS.get(st, 'muted')
+            r.state_badge = {'css': css, 'label': label}
+            r.dot = {'cls': css, 'title': label}          # bolinha mobile = estado legal
+            inst = r.custodian_institution
+            r.institution_label = (inst.sigla or inst.name) if inst else '—'
 
-    sort_key = (request.GET.get('sort') or 'recent').strip()
-    qs = qs.order_by(_CUSTODY_SORTS.get(sort_key, '-timestamp'))
+    columns = [
+        GridColumn('code', 'Código', cell='code', width=11, dot=True,
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('evidence.code', 'Item', css='mono', width=11,
+                   filter=ColFilter('item', 'Item', kind='text', field='evidence__code', placeholder='Item')),
+        GridColumn('event_label', 'Evento', css='grid__ellipsis col-reduce-hide', width=15,
+                   filter=ColFilter('event', 'Evento', kind='select', field='event_type',
+                                    choices=tuple(EventType.choices))),
+        GridColumn('custodian_label', 'Custódio', css='grid__muted col-hide-sm', width=13,
+                   filter=ColFilter('custodian', 'Custódio', kind='select', field='custodian_type',
+                                    choices=tuple(CustodianType.choices))),
+        GridColumn('institution_label', 'Instituição', css='grid__muted col-reduce-hide', width=13,
+                   filter=ColFilter('institution', 'Instituição', kind='select',
+                                    field='custodian_institution_id', choices=inst_choices)),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
+                   filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
+        GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=16,
+                   filter=ColFilter('date', 'Data / hora', kind='date_range', field='timestamp')),
+        GridColumn('hash_short', 'Hash', suffix='…', css='mono grid__muted col-hide-md', width=10),
+    ]
 
-    paginator = Paginator(qs, 30)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_events(page_obj.object_list)
-
-    qs_base = urlencode({k: v for k, v in (
-        ('lens', lens), ('q', query), ('event', event), ('custodian', custodian),
-        ('institution', institution), ('state', state),
-        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
-    ) if v})
-
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'event': event,
-        'custodian': custodian,
-        'institution': institution,
-        'state': state,
-        'date_after': date_after,
-        'date_before': date_before,
-        'sort': sort_key,
-        'qs_base': qs_base,
-        'event_types': EventType.choices,
-        'custodian_types': CustodianType.choices,
-        'institutions': Institution.objects.filter(is_active=True).order_by('name'),
-        'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-    if ctx['is_htmx']:
-        return render(request, 'partials/_custody_grid.html', ctx)
-    return render(request, 'custody_list.html', ctx)
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='cc',
+        endpoint='/custodies/',
+        page_template='custody_list.html',
+        table_label='Eventos de custódia',
+        count_noun='evento',
+        sorts=_CUSTODY_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigos'),
+                  ('evidence', 'Por item')),
+        search_fields=('code', 'evidence__code', 'evidence__occurrence__number'),
+        search_placeholder='Pesquisar item, NUIPC, código…',
+        decorate=decorate_custody,
+        legend=URGENCY_LEGEND_EVIDENCE,
+        page_size=30,
+        lens=lens,
+        empty_title='Sem eventos de custódia',
+        empty_hint='Ainda não há eventos registados.',
+        computed_filters={'state': apply_cc_state},
+    )
 
 
 @jwt_cookie_required
