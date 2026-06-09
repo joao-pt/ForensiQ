@@ -57,22 +57,13 @@
         function openDialog() {
             // Sem diálogo (markup ausente): degrada para a ação directa.
             if (!dialog) { doLogout(); return; }
-            if (typeof dialog.showModal === 'function') {
-                if (!dialog.open) dialog.showModal();
-            } else {
-                dialog.setAttribute('open', '');
-            }
-            // Foca o Cancelar (ação não-destrutiva) depois do paint: premir Enter
-            // por reflexo não termina a sessão sem querer.
-            requestAnimationFrame(function () {
-                try { (cancelBtn || dialog).focus(); } catch (e) { /* noop */ }
-            });
+            // Abre via plumbing partilhada (FQDialog). Foca o Cancelar (ação
+            // não-destrutiva): premir Enter por reflexo não termina a sessão.
+            FQDialog.open(dialog, function () { return cancelBtn || dialog; });
         }
 
         function closeDialog() {
-            if (!dialog) return;
-            if (dialog.open && typeof dialog.close === 'function') dialog.close();
-            else dialog.removeAttribute('open');
+            FQDialog.close(dialog);
         }
 
         function doLogout() {
@@ -95,10 +86,8 @@
         });
 
         if (dialog) {
-            // Clique no fundo do <dialog> (target é o próprio dialog) cancela.
-            dialog.addEventListener('click', function (ev) {
-                if (ev.target === dialog) closeDialog();
-            });
+            // Clique no fundo do <dialog> cancela — via plumbing partilhada (FQDialog).
+            FQDialog.bindBackdropClose(dialog);
             // Esc é nativo do <dialog>; ao fechar (Esc/fundo/Cancelar) devolve o foco.
             dialog.addEventListener('close', function () {
                 if (confirmBtn) confirmBtn.disabled = false;

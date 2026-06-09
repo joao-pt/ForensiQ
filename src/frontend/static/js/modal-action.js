@@ -38,17 +38,12 @@
 
     function openModal(title) {
         if (titleEl) titleEl.textContent = title || 'Ação';
-        if (typeof dialog.showModal === 'function') {
-            if (!dialog.open) dialog.showModal();
-        } else {
-            dialog.setAttribute('open', '');  // recurso p/ navegadores muito antigos
-        }
-        // Foco depois do paint. Em re-render com erros (POST inválido troca o
-        // fragmento para o modal) foca o 1.º campo inválido — senão o resumo de
-        // erros gerais, senão o 1.º campo. O modal é dono do seu foco, por isso
-        // os formulários no modal não precisam do form-error-focus.js.
-        requestAnimationFrame(function () {
-            if (!body) return;
+        // Abre + foco via FQDialog (plumbing partilhada). Em re-render com erros
+        // (POST inválido troca o fragmento para o modal) foca o 1.º campo inválido
+        // — senão o resumo de erros gerais, senão o 1.º campo. O modal é dono do
+        // seu foco, por isso os formulários no modal não precisam do form-error-focus.js.
+        FQDialog.open(dialog, function () {
+            if (!body) return null;
             var target = body.querySelector('[aria-invalid="true"]');
             if (!target) {
                 var alertEl = body.querySelector('[role="alert"]');
@@ -62,15 +57,14 @@
                     'input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])'
                 );
             }
-            if (target) { try { target.focus(); } catch (e) { /* noop */ } }
+            return target;
         });
         // Sinaliza para componentes que vivem dentro do fragmento (mapas, …).
         document.dispatchEvent(new CustomEvent('fq:modal-open', { detail: { root: body } }));
     }
 
     function closeModal() {
-        if (dialog.open && typeof dialog.close === 'function') dialog.close();
-        else dialog.removeAttribute('open');
+        FQDialog.close(dialog);
     }
 
     // Captura o gatilho (título + foco a restaurar) antes do pedido.
@@ -109,10 +103,8 @@
         if (closer) { ev.preventDefault(); closeModal(); }
     });
 
-    // Clique no fundo (backdrop do <dialog> nativo → target é o próprio dialog).
-    dialog.addEventListener('click', function (ev) {
-        if (ev.target === dialog) closeModal();
-    });
+    // Clique no fundo (backdrop do <dialog> nativo) fecha — via plumbing partilhada.
+    FQDialog.bindBackdropClose(dialog);
 
     // Limpeza ao fechar (Esc nativo, botão, fundo ou close()).
     dialog.addEventListener('close', function () {
