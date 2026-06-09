@@ -13,12 +13,10 @@ sensíveis só sejam carregados via API.
 import json
 import logging
 from functools import wraps
-from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.http import (
     HttpResponse,
     HttpResponseForbidden,
@@ -27,8 +25,7 @@ from django.http import (
     HttpResponseRedirect,
 )
 from django.shortcuts import render
-from django.utils.dateparse import parse_date
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
@@ -41,7 +38,6 @@ from core.grid import GridColumn, grid_list_response
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.list_filters import ColFilter
 from core.models import (
-    LEGAL_STATES,
     TERMINAL_LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
@@ -754,9 +750,9 @@ def _occurrences_list_response(request, archived=False):
                       'terminal (restituídos, perdidos a favor do Estado ou destruídos).')
         empty_filtered = 'Nenhum processo arquivado para os filtros aplicados.'
     else:
-        empty_hint = mark_safe(
+        empty_hint = format_html(
             'Ainda não há ocorrências ativas que possa ver. Os processos concluídos '
-            f'estão no <a href="/arquivo/{lens_qs}">Arquivo</a>.'
+            'estão no <a href="/arquivo/{}">Arquivo</a>.', lens_qs
         )
         empty_filtered = 'Nenhum resultado para os filtros aplicados.'
 

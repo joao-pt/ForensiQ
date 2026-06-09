@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import hashlib
 import shutil
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
@@ -81,8 +81,8 @@ from core.models import (
     ChainOfCustody,
     CrimeTipo,
     CustodianType,
-    Evidence,
     EventType,
+    Evidence,
     Institution,
     InstitutionMembership,
     InstitutionType,
@@ -255,14 +255,30 @@ class Command(BaseCommand):
             '--demo-password', default='Forensiq#Demo2026',
             help='Password partilhada (DEMONSTRAÇÃO) por todas as contas. Rotacionar após uso.',
         )
+        # Modo CI/smoke: --users-only --no-input cria SÓ estes dois (credenciais
+        # explícitas, determinístico). Requeridos nesse modo (ver handle).
+        parser.add_argument('--agent-username', default=None,
+                            help='Username do agente (com --users-only --no-input).')
+        parser.add_argument('--agent-password', default=None,
+                            help='Password do agente (com --users-only --no-input).')
+        parser.add_argument('--expert-username', default=None,
+                            help='Username do perito (com --users-only --no-input).')
+        parser.add_argument('--expert-password', default=None,
+                            help='Password do perito (com --users-only --no-input).')
 
     # ----------------------------------------------------------------- entry
     def handle(self, *args, **options):
         reset = options['reset']
         users_only = options['users_only']
+        no_input = options['no_input']
         self._no_photos = options['no_photos']
         if reset and users_only:
             raise CommandError('--reset e --users-only são mutuamente exclusivos.')
+
+        # Modo CI/smoke: --users-only --no-input cria APENAS um agente + um perito
+        # com credenciais explícitas (determinístico; sem roster nem instituições).
+        if users_only and no_input:
+            return self._seed_explicit_users(options)
 
         has_data = Occurrence.objects.exists() or Evidence.objects.exists()
         if has_data and not reset and not users_only:
@@ -457,13 +473,41 @@ class Command(BaseCommand):
                 'is_staff': False, 'is_superuser': False, 'is_active': True,
             },
         )
-        try:
-            validate_password(password, user=user)
-        except ValidationError:
-            pass  # password de demonstração; a escolha é do operador.
+        with suppress(ValidationError):
+            validate_password(password, user=user)  # password de demonstração; escolha do operador
         user.set_password(password)
         user.save(update_fields=['password'])
         return user
+
+    def _seed_explicit_users(self, options):
+        """Modo CI/smoke (--users-only --no-input): cria/atualiza SÓ um agente
+        (FIRST_RESPONDER) e um perito (FORENSIC_EXPERT) com credenciais explícitas.
+        Idempotente (update_or_create); sem instituições nem casos."""
+        agent_username = (options.get('agent_username') or '').strip()
+        agent_password = options.get('agent_password') or ''
+        expert_username = (options.get('expert_username') or '').strip()
+        expert_password = options.get('expert_password') or ''
+        if not (agent_username and agent_password and expert_username and expert_password):
+            raise CommandError(
+                'Com --users-only --no-input requerem-se --agent-username, '
+                '--agent-password, --expert-username e --expert-password.'
+            )
+        if agent_username == expert_username:
+            raise CommandError('--agent-username e --expert-username têm de ser diferentes.')
+
+        P, C = User.Profile, User.Clearance
+        self._upsert_user(
+            username=agent_username, password=agent_password, profile=P.FIRST_RESPONDER,
+            clearance=C.NORMAL, first_name='Agente', last_name='Smoke',
+            badge='SMOKE-AG', phone='+351 900 000 001',
+        )
+        self._upsert_user(
+            username=expert_username, password=expert_password, profile=P.FORENSIC_EXPERT,
+            clearance=C.NACIONAL, first_name='Perito', last_name='Smoke',
+            badge='SMOKE-PE', phone='+351 900 000 002',
+        )
+        self.stdout.write(self.style.SUCCESS(
+            f'   2 utilizadores: {agent_username} (agente) + {expert_username} (perito).'))
 
     def _seed_users(self, institutions, password):
         """Roster realista: várias contas por instituição, cobrindo as 6 funções
@@ -627,10 +671,9 @@ class Command(BaseCommand):
             return (i.gps_lat, i.gps_lng)
 
         # ---- IDs válidos (validadores de formato) ----
-        imei = lambda p14: _luhn_complete(p14)            # 14 díg → IMEI 15
-        iccid = lambda p: _luhn_complete(p)               # prefixo → ICCID + Luhn
+        imei = _luhn_complete             # 14 díg → IMEI 15
+        iccid = _luhn_complete            # prefixo → ICCID + Luhn
         VIN_AUDI = 'WAUZZZ8K9KA902451'   # 17, sem I/O/Q
-        VIN_BMW = 'WBA5A52040FH12345'    # 17, sem I/O/Q
 
         # =====================================================================
         # CASO 1 — Lisboa · Roubo na via pública (40, prioritário por LEI)
@@ -1514,7 +1557,7 @@ class Command(BaseCommand):
             with _frozen(now - timedelta(days=days_ago, hours=(n % 12))):
                 AuditLog.objects.create(
                     user=user, action=action, resource_type=resource,
-                    resource_id=obj.id, ip_address='10.0.0.%d' % (10 + n % 200),
+                    resource_id=obj.id, ip_address=f'10.0.0.{10 + n % 200}',
                     correlation_id='', details=details)
             n += 1
         self.stdout.write(f'   AuditLog: {n} registos de atividade.')

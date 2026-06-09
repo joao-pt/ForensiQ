@@ -16,7 +16,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core.auth import ACCESS_COOKIE_NAME
 from core.grid import GridColumn, grid_list_response
 from core.templatetags.grid_extras import cellattr
-from core.tests_access import _evidence, _event, _occ, _user
+from core.tests_access import _event, _evidence, _occ, _user
 from core.tests_factories import OccurrenceFactory
 from core.tests_frontend import AuthenticatedFrontendTestCase
 

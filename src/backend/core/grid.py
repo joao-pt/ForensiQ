@@ -12,7 +12,6 @@ grelha reduz às colunas marcadas (resto ``col-reduce-hide``), bolinha de urgên
 + legenda + só a busca global (regras em ``forensic.css``).
 """
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
@@ -47,7 +46,7 @@ class GridColumn:
     suffix: str = ''                  # literal após o valor (ex.: hash '…')
     geo: bool = False                 # célula text: prefixa ícone GPS se row.gps_lat
     dot: bool = False                 # coluna hospedeira da bolinha de urgência
-    filter: Optional[ColFilter] = None
+    filter: ColFilter | None = None
 
 
 def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
