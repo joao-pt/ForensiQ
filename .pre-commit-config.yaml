@@ -19,24 +19,17 @@ repos:
         args: ["--fix=lf"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.7
+    rev: v0.15.13          # alinhado com o ruff do CI (.github/workflows/ci.yml)
     hooks:
       - id: ruff
         args: ["--fix"]
         files: ^src/backend/.*\.py$
-      - id: ruff-format
-        files: ^src/backend/.*\.py$
 
-  - repo: https://github.com/psf/black-pre-commit-mirror
-    rev: 24.8.0
-    hooks:
-      - id: black
-        language_version: python3
-        files: ^src/backend/.*\.py$
-
-  - repo: https://github.com/returntocorp/semgrep
-    rev: v1.85.0
-    hooks:
-      - id: semgrep
-        args: ["--config=p/owasp-top-ten", "--config=p/django", "--error", "--skip-unknown-extensions"]
-        files: ^src/backend/.*\.py$
+# Sem formatador no pre-commit (black/ruff-format removidos): o codebase NÃO está
+# black-formatado (41/105 ficheiros divergem) — ativá-lo encheria os commits de
+# reformatações cosméticas em ficheiros não tocados; o CI também só corre
+# `ruff check` (sem formatador). O gate útil aqui é o ruff (lint) acima, alinhado
+# ao CI (apanha imports órfãos/F401 antes do push). Uniformizar tudo com black um
+# dia, em commit dedicado: `black src/backend`.
+# semgrep removido: o env do hook rebenta no Windows e NÃO é gate do CI (a SAST do
+# CI é Bandit + Trivy). À mão: PYTHONUTF8=1 semgrep --config=p/django src/backend
