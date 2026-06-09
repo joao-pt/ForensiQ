@@ -734,7 +734,32 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .stat__num { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: "zero" 1, "tnum" 1; }
 .stat__label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-subtle); margin-top: 2px; }
 @media (max-width: 767px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+.stats--3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 767px) { .stats--3 { grid-template-columns: repeat(2, 1fr); } }
 .detail__desc { margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-base); }
+
+/* Estatísticas (UX 2026-06) — seletor de janela, meta do cabeçalho, alertas de SLA. */
+.section__meta { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); }
+.stats-window { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.stats-window__label { font-family: var(--font-mono); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-subtle); }
+.stats-window__opt {
+    font-size: var(--fs-xs); font-family: var(--font-mono); color: var(--text-muted);
+    text-decoration: none; padding: 2px var(--sp-2); border: 1px solid var(--border);
+    border-radius: var(--r-pill); transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.stats-window__opt:hover { color: var(--text-emphasis); border-color: var(--border-strong); }
+.stats-window__opt.is-active { color: var(--accent-on-tint); background: var(--accent-tint); border-color: transparent; }
+.stats-flow__table { margin-top: var(--sp-4); }
+.stats-alerts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.stats-alert {
+    display: flex; align-items: baseline; gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border);
+    border-left: 3px solid var(--border-strong); border-radius: var(--r-1); background: var(--bg-subtle);
+}
+.stats-alert--warn { border-left-color: var(--warning); }
+.stats-alert--info { border-left-color: var(--info); }
+.stats-alert__num { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: "tnum" 1; min-width: 3ch; }
+.stats-alert__label { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; }
 
 /* Subtítulo curto (mono uppercase) reutilizável */
 .subhead {

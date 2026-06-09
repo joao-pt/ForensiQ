@@ -31,7 +31,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
-from core import access, evidence_field_config, evidence_type_config
+from core import access, analytics, evidence_field_config, evidence_type_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response
@@ -2114,34 +2114,39 @@ def occurrence_intake_view(request, occurrence_id):
 
 @jwt_cookie_user
 def stats_view(request):
-    """Estatísticas agregadas — server-rendered (Fase 3). Agregados baratos
-    (não deriva estado legal por linha; isso fica para uma vista dedicada)."""
+    """Estatísticas orientadas a FLUXO (UX 2026-06): estado ATUAL derivado (stock),
+    throughput por período, prazos/SLA e dwell time da custódia — em vez de
+    contagens cumulativas point-in-time que não diziam quando/de quê/filtrado por
+    quê. Cálculos na fonte única :mod:`core.analytics`; o estado legal vem de
+    ``derive_legal_state`` (DRY com os tiles do Painel). Restrito à lente ativa."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
     user = request.user
     lens = access.console_mode(request, user)
     access.remember_console_mode(request, lens)
     occ_qs = _lens_occurrences(user, lens)
     evd_qs = _lens_evidences(user, lens)
     cus_qs = _lens_custody(user, lens)
-    kpis = {
-        'occurrences': occ_qs.count(),
-        'evidences': evd_qs.count(),
-        'custody_events': cus_qs.count(),
-        'prioritarias': occ_qs.filter(priority=Occurrence.Priority.PRIORITARIA).count(),
-    }
-    # Lookup tolerante: EnumValue(x) levantaria ValueError (→ 500) se a BD tivesse
-    # um valor fora dos choices actuais (ex.: dado anterior a um rename de tipo/
-    # evento). dict(choices).get cai no valor cru em vez de rebentar.
-    type_labels = evidence_type_config.labels()
-    event_labels = dict(EventType.choices)
-    by_type = [
-        {'label': type_labels.get(r['type'], r['type']), 'n': r['n']}
-        for r in evd_qs.values('type').annotate(n=Count('id')).order_by('-n')
-    ]
-    by_event = [
-        {'label': event_labels.get(r['event_type'], r['event_type']), 'n': r['n']}
-        for r in cus_qs.values('event_type').annotate(n=Count('id')).order_by('-n')
-    ]
-    return render(request, 'stats.html', {'kpis': kpis, 'by_type': by_type, 'by_event': by_event})
+
+    days = analytics.resolve_window(request.GET.get('days'))
+    since = timezone.now() - timedelta(days=days)
+
+    states_by_ev = _legal_states_by_evidence(user, custody_qs=cus_qs)
+    return render(
+        request,
+        'stats.html',
+        {
+            'lens': lens,
+            'days': days,
+            'window_choices': analytics.WINDOW_CHOICES,
+            'stock': analytics.state_distribution(states_by_ev),
+            'flow': analytics.throughput(occ_qs, evd_qs, cus_qs, since),
+            'sla': analytics.aging_sla(evd_qs, cus_qs),
+            'dwell': analytics.custody_dwell(cus_qs),
+        },
+    )
 
 
 @jwt_cookie_user
