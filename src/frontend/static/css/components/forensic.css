@@ -188,15 +188,26 @@
    full-width). Larguras por coluna em CSS (sem estilo inline → CSP-safe). */
 .grid--filterable { table-layout: fixed; width: 100%; }
 .grid--filterable > tbody > tr > td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Somam 100% (sem px fixo) → não há overflow inicial; a barra horizontal só
-   aparece (overflow-x:auto) depois de o utilizador alargar uma coluna. */
-.grid--filterable thead tr:first-child th:nth-child(1) { width: 6%; }     /* Pri */
-.grid--filterable thead tr:first-child th:nth-child(2) { width: 13%; }    /* Código */
-.grid--filterable thead tr:first-child th:nth-child(3) { width: 16%; }    /* NUIPC */
-.grid--filterable thead tr:first-child th:nth-child(4) { width: 21%; }    /* Tipo de crime */
-.grid--filterable thead tr:first-child th:nth-child(5) { width: 12%; }    /* Data */
-.grid--filterable thead tr:first-child th:nth-child(6) { width: 20%; }    /* Local */
-.grid--filterable thead tr:first-child th:nth-child(7) { width: 12%; }    /* Agente */
+/* Larguras por coluna (CSP-safe; sem estilo inline). A GridColumn.width (int %)
+   escolhe a classe no <th> da 1.ª linha do <thead> — que table-layout:fixed lê.
+   Somam 100% por grelha → não há overflow inicial; a barra horizontal só aparece
+   (overflow-x:auto) depois de o utilizador alargar uma coluna. */
+.grid__col--w6  { width: 6%; }
+.grid__col--w9  { width: 9%; }
+.grid__col--w10 { width: 10%; }
+.grid__col--w11 { width: 11%; }
+.grid__col--w12 { width: 12%; }
+.grid__col--w13 { width: 13%; }
+.grid__col--w14 { width: 14%; }
+.grid__col--w15 { width: 15%; }
+.grid__col--w16 { width: 16%; }
+.grid__col--w18 { width: 18%; }
+.grid__col--w20 { width: 20%; }
+.grid__col--w21 { width: 21%; }
+.grid__col--w22 { width: 22%; }
+.grid__col--w23 { width: 23%; }
+.grid__col--w24 { width: 24%; }
+.grid__col--w27 { width: 27%; }
 
 /* Coluna redimensionável: pega arrastável (column-resize.js mexe em style.width
    por JS — CSSOM, permitido pelo CSP; não é estilo inline no HTML). */
@@ -214,7 +225,7 @@
        SEM scroll lateral: a tabela passa a auto/100%, anulando as larguras % do desktop. */
     .grid--mobile-reduce { table-layout: auto; min-width: 0; }
     .grid--mobile-reduce .col-reduce-hide { display: none; }
-    .grid--mobile-reduce.grid--filterable thead tr:first-child th:nth-child(n) { width: auto; }
+    .grid--mobile-reduce .grid__col { width: auto; }
     .grid--mobile-reduce .grid__cell-time { display: none; }   /* data sem hora (vai p/ gaveta) */
     .grid--mobile-reduce .grid__filter-row { display: none; }  /* sem filtros por coluna no telemóvel */
     /* busca global ocupa a largura toda da barra */
@@ -483,9 +494,17 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .urgency-dot--p1 { background: var(--danger); }
 .urgency-dot--p2 { background: var(--warning); }
 .urgency-dot--none { background: var(--border-strong); }
-/* Na grelha a bolinha prefixa o código e SÓ aparece na vista mobile reduzida. */
-.grid__code > .urgency-dot { display: none; margin-right: var(--sp-2); }
-@media (max-width: 767px) { .grid--mobile-reduce .grid__code > .urgency-dot { display: inline-block; } }
+/* Variantes por estado (mesmas cores de .state--*): a bolinha reflete o estado
+   legal (evidências/custódias) ou ativo/inativo (instituições). */
+.urgency-dot--ok { background: var(--success); }
+.urgency-dot--warn { background: var(--warning); }
+.urgency-dot--info { background: var(--info); }
+.urgency-dot--danger { background: var(--danger); }
+.urgency-dot--muted { background: var(--text-subtle); }
+/* Na grelha a bolinha prefixa a coluna identificadora (QUALQUER tipo de célula,
+   via .grid__dot-host) e SÓ aparece na vista mobile reduzida. */
+.grid__dot-host > .urgency-dot { display: none; margin-right: var(--sp-2); }
+@media (max-width: 767px) { .grid--mobile-reduce .grid__dot-host > .urgency-dot { display: inline-block; } }
 /* Legenda (discreta, só telemóvel — no desktop há coluna). */
 .urgency-legend { display: none; }
 @media (max-width: 767px) {

@@ -1,0 +1,5 @@
+{% comment %}
+  Bolinha de urgência por linha (fonte ÚNICA, reutilizável). Incluída pelo
+  _grid_cell.html só na coluna hospedeira (col.dot) e quando há legenda. Rotulada
+  quando há estado (role=img + aria-label); decorativa quando normal (aria-hidden).
+{% endcomment %}{% if row.dot %}<span class="urgency-dot urgency-dot--{{ row.dot.cls }}" role="img" aria-label="{{ row.dot.title }}"></span>{% else %}<span class="urgency-dot urgency-dot--none" aria-hidden="true"></span>{% endif %}

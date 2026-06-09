@@ -1,0 +1,39 @@
+{% comment %}
+  Barra + grelha de uma lista (fonte ÚNICA). Busca transversal opcional +
+  ordenação opcional; o <form> HTMX envolve a grelha (filtra ao escrever,
+  server-side, re-pagina). action=GET é o fallback sem-JS. A legenda da bolinha
+  fica por baixo (só telemóvel; no desktop há colunas próprias).
+{% endcomment %}
+{% load static %}
+<form class="grid-form" role="search" action="{{ endpoint }}" method="get"
+      hx-get="{{ endpoint }}"
+      hx-target="#{{ grid_id }}"
+      hx-swap="innerHTML"
+      hx-trigger="submit, input changed delay:350ms"
+      hx-push-url="true"
+      hx-indicator="#{{ busy_id }}">
+  {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
+  <div class="grid-toolbar">
+    {% if search_placeholder %}
+    <div class="toolbar__search">
+      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
+      <input type="search" name="q" value="{{ q }}" placeholder="{{ search_placeholder }}" autocomplete="off" aria-label="Procurar em tudo">
+    </div>
+    {% endif %}
+    {% if sorts_ui %}
+    <label class="grid-toolbar__sort">
+      <span class="grid-toolbar__sort-label">Ordenar</span>
+      <select name="sort" aria-label="Ordenar">
+        {% for val, label in sorts_ui %}
+        <option value="{{ val }}"{% if sort == val %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <span class="toolbar__busy" id="{{ busy_id }}" aria-hidden="true"></span>
+  </div>
+  <div id="{{ grid_id }}" class="gridwrap">
+    {% include 'partials/_grid.html' %}
+  </div>
+</form>
+{% include 'partials/_urgency_legend.html' %}

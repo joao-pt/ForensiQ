@@ -1,0 +1,6 @@
+{% comment %}JS de lista (fonte ÚNICA, CSP-safe, tudo estático): htmx + abrir linha/teclado (forensic-list) + resize de colunas + popover de data. Páginas com gaveta incluem também o Leaflet; relatórios não.{% endcomment %}
+{% load static %}
+<script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+<script src="{% static 'js/components/forensic-list.js' %}"></script>
+<script src="{% static 'js/components/column-resize.js' %}"></script>
+<script src="{% static 'js/components/filter-popover.js' %}"></script>

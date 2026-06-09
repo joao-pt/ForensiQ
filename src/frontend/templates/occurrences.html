@@ -21,7 +21,7 @@
   <header class="page-head">
     <div class="page-head__heading">
       <h1 class="page-head__title" id="occ-title">Ocorrências</h1>
-      <span class="page-head__count" id="occ-count" aria-live="polite">{{ total }} registo{{ total|pluralize }}</span>
+      <span class="page-head__count" id="occ-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
     </div>
     <a class="btn-accent" href="/occurrences/new/">
       {% include 'partials/icons/_plus.html' %}
@@ -29,46 +29,12 @@
     </a>
   </header>
 
-  {# Busca transversal (procura em tudo) + filtros por coluna no cabecalho da grelha (_filter_row.html). O form envolve a grelha e filtra ao escrever (HTMX, server-side, re-pagina). No telemovel a grelha reduz a 3 colunas (Codigo/NUIPC/Data) e fica so a busca global. #}
-  <form class="grid-form" role="search" action="/occurrences/" method="get"
-        hx-get="/occurrences/"
-        hx-target="#occ-grid"
-        hx-swap="innerHTML"
-        hx-trigger="submit, input changed delay:350ms"
-        hx-push-url="true"
-        hx-indicator="#occ-busy">
-    {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
-    <div class="grid-toolbar">
-      <div class="toolbar__search">
-        {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
-        <input type="search" name="q" value="{{ q }}" placeholder="Procurar código, NUIPC, crime, local, agente…" autocomplete="off" aria-label="Procurar em tudo">
-      </div>
-      <label class="grid-toolbar__sort">
-        <span class="grid-toolbar__sort-label">Ordenar</span>
-        <select name="sort" aria-label="Ordenar">
-          <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Mais recentes</option>
-          <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Mais antigas</option>
-          <option value="number" {% if sort == 'number' %}selected{% endif %}>NUIPC</option>
-          <option value="created" {% if sort == 'created' %}selected{% endif %}>Data de registo</option>
-        </select>
-      </label>
-      <span class="toolbar__busy" id="occ-busy" aria-hidden="true"></span>
-    </div>
-    <div id="occ-grid" class="gridwrap">
-      {% include 'partials/_occurrences_grid.html' %}
-    </div>
-  </form>
-
-  {# Legenda da bolinha de urgencia (so telemovel; no desktop ha coluna Prioridade). #}
-  {% include 'partials/_urgency_legend.html' %}
+  {% include 'partials/_grid_toolbar.html' %}
 
 </section>
 {% endblock %}
 
 {% block extra_js %}
   {% include '_leaflet_js.html' %}
-  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
-  <script src="{% static 'js/components/forensic-list.js' %}"></script>
-  <script src="{% static 'js/components/column-resize.js' %}"></script>
-  <script src="{% static 'js/components/filter-popover.js' %}"></script>
+  {% include 'partials/_grid_scripts.html' %}
 {% endblock %}

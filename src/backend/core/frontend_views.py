@@ -28,6 +28,7 @@ from django.http import (
 )
 from django.shortcuts import render
 from django.utils.dateparse import parse_date
+from django.utils.safestring import mark_safe
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
@@ -36,7 +37,9 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core import access, evidence_field_config, evidence_type_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
+from core.grid import GridColumn, grid_list_response
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
+from core.list_filters import ColFilter
 from core.models import (
     LEGAL_STATES,
     TERMINAL_LEGAL_STATES,
@@ -191,9 +194,11 @@ def _decorate_occurrences(occurrences):
     """Anota cada ocorrência com campos de apresentação (sem tocar no modelo)."""
     for occ in occurrences:
         occ.pri = _priority_badge(occ)
+        occ.dot = occ.pri                        # bolinha de urgência (telemóvel) = prioridade
         ct = occ.crime_type
         occ.crime_label = f'{ct.codigo} — {ct.descritivo}' if ct else '—'
         occ.agent_label = get_user_display_name(occ.agent)
+        occ.aria_code = occ.code or occ.number   # rótulo da linha (fallback NUIPC)
 
 
 # Ordenações expostas na UI → expressão de ORM (lista branca: impede injeção
@@ -684,9 +689,11 @@ def dashboard_view(request):
 
 def _occurrences_list_response(request, archived=False):
     """Corpo PARTILHADO das listas de ocorrências ativas (``/occurrences/``) e do
-    Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, filtros,
+    Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, colunas, filtros,
     ordenação e paginação — só diferem na divisão arquivado/ativo e no template.
-    O drawer (``?drawer=``) é comum (o detalhe de um processo é o mesmo)."""
+    O drawer (``?drawer=``) é comum (o detalhe de um processo é o mesmo). Toda a
+    plumbing (filtros por coluna, busca, paginação, vista mobile) vem do gerador
+    único :func:`core.grid.grid_list_response`; aqui declara-se só a spec."""
     user = request.user
 
     drawer_id = request.GET.get('drawer')
@@ -697,94 +704,75 @@ def _occurrences_list_response(request, archived=False):
     access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens)
 
-    # Filtros por coluna — fonte única transversal (core.list_filters). A linha
-    # de filtros vive no <thead> da grelha, UMA célula por coluna e ALINHADA com
-    # ela; por isso a spec segue a ORDEM das colunas da tabela. Filtra ao escrever
-    # (HTMX) sobre o queryset TODO (âmbito de acesso) e só depois pagina → procura
-    # em tudo o que o utilizador vê, não só na 1.ª página (server-side).
-    from core.list_filters import (
-        ColFilter, active_params, apply_col_filters, filter_bar_context,
-    )
     crime_categories = CrimeCategoria.objects.order_by('codigo')
-    occ_filters = [  # ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente
-        ColFilter('pri', 'Prioridade', kind='select', field='priority', css='col-reduce-hide',
-                  choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
-                           (Occurrence.Priority.NORMAL, 'Normais'))),
-        ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código'),
-        ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC'),
-        ColFilter('cat', 'Tipo de crime', kind='select', css='col-reduce-hide',
-                  field='crime_type__subcategoria__categoria_id',
-                  choices=tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)),
-        ColFilter('date', 'Data', kind='date_range', field='date_time'),
-        ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local', css='col-reduce-hide'),
-        ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente', css='col-hide-sm',
-                  fields=('agent__first_name', 'agent__last_name', 'agent__username')),
+    cat_choices = tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)
+    # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente.
+    columns = [
+        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
+                   filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
+                                    choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
+                                             (Occurrence.Priority.NORMAL, 'Normais')))),
+        GridColumn('code', 'Código', cell='code', width=13, dot=True,
+                   filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('number', 'NUIPC', css='mono', width=16,
+                   filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=21,
+                   filter=ColFilter('cat', 'Tipo de crime', kind='select',
+                                    field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
+        GridColumn('date_time', 'Data', cell='date', time=True, width=12,
+                   filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
+        GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=20, geo=True,
+                   filter=ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local')),
+        GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=12,
+                   filter=ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente',
+                                    fields=('agent__first_name', 'agent__last_name', 'agent__username'))),
     ]
-    qs = apply_col_filters(qs, request, occ_filters)
 
-    # Busca transversal: um campo único que procura em VÁRIOS campos de uma vez
-    # (código, NUIPC, crime, local, agente). Complementa os filtros por coluna e
-    # é o que permite encolher a grelha no telemóvel (menos colunas, mas encontra
-    # tudo). Server-side, soma-se aos filtros por coluna.
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(code__icontains=query)
-            | Q(number__icontains=query)
-            | Q(address__icontains=query)
-            | Q(agent__first_name__icontains=query)
-            | Q(agent__last_name__icontains=query)
-            | Q(agent__username__icontains=query)
-            | Q(crime_type__descritivo__icontains=query)
-            | Q(crime_type__subcategoria__nome__icontains=query)
-            | Q(crime_type__subcategoria__categoria__nome__icontains=query)
+    def archived_split(filtered_qs, _request):
+        # Processo CONCLUÍDO = todos os itens em estado legal terminal. Deriva-se
+        # sobre o âmbito já filtrado e divide-se (sem coluna nova).
+        archived_ids = _archived_occurrence_ids(user, filtered_qs)
+        return (filtered_qs.filter(pk__in=archived_ids) if archived
+                else filtered_qs.exclude(pk__in=archived_ids))
+
+    lens_qs = f'?lens={lens}' if lens else ''
+    if archived:
+        empty_hint = ('Ainda não há processos concluídos — todos os itens em estado '
+                      'terminal (restituídos, perdidos a favor do Estado ou destruídos).')
+        empty_filtered = 'Nenhum processo arquivado para os filtros aplicados.'
+    else:
+        empty_hint = mark_safe(
+            'Ainda não há ocorrências ativas que possa ver. Os processos concluídos '
+            f'estão no <a href="/arquivo/{lens_qs}">Arquivo</a>.'
         )
+        empty_filtered = 'Nenhum resultado para os filtros aplicados.'
 
-    # Arquivo vs ativo: processo CONCLUÍDO = todos os itens em estado legal
-    # terminal. Deriva-se sobre o âmbito já filtrado (sem coluna nova) e divide-se.
-    archived_ids = _archived_occurrence_ids(user, qs)
-    qs = qs.filter(pk__in=archived_ids) if archived else qs.exclude(pk__in=archived_ids)
-
-    sort_key = (request.GET.get('sort') or 'recent').strip()
-    qs = qs.order_by(_OCC_SORTS.get(sort_key, '-date_time'))
-
-    paginator = Paginator(qs, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_occurrences(page_obj.object_list)
-
-    list_endpoint = '/arquivo/' if archived else '/occurrences/'
-    # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
-    col_active = active_params(occ_filters, request)
-    base_params = dict(col_active)
-    if query:
-        base_params['q'] = query
-    if lens:
-        base_params['lens'] = lens
-    base_params['sort'] = sort_key
-    qs_base = urlencode(base_params)
-
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'filters': filter_bar_context(occ_filters, request),
-        'has_filters': bool(col_active) or bool(query),
-        'q': query,
-        'urgency_legend': URGENCY_LEGEND_OCCURRENCE,   # bolinha mobile (coluna Pri escondida)
-        'sort': sort_key,
-        'qs_base': qs_base,
-        'lens': lens,
-        'is_archive': archived,
-        # Vista mobile reduzida (4 colunas + busca + painel) SÓ nas ocorrências
-        # ativas, por agora; o Arquivo mantém-se como está até implementarmos lá.
-        'mobile_reduce': not archived,
-        'list_endpoint': list_endpoint,
-        'selected_id': request.GET.get('selected') or '',
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-
-    if ctx['is_htmx']:
-        return render(request, 'partials/_occurrences_grid.html', ctx)
-    return render(request, 'arquivo.html' if archived else 'occurrences.html', ctx)
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='occ',
+        endpoint='/arquivo/' if archived else '/occurrences/',
+        page_template='arquivo.html' if archived else 'occurrences.html',
+        table_label='Processos arquivados' if archived else 'Lista de ocorrências',
+        count_noun='processo' if archived else 'registo',
+        sorts=_OCC_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigas'),
+                  ('number', 'NUIPC'), ('created', 'Data de registo')),
+        search_fields=('code', 'number', 'address',
+                       'agent__first_name', 'agent__last_name', 'agent__username',
+                       'crime_type__descritivo', 'crime_type__subcategoria__nome',
+                       'crime_type__subcategoria__categoria__nome'),
+        search_placeholder='Procurar código, NUIPC, crime, local, agente…',
+        decorate=_decorate_occurrences,
+        legend=URGENCY_LEGEND_OCCURRENCE,
+        page_size=25,
+        lens=lens,
+        empty_hint=empty_hint,
+        empty_filtered=empty_filtered,
+        post_filter=archived_split,
+    )
 
 
 @jwt_cookie_user

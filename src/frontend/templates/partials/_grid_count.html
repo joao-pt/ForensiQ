@@ -1,0 +1,1 @@
+{% comment %}Texto da contagem (fonte única: cabeçalho + span OOB). count_plural vazio cai no 's' por defeito do pluralize (registos/processos/eventos/ocorrências); 'm,ns'→item/itens; 'ão,ões'→instituição/instituições.{% endcomment %}{{ total }} {{ count_noun }}{% if count_plural %}{{ total|pluralize:count_plural }}{% else %}{{ total|pluralize }}{% endif %}
