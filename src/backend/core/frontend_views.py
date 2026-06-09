@@ -294,6 +294,11 @@ def _decorate_evidences(evidences):
         e.state_badge = {'css': e.state_css, 'label': e.state_label}
         e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
         e.aria_code = e.code or 'item de prova'
+        # marca/modelo são campos transversais em type_specific_data (JSON, ADR-0018);
+        # expostos aqui (1 fonte) para a grelha e o drawer os mostrarem.
+        tsd = e.type_specific_data or {}
+        e.marca = tsd.get('marca', '')
+        e.modelo = tsd.get('modelo', '')
 
 
 def _readable_evidence(user, pk):
@@ -1233,23 +1238,25 @@ def evidences_view(request):
         matching = [ev_id for ev_id, st in states.items() if st == value]
         return filtered_qs.filter(id__in=matching)
 
+    # Ordem = colunas: Ocorrência · Código · Data e Hora · Marca · Modelo · Nº série · Estado.
+    # Mobile reduzido (col-reduce-hide) sobra Ocorrência · Código (bolinha) · Data; a
+    # bolinha em Código carrega o estado legal no telemóvel. Marca/Modelo vivem em
+    # type_specific_data (JSON), expostos no decorate; filtro JSON via key-transform (PG).
     columns = [
-        GridColumn('code', 'Código', cell='code', width=13, dot=True,
-                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
-        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=18,
-                   filter=ColFilter('type', 'Tipo', kind='select', field='type',
-                                    choices=tuple(evidence_type_config.active_choices()))),
-        GridColumn('occ_label', 'Ocorrência', css='mono col-hide-md', width=15,
+        GridColumn('occ_label', 'Ocorrência', css='mono', width=15,
                    filter=ColFilter('occ', 'Ocorrência', kind='text', field='occurrence__number', placeholder='NUIPC')),
-        GridColumn('serial_number', 'Nº série', css='mono grid__muted col-hide-sm', width=16,
+        GridColumn('code', 'Código', cell='code', width=14, dot=True,
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('timestamp_seizure', 'Data e Hora', cell='date', time=True, width=15,
+                   filter=ColFilter('date', 'Data e Hora', kind='date_range', field='timestamp_seizure')),
+        GridColumn('marca', 'Marca', css='grid__ellipsis col-reduce-hide', width=14,
+                   filter=ColFilter('marca', 'Marca', kind='text', field='type_specific_data__marca', placeholder='Marca')),
+        GridColumn('modelo', 'Modelo', css='grid__ellipsis col-reduce-hide', width=14,
+                   filter=ColFilter('modelo', 'Modelo', kind='text', field='type_specific_data__modelo', placeholder='Modelo')),
+        GridColumn('serial_number', 'Nº série', css='mono grid__muted col-reduce-hide', width=16,
                    filter=ColFilter('serial', 'Nº série', kind='text', field='serial_number', placeholder='Nº série')),
-        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=14,
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=12,
                    filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
-        GridColumn('timestamp_seizure', 'Apreensão', cell='date', time=True, width=14,
-                   filter=ColFilter('date', 'Apreensão', kind='date_range', field='timestamp_seizure')),
-        GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=10,
-                   filter=ColFilter('agent', 'Agente', kind='text', placeholder='Agente',
-                                    fields=('agent__first_name', 'agent__last_name', 'agent__username'))),
     ]
 
     return grid_list_response(
@@ -1265,8 +1272,9 @@ def evidences_view(request):
         default_sort='recent',
         sorts_ui=(('recent', 'Apreensão recente'), ('oldest', 'Apreensão antiga'),
                   ('code', 'Código'), ('occurrence', 'NUIPC')),
-        search_fields=('code', 'description', 'serial_number', 'occurrence__number'),
-        search_placeholder='Pesquisar código, nº série, NUIPC…',
+        search_fields=('code', 'description', 'serial_number', 'occurrence__number',
+                       'type_specific_data__marca', 'type_specific_data__modelo'),
+        search_placeholder='Pesquisar código, nº série, marca, NUIPC…',
         decorate=_decorate_evidences,
         legend=URGENCY_LEGEND_EVIDENCE,
         page_size=25,
