@@ -476,6 +476,28 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .pri--p2 { color: var(--warning); background: var(--warning-tint); border-color: var(--warning-tint); }
 .pri--none { color: var(--text-placeholder); background: transparent; }
 
+/* Bolinha de urgência (componente REUTILIZÁVEL — todas as tabelas). Nas vistas
+   mobile reduzidas substitui a coluna própria escondida (aqui: prioridade das
+   ocorrências). Cores semânticas reaproveitadas de .pri (danger/warning). */
+.urgency-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+.urgency-dot--p1 { background: var(--danger); }
+.urgency-dot--p2 { background: var(--warning); }
+.urgency-dot--none { background: var(--border-strong); }
+/* Na grelha a bolinha prefixa o código e SÓ aparece na vista mobile reduzida. */
+.grid__code > .urgency-dot { display: none; margin-right: var(--sp-2); }
+@media (max-width: 767px) { .grid--mobile-reduce .grid__code > .urgency-dot { display: inline-block; } }
+/* Legenda (discreta, só telemóvel — no desktop há coluna). */
+.urgency-legend { display: none; }
+@media (max-width: 767px) {
+    .urgency-legend {
+        display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+        margin: 0; padding: var(--sp-3) var(--sp-4);
+        list-style: none; font-size: var(--fs-xs); color: var(--text-muted);
+        border-top: 1px solid var(--border);
+    }
+    .urgency-legend__item { display: inline-flex; align-items: center; gap: var(--sp-2); }
+}
+
 /* Estado (custódia legal / estado atual da evidência) — pill neutro mono */
 .state {
     display: inline-flex; align-items: center; gap: 5px;

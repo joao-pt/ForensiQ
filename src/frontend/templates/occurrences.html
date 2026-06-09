@@ -29,7 +29,7 @@
     </a>
   </header>
 
-  {# Busca transversal (procura em tudo) + filtros por coluna no cabecalho da grelha (_filter_row.html). O form envolve a grelha e filtra ao escrever (HTMX, server-side, re-pagina). No telemovel a grelha reduz a 4 colunas e os filtros colapsam no botao "Filtros". #}
+  {# Busca transversal (procura em tudo) + filtros por coluna no cabecalho da grelha (_filter_row.html). O form envolve a grelha e filtra ao escrever (HTMX, server-side, re-pagina). No telemovel a grelha reduz a 3 colunas (Codigo/NUIPC/Data) e fica so a busca global. #}
   <form class="grid-form" role="search" action="/occurrences/" method="get"
         hx-get="/occurrences/"
         hx-target="#occ-grid"
@@ -58,6 +58,9 @@
       {% include 'partials/_occurrences_grid.html' %}
     </div>
   </form>
+
+  {# Legenda da bolinha de urgencia (so telemovel; no desktop ha coluna Prioridade). #}
+  {% include 'partials/_urgency_legend.html' %}
 
 </section>
 {% endblock %}

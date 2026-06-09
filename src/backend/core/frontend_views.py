@@ -177,6 +177,16 @@ def _priority_badge(occurrence):
     return {'level': 'P2', 'cls': 'p2', 'title': 'Prioritária — override manual'}
 
 
+# Legenda de urgência (vista mobile): a bolinha por linha substitui a coluna
+# Prioridade escondida. Mesmos níveis/cores de _priority_badge (P1 lei, P2 override
+# manual, normal). Fonte ÚNICA — reutilizável por outras tabelas no rollout.
+URGENCY_LEGEND_OCCURRENCE = (
+    {'cls': 'p1', 'label': 'Prioritária (lei)'},
+    {'cls': 'p2', 'label': 'Prioritária (manual)'},
+    {'cls': 'none', 'label': 'Normal'},
+)
+
+
 def _decorate_occurrences(occurrences):
     """Anota cada ocorrência com campos de apresentação (sem tocar no modelo)."""
     for occ in occurrences:
@@ -759,6 +769,7 @@ def _occurrences_list_response(request, archived=False):
         'filters': filter_bar_context(occ_filters, request),
         'has_filters': bool(col_active) or bool(query),
         'q': query,
+        'urgency_legend': URGENCY_LEGEND_OCCURRENCE,   # bolinha mobile (coluna Pri escondida)
         'sort': sort_key,
         'qs_base': qs_base,
         'lens': lens,
