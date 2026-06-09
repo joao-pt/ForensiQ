@@ -421,7 +421,7 @@
 /* Indicador de carregamento ao abrir o drawer (aria-busy emitido por
    forensic-list.js durante o htmx:beforeRequest da linha). */
 .grid--clickable[aria-busy="true"] { opacity: 0.55; pointer-events: none; cursor: progress; }
-/* Ligação dentro de uma célula de grelha (ex.: código → guia PDF no _reports_grid). */
+/* Ligação dentro de uma célula de grelha (ex.: código → detalhe nas Guias de transporte; _grid_cell.html via link_key). */
 .grid__link { color: var(--accent); text-decoration: none; }
 .grid__link:hover { text-decoration: underline; }
 
