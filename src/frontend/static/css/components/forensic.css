@@ -705,8 +705,13 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .geo-field__status--flag { color: var(--warning); }
 .geo-field__status--error { color: var(--danger); }
 /* Coordenadas bloqueadas (vindas de GPS/mapa): legíveis mas claramente
-   não-editáveis — o ajuste fino é clicar no mapa. A morada fica editável. */
-.geo-field input[readonly] { opacity: 0.7; cursor: default; }
+   não-editáveis — o ajuste fino é clicar no mapa. A morada fica editável.
+   Texto muted + fundo subtil sinalizam "bloqueado" SEM opacity (que derrubava o
+   contraste abaixo de AA — axe). --text-muted cumpre AA nos dois temas. */
+.geo-field input[readonly] { color: var(--text-muted); background: var(--bg-subtle); cursor: default; }
+/* Atribuição do Leaflet no tema escuro: o azul default (~3:1 sobre o fundo claro
+   do controlo) escurece para cumprir AA (4.5:1). */
+[data-theme="dark"] .leaflet-control-attribution a { color: #08436a; }
 
 /* Foto da prova — hero no detalhe do item (object-fit: contain p/ não recortar prova) */
 .photo-hero { margin: 0 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--bg-inset); }

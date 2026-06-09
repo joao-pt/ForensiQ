@@ -853,6 +853,12 @@ class ReverseGeocodeView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Sem URL de geocodificação configurada (e2e/offline): resposta vazia, sem
+        # chamada externa — mantém os testes de browser determinísticos e offline.
+        if not settings.NOMINATIM_REVERSE_URL:
+            return Response({'display_name': '', 'address': {
+                'road': '', 'house_number': '', 'city': '', 'country': ''}})
+
         # --- chamada ao Nominatim (server-side) ---
         try:
             resp = httpx.get(

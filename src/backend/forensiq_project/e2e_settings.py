@@ -42,3 +42,8 @@ DATABASES = {
 
 # 3) Media isolada (uploads de fotografia dos testes E2E).
 MEDIA_ROOT = str(_Path(_tempfile.gettempdir()) / 'forensiq_e2e_media')
+
+# 4) Geocodificação inversa DESLIGADA: a vista ReverseGeocodeView faz short-circuit
+#    quando a URL é vazia (devolve morada vazia), sem chamada externa ao Nominatim.
+#    Mantém o e2e offline e determinístico (lat/lng vêm da geolocalização injetada).
+NOMINATIM_REVERSE_URL = ''
