@@ -1743,7 +1743,9 @@ def custody_list_view(request):
 
     lens = access.console_mode(request, user)
     access.remember_console_mode(request, lens)
-    qs = _lens_custody(user, lens).select_related('custodian_institution')
+    # evidence já vem de _lens_custody; redeclara-se aqui (com a instituição) para
+    # tornar explícita a dependência do gerador (cellattr 'evidence.code' + estado).
+    qs = _lens_custody(user, lens).select_related('custodian_institution', 'evidence')
 
     institutions = Institution.objects.filter(is_active=True).order_by('name')
     inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
@@ -1855,7 +1857,7 @@ def reports_view(request):
                    filter=ColFilter('cat', 'Tipo de crime', kind='select',
                                     field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
         GridColumn('n_ev', 'Itens', cell='num', css='col-hide-sm', width=9),
-        GridColumn('date_time', 'Data', cell='date', css='col-hide-sm', width=13,
+        GridColumn('date_time', 'Data', cell='date', time=False, css='col-hide-sm', width=13,
                    filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
         GridColumn('guia', 'Guia', cell='action', width=12),
     ]
