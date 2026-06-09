@@ -1093,32 +1093,68 @@ def institutions_view(request):
     """Lista de instituições (pontos de controlo fixos) — gestão (staff/NACIONAL).
 
     As instituições são dados de referência da custódia (não são prova). Esta é a
-    casa do gatilho de criação ação-in-place (modal). Filtra por texto e por tipo.
+    casa do gatilho de criação ação-in-place (modal). Passa a usar o gerador único
+    (filtros por coluna + HTMX), mantendo o gate de gestão; as linhas NÃO são
+    clicáveis (não há gaveta de detalhe). O ``<form method=get>`` é o fallback
+    sem-JS; o botão "Nova instituição" e os scripts do mapa vivem na casca.
     """
     user = request.user
     if not _can_manage_institutions(user):
         return HttpResponseForbidden('Sem permissão para gerir instituições.')
 
-    qs = Institution.objects.order_by('name')
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(Q(name__icontains=query) | Q(sigla__icontains=query))
-    itype = (request.GET.get('type') or '').strip()
-    if itype in InstitutionType.values:
-        qs = qs.filter(type=itype)
+    def apply_inst_state(filtered_qs, _request, value):
+        return filtered_qs.filter(is_active=(value == 'active'))
 
-    paginator = Paginator(qs, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    qs_base = urlencode({k: v for k, v in (('q', query), ('type', itype)) if v})
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'type': itype,
-        'institution_types': InstitutionType.choices,
-        'qs_base': qs_base,
-    }
-    return render(request, 'institutions.html', ctx)
+    def decorate_inst(items):
+        for inst in items:
+            inst.type_label = inst.get_type_display()
+            if inst.gps_lat is not None and inst.gps_lng is not None:
+                inst.gps_label = f'{inst.gps_lat}, {inst.gps_lng}'   # str(Decimal) = ponto decimal
+            else:
+                inst.gps_label = '—'
+            active = inst.is_active
+            inst.state_badge = {'css': 'ok' if active else 'muted',
+                                'label': 'Ativa' if active else 'Inativa'}
+            inst.dot = {'cls': 'ok' if active else 'muted',
+                        'title': 'Ativa' if active else 'Inativa'}
+
+    state_choices = (('active', 'Ativa'), ('inactive', 'Inativa'))
+    columns = [
+        GridColumn('name', 'Nome', width=24, dot=True,
+                   filter=ColFilter('name', 'Nome', kind='text', field='name', placeholder='Nome')),
+        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=18,
+                   filter=ColFilter('type', 'Tipo', kind='select', field='type',
+                                    choices=tuple(InstitutionType.choices))),
+        GridColumn('sigla', 'Sigla', css='mono', width=11,
+                   filter=ColFilter('sigla', 'Sigla', kind='text', field='sigla', placeholder='Sigla')),
+        GridColumn('address', 'Morada', css='grid__muted col-hide-sm', width=23,
+                   filter=ColFilter('address', 'Morada', kind='text', field='address', placeholder='Morada')),
+        GridColumn('gps_label', 'GPS', css='mono col-hide-md', width=13),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
+                   filter=ColFilter('state', 'Estado', kind='select', choices=state_choices)),
+    ]
+
+    return grid_list_response(
+        request,
+        queryset=Institution.objects.order_by('name'),
+        columns=columns,
+        grid_key='inst',
+        endpoint='/institutions/',
+        page_template='institutions.html',
+        table_label='Instituições',
+        count_noun='instituiç', count_plural='ão,ões',
+        sorts={'name': 'name'},
+        default_sort='name',
+        search_fields=('name', 'sigla'),
+        search_placeholder='Pesquisar nome ou sigla…',
+        decorate=decorate_inst,
+        legend=({'cls': 'ok', 'label': 'Ativa'}, {'cls': 'muted', 'label': 'Inativa'}),
+        row_clickable=False,
+        page_size=25,
+        empty_title='Sem instituições',
+        empty_hint='Crie o primeiro ponto de controlo com “Nova instituição”.',
+        computed_filters={'state': apply_inst_state},
+    )
 
 
 @jwt_cookie_user
@@ -1791,31 +1827,60 @@ def investigation_report_view(request):
 
 @jwt_cookie_user
 def reports_view(request):
-    """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3)."""
+    """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3) via
+    gerador único. Linhas NÃO-clicáveis: o Código liga ao detalhe da ocorrência e
+    a coluna Guia descarrega o PDF; filtros por coluna iguais às ocorrências."""
     user = request.user
     lens = access.console_mode(request, user)
     access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences'))
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(number__icontains=query) | Q(code__icontains=query) | Q(address__icontains=query)
-        )
-    qs = qs.order_by('-date_time')
-    paginator = Paginator(qs, 30)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_occurrences(page_obj.object_list)
-    qs_base = urlencode({k: v for k, v in (('lens', lens), ('q', query)) if v})
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'qs_base': qs_base,
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-    if ctx['is_htmx']:
-        return render(request, 'partials/_reports_grid.html', ctx)
-    return render(request, 'reports.html', ctx)
+
+    crime_categories = CrimeCategoria.objects.order_by('codigo')
+    cat_choices = tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)
+
+    def decorate_reports(items):
+        _decorate_occurrences(items)
+        for o in items:
+            o.detail_href = f'/occurrences/{o.id}/'
+            o.guia = {'href': f'/api/occurrences/{o.id}/pdf/', 'label': 'PDF',
+                      'aria': f'Descarregar guia PDF de {o.code}'}
+
+    columns = [
+        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6),
+        GridColumn('code', 'Código', cell='code', width=15, dot=True, link_key='detail_href',
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('number', 'NUIPC', css='mono', width=18,
+                   filter=ColFilter('number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-hide-md', width=27,
+                   filter=ColFilter('cat', 'Tipo de crime', kind='select',
+                                    field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
+        GridColumn('n_ev', 'Itens', cell='num', css='col-hide-sm', width=9),
+        GridColumn('date_time', 'Data', cell='date', css='col-hide-sm', width=13,
+                   filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
+        GridColumn('guia', 'Guia', cell='action', width=12),
+    ]
+
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='rpt',
+        endpoint='/reports/',
+        page_template='reports.html',
+        table_label='Guias de transporte',
+        count_noun='ocorrência',
+        sorts={'recent': '-date_time'},
+        default_sort='recent',
+        search_fields=('number', 'code', 'address'),
+        search_placeholder='Pesquisar código, NUIPC, morada…',
+        decorate=decorate_reports,
+        legend=URGENCY_LEGEND_OCCURRENCE,
+        row_clickable=False,
+        page_size=30,
+        lens=lens,
+        empty_title='Sem ocorrências',
+        empty_hint='Ainda não há ocorrências para gerar guias.',
+    )
 
 
 def occurrence_intake_view(request, occurrence_id):

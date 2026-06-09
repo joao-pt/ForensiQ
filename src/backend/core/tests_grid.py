@@ -156,3 +156,23 @@ class CustodyListRenderTest(TestCase):
         # Bolinha de estado (host = Código) + badge de estado na coluna própria.
         self.assertIn('urgency-dot', content)
         self.assertIn('state state--', content)
+
+
+class ReportsListRenderTest(AuthenticatedFrontendTestCase):
+    """Smoke da lista de Guias de transporte: linhas NÃO-clicáveis, ação PDF e
+    ligação do Código ao detalhe (mesma grelha, dados diferentes)."""
+
+    def test_reports_list_renders_non_clickable_with_pdf(self):
+        OccurrenceFactory(agent=self.test_user)
+        response = self.client.get('/reports/')
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        self.assertIn('id="rpt-grid"', content)
+        self.assertIn('aria-label="Guias de transporte"', content)
+        self.assertIn('grid--mobile-reduce', content)
+        # Linhas NÃO clicáveis (sem gaveta de detalhe).
+        self.assertNotIn('grid--clickable', content)
+        self.assertNotIn('?drawer=', content)
+        # Ação PDF + Código ligado ao detalhe.
+        self.assertIn('/api/occurrences/', content)
+        self.assertIn('grid__link', content)
