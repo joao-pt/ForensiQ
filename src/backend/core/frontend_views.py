@@ -189,6 +189,16 @@ URGENCY_LEGEND_OCCURRENCE = (
     {'cls': 'none', 'label': 'Normal'},
 )
 
+# Legenda da bolinha por ESTADO LEGAL (evidências/custódias): as cores seguem
+# LEGAL_STATE_CSS (fonte única em core.labels), agrupadas por bucket de cor.
+URGENCY_LEGEND_EVIDENCE = (
+    {'cls': 'info', 'label': 'À guarda / validada'},
+    {'cls': 'warn', 'label': 'Em perícia / trânsito'},
+    {'cls': 'ok', 'label': 'Perícia concluída'},
+    {'cls': 'danger', 'label': 'Perdida a favor do Estado'},
+    {'cls': 'muted', 'label': 'Restituída / destruída'},
+)
+
 
 def _decorate_occurrences(occurrences):
     """Anota cada ocorrência com campos de apresentação (sem tocar no modelo)."""
@@ -285,6 +295,9 @@ def _decorate_evidences(evidences):
         e.agent_label = get_user_display_name(e.agent)
         e.occ_label = e.occurrence.code or e.occurrence.number
         e.state_label, e.state_css = _evidence_state(e)
+        e.state_badge = {'css': e.state_css, 'label': e.state_label}
+        e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
+        e.aria_code = e.code or 'item de prova'
 
 
 def _readable_evidence(user, pk):
@@ -1165,10 +1178,11 @@ def institution_new_view(request):
 
 @jwt_cookie_user
 def evidences_view(request):
-    """Lista de evidências — server-rendered (Fase 3, Django + HTMX).
+    """Lista de evidências — server-rendered (Fase 3) via gerador único de grelhas.
 
     Ownership espelha o EvidenceViewSet (AGENTE vê as suas via occurrence;
-    PERITO/staff todas). Estado legal derivado do ledger por linha.
+    PERITO/staff todas). Estado legal derivado do ledger por linha (filtro
+    DERIVADO via computed_filters; a bolinha/legenda refletem-no no telemóvel).
     """
     user = request.user
 
@@ -1180,67 +1194,55 @@ def evidences_view(request):
     access.remember_console_mode(request, lens)
     qs = _lens_evidences(user, lens)
 
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(code__icontains=query)
-            | Q(description__icontains=query)
-            | Q(serial_number__icontains=query)
-            | Q(occurrence__number__icontains=query)
-        )
-
-    etype = (request.GET.get('type') or '').strip()
-    if etype in evidence_type_config.active_codes():
-        qs = qs.filter(type=etype)
-
-    # Filtro por estado legal DERIVADO (entrada a partir dos tiles do Painel).
-    # WI-E: uma só query agrupada em vez de iterar todas as evidências 2x. O estado
-    # deriva da cadeia COMPLETA dos itens da zona ativa (_lens_custody devolve
-    # cadeias inteiras, não eventos isolados).
-    state = (request.GET.get('state') or '').strip()
-    if state in LEGAL_STATES:
+    def apply_evd_state(filtered_qs, _request, value):
+        # WI-E: uma só query agrupada (o estado deriva da cadeia COMPLETA dos
+        # itens da zona ativa, não de eventos isolados). Restringe à lente.
         states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
-        matching = [ev_id for ev_id, st in states.items() if st == state]
-        qs = qs.filter(id__in=matching)
+        matching = [ev_id for ev_id, st in states.items() if st == value]
+        return filtered_qs.filter(id__in=matching)
 
-    date_after = (request.GET.get('date_after') or '').strip()
-    date_before = (request.GET.get('date_before') or '').strip()
-    d_after, d_before = parse_date(date_after), parse_date(date_before)
-    if d_after:
-        qs = qs.filter(timestamp_seizure__date__gte=d_after)
-    if d_before:
-        qs = qs.filter(timestamp_seizure__date__lte=d_before)
+    columns = [
+        GridColumn('code', 'Código', cell='code', width=13, dot=True,
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=18,
+                   filter=ColFilter('type', 'Tipo', kind='select', field='type',
+                                    choices=tuple(evidence_type_config.active_choices()))),
+        GridColumn('occ_label', 'Ocorrência', css='mono col-hide-md', width=15,
+                   filter=ColFilter('occ', 'Ocorrência', kind='text', field='occurrence__number', placeholder='NUIPC')),
+        GridColumn('serial_number', 'Nº série', css='mono grid__muted col-hide-sm', width=16,
+                   filter=ColFilter('serial', 'Nº série', kind='text', field='serial_number', placeholder='Nº série')),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=14,
+                   filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
+        GridColumn('timestamp_seizure', 'Apreensão', cell='date', time=True, width=14,
+                   filter=ColFilter('date', 'Apreensão', kind='date_range', field='timestamp_seizure')),
+        GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=10,
+                   filter=ColFilter('agent', 'Agente', kind='text', placeholder='Agente',
+                                    fields=('agent__first_name', 'agent__last_name', 'agent__username'))),
+    ]
 
-    sort_key = (request.GET.get('sort') or 'recent').strip()
-    qs = qs.order_by(_EVD_SORTS.get(sort_key, '-timestamp_seizure'))
-
-    paginator = Paginator(qs, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_evidences(page_obj.object_list)
-
-    qs_base = urlencode({k: v for k, v in (
-        ('lens', lens), ('q', query), ('type', etype), ('state', state),
-        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
-    ) if v})
-
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'type': etype,
-        'state': state,
-        'state_label': LEGAL_STATE_LABELS.get(state, ''),
-        'date_after': date_after,
-        'date_before': date_before,
-        'sort': sort_key,
-        'qs_base': qs_base,
-        'evidence_types': evidence_type_config.active_choices(),
-        'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-    if ctx['is_htmx']:
-        return render(request, 'partials/_evidences_grid.html', ctx)
-    return render(request, 'evidences.html', ctx)
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='evd',
+        endpoint='/evidences/',
+        page_template='evidences.html',
+        table_label='Itens de prova',
+        count_noun='ite', count_plural='m,ns',
+        sorts=_EVD_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Apreensão recente'), ('oldest', 'Apreensão antiga'),
+                  ('code', 'Código'), ('occurrence', 'NUIPC')),
+        search_fields=('code', 'description', 'serial_number', 'occurrence__number'),
+        search_placeholder='Pesquisar código, nº série, NUIPC…',
+        decorate=_decorate_evidences,
+        legend=URGENCY_LEGEND_EVIDENCE,
+        page_size=25,
+        lens=lens,
+        empty_title='Sem itens de prova',
+        empty_hint='Ainda não há itens registados.',
+        computed_filters={'state': apply_evd_state},
+    )
 
 
 def _evd_field_ctx(post):
