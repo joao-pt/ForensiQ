@@ -31,7 +31,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
-from core import access, analytics, evidence_field_config, evidence_type_config
+from core import access, analytics, evidence_field_config, evidence_type_config, integrity
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response
@@ -1818,17 +1818,39 @@ def custody_list_view(request):
     )
 
 
-@jwt_cookie_required
-def investigation_report_view(request):
-    """
-    Relatório de investigação estática da aplicação (LEGACY v1, congelado).
+@jwt_cookie_user
+def audit_console_view(request):
+    """Consola de Auditoria & Integridade (UX 2026-06) — substitui o placeholder
+    legado ``investigation_report``.
 
-    **v2 (T11):** página editorial estática (achados de revisão por
-    severidade), fora da arquitectura de informação da v2. Fronteira
-    congelada — a reinvenção do frontend (Fase 3) remove-a ou reescreve-a;
-    não construir em cima. Mantida por ora; requer token JWT válido.
+    Três leituras, todas no universo visível ao perfil (need-to-know, lente ativa):
+
+    1. **Integridade da cadeia de hash** — :func:`core.integrity.verify_chains`
+       recalcula o ``record_hash`` encadeado de cada item e assinala quebras
+       (adulteração de campo ou elo partido). É a prova técnica de não-adulteração.
+    2. **Anomalias de custódia** — :func:`core.integrity.detect_anomalies` (génese
+       ausente, prova encaminhada por receber, custódio em falta).
+    3. **Trilho de auditoria** — feed do ``AuditLog`` (quem viu/criou/exportou),
+       reaproveitando :func:`_activity_feed` (mesma regra de acesso da API).
+
+    O cálculo de integridade vive na fonte única ``core.integrity``; a fórmula do
+    hash não é duplicada (chama ``compute_record_hash``). CSP-safe, server-rendered.
     """
-    return render(request, 'investigation_report.html')
+    user = request.user
+    lens = access.console_mode(request, user)
+    access.remember_console_mode(request, lens)
+    evidence_ids = list(_lens_evidences(user, lens).values_list('id', flat=True))
+    return render(
+        request,
+        'audit_console.html',
+        {
+            'lens': lens,
+            'chain': integrity.verify_chains(evidence_ids),
+            'anomalies': integrity.detect_anomalies(evidence_ids),
+            'logs': _activity_feed(user, limit=30),
+            'feed_is_national': access.has_national_read(user),
+        },
+    )
 
 
 @jwt_cookie_user

@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Auditoria & Integridade — ForensiQ{% endblock %}
+
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+{% endblock %}
+
+{% block breadcrumb %}<span class="breadcrumb-current">Auditoria &amp; Integridade</span>{% endblock %}
+
+{% block content %}
+<div class="dash fullbleed">
+
+  <div class="dash__greet">
+    <h1>Auditoria &amp; Integridade</h1>
+    <p>Verificação da cadeia de hash, anomalias de custódia e trilho de acessos — {% if lens == 'institution' %}Instituição{% else %}as minhas ações{% endif %}</p>
+  </div>
+
+  {# 1) Integridade da cadeia de hash — recálculo do record_hash encadeado. #}
+  <section class="section" aria-labelledby="audit-integrity-title">
+    <header class="section__head"><h2 class="section__title" id="audit-integrity-title">Integridade da cadeia de hash</h2></header>
+    <div class="section__body">
+      <div class="integrity-banner integrity-banner--{% if chain.intact %}ok{% else %}broken{% endif %}">
+        <span class="urgency-dot urgency-dot--{% if chain.intact %}ok{% else %}danger{% endif %}" aria-hidden="true"></span>
+        <div>
+          <p class="integrity-banner__title">{% if chain.intact %}Cadeia de hash íntegra{% else %}{{ chain.broken|length }} cadeia(s) comprometida(s){% endif %}</p>
+          <p class="integrity-banner__meta">{{ chain.verified }} de {{ chain.total_items }} item(s) verificado(s) · {{ chain.total_events }} evento(s) recalculado(s)</p>
+        </div>
+      </div>
+      {% if chain.broken %}
+      <table class="grid grid--no-toolbar integrity-breaks" aria-label="Cadeias comprometidas">
+        <thead><tr><th scope="col">Item</th><th scope="col">Sequência</th><th scope="col">Evento</th></tr></thead>
+        <tbody>
+          {% for b in chain.broken %}
+          <tr><td class="mono">{{ b.code }}</td><td class="mono">{{ b.sequence }}</td><td>{{ b.event }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+  </section>
+
+  <div class="cols-2">
+
+    {# 2) Anomalias de custódia — génese ausente, em trânsito por receber, custódio em falta. #}
+    <section class="section" aria-labelledby="audit-anomalies-title">
+      <header class="section__head">
+        <h2 class="section__title" id="audit-anomalies-title">Anomalias de custódia</h2>
+        <span class="section__meta">{{ anomalies|length }} achado{{ anomalies|length|pluralize }}</span>
+      </header>
+      <div class="section__body">
+        {% if anomalies %}
+        <ul class="stats-alerts">
+          {% for a in anomalies %}
+          <li class="stats-alert{% if a.severity == 'alta' %} stats-alert--warn{% else %} stats-alert--info{% endif %}">
+            <span class="urgency-dot urgency-dot--{% if a.severity == 'alta' %}danger{% else %}warn{% endif %}" aria-hidden="true"></span>
+            <span class="stats-alert__label"><span class="mono">{{ a.code }}</span> — {{ a.msg }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <div class="empty"><p class="empty__hint">Sem anomalias detetadas no universo visível.</p></div>
+        {% endif %}
+      </div>
+    </section>
+
+    {# 3) Trilho de auditoria — feed do AuditLog (fonte única, partilhado com o Painel). #}
+    <section class="section" aria-labelledby="audit-trail-title">
+      <header class="section__head">
+        <h2 class="section__title" id="audit-trail-title">Trilho de auditoria</h2>
+        <span class="scope-badge" title="Âmbito do registo de auditoria">{% if feed_is_national %}Registo nacional{% else %}Apenas as minhas ações{% endif %}</span>
+      </header>
+      <div class="section__body section__body--flush">
+        {% include 'partials/_activity_feed.html' %}
+      </div>
+    </section>
+
+  </div>
+
+</div>
+{% endblock %}

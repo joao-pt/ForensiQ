@@ -43,6 +43,7 @@ def test_protected_pages_render(page, seed, auth_as, js_errors, failed_static):
         ("custodies", "/custodies/"),
         ("reports", "/reports/"),
         ("stats", "/stats/"),
+        ("audit", "/audit/investigation/"),
         ("settings", "/settings/"),
         ("verificacoes", "/verificacoes/"),
     ]

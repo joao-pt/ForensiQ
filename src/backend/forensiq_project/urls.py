@@ -36,6 +36,7 @@ from core.auth_views import (
 )
 from core.frontend_views import (
     arquivo_view,
+    audit_console_view,
     custody_evidence_redirect,
     custody_list_view,
     custody_singular_redirect,
@@ -48,7 +49,6 @@ from core.frontend_views import (
     inbound_view,
     institution_new_view,
     institutions_view,
-    investigation_report_view,
     login_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
@@ -158,8 +158,9 @@ urlpatterns = [
     path('stats/', stats_view, name='stats'),
     path('settings/', settings_view, name='settings'),
 
-    # Auditoria — relatório estático de investigação de erros
-    path('audit/investigation/', investigation_report_view, name='investigation_report'),
+    # Auditoria & Integridade — verificação da cadeia de hash + anomalias + trilho
+    # (path/nome mantidos por compatibilidade com a navegação e bookmarks).
+    path('audit/investigation/', audit_console_view, name='investigation_report'),
 
     # Centro de verificação / QR (operador EXPERT/staff) — gestão, não pesquisa
     # pública (ADR-0012 §6). Resolve hash/código → ocorrência.

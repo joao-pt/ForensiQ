@@ -59,6 +59,7 @@ def test_authenticated_pages_have_no_serious_a11y_violations(page, seed, auth_as
         "custodies": "/custodies/",
         "reports": "/reports/",
         "stats": "/stats/",
+        "audit": "/audit/investigation/",
         "settings": "/settings/",
     }
     problems = {}

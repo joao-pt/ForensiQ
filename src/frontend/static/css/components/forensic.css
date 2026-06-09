@@ -761,6 +761,18 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .stats-alert__num { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: "tnum" 1; min-width: 3ch; }
 .stats-alert__label { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; }
 
+/* Auditoria & Integridade — banner de estado da cadeia de hash. */
+.integrity-banner {
+    display: flex; align-items: center; gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border);
+    border-left: 3px solid var(--border-strong); border-radius: var(--r-2); background: var(--bg-subtle);
+}
+.integrity-banner--ok { border-left-color: var(--success); }
+.integrity-banner--broken { border-left-color: var(--danger); }
+.integrity-banner__title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semi); color: var(--text-emphasis); }
+.integrity-banner__meta { margin: 2px 0 0; font-size: var(--fs-xs); font-family: var(--font-mono); color: var(--text-subtle); }
+.integrity-breaks { margin-top: var(--sp-4); }
+
 /* Subtítulo curto (mono uppercase) reutilizável */
 .subhead {
     font-family: var(--font-mono); font-size: 10px;
