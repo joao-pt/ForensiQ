@@ -21,7 +21,7 @@
   <header class="page-head">
     <div class="page-head__heading">
       <h1 class="page-head__title" id="evd-title">Itens de prova</h1>
-      <span class="page-head__count" id="evd-count" aria-live="polite">{{ total }} ite{{ total|pluralize:"m,ns" }}</span>
+      <span class="page-head__count" id="evd-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
     </div>
     {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
     <a class="btn-accent" href="/evidences/new/">
@@ -31,47 +31,12 @@
     {% endif %}
   </header>
 
-  <form class="toolbar" role="search" action="/evidences/" method="get"
-        hx-get="/evidences/" hx-target="#evd-grid" hx-swap="innerHTML"
-        hx-trigger="submit, input changed delay:350ms" hx-push-url="true" hx-indicator="#evd-busy">
-    {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
-    <div class="toolbar__search">
-      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
-      <input type="search" name="q" value="{{ q }}"
-             placeholder="Pesquisar código, nº série, NUIPC…" autocomplete="off" aria-label="Pesquisar itens">
-    </div>
-    <select name="type" aria-label="Filtrar por tipo">
-      <option value="">Tipo: todos</option>
-      {% for val, label in evidence_types %}
-      <option value="{{ val }}" {% if type == val %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <select name="state" aria-label="Filtrar por estado legal">
-      <option value="">Estado: todos</option>
-      {% for val, label in legal_state_choices %}
-      <option value="{{ val }}" {% if state == val %}selected{% endif %}>{{ label }}</option>
-      {% endfor %}
-    </select>
-    <input class="toolbar__date" type="date" name="date_after" value="{{ date_after }}" aria-label="Apreensão desde" title="Apreensão desde">
-    <input class="toolbar__date" type="date" name="date_before" value="{{ date_before }}" aria-label="Apreensão até" title="Apreensão até">
-    <select name="sort" aria-label="Ordenar">
-      <option value="recent" {% if sort == 'recent' %}selected{% endif %}>Apreensão recente</option>
-      <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Apreensão antiga</option>
-      <option value="code" {% if sort == 'code' %}selected{% endif %}>Código</option>
-      <option value="occurrence" {% if sort == 'occurrence' %}selected{% endif %}>NUIPC</option>
-    </select>
-    <span class="toolbar__busy" id="evd-busy" aria-hidden="true"></span>
-  </form>
-
-  <div id="evd-grid" class="gridwrap">
-    {% include 'partials/_evidences_grid.html' %}
-  </div>
+  {% include 'partials/_grid_toolbar.html' %}
 
 </section>
 {% endblock %}
 
 {% block extra_js %}
   {% include '_leaflet_js.html' %}
-  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
-  <script src="{% static 'js/components/forensic-list.js' %}"></script>
+  {% include 'partials/_grid_scripts.html' %}
 {% endblock %}

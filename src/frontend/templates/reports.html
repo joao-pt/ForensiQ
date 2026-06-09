@@ -15,29 +15,15 @@
   <header class="page-head">
     <div class="page-head__heading">
       <h1 class="page-head__title" id="rpt-title">Guias de transporte</h1>
-      <span class="page-head__count" id="rpt-count" aria-live="polite">{{ total }} ocorrência{{ total|pluralize }}</span>
+      <span class="page-head__count" id="rpt-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
     </div>
   </header>
 
-  <form class="toolbar" role="search" action="/reports/" method="get"
-        hx-get="/reports/" hx-target="#rpt-grid" hx-swap="innerHTML"
-        hx-trigger="submit, input changed delay:350ms" hx-push-url="true" hx-indicator="#rpt-busy">
-    {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
-    <div class="toolbar__search">
-      {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
-      <input type="search" name="q" value="{{ q }}"
-             placeholder="Pesquisar código, NUIPC, morada…" autocomplete="off" aria-label="Pesquisar ocorrências">
-    </div>
-    <span class="toolbar__busy" id="rpt-busy" aria-hidden="true"></span>
-  </form>
-
-  <div id="rpt-grid" class="gridwrap">
-    {% include 'partials/_reports_grid.html' %}
-  </div>
+  {% include 'partials/_grid_toolbar.html' %}
 
 </section>
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  {% include 'partials/_grid_scripts.html' %}
 {% endblock %}

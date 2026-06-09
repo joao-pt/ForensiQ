@@ -128,6 +128,129 @@
     z-index: 3;
     flex-wrap: wrap;
 }
+
+/* Barra fina sobre a grelha — busca transversal + ordenação (filtros por coluna
+   vivem no <thead>; no telemóvel colapsam no botão "Filtros"). */
+.grid-toolbar {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) var(--sp-4);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-subtle);
+    flex-wrap: wrap;
+}
+.grid-toolbar__sort { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.grid-toolbar__sort-label { font-size: var(--fs-xs); color: var(--text-muted); }
+.grid-toolbar select {
+    height: 30px; padding: 0 var(--sp-2);
+    font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text);
+    background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1); cursor: pointer;
+}
+
+/* Cabeçalho em 2 linhas COLADAS (nomes _col_names.html + filtros _filter_row.html):
+   no desktop parecem uma só célula por coluna. Linha de nomes (th) = cabeçalho
+   sticky; linha de filtros (td) cola-se por baixo (mesmo fundo, sem borda entre as
+   duas; a borda inferior do cabeçalho fica na linha de filtros). No telemóvel a
+   linha de filtros vira o painel "Filtros". */
+.grid thead tr.grid__head-row > th { border-bottom: none; padding-bottom: 2px; }
+.grid thead td.grid__filter-cell {
+    padding: 0 var(--sp-3) var(--sp-2);
+    vertical-align: top;
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-strong);
+}
+.grid__col-label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid__filter-cell input,
+.grid__filter-cell select {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    padding: 0 var(--sp-1);
+    font-family: var(--font-sans);
+    font-size: var(--fs-xs);
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--r-1);
+}
+.grid__filter-cell select { cursor: pointer; }
+.grid__filter-cell input::placeholder { color: var(--text-placeholder); }
+.grid__filter-cell input:focus-visible,
+.grid__filter-cell select:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+.grid__filter-daterange { display: flex; flex-direction: column; gap: 3px; }
+.grid__empty-cell { padding: var(--sp-6) var(--sp-4); text-align: center; color: var(--text-muted); }
+@media (pointer: coarse) {
+    .grid__filter-cell input, .grid__filter-cell select, .grid-toolbar select { height: var(--min-touch); }
+}
+
+/* Tabela de dados: LARGURA FIXA + reticências (acaba com a tabela "gigante" do
+   full-width). Larguras por coluna em CSS (sem estilo inline → CSP-safe). */
+.grid--filterable { table-layout: fixed; width: 100%; }
+.grid--filterable > tbody > tr > td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Larguras por coluna (CSP-safe; sem estilo inline). A GridColumn.width (int %)
+   escolhe a classe no <th> da 1.ª linha do <thead> — que table-layout:fixed lê.
+   Somam 100% por grelha → não há overflow inicial; a barra horizontal só aparece
+   (overflow-x:auto) depois de o utilizador alargar uma coluna. */
+.grid__col--w6  { width: 6%; }
+.grid__col--w9  { width: 9%; }
+.grid__col--w10 { width: 10%; }
+.grid__col--w11 { width: 11%; }
+.grid__col--w12 { width: 12%; }
+.grid__col--w13 { width: 13%; }
+.grid__col--w14 { width: 14%; }
+.grid__col--w15 { width: 15%; }
+.grid__col--w16 { width: 16%; }
+.grid__col--w18 { width: 18%; }
+.grid__col--w20 { width: 20%; }
+.grid__col--w21 { width: 21%; }
+.grid__col--w22 { width: 22%; }
+.grid__col--w23 { width: 23%; }
+.grid__col--w24 { width: 24%; }
+.grid__col--w27 { width: 27%; }
+
+/* Coluna redimensionável: pega arrastável (column-resize.js mexe em style.width
+   por JS — CSSOM, permitido pelo CSP; não é estilo inline no HTML). */
+.grid--resizable thead tr:first-child th { position: relative; }
+.col-resize { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; user-select: none; touch-action: none; z-index: 2; }
+.col-resize:hover, .col-resize--active { background: var(--accent); opacity: 0.5; }
+
+/* ============================================================
+   Telemóvel: grelha de ocorrências reduzida a 4 colunas + painel de filtros
+   ============================================================ */
+@media (max-width: 767px) {
+    /* Prioridade, Tipo de crime e Local escondem-se (col-reduce-hide); Agente
+       (col-hide-sm) também. Sobram Código · NUIPC · Data. SEM filtros por coluna no
+       telemóvel — só a busca global; a linha de filtros do <thead> fica escondida.
+       SEM scroll lateral: a tabela passa a auto/100%, anulando as larguras % do desktop. */
+    .grid--mobile-reduce { table-layout: auto; min-width: 0; }
+    .grid--mobile-reduce .col-reduce-hide { display: none; }
+    .grid--mobile-reduce .grid__col { width: auto; }
+    .grid--mobile-reduce .grid__cell-time { display: none; }   /* data sem hora (vai p/ gaveta) */
+    .grid--mobile-reduce .grid__filter-row { display: none; }  /* sem filtros por coluna no telemóvel */
+    /* busca global ocupa a largura toda da barra */
+    .grid-toolbar .toolbar__search { flex: 1 1 100%; max-width: none; }
+}
+
+/* Filtro de DATA como botão + popover (elemento nativo <details>, CSP-safe). */
+.filter-pop { position: relative; }
+.filter-pop__btn {
+    list-style: none; cursor: pointer; height: 28px; line-height: 26px;
+    padding: 0 var(--sp-1); font-size: var(--fs-xs); color: var(--text-muted);
+    background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.filter-pop__btn::-webkit-details-marker { display: none; }
+.filter-pop[open] .filter-pop__btn { border-color: var(--accent); }
+.filter-pop--active .filter-pop__btn { color: var(--accent-on-tint); border-color: var(--accent-tint); background: var(--accent-tint); }
+.filter-pop__panel {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 1000;
+    display: flex; flex-direction: column; gap: var(--sp-2);
+    padding: var(--sp-3); min-width: 190px;
+    background: var(--surface-elevated); border: 1px solid var(--border); border-radius: var(--r-2); box-shadow: var(--shadow-lg);
+}
+.filter-pop__panel label { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--text-muted); }
+.filter-pop__panel input[type="date"] { height: 30px; padding: 0 var(--sp-1); font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text); background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1); }
 .toolbar__search { position: relative; flex: 1 1 auto; min-width: 180px; max-width: 440px; }
 .toolbar__search-icon {
     position: absolute;
@@ -139,7 +262,8 @@
     pointer-events: none;
 }
 .toolbar input[type="search"],
-.toolbar input[type="text"] {
+.toolbar input[type="text"],
+.grid-toolbar input[type="search"] {
     width: 100%;
     height: 34px;
     padding: 0 var(--sp-3) 0 32px;
@@ -150,9 +274,11 @@
     border: 1px solid var(--border-input);
     border-radius: var(--r-2);
 }
-.toolbar input::placeholder { color: var(--text-placeholder); }
+.toolbar input::placeholder,
+.grid-toolbar input::placeholder { color: var(--text-placeholder); }
 .toolbar input:focus-visible,
-.toolbar select:focus-visible {
+.toolbar select:focus-visible,
+.grid-toolbar input:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -1px;
     border-color: transparent;
@@ -190,7 +316,8 @@
     .toolbar input[type="search"],
     .toolbar input[type="text"],
     .toolbar input[type="date"],
-    .toolbar select { height: var(--min-touch); }
+    .toolbar select,
+    .grid-toolbar input[type="search"] { height: var(--min-touch); }
 }
 .toolbar__busy {
     flex-shrink: 0;
@@ -264,12 +391,13 @@
 .grid { width: 100%; min-width: max-content; border-collapse: collapse; font-size: var(--fs-sm); }
 .grid thead th {
     position: sticky;
-    /* Offset = altura REAL da toolbar (medida por sticky-toolbar.js para
-       --toolbar-h). Substitui o antigo top:51px fixo, que assumia uma toolbar
-       de uma só linha e falhava quando ela embrulhava (mobile, drawer aberto,
-       ou com mais filtros) — colando o cabeçalho por cima da 1.ª linha. O 51px
-       fica como fallback até o JS medir. */
-    top: var(--toolbar-h, 51px);
+    /* O cabeçalho cola ao TOPO do seu contentor de scroll — que é a .gridwrap,
+       não a página: `.gridwrap { overflow-x: auto }` promove o overflow-y a
+       `auto` (regra do CSS), tornando-a um contentor de scroll nos dois eixos.
+       Logo o offset é 0. Um offset pela altura da toolbar (a antiga
+       --toolbar-h) era medido no espaço errado e empurrava o cabeçalho para
+       DENTRO da gridwrap, por cima da 1.ª linha (cabeçalhos descolados). */
+    top: 0;
     z-index: 1;
     text-align: left;
     padding: var(--sp-2) var(--sp-3);
@@ -283,7 +411,6 @@
     border-bottom: 1px solid var(--border-strong);
     white-space: nowrap;
 }
-.grid--no-toolbar thead th { top: 0; }
 .grid__th--pri { width: 52px; text-align: center; }
 .grid tbody tr {
     border-bottom: 1px solid var(--divider);
@@ -294,7 +421,7 @@
 /* Indicador de carregamento ao abrir o drawer (aria-busy emitido por
    forensic-list.js durante o htmx:beforeRequest da linha). */
 .grid--clickable[aria-busy="true"] { opacity: 0.55; pointer-events: none; cursor: progress; }
-/* Ligação dentro de uma célula de grelha (ex.: código → guia PDF no _reports_grid). */
+/* Ligação dentro de uma célula de grelha (ex.: código → detalhe nas Guias de transporte; _grid_cell.html via link_key). */
 .grid__link { color: var(--accent); text-decoration: none; }
 .grid__link:hover { text-decoration: underline; }
 
@@ -359,6 +486,36 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .pri--p1 { color: var(--danger); background: var(--danger-tint); border-color: var(--danger-tint); }
 .pri--p2 { color: var(--warning); background: var(--warning-tint); border-color: var(--warning-tint); }
 .pri--none { color: var(--text-placeholder); background: transparent; }
+
+/* Bolinha de urgência (componente REUTILIZÁVEL — todas as tabelas). Nas vistas
+   mobile reduzidas substitui a coluna própria escondida (aqui: prioridade das
+   ocorrências). Cores semânticas reaproveitadas de .pri (danger/warning). */
+.urgency-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+.urgency-dot--p1 { background: var(--danger); }
+.urgency-dot--p2 { background: var(--warning); }
+.urgency-dot--none { background: var(--border-strong); }
+/* Variantes por estado (mesmas cores de .state--*): a bolinha reflete o estado
+   legal (evidências/custódias) ou ativo/inativo (instituições). */
+.urgency-dot--ok { background: var(--success); }
+.urgency-dot--warn { background: var(--warning); }
+.urgency-dot--info { background: var(--info); }
+.urgency-dot--danger { background: var(--danger); }
+.urgency-dot--muted { background: var(--text-subtle); }
+/* Na grelha a bolinha prefixa a coluna identificadora (QUALQUER tipo de célula,
+   via .grid__dot-host) e SÓ aparece na vista mobile reduzida. */
+.grid__dot-host > .urgency-dot { display: none; margin-right: var(--sp-2); }
+@media (max-width: 767px) { .grid--mobile-reduce .grid__dot-host > .urgency-dot { display: inline-block; } }
+/* Legenda (discreta, só telemóvel — no desktop há coluna). */
+.urgency-legend { display: none; }
+@media (max-width: 767px) {
+    .urgency-legend {
+        display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+        margin: 0; padding: var(--sp-3) var(--sp-4);
+        list-style: none; font-size: var(--fs-xs); color: var(--text-muted);
+        border-top: 1px solid var(--border);
+    }
+    .urgency-legend__item { display: inline-flex; align-items: center; gap: var(--sp-2); }
+}
 
 /* Estado (custódia legal / estado atual da evidência) — pill neutro mono */
 .state {
@@ -433,6 +590,43 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .facts__src { color: var(--text-subtle); font-size: var(--fs-xs); }
 
 /* ============================================================
+   Destino de receção (read-only) — a instituição de destino e a sua
+   coordenada vêm da ficha; a receção confirma-as, não as captura.
+   ============================================================ */
+.intake-dest { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0 0 var(--sp-4); }
+.intake-dest__card {
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--accent);
+    background: var(--accent-tint);
+    border-radius: var(--r-2);
+    padding: var(--sp-3) var(--sp-4);
+}
+.intake-dest__tag {
+    display: block;
+    font-family: var(--font-mono); font-size: 10px;
+    text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    color: var(--accent); font-weight: var(--fw-semi);
+    margin-bottom: 2px;
+}
+.intake-dest__name {
+    margin: 0; font-size: var(--fs-base); font-weight: var(--fw-semi);
+    color: var(--text-emphasis); line-height: var(--lh-tight);
+}
+.intake-dest__sigla {
+    font-size: var(--fs-xs); color: var(--text-muted);
+    padding: 1px 6px; border: 1px solid var(--border-strong);
+    border-radius: var(--r-1); margin-left: var(--sp-1);
+}
+.intake-dest__addr { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
+.intake-dest__gps {
+    margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text);
+    font-feature-settings: "zero" 1, "tnum" 1;
+    display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap;
+}
+.intake-dest__src { font-family: var(--font-sans); font-size: var(--fs-xs); color: var(--text-subtle); }
+.intake-dest__gps--missing { color: var(--state-warn-text, var(--text-muted)); }
+
+/* ============================================================
    Secção (blocos em páginas de detalhe)
    ============================================================ */
 .section { border: 1px solid var(--border); border-radius: var(--r-3); margin-bottom: var(--sp-4); overflow: hidden; }
@@ -451,7 +645,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .section__body--flush { padding: 0; }
 
 /* Páginas de detalhe (hub do caso / item) */
-.detail { padding: var(--sp-4); max-width: 1120px; }
+.detail { padding: var(--sp-4); }
 .detail__head {
     display: flex; align-items: flex-start; justify-content: space-between;
     gap: var(--sp-3); margin-bottom: var(--sp-4); flex-wrap: wrap;
@@ -467,6 +661,57 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 @media (max-width: 1023px) { .cols-2 { grid-template-columns: 1fr; } }
 .map-box { height: 280px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
 .map-box--tall { height: 380px; }
+
+/* Marcadores da trajetória de custódia (forensic-list.js, modo Cadeia).
+   Carregado DEPOIS do leaflet.css → o reset sobrepõe-se ao .leaflet-div-icon
+   default (caixa branca com borda). Sem estilo inline (CSP estrita). */
+.fq-chain-pin { background: transparent; border: 0; display: flex; align-items: center; justify-content: center; }
+.fq-chain-pin__num {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: var(--r-pill);
+    background: var(--accent); color: var(--on-accent);
+    font-family: var(--font-mono); font-size: 11px; font-weight: var(--fw-semi); line-height: 1;
+    border: 2px solid var(--bg-subtle); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+}
+/* Origem (1.º ponto): contorno âmbar, fundo sóbrio. */
+.fq-chain-pin--first .fq-chain-pin__num { background: var(--bg-subtle); color: var(--accent); border-color: var(--accent); }
+/* Localização atual (último ponto): maior + halo de destaque. */
+.fq-chain-pin--current .fq-chain-pin__num {
+    width: 30px; height: 30px; font-size: 12px;
+    box-shadow: 0 0 0 3px var(--accent-tint), 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* Legenda do trajeto (sob o mapa da cadeia). */
+.map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: 0; padding: var(--sp-2) var(--sp-4); list-style: none; font-size: var(--fs-xs); color: var(--text-muted); }
+.map-legend__item { display: inline-flex; align-items: center; gap: 6px; }
+.map-legend__pin {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: var(--r-pill);
+    background: var(--accent); color: var(--on-accent);
+    font-family: var(--font-mono); font-size: 10px; font-weight: var(--fw-semi); line-height: 1;
+}
+.map-legend__pin--first { background: var(--bg-subtle); color: var(--accent); border: 1.5px solid var(--accent); }
+.map-legend__pin--current { box-shadow: 0 0 0 2px var(--accent-tint); }
+.map-legend__dash { width: 22px; height: 0; border-top: 3px dashed var(--accent); }
+
+/* Campo de localização auto-localizado (geo-field.js): mapa no topo + barra de
+   estado + inputs. Reutilizável em qualquer formulário com localização. */
+.geo-field { margin-bottom: var(--sp-5); }
+.geo-field__title { margin: 0 0 var(--sp-2); }
+.geo-field__map { height: 300px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
+.geo-field__map[hidden] { display: none; }
+.geo-field__bar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-2) 0 var(--sp-3); }
+.geo-field__status { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
+.geo-field__status--flag { color: var(--warning); }
+.geo-field__status--error { color: var(--danger); }
+/* Coordenadas bloqueadas (vindas de GPS/mapa): legíveis mas claramente
+   não-editáveis — o ajuste fino é clicar no mapa. A morada fica editável.
+   Texto muted + fundo subtil sinalizam "bloqueado" SEM opacity (que derrubava o
+   contraste abaixo de AA — axe). --text-muted cumpre AA nos dois temas. */
+.geo-field input[readonly] { color: var(--text-muted); background: var(--bg-subtle); cursor: default; }
+/* Atribuição do Leaflet no tema escuro: o azul default (~3:1 sobre o fundo claro
+   do controlo) escurece para cumprir AA (4.5:1). */
+[data-theme="dark"] .leaflet-control-attribution a { color: #08436a; }
 
 /* Foto da prova — hero no detalhe do item (object-fit: contain p/ não recortar prova) */
 .photo-hero { margin: 0 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--bg-inset); }
@@ -615,6 +860,13 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-inline { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .form-check { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text); text-transform: none; letter-spacing: 0; cursor: pointer; }
 .form-check input { width: auto; }
+/* O atributo `hidden` tem de vencer o display:flex acima (regra de autor bate o
+   [hidden] da UA stylesheet) — usado p.ex. na elevação manual de prioridade,
+   que o crime-cascade.js mostra/esconde conforme o tipo de crime. */
+.form-check[hidden] { display: none; }
+/* Elevação de prioridade encostada ao texto-guia da prioridade (sem o salto do
+   form-grid), para se ler como continuação do que a lei deriva. */
+.form-check--inline-hint { margin-top: var(--sp-2); }
 
 /* Coluna de seleção por linha (occurrence_intake) — toda a célula é tocável,
    para marcar/desmarcar itens com luvas em operação de campo em lote. */

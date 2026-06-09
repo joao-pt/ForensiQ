@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static l10n %}
 
 {% block title %}Receção · {{ occurrence.code }} — ForensiQ{% endblock %}
 
@@ -17,9 +17,8 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'js/components/geo.js' %}"></script>
-  <script src="{% static 'js/components/geo-capture.js' %}"></script>
-  <script src="{% static 'js/components/nearby-pois.js' %}"></script>
+  {# Sem captura de GPS na receção: a coordenada vem da ficha da instituição de #}
+  {# destino (ADR-0016 v2 — GPS só no terreno). Só o foco de erros é preciso. #}
   <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}
 
@@ -28,7 +27,7 @@
 
   <header class="detail__head">
     <div>
-      <h1 class="detail__title" id="in-title">Receção no laboratório</h1>
+      <h1 class="detail__title" id="in-title">Receção de prova</h1>
       <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} · regista <strong>Receção de prova encaminhada</strong></p>
     </div>
   </header>
@@ -82,40 +81,28 @@
           </tbody>
         </table>
 
+        <h3 class="subhead">Local de receção</h3>
+        {% if reception_institutions %}
+        <div class="intake-dest" role="group" aria-label="Instituição de receção">
+          {% for inst in reception_institutions %}
+          <div class="intake-dest__card">
+            <span class="intake-dest__tag">Recebido em</span>
+            <p class="intake-dest__name">
+              {{ inst.name }}{% if inst.sigla %} <span class="mono intake-dest__sigla">{{ inst.sigla }}</span>{% endif %}
+            </p>
+            {% if inst.address %}<p class="intake-dest__addr">{{ inst.address }}</p>{% endif %}
+            {% if inst.gps_lat is not None and inst.gps_lng is not None %}
+              <p class="intake-dest__gps mono">{{ inst.gps_lat|unlocalize }}, {{ inst.gps_lng|unlocalize }}<span class="intake-dest__src">coordenadas da ficha da instituição</span></p>
+            {% else %}
+              <p class="intake-dest__gps intake-dest__gps--missing">Sem coordenadas no registo — atualize a ficha da instituição.</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
         <h3 class="subhead">Dados da receção</h3>
         <div class="form-grid intake-meta">
-
-          <input type="hidden" id="f-lat" name="gps_lat">
-          <input type="hidden" id="f-lng" name="gps_lng">
-          <input type="hidden" id="f-acc" name="gps_accuracy_m">
-
-          <div class="form-field form-field--full" role="group" aria-labelledby="in-geo-label">
-            <span class="subhead" id="in-geo-label">Geolocalização da receção (opcional)</span>
-            <div class="form-inline">
-              <button type="button" class="btn-ghost" data-geo-capture
-                      data-lat-target="#f-lat" data-lng-target="#f-lng" data-acc-target="#f-acc" data-decimals="4">
-                {% include 'partials/icons/_gps.html' %}
-                Capturar GPS
-              </button>
-              <button type="button" class="btn-ghost" data-nearby-pois
-                      data-lat-target="#f-lat" data-lng-target="#f-lng" data-pois-target="#intake-pois"
-                      data-input-target="#f-loc" data-pois-list-target="#intake-pois-list" data-radius="500">
-                {% include 'partials/icons/_search.html' %}
-                POIs próximos
-              </button>
-              <span class="mono facts__src" data-geo-acc></span>
-              <span class="mono facts__src" data-nearby-pois-status></span>
-            </div>
-          </div>
-
-          <div class="form-field">
-            <label for="f-loc">Local de receção</label>
-            <input type="text" id="f-loc" name="location_name" list="intake-pois"
-                   placeholder="Ex.: Laboratório de Informática Forense, LPC" autocomplete="off">
-            <span class="form-hint">Onde a prova foi entregue (laboratório/posto).</span>
-            <datalist id="intake-pois"></datalist>
-            <div id="intake-pois-list" class="poi-picker" role="group" aria-label="POIs próximos" hidden></div>
-          </div>
           <div class="form-field">
             <label for="f-storage">Armazenamento interno</label>
             <input type="text" id="f-storage" name="storage_location"

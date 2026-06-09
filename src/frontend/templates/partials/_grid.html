@@ -1,0 +1,52 @@
+{% comment %}
+  Grelha de lista GENÉRICA (fonte ÚNICA, HTMX-swappable). Renderizada standalone
+  em pedidos HTMX (filtros/busca/paginação) e dentro da página (via _grid_toolbar).
+  A tabela é SEMPRE renderizada (mesmo vazia) para a linha de filtros do <thead>
+  ficar à vista — o utilizador ajusta sem recarregar. A contagem do cabeçalho
+  atualiza-se out-of-band só quando chega por HTMX (evita id duplicado no load).
+  Cabeçalho de 2 linhas (nomes + filtros) colado no desktop, filtros escondidos no
+  telemóvel. role=grid/row/gridcell coerentes (acessibilidade).
+{% endcomment %}
+{% if is_htmx %}
+<span id="{{ count_id }}" class="page-head__count" aria-live="polite" hx-swap-oob="true">{% include 'partials/_grid_count.html' %}</span>
+{% endif %}
+
+<table class="grid grid--filterable grid--resizable{% if row_clickable %} grid--clickable{% endif %}{% if mobile_reduce %} grid--mobile-reduce{% endif %}" id="{{ table_id }}" role="grid" aria-label="{{ table_label }}">
+  <thead>
+    <tr class="grid__head-row" role="row">
+      {% include 'partials/_col_names.html' %}
+    </tr>
+    <tr class="grid__filter-row" role="row">
+      {% include 'partials/_filter_row.html' %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in page_obj %}
+    <tr role="row"{% if row_clickable %} tabindex="0" data-row data-id="{{ row.id }}" aria-label="Abrir detalhe de {{ row.aria_code|default:row.id }}" aria-haspopup="dialog" hx-get="{{ endpoint }}?drawer={{ row.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML"{% endif %}>
+      {% for col in columns %}{% include 'partials/_grid_cell.html' %}{% endfor %}
+    </tr>
+    {% empty %}
+    <tr class="grid__empty-row">
+      <td colspan="{{ columns|length }}" class="grid__empty-cell">{% if has_filters %}{{ empty_filtered }}{% else %}{{ empty_hint|default:empty_title }}{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if page_obj.has_other_pages %}
+<nav class="pager" aria-label="Paginação">
+  {% if page_obj.has_previous %}
+  <a class="pager__btn"
+     href="{{ endpoint }}?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
+     hx-get="{{ endpoint }}?{{ qs_base }}&page={{ page_obj.previous_page_number }}"
+     hx-target="#{{ grid_id }}" hx-swap="innerHTML" hx-push-url="true">Anterior</a>
+  {% else %}<span class="pager__btn pager__btn--off">Anterior</span>{% endif %}
+  <span class="pager__status mono">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}
+  <a class="pager__btn"
+     href="{{ endpoint }}?{{ qs_base }}&page={{ page_obj.next_page_number }}"
+     hx-get="{{ endpoint }}?{{ qs_base }}&page={{ page_obj.next_page_number }}"
+     hx-target="#{{ grid_id }}" hx-swap="innerHTML" hx-push-url="true">Seguinte</a>
+  {% else %}<span class="pager__btn pager__btn--off">Seguinte</span>{% endif %}
+</nav>
+{% endif %}

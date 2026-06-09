@@ -33,7 +33,7 @@ def test_search_filters_grid_via_htmx_without_reload(page, auth_as, live_server)
     expect(grid).to_contain_text("BRAVO")
 
     page.evaluate("window.__noreload = true")  # marca de deteção de reload (one-shot)
-    page.fill("input[name='q']", "ALFA")
+    page.fill("input[name='q_number']", "ALFA")
 
     expect(grid).not_to_contain_text("BRAVO")  # swap HTMX filtrou
     expect(grid).to_contain_text("ALFA")

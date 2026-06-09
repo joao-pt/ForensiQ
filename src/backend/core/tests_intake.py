@@ -148,7 +148,12 @@ class OccurrenceIntakeRenderTest(TestCase):
         cls.ev_received = _make_evidence(cls.occurrence, cls.agent, 'SN-RCV-1')
         # Destino do encaminhamento + portador (ADR-0016 v2 — handoff em 2 tempos).
         cls.lab = Institution.objects.create(
-            name='Lab Intake', type=InstitutionType.LAB_PUBLICO, sigla='LAB-INT'
+            name='Lab Intake',
+            type=InstitutionType.LAB_PUBLICO,
+            sigla='LAB-INT',
+            address='Rua do Laboratório 1, Lisboa',
+            gps_lat=Decimal('38.7256000'),
+            gps_lng=Decimal('-9.1430000'),
         )
         cls.portador = Portador.objects.create(
             matricula='INT-0001', nome='Ana', apelido='Costa', posto='Agente'
@@ -231,3 +236,28 @@ class OccurrenceIntakeRenderTest(TestCase):
             'Receção de prova encaminhada'.encode(),
             response.content,
         )
+
+    def test_recepcao_nao_pede_gps_nem_local(self):
+        """A receção é num ponto de controlo FIXO (a instituição de destino do
+        encaminhamento): a coordenada e o local vêm da ficha, não se capturam.
+        O formulário não deve oferecer captura de GPS, POIs nem um campo de
+        local — pedi-los seria ruído (ADR-0016 v2 — GPS só no terreno)."""
+        response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
+        body = response.content
+        self.assertNotIn(b'Capturar GPS', body)
+        self.assertNotIn(b'name="gps_lat"', body)
+        self.assertNotIn(b'name="gps_lng"', body)
+        self.assertNotIn(b'name="location_name"', body)
+
+    def test_recepcao_mostra_instituicao_destino_e_coordenada_da_ficha(self):
+        """A receção pré-seleciona o destino (a instituição de quem recebe) e
+        mostra a sua coordenada da ficha em forma canónica (ponto), herdada do
+        encaminhamento — confirma-se, não se escolhe."""
+        response = self.client.get(f'/occurrences/{self.occurrence.id}/intake/')
+        body = response.content
+        self.assertIn(b'Recebido em', body)
+        self.assertIn(self.lab.name.encode(), body)
+        self.assertIn(self.lab.sigla.encode(), body)
+        # Coordenada não-localizada (ponto), como no resto da app e no hash.
+        self.assertIn(b'38.7256000', body)
+        self.assertIn(b'-9.1430000', body)

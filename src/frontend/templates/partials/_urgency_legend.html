@@ -1,0 +1,14 @@
+{% comment %}
+  Legenda da bolinha de urgência (componente REUTILIZÁVEL, por tabela). Discreta e
+  só visível no telemóvel (onde a bolinha substitui a coluna própria; no desktop há
+  coluna). Recebe `urgency_legend` = lista de {cls, label} da view (fonte única das
+  cores/níveis). Usa o mesmo componente .urgency-dot das linhas. Não renderiza nada
+  se a view não fornecer a legenda.
+{% endcomment %}
+{% if urgency_legend %}
+<ul class="urgency-legend" aria-label="Legenda de urgência">
+  {% for item in urgency_legend %}
+  <li class="urgency-legend__item"><span class="urgency-dot urgency-dot--{{ item.cls }}" aria-hidden="true"></span>{{ item.label }}</li>
+  {% endfor %}
+</ul>
+{% endif %}

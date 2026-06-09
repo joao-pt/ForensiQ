@@ -1,24 +1,24 @@
 /**
- * ForensiQ — User menu (navbar).
+ * ForensiQ — Fim de sessão (navbar).
  *
- * Dropdown com role="menu": clique no trigger abre/fecha o panel. Como o
- * markup declara role="menu"/role="menuitem", honra-se o padrão de teclado
- * WAI-ARIA — ao abrir o foco move-se para o 1.º item; ↑/↓/Home/End percorrem
- * os itens; Escape e Tab fecham. Fecha também com clique fora. Popula nome,
- * avatar (iniciais) e papel a partir do Auth.getUser() / /api/users/me/.
+ * O canto direito do cabeçalho tem um único controlo: terminar sessão. As
+ * iniciais (avatar) identificam a sessão; o nome completo vive no chip de
+ * contexto. Clicar abre uma confirmação num <dialog> nativo central
+ * (showModal): escurece e inativa o resto da página (::backdrop) e prende o
+ * foco até o utilizador decidir. Sair só acontece após confirmação explícita —
+ * Cancelar, Esc ou clique no fundo cancelam.
  *
- * CSP-safe: sem inline handlers. Sem dependências externas.
+ * CSP-safe: sem inline handlers, sem dependências externas.
  */
 (function () {
     document.addEventListener('DOMContentLoaded', function () {
         var trigger = document.getElementById('user-menu-trigger');
-        var panel   = document.getElementById('user-menu-panel');
-        if (!trigger || !panel) return;
+        if (!trigger) return;
 
-        // ---- Populate ----
-        populate();
+        // ---- Avatar (iniciais) ----
+        populateAvatar();
 
-        async function populate() {
+        async function populateAvatar() {
             if (typeof Auth === 'undefined') return;
 
             var user = Auth.getUser ? Auth.getUser() : null;
@@ -31,38 +31,17 @@
             }
             if (!user) return;
 
-            var name = user.first_name || user.username || 'Utilizador';
-            var full = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || 'Utilizador';
-            var initials = computeInitials(user.first_name, user.last_name, user.username);
-
-            setText('user-menu-name', name);
-            setText('user-menu-full-name', full);
-            setText('user-menu-role', roleLabel(user.profile));
-            setText('user-avatar', initials);
+            setText('user-avatar', computeInitials(user.first_name, user.last_name, user.username));
         }
 
         function computeInitials(first, last, username) {
-            var source = (first || '') + ' ' + (last || '');
-            source = source.trim();
+            var source = ((first || '') + ' ' + (last || '')).trim();
             if (!source) source = username || '?';
 
             var parts = source.split(/\s+/);
             var a = (parts[0] || '').charAt(0);
             var b = (parts[parts.length - 1] || '').charAt(0);
-            var initials = (a + (parts.length > 1 ? b : '')).toUpperCase();
-            return initials || '?';
-        }
-
-        function roleLabel(profile) {
-            var labels = {
-                'FIRST_RESPONDER': 'Agente / Primeiro interveniente',
-                'FORENSIC_EXPERT': 'Perito forense digital',
-                'EVIDENCE_CUSTODIAN': 'Custódio / Fiel depositário',
-                'CASE_AUTHORITY': 'Autoridade judiciária (MP)',
-                'CHEFE_SERVICO': 'Chefe de serviço',
-                'AUDITOR': 'Auditor',
-            };
-            return labels[profile] || '';
+            return ((a + (parts.length > 1 ? b : '')).toUpperCase()) || '?';
         }
 
         function setText(id, value) {
@@ -70,97 +49,60 @@
             if (el) el.textContent = value;
         }
 
-        // ---- Open / close (padrão WAI-ARIA menu) ----
-        function items() {
-            return Array.prototype.slice.call(panel.querySelectorAll('[role="menuitem"]'));
+        // ---- Confirmação de fim de sessão (<dialog> nativo) ----
+        var dialog     = document.getElementById('logout-dialog');
+        var confirmBtn = document.getElementById('logout-confirm');
+        var cancelBtn  = document.getElementById('logout-cancel');
+
+        function openDialog() {
+            // Sem diálogo (markup ausente): degrada para a ação directa.
+            if (!dialog) { doLogout(); return; }
+            if (typeof dialog.showModal === 'function') {
+                if (!dialog.open) dialog.showModal();
+            } else {
+                dialog.setAttribute('open', '');
+            }
+            // Foca o Cancelar (ação não-destrutiva) depois do paint: premir Enter
+            // por reflexo não termina a sessão sem querer.
+            requestAnimationFrame(function () {
+                try { (cancelBtn || dialog).focus(); } catch (e) { /* noop */ }
+            });
         }
 
-        function isOpen() {
-            return !panel.hasAttribute('hidden');
+        function closeDialog() {
+            if (!dialog) return;
+            if (dialog.open && typeof dialog.close === 'function') dialog.close();
+            else dialog.removeAttribute('open');
         }
 
-        function open() {
-            panel.hidden = false;
-            trigger.setAttribute('aria-expanded', 'true');
-            focusItem(0);
-            // clique fora
-            setTimeout(function () {
-                document.addEventListener('click', onDocClick);
-                document.addEventListener('keydown', onKey);
-            }, 0);
-        }
-
-        function close() {
-            panel.hidden = true;
-            trigger.setAttribute('aria-expanded', 'false');
-            document.removeEventListener('click', onDocClick);
-            document.removeEventListener('keydown', onKey);
-        }
-
-        function focusItem(index) {
-            var list = items();
-            if (!list.length) return;
-            if (index < 0) index = list.length - 1;
-            if (index >= list.length) index = 0;
-            list[index].focus();
-        }
-
-        function moveFocus(delta) {
-            var list = items();
-            if (!list.length) return;
-            var i = list.indexOf(document.activeElement);
-            focusItem((i < 0 ? 0 : i) + delta);
-        }
-
-        function onDocClick(e) {
-            if (!panel.contains(e.target) && !trigger.contains(e.target)) close();
-        }
-
-        function onKey(e) {
-            switch (e.key) {
-                case 'Escape':
-                    close();
-                    trigger.focus();
-                    break;
-                case 'ArrowDown':
-                    e.preventDefault();
-                    moveFocus(1);
-                    break;
-                case 'ArrowUp':
-                    e.preventDefault();
-                    moveFocus(-1);
-                    break;
-                case 'Home':
-                    e.preventDefault();
-                    focusItem(0);
-                    break;
-                case 'End':
-                    e.preventDefault();
-                    focusItem(items().length - 1);
-                    break;
-                case 'Tab':
-                    // O menu não retém o Tab: fecha e deixa o foco sair.
-                    close();
-                    break;
-                default:
-                    break;
+        function doLogout() {
+            if (typeof Auth !== 'undefined' && typeof Auth.logout === 'function') {
+                Auth.logout();
+            } else {
+                window.location.href = '/login/';
             }
         }
 
         trigger.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (isOpen()) close(); else open();
+            e.preventDefault();
+            openDialog();
         });
 
-        // ---- Logout ----
-        var btnLogout = document.getElementById('btn-logout');
-        if (btnLogout) {
-            btnLogout.addEventListener('click', function () {
-                if (typeof Auth !== 'undefined' && typeof Auth.logout === 'function') {
-                    Auth.logout();
-                } else {
-                    window.location.href = '/login/';
-                }
+        if (cancelBtn) cancelBtn.addEventListener('click', closeDialog);
+        if (confirmBtn) confirmBtn.addEventListener('click', function () {
+            confirmBtn.disabled = true;   // evita duplo-clique enquanto o pedido corre
+            doLogout();
+        });
+
+        if (dialog) {
+            // Clique no fundo do <dialog> (target é o próprio dialog) cancela.
+            dialog.addEventListener('click', function (ev) {
+                if (ev.target === dialog) closeDialog();
+            });
+            // Esc é nativo do <dialog>; ao fechar (Esc/fundo/Cancelar) devolve o foco.
+            dialog.addEventListener('close', function () {
+                if (confirmBtn) confirmBtn.disabled = false;
+                try { trigger.focus(); } catch (e) { /* noop */ }
             });
         }
     });

@@ -95,10 +95,12 @@ def test_no_csp_violations(page, seed, auth_as, csp_violations):
 
 
 def test_gps_capture_fills_coordinates(page, seed, auth_as):
-    """O botão 'Capturar GPS' preenche lat/lng com a geolocalização injetada."""
+    """O botão 'Usar a minha localização' (geo-field) preenche lat/lng com a
+    geolocalização injetada. (A captura migrou de [data-geo-capture] para o
+    componente geo-field [data-geo-field-locate].)"""
     auth_as(seed["expert"])
     page.goto("/occurrences/new/", wait_until="load")
-    page.click("[data-geo-capture]")
+    page.click("[data-geo-field-locate]")
     # expect() é CSP-safe (não usa eval na página); wait_for_function com string
     # seria bloqueado pela CSP estrita durante o polling.
     expect(page.locator("#f-lat")).not_to_have_value("", timeout=8000)

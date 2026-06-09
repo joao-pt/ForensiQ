@@ -116,7 +116,7 @@ class DashboardPageTest(AuthenticatedFrontendTestCase):
         sem ações de entrada de dados no corpo. A entrada rápida de nova
         ocorrência passou a viver como atalho GLOBAL na sidebar (Fase 7,
         ação-in-place) — presente em todas as páginas, fora do <main>, e coberto
-        por ``core.tests_form_modals``. Aqui garante-se só que a região principal
+        por ``core.tests_new_forms``. Aqui garante-se só que a região principal
         continua sem o antigo botão e sem ligação para o registo.
         """
         response = self.client.get(reverse('dashboard'))
@@ -148,16 +148,18 @@ class OccurrencesPageTest(AuthenticatedFrontendTestCase):
         self.assertTemplateUsed(response, 'occurrences.html')
 
     def test_occurrences_page_contains_search(self):
-        """A página de ocorrências deve conter a barra de pesquisa.
+        """A página de ocorrências deve conter os filtros por coluna.
 
-        Fase 3: a pesquisa é um formulário ``role="search"`` com input
-        ``name="q"`` (HTMX, debounce); o antigo ``id="search-input"`` deixou
-        de existir.
+        Os filtros vivem no cabeçalho da grelha (cada ``<th>`` é coluna + filtro,
+        ``grid__filter-cell``), dentro de um formulário ``role="search"`` (HTMX,
+        debounce). A pesquisa global ``name="q"`` deu lugar a campos por coluna
+        (ex.: ``name="q_number"`` para o NUIPC).
         """
         response = self.client.get(reverse('occurrences'))
         content = response.content.decode('utf-8')
         self.assertIn('role="search"', content)
-        self.assertIn('name="q"', content)
+        self.assertIn('grid__filter-cell', content)
+        self.assertIn('name="q_number"', content)
 
     def test_occurrences_page_contains_new_button(self):
         """A página de ocorrências deve conter o botão de nova ocorrência.
@@ -272,15 +274,16 @@ class OccurrencesNewPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('action="/occurrences/new/"', content)
         self.assertIn('data-crime-cascade', content)
 
-    def test_occurrences_new_page_contains_gps_button(self):
-        """A página de nova ocorrência deve conter o botão GPS.
+    def test_occurrences_new_page_contains_geo_field(self):
+        """A página de nova ocorrência deve conter o campo de localização.
 
-        Fase 3: a captura de coordenadas é o botão ``data-geo-capture``
-        (hidratado por geo-capture.js); substitui ``id="btn-gps"``.
+        A captura de coordenadas é agora o geo-field auto-localizado
+        (``data-geo-field`` + mapa, geo-field.js); substitui o antigo botão
+        ``data-geo-capture``.
         """
         response = self.client.get(reverse('occurrences_new'))
         content = response.content.decode('utf-8')
-        self.assertIn('data-geo-capture', content)
+        self.assertIn('data-geo-field', content)
 
     def test_occurrences_new_page_contains_number_field(self):
         """A página de nova ocorrência deve conter o campo de número/NUIPC.
@@ -389,15 +392,15 @@ class EvidencesNewPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('id="f-type"', content)
         self.assertIn('name="type"', content)
 
-    def test_evidences_new_page_contains_gps_button(self):
-        """A página de nova evidência deve conter o botão GPS.
+    def test_evidences_new_page_contains_geo_field(self):
+        """A página de nova evidência deve conter o campo de localização.
 
-        Fase 3: captura de coordenadas pelo botão ``data-geo-capture``
-        (geo-capture.js); substitui ``id="btn-gps"``.
+        Captura de coordenadas pelo geo-field auto-localizado
+        (``data-geo-field`` + mapa, geo-field.js); substitui ``data-geo-capture``.
         """
         response = self.client.get(reverse('evidences_new'))
         content = response.content.decode('utf-8')
-        self.assertIn('data-geo-capture', content)
+        self.assertIn('data-geo-field', content)
 
     def test_evidences_new_page_contains_photo_capture(self):
         """A página de nova evidência deve conter o campo de fotografia.
@@ -409,12 +412,6 @@ class EvidencesNewPageTest(AuthenticatedFrontendTestCase):
         content = response.content.decode('utf-8')
         self.assertIn('name="photo"', content)
         self.assertIn('accept="image/*"', content)
-
-    def test_evidences_new_page_contains_integrity_info(self):
-        """A página de nova evidência deve mencionar integridade SHA-256."""
-        response = self.client.get(reverse('evidences_new'))
-        content = response.content.decode('utf-8')
-        self.assertIn('SHA-256', content)
 
 
 class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):

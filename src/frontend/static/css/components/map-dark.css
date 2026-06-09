@@ -1,0 +1,15 @@
+/**
+ * ForensiQ — Mapa no tema noite (FONTE ÚNICA). Carregado com o Leaflet via
+ * _leaflet_head.html, logo cobre TODOS os mapas de uma vez (painel, detalhe,
+ * trajetória da cadeia, geo-field, picker de instituição) e qualquer mapa futuro.
+ *
+ * Escurece APENAS o pane dos tiles (o basemap OSM claro). Os pinos, a trajetória
+ * da cadeia, os tooltips e os controlos vivem noutros panes do Leaflet e mantêm
+ * as suas cores — é isso que torna o "mapa escuro por filtro" legível. invert +
+ * hue-rotate repõem as cores reais depois da inversão; o resto afina o tom para
+ * casar com a casca escura. Pareia ao vivo com o toggle de tema (reage à mudança
+ * de [data-theme] no <html> sem recriar o mapa). Sem terceiros novos.
+ */
+[data-theme="dark"] .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.96) contrast(0.9) saturate(0.85);
+}

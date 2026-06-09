@@ -1,19 +1,18 @@
 {% comment %}
-  Formulário de nova ocorrência — fonte ÚNICA de duas superfícies da MESMA lógica:
-    • página completa (occurrences_new.html) — fallback no-JS / navegação direta;
-    • fragmento modal (ação-in-place) quando `modal` é verdadeiro.
-  Em modo modal submete via HTMX para #app-modal-body (erros voltam aqui; o
-  sucesso responde 204 + HX-Redirect e o HTMX navega). A cascata de crime
-  (crime-cascade.js) reinicializa-se em `fq:modal-open`.
+  Formulário de nova ocorrência (página completa /occurrences/new/). Acedido por
+  navegação directa — o atalho da barra lateral leva aqui, não a um modal. A
+  escrita reusa o OccurrenceSerializer na view; a cascata de crime é o
+  crime-cascade.js e a localização o geo-field (partial _geo_field.html).
 {% endcomment %}
-<div data-modal-title="Nova ocorrência">
-
   {% include 'partials/_form_errors.html' %}
 
-  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}
+  <form method="post" action="{{ action }}"
         data-crime-cascade data-sel-cat="{{ sel_cat }}" data-sel-sub="{{ sel_sub }}" data-sel-type="{{ sel_type }}">
     {% csrf_token %}
-    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+
+    {# Localização primeiro: mapa auto-localizado no topo (geo-field.js). #}
+    {% include 'partials/_geo_field.html' with title='Onde — localização' reverse=True autolocate=True decimals=3 %}
+
     <div class="form-grid">
 
       {# --- Secção 1: identificação do caso --- #}
@@ -30,6 +29,7 @@
         <label for="f-dt">Data / hora da ocorrência *</label>
         <input class="mono" type="datetime-local" id="f-dt" name="date_time" value="{{ data.date_time }}" required{% if errors.date_time %} aria-invalid="true" aria-describedby="f-dt-err"{% endif %}>
         {% if errors.date_time %}<span class="form-error visible" id="f-dt-err">{{ errors.date_time.0 }}</span>{% endif %}
+        <span class="form-hint">Preenchido com a data/hora atual — ajuste se a ocorrência foi noutro momento.</span>
       </div>
 
       {# --- Secção 2: o que aconteceu (descrição antes da classificação) --- #}
@@ -64,57 +64,17 @@
           <option value="">— selecione a subcategoria —</option>
         </select>
         <span class="form-hint" data-crime-priority aria-live="polite"></span>
-        {% if errors.crime_type %}<span class="form-error visible" id="f-crime-err">{{ errors.crime_type.0 }}</span>{% endif %}
-      </div>
-
-      {# --- Secção 3: onde (botões de captura primeiro, campos como resultado) --- #}
-      <div class="form-field form-field--full" role="group" aria-labelledby="on-geo-label">
-        <span class="subhead" id="on-geo-label">Onde — localização</span>
-        <div class="form-inline">
-          <button type="button" class="btn-ghost" data-geo-capture
-                  data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
-            {% include 'partials/icons/_gps.html' %}
-            Capturar GPS
-          </button>
-          <button type="button" class="btn-ghost" data-reverse-geocode
-                  data-lat-target="#f-lat" data-lng-target="#f-lng" data-addr-target="#f-addr">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg>
-            Resolver morada
-          </button>
-          <span class="mono facts__src" data-geo-acc></span>
-          <span class="mono facts__src" data-reverse-geocode-status></span>
-        </div>
-      </div>
-
-      <div class="form-field form-field--full">
-        <label for="f-addr">Morada aproximada</label>
-        <input type="text" id="f-addr" name="address" value="{{ data.address }}" placeholder="Rua, nº, localidade">
-      </div>
-
-      <div class="form-field">
-        <label for="f-lat">Latitude</label>
-        <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
-        {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
-      </div>
-
-      <div class="form-field">
-        <label for="f-lng">Longitude</label>
-        <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
-        {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
-      </div>
-
-      {# --- Secção 4: prioridade (avançado) --- #}
-      <div class="form-field form-field--full"><h3 class="subhead">Prioridade</h3></div>
-
-      <div class="form-field form-field--full">
-        <label class="form-check">
-          <input type="checkbox" name="elevar_prioridade" value="true" {% if data.elevar_prioridade %}checked{% endif %}>
+        {# Elevação manual logo abaixo do texto-guia. Só aparece quando o tipo #}
+        {# escolhido NÃO é prioritário pela lei (crime-cascade.js mostra/esconde): #}
+        {# não faz sentido marcar como prioritária algo que a lei já prioriza. #}
+        <label class="form-check form-check--inline-hint" data-elevate-wrap hidden>
+          <input type="checkbox" name="elevar_prioridade" value="true" data-elevate-input{% if data.elevar_prioridade %} checked{% endif %}>
           Marcar como prioritária mesmo que a lei não o exija
         </label>
+        {% if errors.crime_type %}<span class="form-error visible" id="f-crime-err">{{ errors.crime_type.0 }}</span>{% endif %}
       </div>
 
     </div>
 
     {% include 'partials/_form_actions.html' with cancel_url='/occurrences/' submit_label='Registar ocorrência' sticky=True %}
   </form>
-</div>

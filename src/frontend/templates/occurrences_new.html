@@ -7,6 +7,7 @@
 {% block lens_bar %}{% endblock %}
 
 {% block extra_css %}
+  {% include '_leaflet_head.html' %}
   <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
@@ -19,12 +20,8 @@
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="on-title">
 
-  <header class="detail__head">
-    <div>
-      <h1 class="detail__title" id="on-title">Nova ocorrência</h1>
-      <p class="detail__sub">A prioridade é derivada do tipo de crime (Política Criminal)</p>
-    </div>
-  </header>
+  {# Titulo redundante com o breadcrumb: visually-hidden mantem a11y + aria-labelledby. #}
+  <h1 class="visually-hidden" id="on-title">Nova ocorrência</h1>
 
   <section class="section">
     <div class="section__body">
@@ -36,9 +33,9 @@
 {% endblock %}
 
 {% block extra_js %}
+  {% include '_leaflet_js.html' %}
   <script src="{% static 'js/components/geo.js' %}"></script>
-  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/components/geo-field.js' %}"></script>
   <script src="{% static 'js/components/crime-cascade.js' %}"></script>
-  <script src="{% static 'js/components/reverse-geocode.js' %}"></script>
   <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}

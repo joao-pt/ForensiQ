@@ -7,6 +7,7 @@
 {% block lens_bar %}{% endblock %}
 
 {% block extra_css %}
+  {% include '_leaflet_head.html' %}
   <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
@@ -19,12 +20,8 @@
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="en-title">
 
-  <header class="detail__head">
-    <div>
-      <h1 class="detail__title" id="en-title">Nova evidência</h1>
-      <p class="detail__sub">O hash de integridade SHA-256 é calculado automaticamente no registo</p>
-    </div>
-  </header>
+  {# Titulo redundante com o breadcrumb: visually-hidden mantem a11y + aria-labelledby. #}
+  <h1 class="visually-hidden" id="en-title">Nova evidência</h1>
 
   <section class="section">
     <div class="section__body">
@@ -36,8 +33,9 @@
 {% endblock %}
 
 {% block extra_js %}
+  {% include '_leaflet_js.html' %}
   <script src="{% static 'js/components/geo.js' %}"></script>
-  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/components/geo-field.js' %}"></script>
   <script src="{% static 'js/components/identifier-lookup.js' %}"></script>
   <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}

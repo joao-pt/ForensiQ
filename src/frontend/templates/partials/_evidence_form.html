@@ -1,18 +1,17 @@
 {% comment %}
-  Formulário de novo item de prova — fonte ÚNICA de duas superfícies da MESMA lógica:
-    • página completa (evidences_new.html) — fallback no-JS / navegação direta;
-    • fragmento modal (ação-in-place) quando `modal` é verdadeiro.
-  Em modo modal submete via HTMX (multipart, para a fotografia) para #app-modal-body;
-  o sucesso responde 204 + HX-Redirect e o HTMX navega. A sincronia tipo→campos
-  (identifier-lookup.js) reinicializa-se em `fq:modal-open`.
+  Formulário de novo item de prova (página completa /evidences/new/). Acedido por
+  navegação directa — o atalho da barra lateral leva aqui, não a um modal.
+  Registo = apreensão: a génese nasce na mesma transação (serializer na view).
+  Os campos por-tipo são o identifier-lookup.js; a localização é o geo-field.
 {% endcomment %}
-<div data-modal-title="Novo item de prova">
-
   {% include 'partials/_form_errors.html' %}
 
-  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML" hx-encoding="multipart/form-data"{% else %}method="post" action="{{ action }}"{% endif %} enctype="multipart/form-data">
+  <form method="post" action="{{ action }}" enctype="multipart/form-data">
     {% csrf_token %}
-    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+
+    {# Localização primeiro: mapa auto-localizado do local da apreensão. #}
+    {% include 'partials/_geo_field.html' with title='Local da apreensão' reverse=False autolocate=True decimals=3 %}
+
     <div class="form-grid">
 
       {# --- Secção 1: contexto (a que caso/item pertence) --- #}
@@ -118,31 +117,5 @@
       </div>
     </div>
 
-    {# --- Secção 4: local da apreensão (botão de captura primeiro) --- #}
-    <div class="form-grid">
-      <div class="form-field form-field--full" role="group" aria-labelledby="en-geo-label">
-        <span class="subhead" id="en-geo-label">Local da apreensão</span>
-        <div class="form-inline">
-          <button type="button" class="btn-ghost" data-geo-capture data-lat-target="#f-lat" data-lng-target="#f-lng" data-decimals="3">
-            {% include 'partials/icons/_gps.html' %}
-            Capturar GPS
-          </button>
-          <span class="mono facts__src" data-geo-acc></span>
-        </div>
-      </div>
-
-      <div class="form-field">
-        <label for="f-lat">Latitude (apreensão)</label>
-        <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
-        {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
-      </div>
-      <div class="form-field">
-        <label for="f-lng">Longitude (apreensão)</label>
-        <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
-        {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
-      </div>
-    </div>
-
     {% include 'partials/_form_actions.html' with cancel_url='/evidences/' submit_label='Registar evidência' sticky=True %}
   </form>
-</div>

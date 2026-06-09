@@ -1,0 +1,10 @@
+{% comment %}
+  Linha de NOMES das colunas (fonte única: a spec `columns`, em ordem). Cada
+  <th scope="col"> é o cabeçalho REAL (acessibilidade) e fixa a largura do desktop
+  pela classe utilitária grid__col--wN (CSP-safe, sem estilo inline; table-layout:
+  fixed lê esta 1.ª linha). As classes por coluna ({{ col.css }}) controlam o que
+  se esconde no telemóvel (col-reduce-hide / col-hide-sm / col-hide-md).
+{% endcomment %}
+{% for col in columns %}
+<th scope="col" class="grid__col grid__col--w{{ col.width }} {{ col.css }}"><span class="grid__col-label">{{ col.label }}</span></th>
+{% endfor %}

@@ -13,12 +13,10 @@ sensíveis só sejam carregados via API.
 import json
 import logging
 from functools import wraps
-from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.core.paginator import Paginator
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.http import (
     HttpResponse,
     HttpResponseForbidden,
@@ -27,7 +25,7 @@ from django.http import (
     HttpResponseRedirect,
 )
 from django.shortcuts import render
-from django.utils.dateparse import parse_date
+from django.utils.html import format_html
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
@@ -36,9 +34,10 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core import access, evidence_field_config, evidence_type_config
 from core.audit import log_access
 from core.auth import JWTCookieAuthentication
+from core.grid import GridColumn, grid_list_response
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
+from core.list_filters import ColFilter
 from core.models import (
-    LEGAL_STATES,
     TERMINAL_LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
@@ -177,13 +176,35 @@ def _priority_badge(occurrence):
     return {'level': 'P2', 'cls': 'p2', 'title': 'Prioritária — override manual'}
 
 
+# Legenda de urgência (vista mobile): a bolinha por linha substitui a coluna
+# Prioridade escondida. Mesmos níveis/cores de _priority_badge (P1 lei, P2 override
+# manual, normal). Fonte ÚNICA — reutilizável por outras tabelas no rollout.
+URGENCY_LEGEND_OCCURRENCE = (
+    {'cls': 'p1', 'label': 'Prioritária (lei)'},
+    {'cls': 'p2', 'label': 'Prioritária (manual)'},
+    {'cls': 'none', 'label': 'Normal'},
+)
+
+# Legenda da bolinha por ESTADO LEGAL (evidências/custódias): as cores seguem
+# LEGAL_STATE_CSS (fonte única em core.labels), agrupadas por bucket de cor.
+URGENCY_LEGEND_EVIDENCE = (
+    {'cls': 'info', 'label': 'À guarda / validada'},
+    {'cls': 'warn', 'label': 'Em perícia / trânsito'},
+    {'cls': 'ok', 'label': 'Perícia concluída'},
+    {'cls': 'danger', 'label': 'Perdida a favor do Estado'},
+    {'cls': 'muted', 'label': 'Restituída / destruída'},
+)
+
+
 def _decorate_occurrences(occurrences):
     """Anota cada ocorrência com campos de apresentação (sem tocar no modelo)."""
     for occ in occurrences:
         occ.pri = _priority_badge(occ)
+        occ.dot = occ.pri                        # bolinha de urgência (telemóvel) = prioridade
         ct = occ.crime_type
         occ.crime_label = f'{ct.codigo} — {ct.descritivo}' if ct else '—'
         occ.agent_label = get_user_display_name(occ.agent)
+        occ.aria_code = occ.code or occ.number   # rótulo da linha (fallback NUIPC)
 
 
 # Ordenações expostas na UI → expressão de ORM (lista branca: impede injeção
@@ -270,6 +291,9 @@ def _decorate_evidences(evidences):
         e.agent_label = get_user_display_name(e.agent)
         e.occ_label = e.occurrence.code or e.occurrence.number
         e.state_label, e.state_css = _evidence_state(e)
+        e.state_badge = {'css': e.state_css, 'label': e.state_label}
+        e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
+        e.aria_code = e.code or 'item de prova'
 
 
 def _readable_evidence(user, pk):
@@ -674,9 +698,11 @@ def dashboard_view(request):
 
 def _occurrences_list_response(request, archived=False):
     """Corpo PARTILHADO das listas de ocorrências ativas (``/occurrences/``) e do
-    Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, filtros,
+    Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, colunas, filtros,
     ordenação e paginação — só diferem na divisão arquivado/ativo e no template.
-    O drawer (``?drawer=``) é comum (o detalhe de um processo é o mesmo)."""
+    O drawer (``?drawer=``) é comum (o detalhe de um processo é o mesmo). Toda a
+    plumbing (filtros por coluna, busca, paginação, vista mobile) vem do gerador
+    único :func:`core.grid.grid_list_response`; aqui declara-se só a spec."""
     user = request.user
 
     drawer_id = request.GET.get('drawer')
@@ -687,73 +713,75 @@ def _occurrences_list_response(request, archived=False):
     access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens)
 
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(number__icontains=query)
-            | Q(code__icontains=query)
-            | Q(description__icontains=query)
-            | Q(address__icontains=query)
+    crime_categories = CrimeCategoria.objects.order_by('codigo')
+    cat_choices = tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)
+    # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente.
+    columns = [
+        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
+                   filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
+                                    choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
+                                             (Occurrence.Priority.NORMAL, 'Normais')))),
+        GridColumn('code', 'Código', cell='code', width=13, dot=True,
+                   filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('number', 'NUIPC', css='mono', width=16,
+                   filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=21,
+                   filter=ColFilter('cat', 'Tipo de crime', kind='select',
+                                    field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
+        GridColumn('date_time', 'Data', cell='date', time=True, width=12,
+                   filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
+        GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=20, geo=True,
+                   filter=ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local')),
+        GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=12,
+                   filter=ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente',
+                                    fields=('agent__first_name', 'agent__last_name', 'agent__username'))),
+    ]
+
+    def archived_split(filtered_qs, _request):
+        # Processo CONCLUÍDO = todos os itens em estado legal terminal. Deriva-se
+        # sobre o âmbito já filtrado e divide-se (sem coluna nova).
+        archived_ids = _archived_occurrence_ids(user, filtered_qs)
+        return (filtered_qs.filter(pk__in=archived_ids) if archived
+                else filtered_qs.exclude(pk__in=archived_ids))
+
+    lens_qs = f'?lens={lens}' if lens else ''
+    if archived:
+        empty_hint = ('Ainda não há processos concluídos — todos os itens em estado '
+                      'terminal (restituídos, perdidos a favor do Estado ou destruídos).')
+        empty_filtered = 'Nenhum processo arquivado para os filtros aplicados.'
+    else:
+        empty_hint = format_html(
+            'Ainda não há ocorrências ativas que possa ver. Os processos concluídos '
+            'estão no <a href="/arquivo/{}">Arquivo</a>.', lens_qs
         )
+        empty_filtered = 'Nenhum resultado para os filtros aplicados.'
 
-    priority = (request.GET.get('pri') or '').strip()
-    if priority in (Occurrence.Priority.PRIORITARIA, Occurrence.Priority.NORMAL):
-        qs = qs.filter(priority=priority)
-
-    # Filtro por categoria de crime (N1). Um dropdown dos N3 (centenas de tipos)
-    # seria mau de UX; filtra-se pela categoria de topo via a cascata N3→N2→N1.
-    cat = (request.GET.get('cat') or '').strip()
-    if cat.isdigit():
-        qs = qs.filter(crime_type__subcategoria__categoria_id=int(cat))
-
-    date_after = (request.GET.get('date_after') or '').strip()
-    date_before = (request.GET.get('date_before') or '').strip()
-    d_after, d_before = parse_date(date_after), parse_date(date_before)
-    if d_after:
-        qs = qs.filter(date_time__date__gte=d_after)
-    if d_before:
-        qs = qs.filter(date_time__date__lte=d_before)
-
-    # Arquivo vs ativo: processo CONCLUÍDO = todos os itens em estado legal
-    # terminal. Deriva-se sobre o âmbito já filtrado (sem coluna nova) e divide-se.
-    archived_ids = _archived_occurrence_ids(user, qs)
-    qs = qs.filter(pk__in=archived_ids) if archived else qs.exclude(pk__in=archived_ids)
-
-    sort_key = (request.GET.get('sort') or 'recent').strip()
-    qs = qs.order_by(_OCC_SORTS.get(sort_key, '-date_time'))
-
-    paginator = Paginator(qs, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_occurrences(page_obj.object_list)
-
-    list_endpoint = '/arquivo/' if archived else '/occurrences/'
-    # Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
-    qs_base = urlencode({k: v for k, v in (
-        ('lens', lens), ('q', query), ('pri', priority), ('cat', cat),
-        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
-    ) if v})
-
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'pri': priority,
-        'cat': cat,
-        'date_after': date_after,
-        'date_before': date_before,
-        'sort': sort_key,
-        'qs_base': qs_base,
-        'lens': lens,
-        'is_archive': archived,
-        'list_endpoint': list_endpoint,
-        'crime_categories': CrimeCategoria.objects.order_by('codigo'),
-        'selected_id': request.GET.get('selected') or '',
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-
-    if ctx['is_htmx']:
-        return render(request, 'partials/_occurrences_grid.html', ctx)
-    return render(request, 'arquivo.html' if archived else 'occurrences.html', ctx)
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='occ',
+        endpoint='/arquivo/' if archived else '/occurrences/',
+        page_template='arquivo.html' if archived else 'occurrences.html',
+        table_label='Processos arquivados' if archived else 'Lista de ocorrências',
+        count_noun='processo' if archived else 'registo',
+        sorts=_OCC_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigas'),
+                  ('number', 'NUIPC'), ('created', 'Data de registo')),
+        search_fields=('code', 'number', 'address',
+                       'agent__first_name', 'agent__last_name', 'agent__username',
+                       'crime_type__descritivo', 'crime_type__subcategoria__nome',
+                       'crime_type__subcategoria__categoria__nome'),
+        search_placeholder='Procurar código, NUIPC, crime, local, agente…',
+        decorate=_decorate_occurrences,
+        legend=URGENCY_LEGEND_OCCURRENCE,
+        page_size=25,
+        lens=lens,
+        empty_hint=empty_hint,
+        empty_filtered=empty_filtered,
+        post_filter=archived_split,
+    )
 
 
 @jwt_cookie_user
@@ -986,11 +1014,9 @@ def occurrences_new_view(request):
         return HttpResponseForbidden('Apenas agentes podem registar ocorrências.')
 
     crime_categories = CrimeCategoria.objects.order_by('codigo')
-    # Duas superfícies da MESMA lógica: página completa (fallback no-JS) e
-    # fragmento modal (ação-in-place, ?modal=1). O sucesso no modal devolve
-    # 204 + HX-Redirect (o HTMX navega); o erro devolve o fragmento.
-    modal = _wants_modal(request)
-    template = 'partials/_occurrence_form.html' if modal else 'occurrences_new.html'
+    # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
+    # → redireciona para a ocorrência criada; erro → re-render com os erros.
+    template = 'occurrences_new.html'
 
     def _ctx(errors, data):
         """Contexto da página, com a ascendência N1/N2 do crime escolhido
@@ -1013,7 +1039,6 @@ def occurrences_new_view(request):
             'sel_cat': sel_cat,
             'sel_sub': sel_sub,
             'sel_type': sel_type,
-            'modal': modal,
             'action': '/occurrences/new/',
         }
 
@@ -1034,16 +1059,17 @@ def occurrences_new_view(request):
                 resource_id=occ.pk,
             )
             messages.success(request, f'Ocorrência {occ.code or occ.number} registada.')
-            if modal:
-                resp = HttpResponse(status=204)
-                resp['HX-Redirect'] = f'/occurrences/{occ.pk}/'
-                return resp
             return HttpResponseRedirect(f'/occurrences/{occ.pk}/')
         return render(
             request, template, _ctx(serializer.errors, request.POST), status=400
         )
 
-    return render(request, template, _ctx({}, {}))
+    # GET: data/hora pré-preenchida com o agora local (ajustável; o input
+    # datetime-local usa o formato YYYY-MM-DDTHH:MM). A localização é
+    # auto-capturada no cliente (geo-field.js).
+    from django.utils import timezone
+    initial = {'date_time': timezone.localtime().strftime('%Y-%m-%dT%H:%M')}
+    return render(request, template, _ctx({}, initial))
 
 
 def _can_manage_institutions(user):
@@ -1063,32 +1089,68 @@ def institutions_view(request):
     """Lista de instituições (pontos de controlo fixos) — gestão (staff/NACIONAL).
 
     As instituições são dados de referência da custódia (não são prova). Esta é a
-    casa do gatilho de criação ação-in-place (modal). Filtra por texto e por tipo.
+    casa do gatilho de criação ação-in-place (modal). Passa a usar o gerador único
+    (filtros por coluna + HTMX), mantendo o gate de gestão; as linhas NÃO são
+    clicáveis (não há gaveta de detalhe). O ``<form method=get>`` é o fallback
+    sem-JS; o botão "Nova instituição" e os scripts do mapa vivem na casca.
     """
     user = request.user
     if not _can_manage_institutions(user):
         return HttpResponseForbidden('Sem permissão para gerir instituições.')
 
-    qs = Institution.objects.order_by('name')
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(Q(name__icontains=query) | Q(sigla__icontains=query))
-    itype = (request.GET.get('type') or '').strip()
-    if itype in InstitutionType.values:
-        qs = qs.filter(type=itype)
+    def apply_inst_state(filtered_qs, _request, value):
+        return filtered_qs.filter(is_active=(value == 'active'))
 
-    paginator = Paginator(qs, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    qs_base = urlencode({k: v for k, v in (('q', query), ('type', itype)) if v})
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'type': itype,
-        'institution_types': InstitutionType.choices,
-        'qs_base': qs_base,
-    }
-    return render(request, 'institutions.html', ctx)
+    def decorate_inst(items):
+        for inst in items:
+            inst.type_label = inst.get_type_display()
+            if inst.gps_lat is not None and inst.gps_lng is not None:
+                inst.gps_label = f'{inst.gps_lat}, {inst.gps_lng}'   # str(Decimal) = ponto decimal
+            else:
+                inst.gps_label = '—'
+            active = inst.is_active
+            inst.state_badge = {'css': 'ok' if active else 'muted',
+                                'label': 'Ativa' if active else 'Inativa'}
+            inst.dot = {'cls': 'ok' if active else 'muted',
+                        'title': 'Ativa' if active else 'Inativa'}
+
+    state_choices = (('active', 'Ativa'), ('inactive', 'Inativa'))
+    columns = [
+        GridColumn('name', 'Nome', width=24, dot=True,
+                   filter=ColFilter('name', 'Nome', kind='text', field='name', placeholder='Nome')),
+        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=18,
+                   filter=ColFilter('type', 'Tipo', kind='select', field='type',
+                                    choices=tuple(InstitutionType.choices))),
+        GridColumn('sigla', 'Sigla', css='mono', width=11,
+                   filter=ColFilter('sigla', 'Sigla', kind='text', field='sigla', placeholder='Sigla')),
+        GridColumn('address', 'Morada', css='grid__muted col-hide-sm', width=23,
+                   filter=ColFilter('address', 'Morada', kind='text', field='address', placeholder='Morada')),
+        GridColumn('gps_label', 'GPS', css='mono col-hide-md', width=13),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
+                   filter=ColFilter('state', 'Estado', kind='select', choices=state_choices)),
+    ]
+
+    return grid_list_response(
+        request,
+        queryset=Institution.objects.order_by('name'),
+        columns=columns,
+        grid_key='inst',
+        endpoint='/institutions/',
+        page_template='institutions.html',
+        table_label='Instituições',
+        count_noun='instituiç', count_plural='ão,ões',
+        sorts={'name': 'name'},
+        default_sort='name',
+        search_fields=('name', 'sigla'),
+        search_placeholder='Pesquisar nome ou sigla…',
+        decorate=decorate_inst,
+        legend=({'cls': 'ok', 'label': 'Ativa'}, {'cls': 'muted', 'label': 'Inativa'}),
+        row_clickable=False,
+        page_size=25,
+        empty_title='Sem instituições',
+        empty_hint='Crie o primeiro ponto de controlo com “Nova instituição”.',
+        computed_filters={'state': apply_inst_state},
+    )
 
 
 @jwt_cookie_user
@@ -1148,10 +1210,11 @@ def institution_new_view(request):
 
 @jwt_cookie_user
 def evidences_view(request):
-    """Lista de evidências — server-rendered (Fase 3, Django + HTMX).
+    """Lista de evidências — server-rendered (Fase 3) via gerador único de grelhas.
 
     Ownership espelha o EvidenceViewSet (AGENTE vê as suas via occurrence;
-    PERITO/staff todas). Estado legal derivado do ledger por linha.
+    PERITO/staff todas). Estado legal derivado do ledger por linha (filtro
+    DERIVADO via computed_filters; a bolinha/legenda refletem-no no telemóvel).
     """
     user = request.user
 
@@ -1163,67 +1226,55 @@ def evidences_view(request):
     access.remember_console_mode(request, lens)
     qs = _lens_evidences(user, lens)
 
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(code__icontains=query)
-            | Q(description__icontains=query)
-            | Q(serial_number__icontains=query)
-            | Q(occurrence__number__icontains=query)
-        )
-
-    etype = (request.GET.get('type') or '').strip()
-    if etype in evidence_type_config.active_codes():
-        qs = qs.filter(type=etype)
-
-    # Filtro por estado legal DERIVADO (entrada a partir dos tiles do Painel).
-    # WI-E: uma só query agrupada em vez de iterar todas as evidências 2x. O estado
-    # deriva da cadeia COMPLETA dos itens da zona ativa (_lens_custody devolve
-    # cadeias inteiras, não eventos isolados).
-    state = (request.GET.get('state') or '').strip()
-    if state in LEGAL_STATES:
+    def apply_evd_state(filtered_qs, _request, value):
+        # WI-E: uma só query agrupada (o estado deriva da cadeia COMPLETA dos
+        # itens da zona ativa, não de eventos isolados). Restringe à lente.
         states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
-        matching = [ev_id for ev_id, st in states.items() if st == state]
-        qs = qs.filter(id__in=matching)
+        matching = [ev_id for ev_id, st in states.items() if st == value]
+        return filtered_qs.filter(id__in=matching)
 
-    date_after = (request.GET.get('date_after') or '').strip()
-    date_before = (request.GET.get('date_before') or '').strip()
-    d_after, d_before = parse_date(date_after), parse_date(date_before)
-    if d_after:
-        qs = qs.filter(timestamp_seizure__date__gte=d_after)
-    if d_before:
-        qs = qs.filter(timestamp_seizure__date__lte=d_before)
+    columns = [
+        GridColumn('code', 'Código', cell='code', width=13, dot=True,
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=18,
+                   filter=ColFilter('type', 'Tipo', kind='select', field='type',
+                                    choices=tuple(evidence_type_config.active_choices()))),
+        GridColumn('occ_label', 'Ocorrência', css='mono col-hide-md', width=15,
+                   filter=ColFilter('occ', 'Ocorrência', kind='text', field='occurrence__number', placeholder='NUIPC')),
+        GridColumn('serial_number', 'Nº série', css='mono grid__muted col-hide-sm', width=16,
+                   filter=ColFilter('serial', 'Nº série', kind='text', field='serial_number', placeholder='Nº série')),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=14,
+                   filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
+        GridColumn('timestamp_seizure', 'Apreensão', cell='date', time=True, width=14,
+                   filter=ColFilter('date', 'Apreensão', kind='date_range', field='timestamp_seizure')),
+        GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=10,
+                   filter=ColFilter('agent', 'Agente', kind='text', placeholder='Agente',
+                                    fields=('agent__first_name', 'agent__last_name', 'agent__username'))),
+    ]
 
-    sort_key = (request.GET.get('sort') or 'recent').strip()
-    qs = qs.order_by(_EVD_SORTS.get(sort_key, '-timestamp_seizure'))
-
-    paginator = Paginator(qs, 25)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_evidences(page_obj.object_list)
-
-    qs_base = urlencode({k: v for k, v in (
-        ('lens', lens), ('q', query), ('type', etype), ('state', state),
-        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
-    ) if v})
-
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'type': etype,
-        'state': state,
-        'state_label': LEGAL_STATE_LABELS.get(state, ''),
-        'date_after': date_after,
-        'date_before': date_before,
-        'sort': sort_key,
-        'qs_base': qs_base,
-        'evidence_types': evidence_type_config.active_choices(),
-        'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-    if ctx['is_htmx']:
-        return render(request, 'partials/_evidences_grid.html', ctx)
-    return render(request, 'evidences.html', ctx)
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='evd',
+        endpoint='/evidences/',
+        page_template='evidences.html',
+        table_label='Itens de prova',
+        count_noun='ite', count_plural='m,ns',
+        sorts=_EVD_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Apreensão recente'), ('oldest', 'Apreensão antiga'),
+                  ('code', 'Código'), ('occurrence', 'NUIPC')),
+        search_fields=('code', 'description', 'serial_number', 'occurrence__number'),
+        search_placeholder='Pesquisar código, nº série, NUIPC…',
+        decorate=_decorate_evidences,
+        legend=URGENCY_LEGEND_EVIDENCE,
+        page_size=25,
+        lens=lens,
+        empty_title='Sem itens de prova',
+        empty_hint='Ainda não há itens registados.',
+        computed_filters={'state': apply_evd_state},
+    )
 
 
 def _evd_field_ctx(post):
@@ -1257,11 +1308,9 @@ def evidences_new_view(request):
     transversal_fields, type_fields = _evd_field_ctx(
         request.POST if request.method == 'POST' else {}
     )
-    # Duas superfícies da MESMA lógica: página completa (fallback no-JS) e
-    # fragmento modal (ação-in-place, ?modal=1). Sucesso no modal → 204 +
-    # HX-Redirect; erro → fragmento com os erros.
-    modal = _wants_modal(request)
-    template = 'partials/_evidence_form.html' if modal else 'evidences_new.html'
+    # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
+    # → redireciona para o item criado; erro → re-render com os erros.
+    template = 'evidences_new.html'
 
     if request.method == 'POST':
         tsd_keys = evidence_field_config.all_keys()
@@ -1302,7 +1351,6 @@ def evidences_new_view(request):
                         'preselect': request.POST.get('occurrence', ''),  # nosemgrep
                         'errors': {'geral': _flatten_validation_error(exc)},
                         'data': request.POST,  # nosemgrep
-                        'modal': modal,
                         'action': '/evidences/new/',
                     },
                     status=400,
@@ -1315,10 +1363,6 @@ def evidences_new_view(request):
                 details={'hash': ev.integrity_hash},
             )
             messages.success(request, f'Item de prova {ev.code} apreendido e registado.')
-            if modal:
-                resp = HttpResponse(status=204)
-                resp['HX-Redirect'] = f'/evidences/{ev.pk}/'
-                return resp
             return HttpResponseRedirect(f'/evidences/{ev.pk}/')
         return render(
             request,
@@ -1332,7 +1376,6 @@ def evidences_new_view(request):
                 'preselect': request.POST.get('occurrence', ''),
                 'errors': serializer.errors,
                 'data': request.POST,
-                'modal': modal,
                 'action': '/evidences/new/',
             },
             status=400,
@@ -1350,7 +1393,6 @@ def evidences_new_view(request):
             'preselect': request.GET.get('occurrence', ''),
             'errors': {},
             'data': {},
-            'modal': modal,
             'action': '/evidences/new/',
         },
     )
@@ -1363,6 +1405,7 @@ def _decorate_events(events):
         r.custodian_label = r.get_custodian_type_display() if r.custodian_type else '—'
         r.agent_label = get_user_display_name(r.agent)
         r.hash_short = (r.record_hash or '')[:16]
+        r.aria_code = r.code or r.event_label   # rótulo da linha (fallback evento)
 
 
 def _chain_points(events):
@@ -1375,7 +1418,7 @@ def _chain_points(events):
     for r in events:
         if r.gps_lat is None or r.gps_lng is None:
             continue
-        label = f'{r.sequence}. {r.get_event_type_display()} · {r.timestamp:%H:%M}'
+        label = f'M{r.sequence:02d} · {r.get_event_type_display()} · {r.timestamp:%d/%m %H:%M}'
         if r.gps_accuracy_m:
             label += f' · ±{r.gps_accuracy_m}m'
         pts.append({'lat': float(r.gps_lat), 'lng': float(r.gps_lng), 'label': label})
@@ -1683,7 +1726,11 @@ def _custody_drawer(request, user, drawer_id):
 
 @jwt_cookie_user
 def custody_list_view(request):
-    """Lista do ledger de custódia — server-rendered (Fase 3, Django + HTMX)."""
+    """Lista do ledger de custódia — server-rendered (Fase 3) via gerador único.
+
+    Filtros por coluna iguais às ocorrências, INCLUSIVE Instituição titular e
+    Estado legal DERIVADO do item (computed_filters). A bolinha/legenda mostram o
+    estado legal no telemóvel (mesma fonte das evidências)."""
     user = request.user
 
     drawer_id = request.GET.get('drawer')
@@ -1692,79 +1739,75 @@ def custody_list_view(request):
 
     lens = access.console_mode(request, user)
     access.remember_console_mode(request, lens)
-    qs = _lens_custody(user, lens)
+    # evidence já vem de _lens_custody; redeclara-se aqui (com a instituição) para
+    # tornar explícita a dependência do gerador (cellattr 'evidence.code' + estado).
+    qs = _lens_custody(user, lens).select_related('custodian_institution', 'evidence')
 
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(code__icontains=query)
-            | Q(evidence__code__icontains=query)
-            | Q(evidence__occurrence__number__icontains=query)
-        )
+    institutions = Institution.objects.filter(is_active=True).order_by('name')
+    inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
 
-    event = (request.GET.get('event') or '').strip()
-    if event in EventType.values:
-        qs = qs.filter(event_type=event)
-
-    # Custódio (coluna visível, antes não filtrável) e instituição titular.
-    custodian = (request.GET.get('custodian') or '').strip()
-    if custodian in CustodianType.values:
-        qs = qs.filter(custodian_type=custodian)
-
-    institution = (request.GET.get('institution') or '').strip()
-    if institution.isdigit():
-        qs = qs.filter(custodian_institution_id=int(institution))
-
-    # Estado legal DERIVADO do item a que o evento pertence (mesmo padrão WI-E),
-    # restrito à lente ativa (cadeias completas dos itens da lente).
-    state = (request.GET.get('state') or '').strip()
-    if state in LEGAL_STATES:
+    def apply_cc_state(filtered_qs, _request, value):
+        # Estado legal DERIVADO do item (mesmo padrão WI-E), restrito à lente.
         states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
-        matching = [ev_id for ev_id, st in states.items() if st == state]
-        qs = qs.filter(evidence_id__in=matching)
+        matching = [ev_id for ev_id, st in states.items() if st == value]
+        return filtered_qs.filter(evidence_id__in=matching)
 
-    date_after = (request.GET.get('date_after') or '').strip()
-    date_before = (request.GET.get('date_before') or '').strip()
-    d_after, d_before = parse_date(date_after), parse_date(date_before)
-    if d_after:
-        qs = qs.filter(timestamp__date__gte=d_after)
-    if d_before:
-        qs = qs.filter(timestamp__date__lte=d_before)
+    def decorate_custody(events):
+        _decorate_events(events)
+        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
+        for r in events:
+            st = states.get(r.evidence_id)
+            label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
+            css = LEGAL_STATE_CSS.get(st, 'muted')
+            r.state_badge = {'css': css, 'label': label}
+            r.dot = {'cls': css, 'title': label}          # bolinha mobile = estado legal
+            inst = r.custodian_institution
+            r.institution_label = (inst.sigla or inst.name) if inst else '—'
 
-    sort_key = (request.GET.get('sort') or 'recent').strip()
-    qs = qs.order_by(_CUSTODY_SORTS.get(sort_key, '-timestamp'))
+    columns = [
+        GridColumn('code', 'Código', cell='code', width=11, dot=True,
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('evidence.code', 'Item', css='mono', width=11,
+                   filter=ColFilter('item', 'Item', kind='text', field='evidence__code', placeholder='Item')),
+        GridColumn('event_label', 'Evento', css='grid__ellipsis col-reduce-hide', width=15,
+                   filter=ColFilter('event', 'Evento', kind='select', field='event_type',
+                                    choices=tuple(EventType.choices))),
+        GridColumn('custodian_label', 'Custódio', css='grid__muted col-hide-sm', width=13,
+                   filter=ColFilter('custodian', 'Custódio', kind='select', field='custodian_type',
+                                    choices=tuple(CustodianType.choices))),
+        GridColumn('institution_label', 'Instituição', css='grid__muted col-reduce-hide', width=13,
+                   filter=ColFilter('institution', 'Instituição', kind='select',
+                                    field='custodian_institution_id', choices=inst_choices)),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
+                   filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
+        GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=16,
+                   filter=ColFilter('date', 'Data / hora', kind='date_range', field='timestamp')),
+        GridColumn('hash_short', 'Hash', suffix='…', css='mono grid__muted col-hide-md', width=10),
+    ]
 
-    paginator = Paginator(qs, 30)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_events(page_obj.object_list)
-
-    qs_base = urlencode({k: v for k, v in (
-        ('lens', lens), ('q', query), ('event', event), ('custodian', custodian),
-        ('institution', institution), ('state', state),
-        ('date_after', date_after), ('date_before', date_before), ('sort', sort_key),
-    ) if v})
-
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'event': event,
-        'custodian': custodian,
-        'institution': institution,
-        'state': state,
-        'date_after': date_after,
-        'date_before': date_before,
-        'sort': sort_key,
-        'qs_base': qs_base,
-        'event_types': EventType.choices,
-        'custodian_types': CustodianType.choices,
-        'institutions': Institution.objects.filter(is_active=True).order_by('name'),
-        'legal_state_choices': list(LEGAL_STATE_LABELS.items()),
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-    if ctx['is_htmx']:
-        return render(request, 'partials/_custody_grid.html', ctx)
-    return render(request, 'custody_list.html', ctx)
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='cc',
+        endpoint='/custodies/',
+        page_template='custody_list.html',
+        table_label='Eventos de custódia',
+        count_noun='evento',
+        sorts=_CUSTODY_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigos'),
+                  ('evidence', 'Por item')),
+        search_fields=('code', 'evidence__code', 'evidence__occurrence__number'),
+        search_placeholder='Pesquisar item, NUIPC, código…',
+        decorate=decorate_custody,
+        legend=URGENCY_LEGEND_EVIDENCE,
+        page_size=30,
+        lens=lens,
+        empty_title='Sem eventos de custódia',
+        empty_hint='Ainda não há eventos registados.',
+        computed_filters={'state': apply_cc_state},
+    )
 
 
 @jwt_cookie_required
@@ -1782,31 +1825,60 @@ def investigation_report_view(request):
 
 @jwt_cookie_user
 def reports_view(request):
-    """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3)."""
+    """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3) via
+    gerador único. Linhas NÃO-clicáveis: o Código liga ao detalhe da ocorrência e
+    a coluna Guia descarrega o PDF; filtros por coluna iguais às ocorrências."""
     user = request.user
     lens = access.console_mode(request, user)
     access.remember_console_mode(request, lens)
     qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences'))
-    query = (request.GET.get('q') or '').strip()
-    if query:
-        qs = qs.filter(
-            Q(number__icontains=query) | Q(code__icontains=query) | Q(address__icontains=query)
-        )
-    qs = qs.order_by('-date_time')
-    paginator = Paginator(qs, 30)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    _decorate_occurrences(page_obj.object_list)
-    qs_base = urlencode({k: v for k, v in (('lens', lens), ('q', query)) if v})
-    ctx = {
-        'page_obj': page_obj,
-        'total': paginator.count,
-        'q': query,
-        'qs_base': qs_base,
-        'is_htmx': bool(request.headers.get('HX-Request')),
-    }
-    if ctx['is_htmx']:
-        return render(request, 'partials/_reports_grid.html', ctx)
-    return render(request, 'reports.html', ctx)
+
+    crime_categories = CrimeCategoria.objects.order_by('codigo')
+    cat_choices = tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)
+
+    def decorate_reports(items):
+        _decorate_occurrences(items)
+        for o in items:
+            o.detail_href = f'/occurrences/{o.id}/'
+            o.guia = {'href': f'/api/occurrences/{o.id}/pdf/', 'label': 'PDF',
+                      'aria': f'Descarregar guia PDF de {o.code}'}
+
+    columns = [
+        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6),
+        GridColumn('code', 'Código', cell='code', width=15, dot=True, link_key='detail_href',
+                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
+        GridColumn('number', 'NUIPC', css='mono', width=18,
+                   filter=ColFilter('number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-hide-md', width=27,
+                   filter=ColFilter('cat', 'Tipo de crime', kind='select',
+                                    field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
+        GridColumn('n_ev', 'Itens', cell='num', css='col-hide-sm', width=9),
+        GridColumn('date_time', 'Data', cell='date', time=False, css='col-hide-sm', width=13,
+                   filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
+        GridColumn('guia', 'Guia', cell='action', width=12),
+    ]
+
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='rpt',
+        endpoint='/reports/',
+        page_template='reports.html',
+        table_label='Guias de transporte',
+        count_noun='ocorrência',
+        sorts={'recent': '-date_time'},
+        default_sort='recent',
+        search_fields=('number', 'code', 'address'),
+        search_placeholder='Pesquisar código, NUIPC, morada…',
+        decorate=decorate_reports,
+        legend=URGENCY_LEGEND_OCCURRENCE,
+        row_clickable=False,
+        page_size=30,
+        lens=lens,
+        empty_title='Sem ocorrências',
+        empty_hint='Ainda não há ocorrências para gerar guias.',
+    )
 
 
 def occurrence_intake_view(request, occurrence_id):
@@ -1888,14 +1960,32 @@ def occurrence_intake_view(request, occurrence_id):
     # evidência — N+1 a cada carregamento da página de intake). Agrupa por
     # evidência e deriva o estado uma vez por item.
     eventos_por_ev = {}
-    for rec in ChainOfCustody.objects.filter(evidence__occurrence=occurrence).order_by(
-        'evidence_id', 'sequence'
+    for rec in (
+        ChainOfCustody.objects.filter(evidence__occurrence=occurrence)
+        .select_related('custodian_institution')
+        .order_by('evidence_id', 'sequence')
     ):
         eventos_por_ev.setdefault(rec.evidence_id, []).append(rec)
     state_by_evidence = {
         ev.id: (derive_legal_state(eventos_por_ev[ev.id]) if ev.id in eventos_por_ev else '')
         for ev in evidences
     }
+
+    # Instituição(ões) de DESTINO onde a prova é recebida — derivada do último
+    # encaminhamento de cada item em trânsito. Em trânsito ⇒ o último evento É o
+    # ENCAMINHAMENTO_CUSTODIA (derive_legal_state), logo o seu `custodian_institution`
+    # é o destino. A coordenada e o local da receção vêm DESTE registo (não se pedem
+    # ao operador): a instituição é fixa e já tem GPS/morada na ficha. Pré-selecionar
+    # o destino aqui torna a receção um gesto de confirmação, não de captura.
+    reception_institutions = []
+    _seen_inst = set()
+    for ev in evidences:
+        if state_by_evidence[ev.id] != 'em_transito':
+            continue
+        destino = eventos_por_ev[ev.id][-1].custodian_institution
+        if destino is not None and destino.id not in _seen_inst:
+            _seen_inst.add(destino.id)
+            reception_institutions.append(destino)
 
     # POST — registar a RECEÇÃO (fase 2 do handoff, ADR-0016 v2) dos itens em
     # trânsito marcados, em lote atómico, reusando o ChainOfCustodySerializer. O
@@ -1908,12 +1998,14 @@ def occurrence_intake_view(request, occurrence_id):
         from core.serializers import ChainOfCustodySerializer
 
         selected = set(request.POST.getlist('evidence_ids'))
-        location = (request.POST.get('location_name') or '').strip()
         storage = (request.POST.get('storage_location') or '').strip()
         observations = (request.POST.get('observations') or '').strip()
-        gps_lat = (request.POST.get('gps_lat') or '').strip()
-        gps_lng = (request.POST.get('gps_lng') or '').strip()
-        gps_accuracy = (request.POST.get('gps_accuracy_m') or '').strip()
+        # GPS e local NÃO se pedem na receção: a instituição de destino é fixa e o seu
+        # registo (coordenada + morada) é a fonte. O clean() do modelo copia o GPS da
+        # instituição herdada do encaminhamento; aqui só se deriva o `location_name`
+        # (rótulo legível no ledger) do mesmo destino. Pedir captura de GPS num
+        # laboratório com coordenada já conhecida seria ruído (ADR-0016 v2 — GPS só no
+        # terreno).
         to_receive = [
             ev
             for ev in evidences
@@ -1931,17 +2023,16 @@ def occurrence_intake_view(request, occurrence_id):
                             'evidence': ev.id,
                             'event_type': EventType.RECEPCAO_CUSTODIA,
                         }
-                        if location:
-                            payload['location_name'] = location
+                        # Rótulo de local = nome da instituição de destino (herdado do
+                        # encaminhamento). O FK custodian_institution identifica o
+                        # destino com precisão; location_name é só a etiqueta legível.
+                        destino = eventos_por_ev[ev.id][-1].custodian_institution
+                        if destino is not None:
+                            payload['location_name'] = destino.name
                         if storage:
                             payload['storage_location'] = storage
                         if observations:
                             payload['observations'] = observations
-                        if gps_lat and gps_lng:
-                            payload['gps_lat'] = gps_lat
-                            payload['gps_lng'] = gps_lng
-                            if gps_accuracy:
-                                payload['gps_accuracy_m'] = gps_accuracy
                         s = ChainOfCustodySerializer(
                             data=payload, context={'request': request}
                         )
@@ -2007,6 +2098,8 @@ def occurrence_intake_view(request, occurrence_id):
             # itens em trânsito. O destino/coordenada vêm do encaminhamento.
             'intake_action_label': 'Receção de prova encaminhada',
             'target_state': EventType.RECEPCAO_CUSTODIA,
+            # Destino(s) de receção — coordenada/morada herdadas da ficha (read-only).
+            'reception_institutions': reception_institutions,
         },
     )
 

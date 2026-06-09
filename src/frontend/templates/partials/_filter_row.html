@@ -1,0 +1,23 @@
+{% comment %}
+  Linha de FILTROS por coluna (fonte ÚNICA) — 2.ª linha do <thead>, 1:1 com as
+  colunas (col sem filtro → célula vazia, alinhada; obrigatório sob table-layout:
+  fixed). É funcionalidade de DESKTOP: no telemóvel a grelha reduz e esta linha
+  esconde-se (lá só a busca global filtra). Ids estáveis deixam o HTMX restaurar o
+  foco no swap. Server-side via o HTMX do <form> que envolve a grelha. CSP-safe.
+{% endcomment %}
+{% for col in columns %}
+<td class="grid__filter-cell {{ col.css }}">{% if col.filter %}{% with f=col.filter %}{% if f.kind == 'select' %}<select id="filter-{{ f.param }}" name="{{ f.param }}" aria-label="Filtrar por {{ f.label }}">
+  <option value="">Todos</option>
+  {% for val, lbl in f.choices %}<option value="{{ val }}"{% if f.value == val|stringformat:'s' %} selected{% endif %}>{{ lbl }}</option>{% endfor %}
+</select>{% elif f.kind == 'date_range' %}{% comment %}Botão + popover nativo (details); filter-popover.js posiciona em fixed e hx-preserve mantém aberto/valores no swap.{% endcomment %}<details class="filter-pop{% if f.after or f.before %} filter-pop--active{% endif %}" id="filter-{{ f.param }}-pop" hx-preserve="true">
+  <summary class="filter-pop__btn" aria-label="Filtrar por {{ f.label }}">{% if f.after or f.before %}{{ f.after|default:'…' }} – {{ f.before|default:'…' }}{% else %}Todas{% endif %}</summary>
+  <div class="filter-pop__panel">
+    <label>Desde
+      <input type="date" id="filter-{{ f.param }}-after" name="{{ f.param }}_after" value="{{ f.after }}" aria-label="{{ f.label }} desde">
+    </label>
+    <label>Até
+      <input type="date" id="filter-{{ f.param }}-before" name="{{ f.param }}_before" value="{{ f.before }}" aria-label="{{ f.label }} até">
+    </label>
+  </div>
+</details>{% else %}<input type="search" id="filter-{{ f.param }}" name="{{ f.param }}" value="{{ f.value }}" autocomplete="off" aria-label="Filtrar por {{ f.label }}">{% endif %}{% endwith %}{% endif %}</td>
+{% endfor %}

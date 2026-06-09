@@ -28,6 +28,8 @@
         var subSel = form.querySelector('[data-crime-sub]');
         var typeSel = form.querySelector('[data-crime-type]');
         var badge = form.querySelector('[data-crime-priority]');
+        var elevateWrap = form.querySelector('[data-elevate-wrap]');
+        var elevateInput = form.querySelector('[data-elevate-input]');
         if (!catSel || !subSel || !typeSel) return;
         form.setAttribute('data-cascade-ready', '1');
 
@@ -51,8 +53,16 @@
             sel.disabled = false;
             sel.removeAttribute('aria-busy');
         }
+        // Mostra/esconde a elevação manual de prioridade. Oculta = não submete
+        // (tipo já prioritário, ou ainda sem tipo escolhido).
+        function toggleElevate(show) {
+            if (!elevateWrap) return;
+            elevateWrap.hidden = !show;
+            if (!show && elevateInput) elevateInput.checked = false;
+        }
         function clearBadge() {
             if (badge) { badge.textContent = ''; badge.className = 'form-hint'; }
+            toggleElevate(false);
         }
         // Mensagem por estado: distingue sessão expirada (401/403) de falha de servidor.
         function statusMessage(status) {
@@ -101,15 +111,20 @@
         function updateBadge() {
             if (!badge) return;
             var opt = typeSel.options[typeSel.selectedIndex];
-            if (opt && opt.getAttribute('data-prioritaria') === '1') {
+            var isPrioritaria = !!(opt && opt.getAttribute('data-prioritaria') === '1');
+            if (isPrioritaria) {
                 badge.textContent = 'P1 · Prioritária (derivada da lei)';
                 badge.className = 'form-hint pri-hint--p1';
             } else if (typeSel.value) {
-                badge.textContent = 'Sem prioridade pela lei — pode elevar manualmente abaixo.';
+                badge.textContent = 'Sem prioridade pela lei — pode marcar como prioritária abaixo.';
                 badge.className = 'form-hint';
             } else {
                 clearBadge();
+                return;
             }
+            // A elevação manual só faz sentido para um tipo escolhido SEM
+            // prioridade legal; se já é prioritária, fica oculta.
+            toggleElevate(typeSel.value && !isPrioritaria);
         }
 
         catSel.addEventListener('change', function () { loadSubs(catSel.value); });

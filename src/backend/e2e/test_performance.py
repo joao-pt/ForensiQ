@@ -79,7 +79,7 @@ def test_htmx_search_interaction_is_responsive(page, auth_as, live_server):
 
     page.goto("/occurrences/", wait_until="load")
     t0 = time.perf_counter()
-    page.fill("input[name='q']", "PERF-A")
+    page.fill("input[name='q_number']", "PERF-A")
     expect(page.locator("#occ-grid")).not_to_contain_text("PERF-B")
     elapsed_ms = (time.perf_counter() - t0) * 1000
     # inclui o debounce de 350ms do HTMX; o orçamento contempla-o.
