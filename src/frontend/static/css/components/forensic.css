@@ -773,6 +773,11 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 
 /* Mapa do drawer (Local) */
 .dd__map { height: 220px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
+/* Estado honesto quando o Leaflet não está disponível (em vez de aba sem mapa). */
+.dd__map--unavailable {
+    display: flex; align-items: center; justify-content: center;
+    font-size: var(--fs-xs); color: var(--text-subtle); font-family: var(--font-mono);
+}
 .dd__nogeo {
     font-size: var(--fs-xs); color: var(--text-subtle); font-family: var(--font-mono);
     padding: var(--sp-3); border: 1px dashed var(--border); border-radius: var(--r-2); text-align: center;

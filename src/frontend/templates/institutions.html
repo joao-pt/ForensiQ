@@ -33,7 +33,7 @@
 {% endblock %}
 
 {% block extra_js %}
-  {% include '_leaflet_js.html' %}
+  {# Leaflet (tb. p/ o map-picker do modal) + htmx + forensic-list vêm do _grid_scripts. #}
   {% include 'partials/_grid_scripts.html' %}
   {% comment %}Scripts do formulário injetado no modal (ação-in-place): a captura de GPS é delegada no document, o seletor de mapa arranca em fq:modal-open. Leaflet/FQMap já carregados acima.{% endcomment %}
   <script src="{% static 'js/components/geo.js' %}"></script>

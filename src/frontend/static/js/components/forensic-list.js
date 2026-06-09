@@ -163,7 +163,18 @@
 
     function initDrawerMap() {
         var el = document.getElementById('drawer-map');
-        if (!el || typeof L === 'undefined') return;
+        if (!el) return;
+        // Leaflet em falta: antes falhava em SILÊNCIO (aba sem mapa, sem pista).
+        // O runtime vem do _grid_scripts (fonte única), por isso isto só dispara
+        // se uma página contornar esse include — agora avisa e mostra estado honesto.
+        if (typeof L === 'undefined') {
+            el.classList.add('dd__map--unavailable');
+            el.textContent = 'Mapa indisponível.';
+            if (window.console && console.warn) {
+                console.warn('[ForensiQ] drawer-map: Leaflet (L) não carregado nesta página.');
+            }
+            return;
+        }
         var lat = parseFloat(el.dataset.lat);
         var lng = parseFloat(el.dataset.lng);
         destroyDrawerMap();
