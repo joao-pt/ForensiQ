@@ -31,7 +31,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.tests_factories import TEST_PASSWORD, AuditLogFactory
+from core.tests_base import BaseAPITestCase
+from core.tests_factories import AuditLogFactory, UserFactory
 
 from .models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 from .tests_factories import (
@@ -41,40 +42,19 @@ from .tests_factories import (
 )
 
 
-class DashboardBaseTestCase(TestCase):
-    """Setup comum: agente, perito e admin (mesma convenção de tests_api)."""
+class DashboardBaseTestCase(BaseAPITestCase):
+    """Trio agente/perito/admin herdado de tests_base.BaseAPITestCase
+    (auditoria D112); aqui só o other_agent e o helper de prioridade.
+    Os usernames passam aos da base ('agente_api', …) — os testes que
+    asserem nomes leem-nos dinamicamente ou usam a base ('Ana Silva')."""
 
     def setUp(self):
-        self.client = APIClient()
-        self.agent = User.objects.create_user(
-            username='agente_dash',
-            password=TEST_PASSWORD,
-            profile=User.Profile.FIRST_RESPONDER,
-            first_name='Ana',
-            last_name='Silva',
-        )
-        self.other_agent = User.objects.create_user(
+        super().setUp()
+        self.other_agent = UserFactory(
             username='agente_dash_2',
-            password=TEST_PASSWORD,
-            profile=User.Profile.FIRST_RESPONDER,
             first_name='Bruno',
             last_name='Mendes',
         )
-        self.expert = User.objects.create_user(
-            username='perito_dash',
-            password=TEST_PASSWORD,
-            profile=User.Profile.FORENSIC_EXPERT,
-            clearance=User.Clearance.NACIONAL,
-            first_name='Carlos',
-            last_name='Costa',
-        )
-        self.admin = User.objects.create_superuser(
-            username='admin_dash',
-            password='AdminPass123!',
-        )
-
-    def authenticate_as(self, user):
-        self.client.force_authenticate(user=user)
 
     # -- helpers de domínio --
 
@@ -237,7 +217,7 @@ class ActivityFeedTest(DashboardBaseTestCase):
         self.assertEqual(item['resource_type'], 'OCCURRENCE')
         self.assertEqual(item['resource_type_display'], 'Ocorrência')
         self.assertEqual(item['resource_id'], 42)
-        self.assertEqual(item['user'], 'agente_dash')
+        self.assertEqual(item['user'], 'agente_api')
         self.assertEqual(item['user_name'], 'Ana Silva')
         self.assertEqual(item['label'], 'Ana Silva criou OCORRÊNCIA #42')
 
