@@ -102,8 +102,10 @@
           <ul class="custody-grid">
             {% for t in tiles %}
             <li>
-              <a class="cs-tile{% if t.n == 0 %} cs-tile--zero{% endif %}" href="/evidences/?state={{ t.key }}"
-                 title="Ver itens no estado: {{ t.label }}">
+              {# Tile de ATENÇÃO (t.attn): eixo da validação, não um estado — filtra a tabela local (?attn=), como os prazos. #}
+              <a class="cs-tile{% if t.n == 0 %} cs-tile--zero{% endif %}{% if t.attn %} cs-tile--attn{% endif %}"
+                 href="{% if t.href %}{{ t.href }}{% else %}/evidences/?state={{ t.key }}{% endif %}"
+                 title="{% if t.attn %}Filtrar a tabela pelas ocorrências com itens a aguardar validação{% else %}Ver itens no estado: {{ t.label }}{% endif %}">
                 <span class="cs-tile__num">{{ t.n }}</span>
                 <span class="cs-tile__label">{{ t.label }}</span>
               </a>

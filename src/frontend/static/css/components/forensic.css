@@ -559,6 +559,12 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    via .grid__dot-host) e SÓ aparece na vista mobile reduzida. */
 .grid__dot-host > .urgency-dot { display: none; margin-right: var(--sp-2); }
 @media (max-width: 767px) { .grid--mobile-reduce .grid__dot-host > .urgency-dot { display: inline-block; } }
+/* Marcador de VALIDAÇÃO PENDENTE (eixo próprio da apreensão, CPP 178.º/6):
+   bolinha standalone SUFIXA o conteúdo da célula (warn = por validar,
+   danger = em atraso) e está SEMPRE visível — escapa à regra do dot-host,
+   que só governa a bolinha de urgência prefixada. */
+.val-flag { margin-left: var(--sp-2); }
+.grid__dot-host > .val-flag { display: inline-block; margin-right: 0; }
 /* Legenda (discreta, só telemóvel — no desktop há coluna). */
 .urgency-legend { display: none; }
 @media (max-width: 767px) {

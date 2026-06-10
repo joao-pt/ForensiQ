@@ -65,6 +65,6 @@ VALIDATION_STATUS_LABELS = {
 }
 VALIDATION_STATUS_CSS = {
     'validada': 'ok',
-    'por_validar': 'info',
+    'por_validar': 'warn',   # trabalho pendente dentro do prazo = âmbar
     'em_atraso': 'danger',
 }

@@ -127,6 +127,17 @@ class LegalStatesByEvidenceTest(TestCase):
         )
         self.assertEqual(len(eventos[self.ev2.id]), 1)
 
+    def test_validation_statuses_em_lote_espelha_a_funcao_pura(self):
+        """O agrupamento em lote do eixo de validação devolve, por item, o mesmo
+        que a derivação individual (fonte única — nunca divergem)."""
+        from core.utils import validation_status_of
+
+        statuses = analytics.validation_statuses_by_evidence(ChainOfCustody.objects.all())
+        self.assertEqual(statuses[self.ev1.id], 'validada')
+        self.assertEqual(statuses[self.ev2.id], 'por_validar')
+        for ev in (self.ev1, self.ev2):
+            self.assertEqual(statuses[ev.id], validation_status_of(ev))
+
 
 class LedgerAnalyticsTest(TestCase):
     """Cenário no ledger: validação em atraso, prova em trânsito e dwell time."""

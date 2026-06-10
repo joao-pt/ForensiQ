@@ -1,0 +1,6 @@
+{% comment %}
+  Marcador de VALIDAÇÃO PENDENTE por linha (fonte ÚNICA; eixo próprio da
+  apreensão, CPP 178.º/6). Incluído pelo _grid_cell.html nas colunas marcadas
+  (col.val_flag); só renderiza quando há trabalho pendente (row.val_dot:
+  warn = por validar, danger = em atraso).
+{% endcomment %}{% if col.val_flag and row.val_dot %}<span class="urgency-dot urgency-dot--{{ row.val_dot.cls }} val-flag" role="img" aria-label="{{ row.val_dot.title }}" title="{{ row.val_dot.title }}"></span>{% endif %}

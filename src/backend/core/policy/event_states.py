@@ -276,3 +276,7 @@ def validation_status(eventos_ordenados, now):
 
 # Conjunto canónico dos estatutos de validação deriváveis (sem o ``None``).
 VALIDATION_STATUSES = frozenset({'validada', 'em_atraso', 'por_validar'})
+
+# Estatutos que representam TRABALHO PENDENTE de validação — alimentam o tile
+# do painel, os marcadores por linha das grelhas e o botão da ocorrência.
+VALIDATION_PENDING_STATUSES = frozenset({'por_validar', 'em_atraso'})

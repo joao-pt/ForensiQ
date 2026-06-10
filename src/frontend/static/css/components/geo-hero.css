@@ -333,6 +333,13 @@
     font-weight: var(--fw-semi);
 }
 
+/* Tile de ATENÇÃO — eixo da VALIDAÇÃO (ato jurídico), não um estado de
+   custódia: o número acende em âmbar enquanto houver itens a aguardar
+   validação (a cor classifica; a zero segue a regra dos restantes). */
+.cs-tile--attn:not(.cs-tile--zero) .cs-tile__num {
+    color: var(--warning);
+}
+
 /* =====================================================================
    Prazos & atenção — banda horizontal (fluxo do ledger, não só stock)
    ===================================================================== */

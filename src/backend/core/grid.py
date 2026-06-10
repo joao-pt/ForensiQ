@@ -46,6 +46,7 @@ class GridColumn:
     suffix: str = ''                  # literal após o valor (ex.: hash '…')
     geo: bool = False                 # célula text: prefixa ícone GPS se row.gps_lat
     dot: bool = False                 # coluna hospedeira da bolinha de urgência
+    val_flag: bool = False            # sufixa o marcador de validação pendente (row.val_dot)
     filter: ColFilter | None = None
 
 
@@ -61,7 +62,7 @@ def serialize_columns(columns, filters=None):
     return [{
         'key': c.key, 'label': c.label, 'css': c.css, 'width': c.width,
         'cell': c.cell, 'time': c.time, 'link_key': c.link_key,
-        'suffix': c.suffix, 'geo': c.geo, 'dot': c.dot,
+        'suffix': c.suffix, 'geo': c.geo, 'dot': c.dot, 'val_flag': c.val_flag,
         'filter': filters.get(c.filter.param) if c.filter else None,
     } for c in columns]
 

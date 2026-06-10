@@ -146,3 +146,96 @@ class ValidarLoteTest(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn('anteceder', r.content.decode())
         self.assertEqual(self._last(self.ev1).event_type, EventType.APREENSAO_OBJETO)
+
+
+class ValidacaoCaminhoUnicoTest(TestCase):
+    """O ato de validação tem UM caminho de registo (o modal certificado, que
+    pede quem/quando/justificação): o formulário genérico da timeline deixa de
+    oferecer VALIDACAO_APREENSAO e as páginas do item ligam ao modal da
+    ocorrência enquanto o ato está pendente. As guardas do MODELO não mudam —
+    é só o ecrã que fecha o segundo caminho sem certificação."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(name='PSP Uni', type=InstitutionType.OPC, sigla='PSP-UN')
+        cls.agent = _user('uni_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.occ_pend = _occ(cls.agent, 'UNI-P')
+        cls.ev_pend = _evidence(cls.occ_pend, cls.agent)
+        _event(cls.ev_pend, cls.agent, inst=cls.opc)
+        cls.occ_ok = _occ(cls.agent, 'UNI-OK')
+        cls.ev_ok = _evidence(cls.occ_ok, cls.agent)
+        _event(cls.ev_ok, cls.agent, inst=cls.opc)
+        _event(cls.ev_ok, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+
+    def _get(self, url):
+        auth_cookie(self.client, self.agent)
+        return self.client.get(url)
+
+    def test_timeline_nao_oferece_validacao_no_select_generico(self):
+        body = self._get(f'/evidences/{self.ev_pend.id}/custody/').content.decode()
+        self.assertNotIn('<option value="VALIDACAO_APREENSAO"', body)
+        # O caminho certo está lá: botão dedicado para o modal da ocorrência.
+        self.assertIn(f'/occurrences/{self.occ_pend.id}/validar/', body)
+
+    def test_timeline_sem_pendencia_nao_mostra_botao(self):
+        body = self._get(f'/evidences/{self.ev_ok.id}/custody/').content.decode()
+        self.assertNotIn('Validar apreensão', body)
+
+    def test_detalhe_do_item_liga_ao_modal_quando_pendente(self):
+        body = self._get(f'/evidences/{self.ev_pend.id}/').content.decode()
+        self.assertIn(f'/occurrences/{self.occ_pend.id}/validar/', body)
+        ok = self._get(f'/evidences/{self.ev_ok.id}/').content.decode()
+        self.assertNotIn(f'/occurrences/{self.occ_ok.id}/validar/', ok)
+
+
+class ValidationVisibilityTest(TestCase):
+    """Visibilidade transversal do trabalho de validação: tile "A aguardar
+    validação" no painel (filtra a tabela local via ?attn=pending, como os
+    prazos) e marcador pendente (val-flag) nas grelhas de ocorrências,
+    evidências e custódias."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(name='PSP Vis', type=InstitutionType.OPC, sigla='PSP-VS')
+        cls.agent = _user('vis_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        # occ_pend: item com apreensão por validar; occ_ok: item já validado.
+        cls.occ_pend = _occ(cls.agent, 'VIS-P')
+        cls.ev_pend = _evidence(cls.occ_pend, cls.agent)
+        _event(cls.ev_pend, cls.agent, inst=cls.opc)
+        cls.occ_ok = _occ(cls.agent, 'VIS-OK')
+        cls.ev_ok = _evidence(cls.occ_ok, cls.agent)
+        _event(cls.ev_ok, cls.agent, inst=cls.opc)
+        _event(cls.ev_ok, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+
+    def _get(self, url):
+        auth_cookie(self.client, self.agent)
+        return self.client.get(url)
+
+    def test_dashboard_tem_tile_a_aguardar_validacao(self):
+        body = self._get('/dashboard/').content.decode()
+        self.assertIn('A aguardar validação', body)
+        self.assertIn('?attn=pending', body)
+        self.assertIn('cs-tile--attn', body)
+
+    def test_attn_pending_filtra_tabela_local(self):
+        body = self._get('/dashboard/?attn=pending').content.decode()
+        self.assertIn(self.occ_pend.number, body)
+        self.assertNotIn(self.occ_ok.number, body)
+
+    def test_lista_ocorrencias_marca_processos_pendentes(self):
+        body = self._get('/occurrences/').content.decode()
+        self.assertIn('val-flag', body)
+        # Só o processo pendente leva marcador (1 ocorrência × 1 célula).
+        self.assertEqual(body.count('val-flag'), 1)
+        self.assertIn('1 item(ns) a aguardar validação', body)
+
+    def test_lista_evidencias_marca_itens_pendentes(self):
+        body = self._get('/evidences/').content.decode()
+        self.assertEqual(body.count('val-flag'), 1)
+
+    def test_lista_custodias_marca_eventos_de_itens_pendentes(self):
+        body = self._get('/custodies/').content.decode()
+        # 1 evento do item pendente; os 2 eventos do item validado não marcam.
+        self.assertEqual(body.count('val-flag'), 1)

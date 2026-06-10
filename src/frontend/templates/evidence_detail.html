@@ -27,6 +27,14 @@
       <p class="detail__sub">{{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></p>
     </div>
     <div class="detail__actions">
+      {% if can_validate %}
+      {# Ato com formulário PRÓPRIO (modal da ocorrência): não vive no registo genérico. #}
+      <a class="btn-ghost" href="/occurrences/{{ ev.occurrence_id }}/validar/"
+         data-modal-open data-modal-title="Validar apreensão">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        Validar apreensão
+      </a>
+      {% endif %}
       {% if not ledger_closed %}
       <a class="btn-accent" href="/evidences/{{ ev.id }}/custody/#custody-register">
         {% include 'partials/icons/_plus.html' %}

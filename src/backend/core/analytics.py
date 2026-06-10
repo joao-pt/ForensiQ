@@ -37,6 +37,7 @@ from .policy.event_states import (
     VALIDATION_DEADLINE,
     EventType,
     derive_legal_state,
+    validation_status,
 )
 
 # Janelas temporais oferecidas no seletor (dias). 30 é o defeito.
@@ -84,6 +85,24 @@ def legal_states_by_evidence(custody_qs, *, with_events=False, related=()):
         eventos.setdefault(rec.evidence_id, []).append(rec)
     states = {ev_id: derive_legal_state(evs) for ev_id, evs in eventos.items()}
     return (states, eventos) if with_events else states
+
+
+def validation_statuses_by_evidence(custody_qs, now=None):
+    """Estatuto de VALIDAÇÃO por evidência (eixo ortogonal ao estado de custódia
+    — CPP art. 178.º/6), em LOTE: agrupa o ledger visível por ``evidence_id``
+    numa só passagem e aplica a função pura :func:`validation_status` uma vez
+    por item. Espelho de :func:`legal_states_by_evidence` para o outro eixo —
+    nenhuma camada re-implementa o agrupamento. ``None`` = não aplicável."""
+    now = now or timezone.now()
+    qs = (
+        custody_qs.select_related(None)
+        .order_by('evidence_id', 'sequence')
+        .only('evidence_id', 'event_type', 'sequence', 'timestamp')
+    )
+    eventos = {}
+    for rec in qs:
+        eventos.setdefault(rec.evidence_id, []).append(rec)
+    return {ev_id: validation_status(evs, now) for ev_id, evs in eventos.items()}
 
 
 def state_counts(states_by_ev):

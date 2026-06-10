@@ -52,6 +52,7 @@ from core.models import (
     SEIZURE_GENESIS_EVENTS,
     STATES_AT_OR_PAST_LAB,
     TERMINAL_LEGAL_STATES,
+    VALIDATION_PENDING_STATUSES,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -194,6 +195,48 @@ URGENCY_LEGEND_EVIDENCE = (
     {'cls': 'danger', 'label': 'Perdida a favor do Estado'},
     {'cls': 'muted', 'label': 'Restituída / destruída'},
 )
+
+
+def _decorate_occurrences_validation(occurrences):
+    """Anota ``occ.val_dot`` quando a ocorrência tem itens com VALIDAÇÃO pendente
+    (síntese por processo do eixo de validação — CPP art. 178.º/6): âmbar =
+    por validar no prazo, vermelho = há item em atraso. Bulk (1 query do ledger
+    + 1 do mapa item→processo) via fonte única ``core.analytics``."""
+    ids = [o.id for o in occurrences]
+    for o in occurrences:
+        o.val_dot = None
+    if not ids:
+        return
+    statuses = analytics.validation_statuses_by_evidence(
+        ChainOfCustody.objects.filter(evidence__occurrence_id__in=ids)
+    )
+    occ_by_ev = dict(
+        Evidence.objects.filter(occurrence_id__in=ids).values_list('id', 'occurrence_id')
+    )
+    pend = {}
+    for ev_id, vs in statuses.items():
+        if vs in VALIDATION_PENDING_STATUSES:
+            d = pend.setdefault(occ_by_ev.get(ev_id), {'n': 0, 'late': False})
+            d['n'] += 1
+            d['late'] = d['late'] or vs == 'em_atraso'
+    for o in occurrences:
+        d = pend.get(o.id)
+        if d:
+            o.val_dot = {
+                'cls': 'danger' if d['late'] else 'warn',
+                'title': (
+                    f"{d['n']} item(ns) a aguardar validação"
+                    + (' — em atraso' if d['late'] else '')
+                ),
+            }
+
+
+def _decorate_occurrences_page(occurrences):
+    """Decoração das LISTAS paginadas de ocorrências (grelha + painel do
+    dashboard): apresentação base + marcador de validação pendente por processo
+    (bulk — só sobre a página, nunca o queryset todo)."""
+    _decorate_occurrences(occurrences)
+    _decorate_occurrences_validation(occurrences)
 
 
 def _decorate_occurrences(occurrences):
@@ -364,12 +407,17 @@ def _decorate_evidences(evidences):
         e.state_badge = {'css': e.state_css, 'label': e.state_label}
         e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
         # Estatuto de VALIDAÇÃO da apreensão — eixo ortogonal ao estado (CPP
-        # art. 178.º/6); None = não aplicável (sem badge).
+        # art. 178.º/6); None = não aplicável (sem badge). O val_dot é o
+        # marcador compacto por linha, SÓ quando há trabalho pendente.
         vs = validation_status_of(e)
         e.validation_status = vs
         e.validation_badge = (
             {'css': VALIDATION_STATUS_CSS[vs], 'label': VALIDATION_STATUS_LABELS[vs]}
             if vs else None
+        )
+        e.val_dot = (
+            {'cls': VALIDATION_STATUS_CSS[vs], 'title': VALIDATION_STATUS_LABELS[vs]}
+            if vs in VALIDATION_PENDING_STATUSES else None
         )
         e.aria_code = e.code or 'item de prova'
         # marca/modelo são campos transversais em type_specific_data (JSON, ADR-0018);
@@ -756,6 +804,17 @@ def dashboard_view(request):
     tiles = [
         {'key': k, 'label': LEGAL_STATE_LABELS[k], 'n': tile_counts[k]} for k in LEGAL_STATE_LABELS
     ]
+    # "A aguardar validação" — EIXO próprio (a validação é ato jurídico, não um
+    # estado de custódia): tile de ATENÇÃO à parte; o clique filtra a própria
+    # tabela (?attn=pending), como os prazos — o número é re-derivável.
+    val_statuses = analytics.validation_statuses_by_evidence(cus_qs)
+    pending_ids = {
+        ev for ev, vs in val_statuses.items() if vs in VALIDATION_PENDING_STATUSES
+    }
+    tiles.append({
+        'key': 'val_pendente', 'label': 'A aguardar validação',
+        'n': len(pending_ids), 'href': '?attn=pending', 'attn': True,
+    })
 
     # Métricas de FLUXO (não só stock) — mesma fonte única que alimenta /stats/:
     # prazos a estourar (CPP 178.º/6), trânsito por receber e paragem mais longa
@@ -793,6 +852,7 @@ def dashboard_view(request):
     _ATTN = {
         'overdue': ('validações em atraso', sla['overdue_ids']),
         'transit': ('em trânsito por receber', sla['transit_ids']),
+        'pending': ('a aguardar validação', pending_ids),
     }
     attn_key = (request.GET.get('attn') or '').strip()
     attn_filter = None
@@ -813,7 +873,7 @@ def dashboard_view(request):
         # 30 linhas: a lista do painel tem altura fixa com scroll interno.
         recent_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:30]
     )
-    _decorate_occurrences(recent)
+    _decorate_occurrences_page(recent)
     for o in recent:
         o.detail_url = f'/occurrences/{o.id}/'
 
@@ -823,7 +883,7 @@ def dashboard_view(request):
     # 1440): código e data nunca truncam; o tipo de crime é o que cede.
     recent_columns = serialize_columns([
         GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=8),
-        GridColumn('code', 'Código', cell='code', width=18, link_key='detail_url'),
+        GridColumn('code', 'Código', cell='code', width=18, link_key='detail_url', val_flag=True),
         GridColumn('number', 'NUIPC', css='mono', width=18),
         GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=24),
         GridColumn('n_items', 'Itens', cell='num', css='col-hide-sm', width=8),
@@ -895,7 +955,7 @@ def _occurrences_list_response(request, archived=False):
                    filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
                                     choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
                                              (Occurrence.Priority.NORMAL, 'Normais')))),
-        GridColumn('code', 'Código', cell='code', width=13, dot=True,
+        GridColumn('code', 'Código', cell='code', width=13, dot=True, val_flag=True,
                    filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
         GridColumn('number', 'NUIPC', css='mono', width=16,
                    filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
@@ -948,7 +1008,7 @@ def _occurrences_list_response(request, archived=False):
                        'crime_type__descritivo', 'crime_type__subcategoria__nome',
                        'crime_type__subcategoria__categoria__nome'),
         search_placeholder='Procurar código, NUIPC, crime, local, agente…',
-        decorate=_decorate_occurrences,
+        decorate=_decorate_occurrences_page,
         legend=URGENCY_LEGEND_OCCURRENCE,
         page_size=25,
         lens=lens,
@@ -998,7 +1058,7 @@ def occurrence_detail_view(request, occurrence_id):
     # validar só aparece havendo apreensões por validar (badge já derivado).
     can_handoff = not access.is_read_only_profile(user)
     can_validate = can_handoff and any(
-        e.validation_status in ('por_validar', 'em_atraso') for e in evidences
+        e.validation_status in VALIDATION_PENDING_STATUSES for e in evidences
     )
     return render(
         request,
@@ -1556,6 +1616,7 @@ def evidences_view(request):
         GridColumn('serial_number', 'Nº série', css='mono grid__muted col-reduce-hide', width=16,
                    filter=ColFilter('serial', 'Nº série', kind='text', field='serial_number', placeholder='Nº série')),
         GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=12,
+                   val_flag=True,
                    filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
     ]
 
@@ -1735,6 +1796,7 @@ def evidence_detail_view(request, evidence_id):
     _decorate_events(events)
     sub_components = list(ev.sub_components.select_related('agent').order_by('id'))
     _decorate_evidences(sub_components)
+    valid_next = _valid_next_events(events, ev)
     return render(
         request,
         'evidence_detail.html',
@@ -1745,7 +1807,12 @@ def evidence_detail_view(request, evidence_id):
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             # Mesma fonte única da página de custódia (policy.next_events): ledger
             # fechado ⇒ não se oferece «Registar evento» (auditoria D96).
-            'ledger_closed': not _valid_next_events(events, ev),
+            'ledger_closed': not valid_next,
+            # Validação pendente E aceitável já (não em trânsito/terminal): o
+            # botão abre o modal dedicado da ocorrência (formulário único do ato).
+            'can_validate': any(
+                v == EventType.VALIDACAO_APREENSAO.value for v, _ in valid_next
+            ),
         },
     )
 
@@ -1990,6 +2057,15 @@ def custody_timeline_view(request, evidence_id):
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     valid_events = _valid_next_events(events, ev)
+    # A VALIDAÇÃO tem formulário PRÓPRIO (modal da ocorrência, que certifica
+    # quem validou/data do despacho/justificação — CPP 178.º/6): sai do select
+    # genérico para não existir um 2.º caminho sem esses campos. As guardas do
+    # modelo não mudam; ``can_validate`` liga o botão dedicado.
+    register_events = [
+        (v, label) for v, label in valid_events
+        if v != EventType.VALIDACAO_APREENSAO.value
+    ]
+    can_validate = len(register_events) != len(valid_events)
     return render(
         request,
         'custody_timeline.html',
@@ -1997,7 +2073,8 @@ def custody_timeline_view(request, evidence_id):
             'ev': ev,
             'events': events,
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
-            'valid_events': valid_events,
+            'valid_events': register_events,
+            'can_validate': can_validate,
             'custodian_types': CustodianType.choices,
             'institutions': _active_institutions(),
             # Portadores ativos para o select do ENCAMINHAMENTO (ADR-0016 v2).
@@ -2074,12 +2151,23 @@ def custody_list_view(request):
     def decorate_custody(events):
         _decorate_events(events)
         states = _lens_states()
+        # Eixo da validação (marcador pendente por linha) — bulk, só na página.
+        val_statuses = analytics.validation_statuses_by_evidence(
+            ChainOfCustody.objects.filter(
+                evidence_id__in={r.evidence_id for r in events}
+            )
+        )
         for r in events:
             st = states.get(r.evidence_id)
             label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
             css = LEGAL_STATE_CSS.get(st, 'muted')
             r.state_badge = {'css': css, 'label': label}
             r.dot = {'cls': css, 'title': label}          # bolinha mobile = estado legal
+            vs = val_statuses.get(r.evidence_id)
+            r.val_dot = (
+                {'cls': VALIDATION_STATUS_CSS[vs], 'title': VALIDATION_STATUS_LABELS[vs]}
+                if vs in VALIDATION_PENDING_STATUSES else None
+            )
             inst = r.custodian_institution
             r.institution_label = (inst.sigla or inst.name) if inst else '—'
 
@@ -2098,6 +2186,7 @@ def custody_list_view(request):
                    filter=ColFilter('institution', 'Instituição', kind='select',
                                     field='custodian_institution_id', choices=inst_choices)),
         GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
+                   val_flag=True,
                    filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
         GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=16,
                    filter=ColFilter('date', 'Data / hora', kind='date_range', field='timestamp')),

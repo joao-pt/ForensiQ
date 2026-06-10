@@ -34,6 +34,7 @@ from core.policy.event_states import (
     TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES as TERMINAL_LEGAL_STATES,
     VALIDATION_DEADLINE as VALIDATION_DEADLINE,
+    VALIDATION_PENDING_STATUSES as VALIDATION_PENDING_STATUSES,
     CustodianType,
     EventType,
     derive_legal_state as derive_legal_state,

@@ -32,6 +32,14 @@
       <p class="detail__sub"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span>{% if ev.validation_badge %} · <span class="state state--{{ ev.validation_badge.css }}">{{ ev.validation_badge.label }}</span>{% endif %}</p>
     </div>
     <div class="detail__actions">
+      {% if can_validate %}
+      {# Ato com formulário PRÓPRIO (modal da ocorrência): não vive no select genérico. #}
+      <a class="btn-ghost" href="/occurrences/{{ ev.occurrence_id }}/validar/"
+         data-modal-open data-modal-title="Validar apreensão">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        Validar apreensão
+      </a>
+      {% endif %}
       <a class="btn-ghost" href="/evidences/{{ ev.id }}/">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
         Voltar ao item
