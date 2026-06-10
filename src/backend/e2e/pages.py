@@ -36,3 +36,29 @@ def is_occurrence_detail(url):
 def is_evidence_detail(url):
     """True se a URL é a página de detalhe de uma evidência (/evidences/<n>/)."""
     return bool(re.search(r"/evidences/\d+/$", url))
+
+
+def app_pages(occ_id, ev_id):
+    """Rotas autenticadas da app — lista CANÓNICA única (auditoria D114).
+
+    Cada suite (smoke, axe, CSP, performance) consome-a inteira ou filtra
+    pelos marcadores ``leaflet``/``htmx`` — uma página nova entra AQUI e fica
+    coberta por todos os varrimentos de uma vez (antes eram 4 listas com drift).
+    """
+    return {
+        'dashboard': {'path': '/dashboard/', 'leaflet': True, 'htmx': True},
+        'occurrences': {'path': '/occurrences/', 'leaflet': True, 'htmx': True},
+        'occurrence_new': {'path': '/occurrences/new/'},
+        'occurrence_detail': {'path': f'/occurrences/{occ_id}/', 'htmx': True},
+        'intake': {'path': f'/occurrences/{occ_id}/intake/'},
+        'evidences': {'path': '/evidences/', 'leaflet': True, 'htmx': True},
+        'evidence_new': {'path': '/evidences/new/'},
+        'evidence_detail': {'path': f'/evidences/{ev_id}/', 'htmx': True},
+        'custody': {'path': f'/evidences/{ev_id}/custody/', 'htmx': True},
+        'custodies': {'path': '/custodies/', 'leaflet': True, 'htmx': True},
+        'reports': {'path': '/reports/', 'htmx': True},
+        'stats': {'path': '/stats/'},
+        'audit': {'path': '/audit/investigation/'},
+        'settings': {'path': '/settings/'},
+        'verificacoes': {'path': '/verificacoes/', 'htmx': True},
+    }

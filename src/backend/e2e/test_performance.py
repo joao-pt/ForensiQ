@@ -16,7 +16,7 @@ from playwright.sync_api import expect
 
 from core.tests_factories import CrimeTipoFactory, OccurrenceFactory, UserFactory
 
-from .pages import select_crime
+from .pages import app_pages, select_crime
 
 pytestmark = pytest.mark.e2e
 
@@ -38,15 +38,11 @@ def test_pages_render_within_server_budget(page, seed, auth_as):
     auth_as(seed["expert"])
     occ_id = seed["occ"].id
     ev_id = seed["ev"].id
-    pages = {
-        "dashboard": "/dashboard/",
-        "occurrences": "/occurrences/",
-        "occurrence_detail": f"/occurrences/{occ_id}/",
-        "evidences": "/evidences/",
-        "evidence_detail": f"/evidences/{ev_id}/",
-        "custody": f"/evidences/{ev_id}/custody/",
-        "stats": "/stats/",
-    }
+    # Subconjunto mais pesado da lista canonica (pages.app_pages - D114).
+    perf_keys = ('dashboard', 'occurrences', 'occurrence_detail', 'evidences',
+                 'evidence_detail', 'custody', 'stats')
+    all_pages = app_pages(occ_id, ev_id)
+    pages = {name: all_pages[name]['path'] for name in perf_keys}
     slow = {}
     for name, path in pages.items():
         page.goto(path, wait_until="load")

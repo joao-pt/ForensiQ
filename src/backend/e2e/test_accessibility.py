@@ -15,6 +15,8 @@ Notas:
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 
+from .pages import app_pages
+
 pytestmark = pytest.mark.e2e
 
 _axe = Axe()
@@ -47,21 +49,9 @@ def test_authenticated_pages_have_no_serious_a11y_violations(page, seed, auth_as
     auth_as(seed["expert"])
     occ_id = seed["occ"].id
     ev_id = seed["ev"].id
-    pages = {
-        "dashboard": "/dashboard/",
-        "occurrences": "/occurrences/",
-        "occurrence_new": "/occurrences/new/",
-        "occurrence_detail": f"/occurrences/{occ_id}/",
-        "evidences": "/evidences/",
-        "evidence_new": "/evidences/new/",
-        "evidence_detail": f"/evidences/{ev_id}/",
-        "custody": f"/evidences/{ev_id}/custody/",
-        "custodies": "/custodies/",
-        "reports": "/reports/",
-        "stats": "/stats/",
-        "audit": "/audit/investigation/",
-        "settings": "/settings/",
-    }
+    # Lista canonica unica (pages.app_pages - auditoria D114): o axe passa a
+    # varrer TODAS as rotas (intake e verificacoes entram; eram drift).
+    pages = {name: spec['path'] for name, spec in app_pages(occ_id, ev_id).items()}
     problems = {}
     for name, path in pages.items():
         page.goto(path, wait_until="load")

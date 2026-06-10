@@ -14,6 +14,8 @@ Se algo aqui falha, os fluxos seguintes não são fiáveis — por isso é o gat
 import pytest
 from playwright.sync_api import expect
 
+from .pages import app_pages
+
 pytestmark = pytest.mark.e2e
 
 
@@ -30,23 +32,8 @@ def test_protected_pages_render(page, seed, auth_as, js_errors, failed_static):
     occ_id = seed["occ"].id
     ev_id = seed["ev"].id
 
-    pages = [
-        ("dashboard", "/dashboard/"),
-        ("occurrences", "/occurrences/"),
-        ("occurrence_new", "/occurrences/new/"),
-        ("occurrence_detail", f"/occurrences/{occ_id}/"),
-        ("intake", f"/occurrences/{occ_id}/intake/"),
-        ("evidences", "/evidences/"),
-        ("evidence_new", "/evidences/new/"),
-        ("evidence_detail", f"/evidences/{ev_id}/"),
-        ("custody", f"/evidences/{ev_id}/custody/"),
-        ("custodies", "/custodies/"),
-        ("reports", "/reports/"),
-        ("stats", "/stats/"),
-        ("audit", "/audit/investigation/"),
-        ("settings", "/settings/"),
-        ("verificacoes", "/verificacoes/"),
-    ]
+    # Lista canonica unica (pages.app_pages - auditoria D114).
+    pages = [(name, spec['path']) for name, spec in app_pages(occ_id, ev_id).items()]
 
     problems = []
     for name, path in pages:
@@ -76,17 +63,13 @@ def test_no_csp_violations(page, seed, auth_as, csp_violations):
     occ_id = seed["occ"].id
     ev_id = seed["ev"].id
 
-    for path in (
-        "/dashboard/",          # HTMX + Leaflet
-        "/occurrences/",        # HTMX + Leaflet
-        "/evidences/",          # HTMX + Leaflet
-        "/custodies/",          # HTMX + Leaflet
-        f"/occurrences/{occ_id}/",
-        f"/evidences/{ev_id}/",
-        f"/evidences/{ev_id}/custody/",
-        "/reports/",            # HTMX
-        "/verificacoes/",       # HTMX
-    ):
+    # So as paginas com HTMX/Leaflet, da lista canonica (D114).
+    csp_pages = [
+        spec['path']
+        for spec in app_pages(occ_id, ev_id).values()
+        if spec.get('htmx') or spec.get('leaflet')
+    ]
+    for path in csp_pages:
         page.goto(path, wait_until="load")
         page.wait_for_timeout(300)  # dá tempo ao HTMX/Leaflet de inicializar
 
