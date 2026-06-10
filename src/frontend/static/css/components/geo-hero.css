@@ -81,18 +81,20 @@
 }
 
 .geo-hero__title {
+    /* Receita única de título de cartão — igual à .section__title (a página
+       tinha 2 tamanhos e 3 cores para o mesmo nível hierárquico). */
     margin: 0;
-    font-size: 10px;
+    font-size: var(--fs-2xs);
     font-weight: var(--fw-semi);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
-    color: var(--text-emphasis);
+    color: var(--text-muted);
     font-family: var(--font-mono);
 }
 
 .geo-hero__meta {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-2xs);
     /* --text-muted (não --text-subtle) para garantir contraste AA do texto
        pequeno a 10px sobre --bg-subtle (claro ~5.6:1 / escuro suficiente). */
     color: var(--text-muted);
@@ -115,6 +117,15 @@
     min-height: 0;
     padding: var(--sp-2);
     gap: 2px;
+    /* É um <ul> nativo (a11y: role=list/listitem em <a> suprimia a semântica
+       de link nos leitores de ecrã). */
+    list-style: none;
+    margin: 0;
+}
+.geo-hero__custody-list > li {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
 }
 
 .cs-tile {
@@ -135,9 +146,24 @@
     background: transparent;
     border: 1px solid transparent;
 }
+/* Affordance de navegação: os tiles SÃO links mas liam-se como estatísticas
+   (sem sublinhado, sem seta, cor herdada). O chevron declara-o e acende no
+   hover/foco — alinhado com .grid--clickable. */
+.cs-tile::after {
+    content: '›';
+    grid-column: 3;
+    grid-row: 1 / -1;
+    align-self: center;
+    color: var(--text-placeholder);
+    font-size: var(--fs-sm);
+}
 .cs-tile:hover {
     background: var(--surface-hover);
     border-color: var(--border);
+}
+.cs-tile:hover::after,
+.cs-tile:focus-visible::after {
+    color: var(--accent);
 }
 .cs-tile:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -149,7 +175,7 @@
     grid-column: 1;
     font-family: var(--font-mono);
     font-feature-settings: var(--ffs-forensic);
-    font-size: 18px;
+    font-size: var(--fs-lg);
     font-weight: var(--fw-semi);
     color: var(--text-emphasis);
     line-height: 1;
@@ -160,14 +186,20 @@
     grid-row: 1;
     grid-column: 2;
     font-family: var(--font-mono);
-    font-size: 9px;
+    /* Piso da escala (--fs-2xs, auditoria D83) e quebra a 2 linhas em vez de
+       ellipsis: um estado LEGAL nunca aparece cortado a meio ("PERDIDA A
+       FAVOR DO ESTA…" minava a credibilidade da nomenclatura). */
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
-    line-height: 1.2;
-    white-space: nowrap;
+    line-height: 1.25;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 /* =====================================================================
@@ -227,7 +259,7 @@
 .geo-hero__legend-dot--normal { background: var(--pri-normal); }
 .geo-hero__legend-label {
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
@@ -272,7 +304,7 @@
     bottom: 4px;
     z-index: 2;
     font-family: var(--font-mono);
-    font-size: 9px;
+    font-size: var(--fs-2xs);
     color: var(--text-muted);
     background: var(--surface);
     padding: 1px 5px;
@@ -309,8 +341,14 @@
         flex-wrap: wrap;
         gap: var(--sp-1);
     }
-    .cs-tile {
+    .geo-hero__custody-list > li {
         flex: 1 1 calc(50% - var(--sp-1));
+    }
+    .cs-tile {
+        flex: 1 1 auto;
+        /* Alvo de toque do projeto (Apple HIG / uso com luvas) — os tiles são
+           os únicos alvos clicáveis do hero e ficavam a ~34px. */
+        min-height: var(--min-touch);
     }
     .geo-hero__map { min-height: 240px; }
     .geo-hero__inset { min-height: 100px; }

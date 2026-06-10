@@ -251,6 +251,7 @@
    Somam 100% por grelha → não há overflow inicial; a barra horizontal só aparece
    (overflow-x:auto) depois de o utilizador alargar uma coluna. */
 .grid__col--w6  { width: 6%; }
+.grid__col--w8  { width: 8%; }
 .grid__col--w9  { width: 9%; }
 .grid__col--w10 { width: 10%; }
 .grid__col--w11 { width: 11%; }
@@ -266,6 +267,7 @@
 .grid__col--w23 { width: 23%; }
 .grid__col--w24 { width: 24%; }
 .grid__col--w27 { width: 27%; }
+.grid__col--w34 { width: 34%; }
 
 /* Coluna redimensionável: pega arrastável (column-resize.js mexe em style.width
    por JS — CSSOM, permitido pelo CSP; não é estilo inline no HTML). */
@@ -445,7 +447,7 @@
     text-align: left;
     padding: var(--sp-2) var(--sp-3);
     font-family: var(--font-mono);
-    font-size: 10px;
+    font-size: var(--fs-2xs);
     font-weight: var(--fw-semi);
     letter-spacing: var(--tracking-wide);
     text-transform: uppercase;
@@ -526,7 +528,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 /* Cor de prioridade pelos tokens únicos --pri-* (auditoria D91). */
 .pri--p1 { color: var(--pri-p1); background: var(--danger-tint); border-color: var(--danger-tint); }
-.pri--p2 { color: var(--pri-p2); background: var(--warning-tint); border-color: var(--warning-tint); }
+.pri--p2 { color: var(--pri-p2-ink); background: var(--warning-tint); border-color: var(--warning-tint); }
 .pri--none { color: var(--text-placeholder); background: transparent; }
 
 /* Bolinha de urgência (componente REUTILIZÁVEL — todas as tabelas). Nas vistas
@@ -668,10 +670,19 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     border-bottom: 1px solid var(--border);
 }
 .section__title {
-    margin: 0; font-family: var(--font-mono); font-size: 11px;
+    /* Mesma receita do .geo-hero__title (cabeçalho de cartão ÚNICO): antes a
+       mesma página tinha títulos de secção a 10px e 11px. */
+    margin: 0; font-family: var(--font-mono); font-size: var(--fs-2xs);
     text-transform: uppercase; letter-spacing: var(--tracking-wide);
     color: var(--text-muted); font-weight: var(--fw-semi);
 }
+/* Link de cauda do cabeçalho de secção ("Ver todas →"). */
+.section__more {
+    font-family: var(--font-mono); font-size: var(--fs-2xs);
+    text-transform: uppercase; letter-spacing: var(--tracking-wide);
+    color: var(--accent); text-decoration: none; white-space: nowrap;
+}
+.section__more:hover { text-decoration: underline; }
 .section__body { padding: var(--sp-3); }
 .section__body--flush { padding: 0; }
 

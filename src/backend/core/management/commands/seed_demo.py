@@ -685,7 +685,7 @@ class Command(BaseCommand):
         # CASO 1 — Lisboa · Roubo na via pública (40, prioritário por LEI)
         #   Telemóvel + SIM (sub) → em perícia no LPC. Aquisição live (não verif.).
         # =====================================================================
-        c1 = self._occ(number='NUIPC 812/26.4PALSB', crime=40, agent=u['agente.lsb1'],
+        c1 = self._occ(number='812/26.4PALSB', crime=40, agent=u['agente.lsb1'],
                        when=now - timedelta(days=12, hours=4), gps=LISBOA_LIBERDADE,
                        address='Avenida da Liberdade 250, Lisboa',
                        desc='Assalto à mão armada na Av. da Liberdade. Suspeito detido na '
@@ -750,7 +750,7 @@ class Command(BaseCommand):
         #   Computador → Disco interno → Ficheiro digital (3 níveis). Lab privado.
         #   Validação TARDIA (> 72h, assinala overdue). Perícia concluída.
         # =====================================================================
-        c2 = self._occ(number='NUIPC 345/26.1PFLSB', crime=241, agent=u['agente.lsb2'],
+        c2 = self._occ(number='345/26.1PFLSB', crime=241, agent=u['agente.lsb2'],
                        when=now - timedelta(days=20, hours=2), gps=LISBOA_ALVALADE,
                        address='Rua de Entrecampos 28, Lisboa', manual_priority=True,
                        desc='Burla informática com esquema de phishing bancário. Computador '
@@ -818,7 +818,7 @@ class Command(BaseCommand):
         #   SSD externo → perícia → depositário (GRA) → PERDA A FAVOR DO ESTADO.
         #   Selo VIOLADO na apreensão; re-selagem na receção.
         # =====================================================================
-        c3 = self._occ(number='NUIPC 1102/25.7JELSB', crime=111, agent=u['inspetor.pj.lsb'],
+        c3 = self._occ(number='1102/25.7JELSB', crime=111, agent=u['inspetor.pj.lsb'],
                        when=now - timedelta(days=60, hours=6), gps=LISBOA_BELEM,
                        address='Doca de Belém, Lisboa',
                        desc='Operação de tráfico; suporte externo com contabilidade paralela '
@@ -874,7 +874,7 @@ class Command(BaseCommand):
         # CASO 4 — Lisboa · Corrupção (106, prioritário)
         #   Equipamento de rede → tribunal (ENCAMINHADA). Cartão RFID (folha) validado.
         # =====================================================================
-        c4 = self._occ(number='NUIPC 77/26.9TELSB', crime=106, agent=u['inspetor.pj.lsb'],
+        c4 = self._occ(number='77/26.9TELSB', crime=106, agent=u['inspetor.pj.lsb'],
                        when=now - timedelta(days=33, hours=3), gps=LISBOA_ORIENTE,
                        address='Parque das Nações, Lisboa',
                        desc='Esquema de corrupção; servidores e controlo de acessos apreendidos '
@@ -935,7 +935,7 @@ class Command(BaseCommand):
         # =====================================================================
         # CASO 5 — Porto · Ameaça e coação (16, NORMAL) — telemóvel + SIM, validada.
         # =====================================================================
-        c5 = self._occ(number='NUIPC 489/26.3PAPRT', crime=16, agent=u['agente.prt1'],
+        c5 = self._occ(number='489/26.3PAPRT', crime=16, agent=u['agente.prt1'],
                        when=now - timedelta(days=6, hours=2), gps=PORTO_S_CATARINA,
                        address='Rua de Santa Catarina 215, Porto',
                        desc='Ameaças e coação por redes sociais; smartphone do suspeito '
@@ -971,7 +971,7 @@ class Command(BaseCommand):
         # CASO 6 — Porto · Furto de veículo motorizado (31, NORMAL)
         #   Viatura (raiz) → infotainment + GPS tracker + SIM(do tracker). Restituída.
         # =====================================================================
-        c6 = self._occ(number='NUIPC 1789/26.0GBPRT', crime=31, agent=u['agente.prt2'],
+        c6 = self._occ(number='1789/26.0GBPRT', crime=31, agent=u['agente.prt2'],
                        when=now - timedelta(days=40), gps=PORTO_BOAVISTA,
                        address='Rotunda da Boavista, Porto',
                        desc='Viatura recuperada após furto; unidade de infotainment e '
@@ -1026,7 +1026,7 @@ class Command(BaseCommand):
         # CASO 7 — Porto · Sabotagem informática (160, prioritário) — servidor em perícia.
         #   + Cartão SD (folha) destruído (estado terminal DESTRUIDA #1 via item próprio).
         # =====================================================================
-        c7 = self._occ(number='NUIPC 902/26.6JAPRT', crime=160, agent=u['inspetor.pj.prt'],
+        c7 = self._occ(number='902/26.6JAPRT', crime=160, agent=u['inspetor.pj.prt'],
                        when=now - timedelta(days=15, hours=5), gps=PORTO_BOAVISTA,
                        address='Avenida da Boavista 1200, Porto',
                        desc='Sabotagem informática a infraestrutura crítica; servidor e '
@@ -1078,7 +1078,7 @@ class Command(BaseCommand):
         # CASO 8 — Coimbra · Falsidade informática (159, prioritário)
         #   APREENSÃO DE DADOS (DIGITAL_FILE raiz) → EM TRÂNSITO ao INMLCF-C (inbox).
         # =====================================================================
-        c8 = self._occ(number='NUIPC 233/26.2PBCBR', crime=159, agent=u['agente.gnr1'],
+        c8 = self._occ(number='233/26.2PBCBR', crime=159, agent=u['agente.gnr1'],
                        when=now - timedelta(days=5, hours=8), gps=COIMBRA_BAIXA,
                        address='Praça 8 de Maio, Coimbra',
                        desc='Falsificação de documentos digitais; dados copiados no terreno '
@@ -1111,7 +1111,7 @@ class Command(BaseCommand):
         #   Drone (selo PARTIDO) → perícia → DESTRUIÇÃO. Cartão SD (folha) → destruído.
         #   Ambos os itens terminais → ocorrência ARQUIVADA.
         # =====================================================================
-        c9 = self._occ(number='NUIPC 205/26.5GCBRG', crime=115, agent=u['agente.gnr1'],
+        c9 = self._occ(number='205/26.5GCBRG', crime=115, agent=u['agente.gnr1'],
                        when=now - timedelta(days=50, hours=1), gps=BRAGA_QG,
                        address='Quartel-General de Braga',
                        desc='Voo de drone não autorizado sobre instalação militar; aeronave '
@@ -1167,7 +1167,7 @@ class Command(BaseCommand):
         # CASO 10 — Faro (GNR) · Furto de veículo (31, NORMAL)
         #   SMART_TAG → perícia → RESTITUIÇÃO. Item único terminal → ARQUIVADA.
         # =====================================================================
-        c10 = self._occ(number='NUIPC 654/26.8GTFAR', crime=31, agent=u['agente.gnr1'],
+        c10 = self._occ(number='654/26.8GTFAR', crime=31, agent=u['agente.gnr1'],
                         when=now - timedelta(days=35, hours=2), gps=FARO_MARINA,
                         address='Marina de Faro',
                         desc='Localizador encontrado em viatura recuperada; analisado e '
@@ -1206,7 +1206,7 @@ class Command(BaseCommand):
         # CASO 11 — Lisboa · Lenocínio/pornografia de menores (199, prioritário)
         #   CCTV/DVR → perícia concluída. + microSD destruído (DESTRUIDA #2).
         # =====================================================================
-        c11 = self._occ(number='NUIPC 318/26.1JDLSB', crime=199, agent=u['agente.lsb1'],
+        c11 = self._occ(number='318/26.1JDLSB', crime=199, agent=u['agente.lsb1'],
                         when=now - timedelta(days=25, hours=4), gps=LISBOA_ALVALADE,
                         address='Avenida de Roma 90, Lisboa',
                         desc='Recolha de sistema de videovigilância em investigação de crime '
@@ -1255,7 +1255,7 @@ class Command(BaseCommand):
         # CASO 12 — Porto · Branqueamento (102, prioritário)
         #   IoT (em trânsito) + Consola → perícia → PERDA A FAVOR DO ESTADO (#2).
         # =====================================================================
-        c12 = self._occ(number='NUIPC 540/26.3TAPRT', crime=102, agent=u['agente.prt1'],
+        c12 = self._occ(number='540/26.3TAPRT', crime=102, agent=u['agente.prt1'],
                         when=now - timedelta(days=18, hours=3), gps=PORTO_S_CATARINA,
                         address='Rua de Cedofeita 300, Porto',
                         desc='Branqueamento via criptoativos; dispositivos de comunicação '
@@ -1312,7 +1312,7 @@ class Command(BaseCommand):
         # =====================================================================
         # CASO 13 — Sintra (GNR) · Incêndio florestal (74, prioritário) — OTHER_DIGITAL, validada.
         # =====================================================================
-        c13 = self._occ(number='NUIPC 91/26.4GFSNT', crime=74, agent=u['agente.gnr1'],
+        c13 = self._occ(number='91/26.4GFSNT', crime=74, agent=u['agente.gnr1'],
                         when=now - timedelta(days=8, hours=6), gps=SINTRA_SERRA,
                         address='Serra de Sintra',
                         desc='Fogo posto em zona florestal; temporizador eletrónico de ignição '
@@ -1337,7 +1337,7 @@ class Command(BaseCommand):
         # =====================================================================
         # CASO 14 — Funchal (Madeira) · Violência doméstica (194, prioritário) — telemóvel, validada.
         # =====================================================================
-        c14 = self._occ(number='NUIPC 142/26.6PAFNC', crime=194, agent=u['agente.fnc'],
+        c14 = self._occ(number='142/26.6PAFNC', crime=194, agent=u['agente.fnc'],
                         when=now - timedelta(days=9, hours=3), gps=FUNCHAL_SE,
                         address='Rua da Carreira, Funchal',
                         desc='Violência doméstica; telemóvel da vítima apreendido para recolha '
@@ -1361,7 +1361,7 @@ class Command(BaseCommand):
         # =====================================================================
         # CASO 15 — Funchal (Madeira) · Furto em residência (33, NORMAL) — à guarda do OPC.
         # =====================================================================
-        c15 = self._occ(number='NUIPC 160/26.1GBFNC', crime=33, agent=u['agente.fnc'],
+        c15 = self._occ(number='160/26.1GBFNC', crime=33, agent=u['agente.fnc'],
                         when=now - timedelta(days=3, hours=5), gps=FUNCHAL_LIDO,
                         address='Estrada Monumental, Funchal',
                         desc='Furto com arrombamento; pen USB e disco recolhidos no local.')
@@ -1379,7 +1379,7 @@ class Command(BaseCommand):
         # =====================================================================
         # CASO 16 — Ponta Delgada (Açores) · Discriminação e ódio (63, NORMAL) — telemóvel, validada.
         # =====================================================================
-        c16 = self._occ(number='NUIPC 88/26.9PAPDL', crime=63, agent=u['agente.pdl'],
+        c16 = self._occ(number='88/26.9PAPDL', crime=63, agent=u['agente.pdl'],
                         when=now - timedelta(days=7, hours=2), gps=PONTA_DELGADA,
                         address='Avenida Infante D. Henrique, Ponta Delgada',
                         desc='Incitamento ao ódio em rede social; telemóvel do suspeito apreendido.')
@@ -1403,7 +1403,7 @@ class Command(BaseCommand):
         # CASO 17 — Ponta Delgada (Açores) · Tráfico (111, prioritário)
         #   APREENSÃO DE DADOS (DIGITAL_FILE) → em trânsito ao INMLCF-S (inbox #3).
         # =====================================================================
-        c17 = self._occ(number='NUIPC 120/26.5JEPDL', crime=111, agent=u['agente.pdl'],
+        c17 = self._occ(number='120/26.5JEPDL', crime=111, agent=u['agente.pdl'],
                         when=now - timedelta(days=4, hours=6), gps=PONTA_DELGADA_PORTAS,
                         address='Portas do Mar, Ponta Delgada',
                         desc='Tráfico por via marítima; dados de navegação copiados de consola '
@@ -1433,7 +1433,7 @@ class Command(BaseCommand):
         # CASO 18 — Lisboa · Acesso ilegítimo (157, prioritário) — SEM GPS (caso-limite)
         #   Ocorrência sem georreferência; item → depositário (ENCAMINHADA #2).
         # =====================================================================
-        c18 = self._occ(number='NUIPC 401/26.7TELSB', crime=157, agent=u['agente.lsb2'],
+        c18 = self._occ(number='401/26.7TELSB', crime=157, agent=u['agente.lsb2'],
                         when=now - timedelta(days=14, hours=2), gps=None,
                         address='Morada reservada (sem georreferência registada)',
                         desc='Acesso ilegítimo a sistema informático denunciado por terceiro; '

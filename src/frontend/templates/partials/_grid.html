@@ -16,9 +16,12 @@
     <tr class="grid__head-row" role="row">
       {% include 'partials/_col_names.html' %}
     </tr>
+    {% if not hide_filter_row %}
+    {# Painéis read-only (ex.: Últimas ocorrências no Painel) dispensam a linha de filtros. #}
     <tr class="grid__filter-row" role="row">
       {% include 'partials/_filter_row.html' %}
     </tr>
+    {% endif %}
   </thead>
   <tbody>
     {% for row in page_obj %}

@@ -29,15 +29,18 @@
         <h2 class="geo-hero__title">Estado da cadeia</h2>
         <span class="geo-hero__meta">{{ custody_total }} ite{{ custody_total|pluralize:"m,ns" }}</span>
       </header>
-      <div class="geo-hero__custody-list" role="list">
+      {# <ul> nativo: role=listitem num <a> suprimia a semântica de link nos leitores de ecrã. #}
+      <ul class="geo-hero__custody-list">
         {% for t in tiles %}
-        <a class="cs-tile" role="listitem" href="/evidences/?state={{ t.key }}"
-           title="Ver itens no estado: {{ t.label }}">
-          <span class="cs-tile__num">{{ t.n }}</span>
-          <span class="cs-tile__label">{{ t.label }}</span>
-        </a>
+        <li>
+          <a class="cs-tile" href="/evidences/?state={{ t.key }}"
+             title="Ver itens no estado: {{ t.label }}">
+            <span class="cs-tile__num">{{ t.n }}</span>
+            <span class="cs-tile__label">{{ t.label }}</span>
+          </a>
+        </li>
         {% endfor %}
-      </div>
+      </ul>
     </article>
 
     <!-- Coluna 2 — Mapa continental (interativo, preso ao território) + legenda -->
@@ -92,36 +95,18 @@
     </article>
   </section>
 
-  <!-- Últimas ocorrências -->
+  <!-- Últimas ocorrências — grelha pelo gerador ÚNICO (core.grid): a tabela
+       bespoke não tinha .gridwrap (a coluna Data era CORTADA às cegas em
+       mobile/zoom 200%) nem larguras fixas (colunas esticadas a 1920). -->
   <section class="section">
-    <header class="section__head"><h2 class="section__title">Últimas ocorrências</h2></header>
+    <header class="section__head">
+      <h2 class="section__title">Últimas ocorrências</h2>
+      <a class="section__more" href="/occurrences/">Ver todas →</a>
+    </header>
     <div class="section__body section__body--flush">
-      {% if recent %}
-      <table class="grid" role="table" aria-label="Últimas ocorrências">
-        <thead>
-          <tr role="row">
-            <th role="columnheader" scope="col" class="grid__th--pri">Pri.</th>
-            <th role="columnheader" scope="col">Código</th>
-            <th role="columnheader" scope="col">NUIPC</th>
-            <th role="columnheader" scope="col" class="col-hide-sm">Tipo de crime</th>
-            <th role="columnheader" scope="col">Data / hora</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for o in recent %}
-          <tr role="row">
-            <td role="cell" class="grid__pri">{% if o.pri %}<span class="pri pri--{{ o.pri.cls }}">{{ o.pri.level }}</span>{% else %}<span class="pri pri--none">—</span>{% endif %}</td>
-            <td role="cell" class="mono grid__code"><a class="dd__full" href="/occurrences/{{ o.id }}/">{{ o.code }}</a></td>
-            <td role="cell" class="mono">{{ o.number }}</td>
-            <td role="cell" class="grid__ellipsis col-hide-sm">{{ o.crime_label }}</td>
-            <td role="cell" class="mono">{{ o.date_time|date:'Y-m-d H:i' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <div class="empty"><p class="empty__hint">Ainda não há ocorrências.</p></div>
-      {% endif %}
+      <div class="gridwrap">
+        {% include 'partials/_grid.html' with columns=recent_columns page_obj=recent table_id='dash-recent-table' table_label='Últimas ocorrências' row_clickable=False mobile_reduce=True hide_filter_row=True urgency_legend=None has_filters=False empty_hint='Ainda não há ocorrências.' empty_title='' empty_filtered='' is_htmx=False %}
+      </div>
     </div>
   </section>
 

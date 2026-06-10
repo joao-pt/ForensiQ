@@ -35,7 +35,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from core import access, analytics, evidence_field_config, evidence_type_config, integrity
 from core.audit import get_client_ip, log_access
 from core.auth import JWTCookieAuthentication
-from core.grid import GridColumn, grid_list_response
+from core.grid import GridColumn, grid_list_response, serialize_columns
 from core.labels import ACTION_CSS, ACTION_SHORT, LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.list_filters import ColFilter
 from core.models import (
@@ -753,8 +753,23 @@ def dashboard_view(request):
             'normal': sum(1 for p in points if p['pri'] == 0),
         }
 
-    recent = list(occ_qs.order_by('-date_time')[:8])
+    recent = list(
+        occ_qs.annotate(n_items=Count('evidences')).order_by('-date_time')[:8]
+    )
     _decorate_occurrences(recent)
+    for o in recent:
+        o.detail_url = f'/occurrences/{o.id}/'
+
+    # Colunas da grelha "Últimas ocorrências" — gerador único (core.grid), como
+    # todas as listas; um painel read-only só dispensa filtros/paginação.
+    recent_columns = serialize_columns([
+        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6),
+        GridColumn('code', 'Código', cell='code', width=14, link_key='detail_url'),
+        GridColumn('number', 'NUIPC', css='mono', width=16),
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=34),
+        GridColumn('n_items', 'Itens', cell='num', css='col-hide-sm', width=8),
+        GridColumn('date_time', 'Data / hora', cell='date', time=True, width=22),
+    ])
 
     return render(
         request,
@@ -765,6 +780,7 @@ def dashboard_view(request):
             # Carimbo de âmbito da linha de regie (fonte única do rótulo da zona).
             'lens_zone_label': access.lens_label(user, lens),
             'recent': recent,
+            'recent_columns': recent_columns,
             'logs': _activity_feed(user, limit=20),
             'feed_is_national': access.has_national_read(user),
             'tiles': tiles,

@@ -165,9 +165,20 @@
        estado→cor canónico do ledger vive em core/labels.py → .state--*. */
     --pri-p1:     var(--danger);   /* vermelho — prioritária por lei */
     --pri-p2:     var(--warning);  /* âmbar — prioritária manual */
+    --pri-p2-ink: var(--warning);  /* texto do badge P2 (no claro, escurecido p/ AA) */
     --pri-normal: var(--info);     /* azul — normal (pontos de mapa) */
 
-    --focus-ring:      rgba(246, 173, 85, 0.40);
+    /* Zona "Instituição" da consola — aço dessaturado PRÓPRIO, distinto de
+       --info: o azul vivo ficava com 3 significados na mesma página (âmbito
+       institucional / prioridade normal / ação informativa do feed). */
+    --scope-institution:      #8AA2C0;
+    --scope-institution-tint: rgba(138, 162, 192, 0.14);
+
+    /* Anel de foco SÓLIDO (indicador não-textual exige >=3:1 — o translúcido
+       compunha para ~2.7:1 no escuro e ~1.5:1 no claro); o halo translúcido
+       fica só para o box-shadow dos inputs (--focus-halo). */
+    --focus-ring:      var(--accent);
+    --focus-halo:      rgba(246, 173, 85, 0.40);
     --selection-bg:    rgba(246, 173, 85, 0.28);
     --selection-text:  #E6E8EC;
 
@@ -248,10 +259,17 @@
     --info-tint:       rgba(29, 78, 216, 0.08);
 
     /* Prioridade — variante clara: P2 usa o amber-700 (--warning-strong) para
-       manter o valor WCAG AA que o token antigo tinha sobre #FAFAF9. */
+       manter o valor WCAG AA que o token antigo tinha sobre #FAFAF9. O texto
+       do badge P2 desce a amber-800 (#92400E): sobre --warning-tint composta
+       o #B45309 ficava a ~4.2:1, abaixo de AA para texto de 12px. */
     --pri-p2:     var(--warning-strong);
+    --pri-p2-ink: #92400E;
 
-    --focus-ring:      rgba(180, 83, 9, 0.28);
+    --scope-institution:      #475569;
+    --scope-institution-tint: rgba(71, 85, 105, 0.10);
+
+    --focus-ring:      var(--accent);
+    --focus-halo:      rgba(180, 83, 9, 0.28);
     --selection-bg:    rgba(180, 83, 9, 0.18);
     --selection-text:  #4A2700;
 
@@ -786,7 +804,7 @@ textarea.form-input {
 .form-input:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--focus-ring);
+    box-shadow: 0 0 0 3px var(--focus-halo);
 }
 
 .form-input::placeholder,

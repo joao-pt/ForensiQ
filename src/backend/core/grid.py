@@ -49,6 +49,23 @@ class GridColumn:
     filter: ColFilter | None = None
 
 
+def serialize_columns(columns, filters=None):
+    """Spec de colunas → formato que os parciais consomem (_col_names/_grid_cell).
+
+    ``filters`` é o dict param→contexto do filter_bar (só nas listas completas;
+    painéis read-only passam None e escondem a linha de filtros no parcial).
+    Fonte única da serialização — usada por :func:`grid_list_response` e pelos
+    painéis que incluem ``_grid.html`` diretamente (ex.: dashboard).
+    """
+    filters = filters or {}
+    return [{
+        'key': c.key, 'label': c.label, 'css': c.css, 'width': c.width,
+        'cell': c.cell, 'time': c.time, 'link_key': c.link_key,
+        'suffix': c.suffix, 'geo': c.geo, 'dot': c.dot,
+        'filter': filters.get(c.filter.param) if c.filter else None,
+    } for c in columns]
+
+
 def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
                        page_template, table_label, count_noun, count_plural='',
                        sorts, default_sort, sorts_ui=(), search_fields=(),
@@ -122,12 +139,7 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
 
     # 8) Colunas no formato do template (nome + filtro emparelhado por param).
     fbar = {f['param']: f for f in filter_bar_context(full_spec, request)}
-    columns_ctx = [{
-        'key': c.key, 'label': c.label, 'css': c.css, 'width': c.width,
-        'cell': c.cell, 'time': c.time, 'link_key': c.link_key,
-        'suffix': c.suffix, 'geo': c.geo, 'dot': c.dot,
-        'filter': fbar.get(c.filter.param) if c.filter else None,
-    } for c in columns]
+    columns_ctx = serialize_columns(columns, fbar)
 
     ctx = {
         'columns': columns_ctx,
