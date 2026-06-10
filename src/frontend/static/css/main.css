@@ -76,6 +76,7 @@
     --fs-2xl:  1.75rem;    /* 28px — page headings */
     --fs-3xl:  2.25rem;    /* 36px — big numbers */
     --fs-micro: 0.75rem;   /* 12px — apenas chips/badges compactos */
+    --fs-2xs:   10px;      /* micro-rótulos mono uppercase (auditoria D83) */
 
     --lh-tight: 1.25;
     --lh-snug:  1.4;
@@ -602,10 +603,13 @@ hr {
 /* Alvo de toque mínimo (44px, HIG / uso com luvas) em apontadores grosseiros —
    alinha o theme-toggle e o trigger de utilizador com os irmãos da casca
    (.app-top__nav-toggle, .app-drawer__btn) que já recebem este upgrade. */
+/* Alvo de toque ÚNICO dos botões-ícone (auditoria D78): min-* em vez de
+   width/height para vencer as dimensões próprias de cada consumidor da casca
+   (nav-toggle 40, drawer-btn 28, …) independentemente da ordem das folhas. */
 @media (pointer: coarse) {
     .icon-btn {
-        width: var(--min-touch);
-        height: var(--min-touch);
+        min-width: var(--min-touch);
+        min-height: var(--min-touch);
     }
     .user-menu-trigger {
         min-height: var(--min-touch);
@@ -693,13 +697,16 @@ hr {
     border-color: var(--accent-hover);
 }
 
-.btn-ghost {
+/* Modificador do sistema .btn LEGADO (diálogos da casca, 404/500, login).
+   Composto .btn.btn-ghost para nunca disputar a cascata com o .btn-ghost
+   standalone de forensic.css — donos distintos, explícitos (auditoria D81). */
+.btn.btn-ghost {
     background: transparent;
     color: var(--text);
     border-color: var(--border-strong);
 }
 
-.btn-ghost:hover:not(:disabled) {
+.btn.btn-ghost:hover:not(:disabled) {
     background: var(--surface-hover);
     border-color: var(--border-strong);
 }
@@ -827,33 +834,10 @@ textarea.form-input {
     line-height: var(--lh-base);
 }
 
-.form-hint {
-    font-size: var(--fs-xs);
-    color: var(--text-muted);
-}
-
-.form-error {
-    font-size: var(--fs-sm);
-    color: var(--danger);
-    display: none;
-}
-
-.form-error.visible { display: block; }
-
-.form-actions {
-    display: flex;
-    gap: var(--sp-3);
-    margin-top: var(--sp-6);
-    padding-top: var(--sp-4);
-    border-top: 1px solid var(--divider);
-}
-
-.form-actions .btn { flex: 1; }
-
-@media (min-width: 768px) {
-    .form-actions { justify-content: flex-end; }
-    .form-actions .btn { flex: 0 0 auto; min-width: 140px; }
-}
+/* .form-hint / .form-error(.visible) / .form-actions: dono ÚNICO em
+   forensic.css (auditoria D81) — desde que o forensic.css passou a carregar
+   sempre na casca (D67), as definições daqui estavam mortas em todas as
+   páginas com formulários. O login mantém o seu .lp-error próprio (animado). */
 
 /* ============================================================
    11. TOASTS

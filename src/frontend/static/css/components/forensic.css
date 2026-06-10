@@ -28,6 +28,26 @@
     stroke-linejoin: round;
 }
 
+/* Micro-rótulo mono uppercase (auditoria D83): receita ÚNICA dos rótulos
+   técnicos (sidebar, lente, factos, formulários, stats). Cada sítio mantém só
+   os seus deltas (peso, cor própria, margens; o thead da grelha fica fora —
+   tem sticky/bg/padding próprios). */
+.subhead,
+.app-sidebar__head-title,
+.app-sidebar__group-title,
+.lens-bar__label,
+.scope-badge,
+.facts__row dt,
+.intake-dest__tag,
+.stat__label,
+.form-field > label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-subtle);
+}
+
 /* Moldura ÚNICA dos contentores de mapa Leaflet (auditoria D85): cada
    componente define só a altura via --map-h (e o overflow no picker). */
 .map-box, .geo-field__map, .dd__map, .map-picker {
@@ -130,6 +150,33 @@
 /* ============================================================
    Barra de ferramentas / filtros (sticky)
    ============================================================ */
+/* Controlo DENSO (auditoria D84): pele única dos inputs/selects de toolbar e
+   filtros — fundo inset + borda + raio + altura parametrizados; cada contexto
+   define só --ctl-h/--ctl-border/--ctl-r e a sua tipografia/cores próprias.
+   (Os campos de formulário .form-field têm pele própria, sem altura fixa.) */
+.grid-toolbar select,
+.grid-toolbar input[type="search"],
+.grid__filter-cell input,
+.grid__filter-cell select,
+.filter-pop__btn,
+.filter-pop__panel input[type="date"],
+.toolbar input[type="search"],
+.toolbar input[type="text"],
+.toolbar input[type="date"],
+.toolbar select {
+    height: var(--ctl-h, 30px);
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--ctl-border, var(--border));
+    border-radius: var(--ctl-r, var(--r-1));
+}
+:is(.toolbar, .grid-toolbar, .grid__filter-cell) input::placeholder { color: var(--text-placeholder); }
+:is(.toolbar, .grid-toolbar, .grid__filter-cell) :is(input, select):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+    border-color: transparent;
+}
+
 .toolbar {
     display: flex;
     /* flex-direction:row e margin:0 explícitos (auto-contido). A antiga .toolbar
@@ -161,9 +208,9 @@
 .grid-toolbar__sort { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .grid-toolbar__sort-label { font-size: var(--fs-xs); color: var(--text-muted); }
 .grid-toolbar select {
-    height: 30px; padding: 0 var(--sp-2);
-    font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text);
-    background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1); cursor: pointer;
+    padding: 0 var(--sp-2);
+    font-family: var(--font-sans); font-size: var(--fs-sm);
+    cursor: pointer;
 }
 
 /* Cabeçalho em 2 linhas COLADAS (nomes _col_names.html + filtros _filter_row.html):
@@ -183,19 +230,12 @@
 .grid__filter-cell select {
     width: 100%;
     min-width: 0;
-    height: 28px;
+    --ctl-h: 28px;
     padding: 0 var(--sp-1);
     font-family: var(--font-sans);
     font-size: var(--fs-xs);
-    color: var(--text);
-    background: var(--bg-inset);
-    border: 1px solid var(--border);
-    border-radius: var(--r-1);
 }
 .grid__filter-cell select { cursor: pointer; }
-.grid__filter-cell input::placeholder { color: var(--text-placeholder); }
-.grid__filter-cell input:focus-visible,
-.grid__filter-cell select:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
 .grid__filter-daterange { display: flex; flex-direction: column; gap: 3px; }
 .grid__empty-cell { padding: var(--sp-6) var(--sp-4); text-align: center; color: var(--text-muted); }
 @media (pointer: coarse) {
@@ -253,9 +293,8 @@
 /* Filtro de DATA como botão + popover (elemento nativo <details>, CSP-safe). */
 .filter-pop { position: relative; }
 .filter-pop__btn {
-    list-style: none; cursor: pointer; height: 28px; line-height: 26px;
+    list-style: none; cursor: pointer; --ctl-h: 28px; line-height: 26px;
     padding: 0 var(--sp-1); font-size: var(--fs-xs); color: var(--text-muted);
-    background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .filter-pop__btn::-webkit-details-marker { display: none; }
@@ -268,7 +307,7 @@
     background: var(--surface-elevated); border: 1px solid var(--border); border-radius: var(--r-2); box-shadow: var(--shadow-lg);
 }
 .filter-pop__panel label { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--text-muted); }
-.filter-pop__panel input[type="date"] { height: 30px; padding: 0 var(--sp-1); font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text); background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--r-1); }
+.filter-pop__panel input[type="date"] { padding: 0 var(--sp-1); font-family: var(--font-mono); font-size: var(--fs-xs); }
 .toolbar__search { position: relative; flex: 1 1 auto; min-width: 180px; max-width: 440px; }
 .toolbar__search-icon {
     position: absolute;
@@ -282,26 +321,17 @@
 .toolbar input[type="text"],
 .grid-toolbar input[type="search"] {
     width: 100%;
-    height: 34px;
+    --ctl-h: 34px;
+    --ctl-border: var(--border-input);
+    --ctl-r: var(--r-2);
     padding: 0 var(--sp-3) 0 32px;
     font-family: var(--font-sans);
     font-size: var(--fs-sm);
-    color: var(--text);
-    background: var(--bg-inset);
-    border: 1px solid var(--border-input);
-    border-radius: var(--r-2);
-}
-.toolbar input::placeholder,
-.grid-toolbar input::placeholder { color: var(--text-placeholder); }
-.toolbar input:focus-visible,
-.toolbar select:focus-visible,
-.grid-toolbar input:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -1px;
-    border-color: transparent;
 }
 .toolbar select {
-    height: 34px;
+    --ctl-h: 34px;
+    --ctl-border: var(--border-input);
+    --ctl-r: var(--r-2);
     /* Cap de largura: o Chrome dimensiona o <select> à opção mais longa, e os
        rótulos de categoria de crime são extensos — sem isto o dropdown estica e
        desfigura a toolbar. O texto fechado trunca; a lista aberta mostra tudo. */
@@ -310,21 +340,17 @@
     font-family: var(--font-sans);
     font-size: var(--fs-xs);
     color: var(--text-muted);
-    background: var(--bg-inset);
-    border: 1px solid var(--border-input);
-    border-radius: var(--r-2);
     cursor: pointer;
     text-overflow: ellipsis;
 }
 .toolbar input[type="date"] {
-    height: 34px;
+    --ctl-h: 34px;
+    --ctl-border: var(--border-input);
+    --ctl-r: var(--r-2);
     padding: 0 var(--sp-2);
     font-family: var(--font-mono);
     font-size: var(--fs-xs);
     color: var(--text-muted);
-    background: var(--bg-inset);
-    border: 1px solid var(--border-input);
-    border-radius: var(--r-2);
     cursor: pointer;
 }
 .toolbar__date { max-width: 150px; }
@@ -592,11 +618,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     border-bottom: 1px solid var(--divider);
     align-items: baseline;
 }
-.facts__row dt {
-    font-family: var(--font-mono); font-size: 10px;
-    text-transform: uppercase; letter-spacing: var(--tracking-wide);
-    color: var(--text-subtle);
-}
 .facts__row dd { margin: 0; font-size: var(--fs-sm); color: var(--text); }
 .facts__row dd.mono { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .facts__src { color: var(--text-subtle); font-size: var(--fs-xs); }
@@ -615,8 +636,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 .intake-dest__tag {
     display: block;
-    font-family: var(--font-mono); font-size: 10px;
-    text-transform: uppercase; letter-spacing: var(--tracking-wide);
     color: var(--accent); font-weight: var(--fw-semi);
     margin-bottom: 2px;
 }
@@ -744,7 +763,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
 .stat { border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--sp-3) var(--sp-4); background: var(--bg-subtle); }
 .stat__num { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: var(--ffs-forensic); }
-.stat__label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-subtle); margin-top: 2px; }
+.stat__label { margin-top: 2px; }
 @media (max-width: 767px) { .stats { grid-template-columns: repeat(2, 1fr); } }
 .stats--3 { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 767px) { .stats--3 { grid-template-columns: repeat(2, 1fr); } }
@@ -786,11 +805,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .integrity-breaks { margin-top: var(--sp-4); }
 
 /* Subtítulo curto (mono uppercase) reutilizável */
-.subhead {
-    font-family: var(--font-mono); font-size: 10px;
-    text-transform: uppercase; letter-spacing: var(--tracking-wide);
-    color: var(--text-subtle); margin: 0 0 var(--sp-1);
-}
+.subhead { margin: 0 0 var(--sp-1); }
 
 /* ============================================================
    Botão copiar (valores forenses: código, hash, coordenadas)
@@ -865,11 +880,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3) var(--sp-4); }
 .form-field { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
 .form-field--full { grid-column: 1 / -1; }
-.form-field > label {
-    font-family: var(--font-mono); font-size: 10px;
-    text-transform: uppercase; letter-spacing: var(--tracking-wide);
-    color: var(--text-subtle);
-}
 .form-field input, .form-field select, .form-field textarea {
     width: 100%; padding: var(--sp-2) var(--sp-3);
     font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text);
@@ -880,19 +890,16 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-field input:focus-visible, .form-field select:focus-visible, .form-field textarea:focus-visible {
     outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent;
 }
-/* Auto-contido (não depender do display:none do main.css, que carrega antes e
-   pode não estar presente em todas as páginas): o erro está escondido por
-   omissão e só aparece com .visible (os spans server-rendered emitem ambas). */
+/* Dono ÚNICO de .form-error/.visible, .form-hint e .form-actions (auditoria
+   D81): as definições homónimas de main.css foram removidas — os comentários-
+   -armadura sobre a ordem de carregamento deixaram de ser necessários. O erro
+   está escondido por omissão e só aparece com .visible (os spans
+   server-rendered emitem ambas as classes). */
 .form-error { font-size: var(--fs-xs); color: var(--danger); min-height: 0; display: none; }
 .form-error.visible { display: block; }
-/* Auto-contido: redeclara family/size/color/margin para não depender da
-   .form-hint do main.css (sans + --text-muted, sem margin). Aqui é mono denso. */
 .form-hint { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 2px; }
 .pri-hint--p1 { color: var(--pri-p1); }
-/* Auto-contido: a .form-actions do main.css (carrega antes) acrescenta
-   padding-top + border-top (separador) que vazariam para estas fichas densas.
-   Anula-os explicitamente — aqui as ações ficam encostadas à direita sem régua. */
-.form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); padding-top: 0; border-top: 0; }
+.form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
 /* Modo terreno: a barra de ações acompanha o teclado virtual no telemóvel
    (queixa do João: o teclado tapava os botões). --kb é medido por
    field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal. */

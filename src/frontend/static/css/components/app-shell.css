@@ -58,40 +58,17 @@ body.app-body {
     border-bottom: 1px solid var(--border);
 }
 
-/* Hamburger — navegação móvel (<1024px) */
+/* Hamburger — navegação móvel (<1024px). Receita base em .icon-btn (main.css,
+   auditoria D78) — aqui ficam só os deltas de layout. */
 .app-top__nav-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     flex-shrink: 0;
     width: 40px;
     height: 40px;
     margin-left: calc(var(--sp-1) * -1);
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid transparent;
-    border-radius: var(--r-2);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease),
-                color var(--t-fast) var(--ease);
-}
-.app-top__nav-toggle:hover {
-    background: var(--surface-hover);
-    color: var(--text-emphasis);
-}
-.app-top__nav-toggle:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
 }
 .app-top__nav-toggle svg {
     width: 20px;
     height: 20px;
-}
-@media (pointer: coarse) {
-    .app-top__nav-toggle {
-        width: var(--min-touch);
-        height: var(--min-touch);
-    }
 }
 /* A partir de 1024px a sidebar é fixa: o hamburger desaparece. */
 @media (min-width: 1024px) {
@@ -265,45 +242,14 @@ body.app-body {
     padding: 0 var(--sp-3);
     border-bottom: 1px solid var(--border);
 }
+/* Receita base do micro-rótulo na regra agrupada de forensic.css (D83). */
 .app-sidebar__head-title {
-    font-family: var(--font-mono);
-    font-size: 10px;
     font-weight: var(--fw-semi);
-    letter-spacing: var(--tracking-wide);
-    color: var(--text-subtle);
-    text-transform: uppercase;
 }
+/* Receita base em .icon-btn (main.css, auditoria D78) — só o tamanho próprio. */
 .app-sidebar__close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 40px;
     height: 40px;
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid transparent;
-    border-radius: var(--r-2);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease),
-                color var(--t-fast) var(--ease);
-}
-.app-sidebar__close:hover {
-    background: var(--surface-hover);
-    color: var(--text-emphasis);
-}
-.app-sidebar__close:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
-}
-.app-sidebar__close svg {
-    width: 18px;
-    height: 18px;
-}
-@media (pointer: coarse) {
-    .app-sidebar__close {
-        width: var(--min-touch);
-        height: var(--min-touch);
-    }
 }
 
 /* -------------------------------------------------------------------
@@ -359,12 +305,7 @@ body.app-body {
 }
 
 .app-sidebar__group-title {
-    font-family: var(--font-mono);
-    font-size: 10px;
     font-weight: var(--fw-semi);
-    letter-spacing: var(--tracking-wide);
-    color: var(--text-subtle);
-    text-transform: uppercase;
     margin: 0 var(--sp-2) var(--sp-2);
 }
 
@@ -513,19 +454,17 @@ body.app-body {
     min-width: 0;
 }
 
-.app-drawer__header {
+/* Cromado de painel ÚNICO (auditoria D79): cabeçalho, título e superfície
+   dos painéis flutuantes (drawer, modal de ação, confirmação). A sombra vem
+   dos tokens --shadow-* — adapta ao tema claro, que o literal antigo não fazia. */
+.app-drawer__header, .app-modal__head {
     display: flex;
     align-items: center;
     gap: var(--sp-2);
-    padding: var(--sp-3) var(--sp-3);
     border-bottom: 1px solid var(--border);
     background: var(--bg-subtle);
-    position: sticky;
-    top: 0;
-    z-index: 1;
 }
-
-.app-drawer__title {
+.app-drawer__title, .app-modal__title {
     flex: 1;
     margin: 0;
     font-size: var(--fs-sm);
@@ -537,46 +476,34 @@ body.app-body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.app-modal__panel, .confirm-dialog__panel {
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2, 10px);
+    box-shadow: var(--shadow-lg);
+}
+
+.app-drawer__header {
+    padding: var(--sp-3) var(--sp-3);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
 
 .app-drawer__actions {
     display: flex;
     gap: 2px;
 }
 
+/* Receita base em .icon-btn (main.css, auditoria D78) — deltas: compacto + r-1. */
 .app-drawer__btn {
     width: 28px;
     height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid transparent;
     border-radius: var(--r-1);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease),
-                color var(--t-fast) var(--ease);
-}
-.app-drawer__btn:hover {
-    background: var(--surface-hover);
-    color: var(--text-emphasis);
-}
-.app-drawer__btn:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: -2px;
 }
 .app-drawer__btn svg {
     width: 14px;
     height: 14px;
-}
-
-/* Em dispositivos de toque o drawer pode ocupar o ecrã todo (overlay):
-   garante alvo de >=44px para fechar/minimizar/expandir de forma fiável. */
-@media (pointer: coarse) {
-    .app-drawer__btn {
-        width: var(--min-touch);
-        height: var(--min-touch);
-    }
 }
 
 .app-drawer__body {
@@ -663,12 +590,7 @@ body.app-body {
     flex-shrink: 0;
 }
 .lens-bar__label {
-    font-family: var(--font-mono);
-    font-size: 10px;
     font-weight: var(--fw-semi);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
-    color: var(--text-subtle);
     margin-right: var(--sp-1);
 }
 .lens-chip {
@@ -741,12 +663,7 @@ body.app-body {
 
 /* Pílula de âmbito (ex.: rótulo do feed de auditoria no painel). */
 .scope-badge {
-    font-family: var(--font-mono);
-    font-size: 10px;
     font-weight: var(--fw-semi);
-    letter-spacing: var(--tracking-wide);
-    text-transform: uppercase;
-    color: var(--text-subtle);
     border: 1px solid var(--border);
     border-radius: var(--r-pill);
     padding: 2px var(--sp-2);
@@ -787,53 +704,23 @@ body.app-body {
     width: min(560px, calc(100vw - 2 * var(--sp-4)));
     max-height: calc(100dvh - 2 * var(--sp-6));
 }
+/* Superfície/cabeçalho/título: no cromado de painel único (auditoria D79). */
 .app-modal__panel {
     display: flex;
     flex-direction: column;
     max-height: calc(100dvh - 2 * var(--sp-6));
-    background: var(--bg-subtle);
-    border: 1px solid var(--border);
-    border-radius: var(--r-2, 10px);
-    box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.55);
     isolation: isolate;  /* contém o stacking de mapas Leaflet internos */
     overflow: hidden;
 }
 .app-modal__head {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
     padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4);
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-subtle);
 }
-.app-modal__title {
-    flex: 1;
-    margin: 0;
-    font-size: var(--fs-sm);
-    font-weight: var(--fw-semi);
-    color: var(--text-emphasis);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+/* Receita base em .icon-btn (main.css, auditoria D78) — deltas: compacto + r-1. */
 .app-modal__close {
     width: 28px;
     height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid transparent;
     border-radius: var(--r-1);
-    cursor: pointer;
-    transition: background var(--t-fast) var(--ease),
-                color var(--t-fast) var(--ease);
 }
-.app-modal__close:hover { background: var(--surface-hover); color: var(--text-emphasis); }
-.app-modal__close:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .app-modal__close svg { width: 16px; height: 16px; }
 .app-modal__body {
     overflow-y: auto;
@@ -864,6 +751,7 @@ body.app-body {
 .confirm-dialog {
     width: min(420px, calc(100vw - 2 * var(--sp-4)));
 }
+/* Superfície: no cromado de painel único (auditoria D79). */
 .confirm-dialog__panel {
     display: flex;
     flex-direction: column;
@@ -871,10 +759,6 @@ body.app-body {
     text-align: center;
     gap: var(--sp-3);
     padding: var(--sp-6) var(--sp-5) var(--sp-5);
-    background: var(--bg-subtle);
-    border: 1px solid var(--border);
-    border-radius: var(--r-2, 10px);
-    box-shadow: 0 18px 48px -12px rgba(0, 0, 0, 0.55);
 }
 .confirm-dialog__icon {
     display: inline-flex;
