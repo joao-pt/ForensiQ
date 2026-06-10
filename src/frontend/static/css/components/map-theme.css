@@ -31,6 +31,15 @@
 [data-theme="light"] .leaflet-container { background: #d7d7d7; }
 [data-theme="dark"] .leaflet-container { background: #20242a; }
 
+/* SVGs de PANES CUSTOM (ex.: fq-points, os pinos acima da máscara): o reset
+   global `svg { max-width: 100% }` esmagava-os para 0px (o pane Leaflet é
+   absoluto sem largura) — o leaflet.css só protege o overlay-pane. Mesmo
+   par !important do próprio Leaflet. */
+.leaflet-container .leaflet-pane > svg {
+    max-width: none !important;
+    max-height: none !important;
+}
+
 /* Atribuição © OpenStreetMap (obrigação ODbL — reposta na auditoria do painel):
    re-estilizada para o idioma da app (mono micro, meio-transparente) em vez do
    branco sólido do Leaflet. O prefixo "Leaflet" é removido no FQMap. */

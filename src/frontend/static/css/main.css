@@ -161,8 +161,12 @@
     /* ---- Prioridade processual (P1 lei / P2 manual / normal) ----------
        Fonte ÚNICA da cor de prioridade (auditoria D91): .pri/.urgency-dot,
        as legendas dos mapas e o JS (priColors via token()) leem daqui. Os 28
-       tokens --state-*/-tint do FSM antigo foram removidos — o mapa
-       estado→cor canónico do ledger vive em core/labels.py → .state--*. */
+       tokens de estado (e tints) do FSM antigo foram removidos — o mapa
+       estado→cor canónico do ledger vive em core/labels.py → .state--*.
+       NOTA: nunca escrever um glob com asterisco-barra num comentário CSS —
+       fecha o comentário a meio e o parser engolia a declaração seguinte
+       (--pri-p1 esteve MESES morta por isso: pinos P1 no fallback do JS e
+       ponto da legenda transparente). */
     --pri-p1:     var(--danger);   /* vermelho — prioritária por lei */
     --pri-p2:     var(--warning);  /* âmbar — prioritária manual */
     --pri-p2-ink: var(--warning);  /* texto do badge P2 (no claro, escurecido p/ AA) */
