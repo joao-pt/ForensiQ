@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load static %}
+{% comment %}
+  Casca ÚNICA das páginas de entrada de dados (auditoria D117): sem barra de
+  consola (clicar um chip perderia o formulário) + <article class="detail
+  fullbleed"> + secção única com o formulário. Cada página define os blocos
+  herdados de base.html (title/breadcrumb) e:
+    • form_title / form_subtitle — cabeçalho visível por omissão; páginas cujo
+      título é redundante com o breadcrumb sobrepõem form_head com o h1
+      visually-hidden (manter id="fp-title", par do aria-labelledby);
+    • form_body — o include do formulário; corpos não-standard (ex.: receção)
+      sobrepõem page_body inteiro;
+    • form_scripts — runtime da página (Leaflet/geo/foco de erros).
+  O Leaflet head vem por omissão (a maioria tem mapa/geo-field); páginas sem
+  mapa sobrepõem extra_css vazio.
+{% endcomment %}
+
+{# Sem barra de lente: página de entrada de dados (clicar um chip perderia o formulário). #}
+{% block lens_bar %}{% endblock %}
+
+{% block extra_css %}
+  {% include '_leaflet_head.html' %}
+{% endblock %}
+
+{% block content %}
+<article class="detail fullbleed" aria-labelledby="fp-title">
+
+  {% block form_head %}
+  <header class="detail__head">
+    <div>
+      <h1 class="detail__title" id="fp-title">{% block form_title %}{% endblock %}</h1>
+      {% block form_subtitle %}{% endblock %}
+    </div>
+  </header>
+  {% endblock %}
+
+  {% block page_body %}
+  <section class="section">
+    <div class="section__body">
+      {% block form_body %}{% endblock %}
+    </div>
+  </section>
+  {% endblock %}
+
+</article>
+{% endblock %}
+
+{% block extra_js %}{% block form_scripts %}{% endblock %}{% endblock %}

@@ -1,14 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'form_page.html' %}
 {% load static %}
 
 {% block title %}Nova instituição — ForensiQ{% endblock %}
-
-{# Sem barra de consola: página de entrada de dados. #}
-{% block lens_bar %}{% endblock %}
-
-{% block extra_css %}
-  {% include '_leaflet_head.html' %}
-{% endblock %}
 
 {% block breadcrumb %}
   <a href="/institutions/">Instituições</a>
@@ -16,26 +9,14 @@
   <span class="breadcrumb-current">Nova</span>
 {% endblock %}
 
-{% block content %}
-<article class="detail fullbleed" aria-labelledby="in-title">
-
-  <header class="detail__head">
-    <div>
-      <h1 class="detail__title" id="in-title">Nova instituição</h1>
+{% block form_title %}Nova instituição{% endblock %}
+{% block form_subtitle %}
       <p class="detail__sub">Ponto de controlo fixo — a coordenada é copiada para o evento na receção</p>
-    </div>
-  </header>
-
-  <section class="section">
-    <div class="section__body">
-      {% include 'partials/_institution_form.html' %}
-    </div>
-  </section>
-
-</article>
 {% endblock %}
 
-{% block extra_js %}
+{% block form_body %}{% include 'partials/_institution_form.html' %}{% endblock %}
+
+{% block form_scripts %}
   {% include '_leaflet_js.html' %}
   <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>

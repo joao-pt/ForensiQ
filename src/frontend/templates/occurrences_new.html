@@ -1,14 +1,7 @@
-{% extends 'base.html' %}
+{% extends 'form_page.html' %}
 {% load static %}
 
 {% block title %}Nova ocorrência — ForensiQ{% endblock %}
-
-{# Sem barra de lente: página de entrada de dados (clicar um chip perderia o formulário). #}
-{% block lens_bar %}{% endblock %}
-
-{% block extra_css %}
-  {% include '_leaflet_head.html' %}
-{% endblock %}
 
 {% block breadcrumb %}
   <a href="/occurrences/">Ocorrências</a>
@@ -16,22 +9,14 @@
   <span class="breadcrumb-current">Nova</span>
 {% endblock %}
 
-{% block content %}
-<article class="detail fullbleed" aria-labelledby="on-title">
-
+{% block form_head %}
   {# Titulo redundante com o breadcrumb: visually-hidden mantem a11y + aria-labelledby. #}
-  <h1 class="visually-hidden" id="on-title">Nova ocorrência</h1>
-
-  <section class="section">
-    <div class="section__body">
-      {% include 'partials/_occurrence_form.html' %}
-    </div>
-  </section>
-
-</article>
+  <h1 class="visually-hidden" id="fp-title">Nova ocorrência</h1>
 {% endblock %}
 
-{% block extra_js %}
+{% block form_body %}{% include 'partials/_occurrence_form.html' %}{% endblock %}
+
+{% block form_scripts %}
   {% include '_leaflet_js.html' %}
   <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-field.js' %}"></script>

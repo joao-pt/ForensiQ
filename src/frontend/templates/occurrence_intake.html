@@ -1,13 +1,10 @@
-{% extends 'base.html' %}
+{% extends 'form_page.html' %}
 {% load static l10n %}
 
 {% block title %}Receção · {{ occurrence.code }} — ForensiQ{% endblock %}
 
-{# Sem barra de lente: página de entrada de dados (clicar um chip perderia o formulário). #}
-{% block lens_bar %}{% endblock %}
-
-{% block extra_css %}
-{% endblock %}
+{# Sem mapa nesta página: a coordenada da receção vem da ficha da instituição. #}
+{% block extra_css %}{% endblock %}
 
 {% block breadcrumb %}
   <a href="/occurrences/{{ occurrence.id }}/" class="mono">{{ occurrence.code }}</a>
@@ -15,22 +12,12 @@
   <span class="breadcrumb-current">Receção</span>
 {% endblock %}
 
-{% block extra_js %}
-  {# Sem captura de GPS na receção: a coordenada vem da ficha da instituição de #}
-  {# destino (ADR-0016 v2 — GPS só no terreno). Só o foco de erros é preciso. #}
-  <script src="{% static 'js/form-error-focus.js' %}"></script>
+{% block form_title %}Receção de prova{% endblock %}
+{% block form_subtitle %}
+      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} · regista <strong>Receção de prova encaminhada</strong></p>
 {% endblock %}
 
-{% block content %}
-<article class="detail fullbleed" aria-labelledby="in-title">
-
-  <header class="detail__head">
-    <div>
-      <h1 class="detail__title" id="in-title">Receção de prova</h1>
-      <p class="detail__sub"><span class="mono">{{ occurrence.code }}</span> · {{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} · regista <strong>Receção de prova encaminhada</strong></p>
-    </div>
-  </header>
-
+{% block page_body %}
   {% if intake_errors %}
   <div class="section" role="alert"><div class="section__body">
     {% for e in intake_errors %}<p class="form-error visible">{{ e }}</p>{% endfor %}
@@ -118,6 +105,9 @@
       </form>
     </div>
   </section>
+{% endblock %}
 
-</article>
+{% block form_scripts %}
+  {# Sem captura de GPS na receção (ADR-0016 v2 — GPS só no terreno). Só o foco de erros. #}
+  <script src="{% static 'js/form-error-focus.js' %}"></script>
 {% endblock %}
