@@ -26,7 +26,7 @@
     <article class="geo-hero__col geo-hero__custody" aria-label="Estado da cadeia de custódia">
       <header class="geo-hero__header">
         <h2 class="geo-hero__title">Estado da cadeia</h2>
-        <span class="geo-hero__meta">{{ total_active }} ite{{ total_active|pluralize:"m,ns" }}</span>
+        <span class="geo-hero__meta">{{ custody_total }} ite{{ custody_total|pluralize:"m,ns" }}</span>
       </header>
       <div class="geo-hero__custody-list" role="list">
         {% for t in tiles %}

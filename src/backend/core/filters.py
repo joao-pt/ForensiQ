@@ -9,7 +9,7 @@ pelo ``SearchFilter`` ou ``OrderingFilter``.
 
 from django_filters import rest_framework as filters
 
-from core import evidence_type_config
+from core import analytics, evidence_type_config
 
 from .models import (
     LEGAL_STATES,
@@ -17,7 +17,6 @@ from .models import (
     EventType,
     Evidence,
     Occurrence,
-    derive_legal_state,
 )
 
 
@@ -100,17 +99,14 @@ class CustodyFilter(filters.FilterSet):
         fields = ['event_type', 'legal_state', 'date_after', 'date_before']
 
     def filter_legal_state(self, queryset, name, value):
-        # Estado legal derivado não é coluna — computa-se por evidência sobre
-        # a sequência de eventos. Identifica as evidências cujo estado derivado
-        # coincide e devolve só os registos dessas evidências.
+        # Estado legal derivado não é coluna — agrupa+deriva numa PASSAGEM única
+        # (fonte única analytics.legal_states_by_evidence; antes: uma query por
+        # evidência, N+1) sobre as cadeias COMPLETAS das evidências presentes.
         if not value:
             return queryset
-        evidence_ids = {ev_id for ev_id, _ in queryset.values_list('evidence_id', 'id')}
-        matched = []
-        for ev_id in evidence_ids:
-            eventos = list(
-                ChainOfCustody.objects.filter(evidence_id=ev_id).order_by('sequence')
-            )
-            if derive_legal_state(eventos) == value:
-                matched.append(ev_id)
+        evidence_ids = set(queryset.values_list('evidence_id', flat=True))
+        states = analytics.legal_states_by_evidence(
+            ChainOfCustody.objects.filter(evidence_id__in=evidence_ids)
+        )
+        matched = [ev_id for ev_id, st in states.items() if st == value]
         return queryset.filter(evidence_id__in=matched)

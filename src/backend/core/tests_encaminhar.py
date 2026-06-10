@@ -18,10 +18,9 @@ from core.models import (
     InstitutionType,
     Portador,
     ProvaEmTransito,
-    derive_legal_state,
 )
 from core.tests_access import _event, _evidence, _occ, _user
-from core.utils import sort_custody_chain
+from core.utils import legal_state_of, sort_custody_chain
 
 User = get_user_model()
 
@@ -89,7 +88,7 @@ class EncaminharLoteTest(TestCase):
             self.assertIsNone(ult.gps_lat)
             self.assertIsNone(ult.gps_lng)
             self.assertEqual(
-                derive_legal_state(sort_custody_chain(ev.custody_chain.all())), 'em_transito'
+                legal_state_of(ev), 'em_transito'
             )
 
     def test_prova_em_transito_criada_para_destino(self):

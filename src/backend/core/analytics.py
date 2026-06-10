@@ -30,10 +30,12 @@ from django.utils import timezone
 from .labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from .models import ProvaEmTransito
 from .policy.event_states import (
+    LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
     TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES,
     EventType,
+    derive_legal_state,
 )
 
 # Janelas temporais oferecidas no seletor (dias). 30 é o defeito.
@@ -59,17 +61,53 @@ def resolve_window(raw):
     return days if days in WINDOW_CHOICES else DEFAULT_WINDOW_DAYS
 
 
+def legal_states_by_evidence(custody_qs, *, with_events=False, related=()):
+    """``{evidence_id: estado_legal_derivado}`` numa ÚNICA query (WI-E).
+
+    Fonte única do agrupamento ledger→estado: agrupa os eventos do ledger
+    (âmbito *need-to-know*/lente JÁ imposto pelo chamador) por ``evidence_id``
+    — uma só passagem, suportada pelo índice ``coc_ev_seq_idx`` — e deriva o
+    estado uma vez por item com a função pura :func:`derive_legal_state`.
+    Consumida pelo frontend, pela API, pelos filtros e pelo intake; nenhuma
+    camada re-implementa o agrupamento.
+
+    ``with_events=True`` devolve ``(states, eventos_por_evidencia)`` para os
+    consumidores que também precisam dos registos agrupados (ex.: o intake lê o
+    destino do último encaminhamento) sem repetir a passagem; ``related``
+    acrescenta ``select_related`` nesse modo (no modo leve usa-se ``only`` com
+    os campos mínimos da derivação).
+    """
+    qs = custody_qs.select_related(None).order_by('evidence_id', 'sequence')
+    if with_events:
+        if related:
+            qs = qs.select_related(*related)
+    else:
+        qs = qs.only('evidence_id', 'event_type', 'custodian_type', 'sequence')
+    eventos = {}
+    for rec in qs:
+        eventos.setdefault(rec.evidence_id, []).append(rec)
+    states = {ev_id: derive_legal_state(evs) for ev_id, evs in eventos.items()}
+    return (states, eventos) if with_events else states
+
+
+def state_counts(states_by_ev):
+    """Contagem por estado legal derivado com TODOS os estados (zeros incluídos),
+    por ordem canónica. Fonte única do loop de contagem (stock)."""
+    counts = {state: 0 for state in sorted(LEGAL_STATES)}
+    for st in states_by_ev.values():
+        if st in counts:
+            counts[st] += 1
+    return counts
+
+
 def state_distribution(states_by_ev):
     """Distribuição do ESTADO ATUAL dos itens (stock), separando ativo/terminal.
 
     ``states_by_ev`` = ``{evidence_id: estado}`` produzido por
-    ``frontend_views._legal_states_by_evidence`` (a fonte única do estado legal
-    derivado) — passa-se já calculado para não duplicar a derivação aqui.
+    :func:`legal_states_by_evidence` — passa-se já calculado para a view poder
+    partilhar o mesmo dict com outros cálculos do request.
     """
-    counts = {k: 0 for k in LEGAL_STATE_LABELS}
-    for st in states_by_ev.values():
-        if st in counts:
-            counts[st] += 1
+    counts = state_counts(states_by_ev)
     rows = [
         {
             'key': k,
@@ -93,24 +131,35 @@ def state_distribution(states_by_ev):
     }
 
 
+def bucket_counts(qs, field, since, trunc=TruncWeek):
+    """Contagem por balde temporal: ``filter(field>=since) → annotate(trunc) →
+    Count``, devolvendo ``{data: n}``. Fonte única da pipeline de séries — a
+    granularidade (``TruncWeek``/``TruncDate``…) é parâmetro, não uma segunda
+    implementação."""
+    rows = (
+        qs.filter(**{field + '__gte': since})
+        .annotate(b=trunc(field))
+        .values('b')
+        .annotate(n=Count('id'))
+        .order_by('b')
+    )
+    # TruncWeek devolve datetime (reduz-se ao dia); TruncDate já devolve date.
+    return {
+        (r['b'].date() if hasattr(r['b'], 'date') else r['b']): r['n']
+        for r in rows
+        if r['b']
+    }
+
+
 def throughput(occ_qs, evd_qs, cus_qs, since):
     """Fluxo por semana desde ``since``: processos abertos, itens registados e
     itens concluídos (disposição final). Séries alinhadas por semana (TruncWeek).
     """
-
-    def weekly(qs, field):
-        rows = (
-            qs.filter(**{field + '__gte': since})
-            .annotate(w=TruncWeek(field))
-            .values('w')
-            .annotate(n=Count('id'))
-            .order_by('w')
-        )
-        return {r['w'].date(): r['n'] for r in rows if r['w']}
-
-    opened = weekly(occ_qs, 'date_time')
-    registered = weekly(evd_qs, 'timestamp_seizure')
-    concluded = weekly(cus_qs.filter(event_type__in=DISPOSAL_EVENTS), 'timestamp')
+    opened = bucket_counts(occ_qs, 'date_time', since)
+    registered = bucket_counts(evd_qs, 'timestamp_seizure', since)
+    concluded = bucket_counts(
+        cus_qs.filter(event_type__in=DISPOSAL_EVENTS), 'timestamp', since
+    )
 
     weeks = sorted(set(opened) | set(registered) | set(concluded))
     series = [

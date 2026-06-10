@@ -70,6 +70,62 @@ class StateDistributionTest(TestCase):
         self.assertEqual(d['peak'], 0)
 
 
+class StateCountsTest(TestCase):
+    def test_todos_os_estados_com_zeros_e_guarda_de_desconhecidos(self):
+        counts = analytics.state_counts({1: 'em_pericia', 2: 'em_pericia', 3: '???'})
+        # Todos os estados canónicos presentes (zeros incluídos); valores fora
+        # do vocabulário são ignorados (nunca KeyError).
+        self.assertEqual(counts['em_pericia'], 2)
+        self.assertEqual(counts['restituida'], 0)
+        self.assertNotIn('???', counts)
+
+
+class LegalStatesByEvidenceTest(TestCase):
+    """Fonte única do agrupamento ledger→estado (auditoria D14)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.agent = User.objects.create_user(
+            username='an_group', password='x12345678', profile=User.Profile.FIRST_RESPONDER
+        )
+        occ = Occurrence.objects.create(
+            crime_type=CrimeTipoFactory(), number='NUIPC-AN-G1',
+            description='Agrupamento.', agent=cls.agent, date_time=timezone.now(),
+        )
+        cls.ev1 = Evidence.objects.create(
+            occurrence=occ, type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Item 1', agent=cls.agent, timestamp_seizure=timezone.now(),
+        )
+        cls.ev2 = Evidence.objects.create(
+            occurrence=occ, type=Evidence.EvidenceType.MOBILE_DEVICE,
+            description='Item 2', agent=cls.agent, timestamp_seizure=timezone.now(),
+        )
+        for ev in (cls.ev1, cls.ev2):
+            ChainOfCustody.objects.create(
+                evidence=ev, event_type=EventType.APREENSAO_OBJETO,
+                custodian_type=CustodianType.OPC, agent=cls.agent,
+            )
+        ChainOfCustody.objects.create(
+            evidence=cls.ev1, event_type=EventType.VALIDACAO_APREENSAO, agent=cls.agent,
+        )
+
+    def test_estado_por_item(self):
+        states = analytics.legal_states_by_evidence(ChainOfCustody.objects.all())
+        self.assertEqual(states[self.ev1.id], 'validada')
+        self.assertEqual(states[self.ev2.id], 'a_guarda_opc')
+
+    def test_with_events_devolve_registos_agrupados_por_ordem_canonica(self):
+        states, eventos = analytics.legal_states_by_evidence(
+            ChainOfCustody.objects.all(), with_events=True
+        )
+        self.assertEqual(states[self.ev1.id], 'validada')
+        self.assertEqual(
+            [r.event_type for r in eventos[self.ev1.id]],
+            [EventType.APREENSAO_OBJETO, EventType.VALIDACAO_APREENSAO],
+        )
+        self.assertEqual(len(eventos[self.ev2.id]), 1)
+
+
 class LedgerAnalyticsTest(TestCase):
     """Cenário no ledger: validação em atraso, prova em trânsito e dwell time."""
 

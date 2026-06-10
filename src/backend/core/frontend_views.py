@@ -51,10 +51,9 @@ from core.models import (
     InstitutionType,
     Occurrence,
     Portador,
-    derive_legal_state,
 )
 from core.policy import custody_transitions
-from core.utils import get_user_display_name, sort_custody_chain
+from core.utils import get_user_display_name, legal_state_of, sort_custody_chain
 
 logger = logging.getLogger(__name__)
 
@@ -270,10 +269,9 @@ def _scope_evidences(user):
 
 def _evidence_state(evidence):
     """(label, css) do estado legal derivado da cadeia de custódia."""
-    eventos = sort_custody_chain(evidence.custody_chain.all())
-    if not eventos:
+    st = legal_state_of(evidence)
+    if st is None:
         return ('Sem custódia', 'muted')
-    st = derive_legal_state(eventos)
     return (LEGAL_STATE_LABELS.get(st, st), LEGAL_STATE_CSS.get(st, 'muted'))
 
 
@@ -509,33 +507,20 @@ def _activity_feed(user, limit=20):
     return logs
 
 
-def _legal_states_by_evidence(user, custody_qs=None):
-    """``{evidence_id: estado_legal_derivado}`` numa ÚNICA query (WI-E).
+def _state_filter(states_getter, fk='id'):
+    """Filtro computado do grid por estado legal DERIVADO (uma closure única
+    para evidências e custódias — só muda a FK contra o dict de estados).
 
-    Substitui a iteração O(n) que instanciava todas as evidências e ordenava o
-    ``custody_chain`` em Python por evidência. Agrupa os eventos do ledger
-    (já com o ownership aplicado) por ``evidence_id`` — uma só passagem,
-    suportada pelo índice ``coc_ev_seq_idx`` — e deriva o estado uma vez por
-    item com a função pura :func:`derive_legal_state` (fonte de verdade única,
-    sem tradução para SQL). É o mesmo padrão usado nos endpoints da API.
+    ``states_getter`` devolve o ``{evidence_id: estado}`` da fonte única
+    (:func:`core.analytics.legal_states_by_evidence`), avaliado só quando o
+    filtro é mesmo aplicado (e memoizável pelo chamador).
     """
-    # Âmbito *need-to-know* item-level (ADR-0017), fonte única em core.access — NÃO
-    # o antigo filtro só-titular. Antes: ChainOfCustody.objects.all() para todos
-    # menos FIRST_RESPONDER, o que (a) vazava contagens de TODOS os casos aos
-    # restantes perfis no dashboard e (b) sub-contava o FIRST_RESPONDER que detém
-    # itens de ocorrências de outrem. scope_custody devolve todos os eventos das
-    # evidências visíveis, pelo que derive_legal_state recebe a cadeia completa.
-    # ``custody_qs`` permite restringir à lente ativa (ex.: tiles do Painel em
-    # "À guarda") — tem de ser já um âmbito imposto (subconjunto de scope_custody).
-    qs = access.scope_custody(user) if custody_qs is None else custody_qs
-    eventos = {}
-    # select_related(None) limpa quaisquer joins (ex.: a lente traz
-    # select_related('agent')) que entrariam em conflito com o .only() abaixo.
-    for rec in qs.select_related(None).order_by('evidence_id', 'sequence').only(
-        'evidence_id', 'event_type', 'custodian_type', 'sequence'
-    ):
-        eventos.setdefault(rec.evidence_id, []).append(rec)
-    return {ev_id: derive_legal_state(evs) for ev_id, evs in eventos.items()}
+
+    def _apply(filtered_qs, _request, value):
+        matching = [ev_id for ev_id, st in states_getter().items() if st == value]
+        return filtered_qs.filter(**{f'{fk}__in': matching})
+
+    return _apply
 
 
 # ---------------------------------------------------------------------------
@@ -624,9 +609,8 @@ def _archived_occurrence_ids(user, occ_qs):
     )
     if not candidate_ids:
         return set()
-    states = _legal_states_by_evidence(
-        user,
-        custody_qs=ChainOfCustody.objects.filter(evidence__occurrence_id__in=candidate_ids),
+    states = analytics.legal_states_by_evidence(
+        ChainOfCustody.objects.filter(evidence__occurrence_id__in=candidate_ids)
     )
     by_occ = {}
     for ev_id, occ_id in Evidence.objects.filter(
@@ -652,12 +636,11 @@ def dashboard_view(request):
     occ_qs = _lens_occurrences(user, lens)
     occ_total = occ_qs.count()
 
-    # Tiles do estado da cadeia — contagem por estado legal DERIVADO (ledger).
-    # WI-E: uma só query agrupada (sem instanciar todas as evidências).
-    tile_counts = {k: 0 for k in LEGAL_STATE_LABELS}
-    for st in _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens)).values():
-        if st in tile_counts:
-            tile_counts[st] += 1
+    # Tiles do estado da cadeia — contagem por estado legal DERIVADO (ledger),
+    # agrupamento e contagem na fonte única (core.analytics).
+    tile_counts = analytics.state_counts(
+        analytics.legal_states_by_evidence(_lens_custody(user, lens))
+    )
     tiles = [
         {'key': k, 'label': LEGAL_STATE_LABELS[k], 'n': tile_counts[k]} for k in LEGAL_STATE_LABELS
     ]
@@ -686,7 +669,9 @@ def dashboard_view(request):
             'logs': _activity_feed(user, limit=20),
             'feed_is_national': access.has_national_read(user),
             'tiles': tiles,
-            'total_active': sum(tile_counts.values()),
+            # Total de itens COM custódia (inclui terminais) — era 'total_active',
+            # nome enganador (auditoria D45); o template mostra "N itens".
+            'custody_total': sum(tile_counts.values()),
             'points_continental': json.dumps(regions['continental']),
             'points_madeira': json.dumps(regions['madeira']),
             'points_acores': json.dumps(regions['acores']),
@@ -1221,13 +1206,6 @@ def evidences_view(request):
     access.remember_console_mode(request, lens)
     qs = _lens_evidences(user, lens)
 
-    def apply_evd_state(filtered_qs, _request, value):
-        # WI-E: uma só query agrupada (o estado deriva da cadeia COMPLETA dos
-        # itens da zona ativa, não de eventos isolados). Restringe à lente.
-        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
-        matching = [ev_id for ev_id, st in states.items() if st == value]
-        return filtered_qs.filter(id__in=matching)
-
     # Ordem = colunas: Ocorrência · Código · Data e Hora · Marca · Modelo · Nº série · Estado.
     # Mobile reduzido (col-reduce-hide) sobra Ocorrência · Código (bolinha) · Data; a
     # bolinha em Código carrega o estado legal no telemóvel. Marca/Modelo vivem em
@@ -1271,7 +1249,12 @@ def evidences_view(request):
         lens=lens,
         empty_title='Sem itens de prova',
         empty_hint='Ainda não há itens registados.',
-        computed_filters={'state': apply_evd_state},
+        # Estado legal deriva da cadeia COMPLETA dos itens da zona ativa (WI-E).
+        computed_filters={
+            'state': _state_filter(
+                lambda: analytics.legal_states_by_evidence(_lens_custody(user, lens))
+            )
+        },
     )
 
 
@@ -1747,15 +1730,20 @@ def custody_list_view(request):
     institutions = Institution.objects.filter(is_active=True).order_by('name')
     inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
 
-    def apply_cc_state(filtered_qs, _request, value):
-        # Estado legal DERIVADO do item (mesmo padrão WI-E), restrito à lente.
-        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
-        matching = [ev_id for ev_id, st in states.items() if st == value]
-        return filtered_qs.filter(evidence_id__in=matching)
+    # Estados legais derivados da lente, calculados UMA vez por request e
+    # partilhados entre o filtro computado e a decoração (auditoria D9).
+    _states_memo = {}
+
+    def _lens_states():
+        if 'v' not in _states_memo:
+            _states_memo['v'] = analytics.legal_states_by_evidence(
+                _lens_custody(user, lens)
+            )
+        return _states_memo['v']
 
     def decorate_custody(events):
         _decorate_events(events)
-        states = _legal_states_by_evidence(user, custody_qs=_lens_custody(user, lens))
+        states = _lens_states()
         for r in events:
             st = states.get(r.evidence_id)
             label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
@@ -1807,7 +1795,7 @@ def custody_list_view(request):
         lens=lens,
         empty_title='Sem eventos de custódia',
         empty_hint='Ainda não há eventos registados.',
-        computed_filters={'state': apply_cc_state},
+        computed_filters={'state': _state_filter(_lens_states, fk='evidence_id')},
     )
 
 
@@ -1963,23 +1951,18 @@ def occurrence_intake_view(request, occurrence_id):
 
     # Para cada evidência: estado legal DERIVADO (ADR-0015) da sequência de
     # eventos. "Já recebida" = já encaminhada para laboratório ou além.
-    from core.models import ChainOfCustody, EventType, Evidence, derive_legal_state
+    from core.models import ChainOfCustody, EventType, Evidence
 
     evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
-    # Uma só query para TODOS os eventos da ocorrência (antes: uma query por
-    # evidência — N+1 a cada carregamento da página de intake). Agrupa por
-    # evidência e deriva o estado uma vez por item.
-    eventos_por_ev = {}
-    for rec in (
-        ChainOfCustody.objects.filter(evidence__occurrence=occurrence)
-        .select_related('custodian_institution')
-        .order_by('evidence_id', 'sequence')
-    ):
-        eventos_por_ev.setdefault(rec.evidence_id, []).append(rec)
-    state_by_evidence = {
-        ev.id: (derive_legal_state(eventos_por_ev[ev.id]) if ev.id in eventos_por_ev else '')
-        for ev in evidences
-    }
+    # Agrupamento ledger→estado na fonte única (uma só query para TODOS os
+    # eventos da ocorrência); with_events devolve também os registos agrupados,
+    # de onde se lê o destino do último encaminhamento de cada item.
+    states, eventos_por_ev = analytics.legal_states_by_evidence(
+        ChainOfCustody.objects.filter(evidence__occurrence=occurrence),
+        with_events=True,
+        related=('custodian_institution',),
+    )
+    state_by_evidence = {ev.id: states.get(ev.id, '') for ev in evidences}
 
     # Instituição(ões) de DESTINO onde a prova é recebida — derivada do último
     # encaminhamento de cada item em trânsito. Em trânsito ⇒ o último evento É o
@@ -2137,7 +2120,7 @@ def stats_view(request):
     days = analytics.resolve_window(request.GET.get('days'))
     since = timezone.now() - timedelta(days=days)
 
-    states_by_ev = _legal_states_by_evidence(user, custody_qs=cus_qs)
+    states_by_ev = analytics.legal_states_by_evidence(cus_qs)
     return render(
         request,
         'stats.html',

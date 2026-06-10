@@ -17,10 +17,9 @@ from core.models import (
     Institution,
     InstitutionMembership,
     InstitutionType,
-    derive_legal_state,
 )
 from core.tests_access import _occ, _user
-from core.utils import sort_custody_chain
+from core.utils import legal_state_of
 
 User = get_user_model()
 
@@ -60,7 +59,7 @@ class RegistoEhApreensaoTest(TestCase):
     def test_item_fica_a_guarda_do_opc_pronto_a_encaminhar(self):
         self._post_new_evidence()
         ev = Evidence.objects.filter(occurrence=self.occ).latest('id')
-        estado = derive_legal_state(sort_custody_chain(ev.custody_chain.all()))
+        estado = legal_state_of(ev)
         self.assertEqual(estado, 'a_guarda_opc')
 
     def test_genese_herda_gps_do_local_de_apreensao(self):

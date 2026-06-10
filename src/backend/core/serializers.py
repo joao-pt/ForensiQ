@@ -22,9 +22,8 @@ from .models import (
     Evidence,
     Institution,
     Occurrence,
-    derive_legal_state,
 )
-from .utils import get_user_display_name, sort_custody_chain
+from .utils import get_user_display_name, legal_state_of
 from .validators import validate_gps_coherence
 
 User = get_user_model()
@@ -387,19 +386,12 @@ class EvidenceSerializer(serializers.ModelSerializer):
     def get_current_state(self, obj):
         """Estado legal DERIVADO da cadeia de custódia (ADR-0015 §6).
 
-        Calcula :func:`derive_legal_state` sobre a sequência completa de
-        eventos da evidência. Devolve ``None`` se a evidência ainda não tem
-        nenhum registo de custódia.
-
-        Nota: usa a relação ``custody_chain`` (prefetchada no caminho normal
-        das listagens via ``Meta.ordering = ['evidence', 'sequence']``); o
-        estado é uma função pura do log, nunca uma coluna gravada.
+        ``None`` se a evidência ainda não tem nenhum registo de custódia. O
+        micro-fluxo materializar→ordenar→derivar vive na fonte única
+        :func:`core.utils.legal_state_of` (prefetch-friendly); o estado é uma
+        função pura do log, nunca uma coluna gravada.
         """
-        eventos = list(obj.custody_chain.all())
-        if not eventos:
-            return None
-        eventos = sort_custody_chain(eventos)
-        return derive_legal_state(eventos)
+        return legal_state_of(obj)
 
     def validate_type(self, value):
         """O tipo tem de ser um código ACTIVO do catálogo editável (ADR-0018)."""
@@ -538,10 +530,10 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
         return get_user_display_name(obj.agent)
 
     def get_legal_state(self, obj):
-        """Estado legal derivado da sequência completa de eventos da evidência."""
-        eventos = list(obj.evidence.custody_chain.all())
-        eventos = sort_custody_chain(eventos)
-        return derive_legal_state(eventos)
+        """Estado legal derivado da sequência completa de eventos da evidência
+        (fonte única :func:`core.utils.legal_state_of`; nunca ``None`` — o
+        próprio ``obj`` já é um evento da cadeia)."""
+        return legal_state_of(obj.evidence)
 
     class Meta:
         model = ChainOfCustody

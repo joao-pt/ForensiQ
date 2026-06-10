@@ -53,12 +53,13 @@ from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
-from . import access
+from . import access, analytics
 from .audit import log_access
 from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
     LEGAL_STATES,
     TERMINAL_EVENTS,
+    TERMINAL_LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -68,7 +69,6 @@ from .models import (
     Occurrence,
     PoliticaCriminalPrioridade,
     PrioridadeCrimeTipo,
-    derive_legal_state,
 )
 from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 from .permissions import CanAccessCustodyApi, IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
@@ -116,17 +116,14 @@ def _user_can_lookup(user) -> bool:
 def _evidence_ids_in_legal_state(custody_qs, state):
     """IDs das evidências cujo estado legal DERIVADO (ADR-0015) é ``state``.
 
-    O estado legal não é coluna — calcula-se com ``derive_legal_state`` sobre
-    a sequência de eventos de cada evidência. ``custody_qs`` delimita o
-    universo (ownership já aplicado pelo chamador).
+    O estado legal não é coluna — o agrupamento ledger→estado vive na fonte
+    única :func:`core.analytics.legal_states_by_evidence`. ``custody_qs``
+    delimita o universo (ownership já aplicado pelo chamador).
     """
-    eventos_por_evidencia = {}
-    for rec in custody_qs.order_by('evidence_id', 'sequence'):
-        eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
     return [
         ev_id
-        for ev_id, eventos in eventos_por_evidencia.items()
-        if derive_legal_state(eventos) == state
+        for ev_id, st in analytics.legal_states_by_evidence(custody_qs).items()
+        if st == state
     ]
 
 
@@ -1148,13 +1145,11 @@ class StatsView(APIView):
             ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
         )
         # Agregação por ESTADO LEGAL DERIVADO (ADR-0015), não por event_type cru:
-        # cada evidência conta uma vez, no seu estado derivado actual.
-        custody_by_state = {state: 0 for state in sorted(LEGAL_STATES)}
-        eventos_por_evidencia = {}
-        for rec in coc_qs.order_by('evidence_id', 'sequence'):
-            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
-        for eventos in eventos_por_evidencia.values():
-            custody_by_state[derive_legal_state(eventos)] += 1
+        # cada evidência conta uma vez, no seu estado derivado actual. Endpoint
+        # congelado — mas o agrupamento/contagem vem da fonte única (analytics).
+        custody_by_state = analytics.state_counts(
+            analytics.legal_states_by_evidence(coc_qs)
+        )
 
         return Response(
             {
@@ -1215,18 +1210,10 @@ class DashboardStatsView(APIView):
             ev_qs.values_list('type').annotate(n=Count('id')).values_list('type', 'n')
         )
 
-        # Estado legal DERIVADO (ADR-0015) por evidência: a derivação é uma
-        # função pura da sequência completa de eventos. Agrupamos os eventos
-        # por evidência (ordenados por sequence, suportado pelo índice
-        # coc_ev_seq_idx) e derivamos o estado uma vez por item.
-        eventos_por_evidencia = {}
-        for rec in coc_qs.order_by('evidence_id', 'sequence'):
-            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
-
-        derived_by_ev = {
-            ev_id: derive_legal_state(eventos)
-            for ev_id, eventos in eventos_por_evidencia.items()
-        }
+        # Estado legal DERIVADO (ADR-0015) por evidência — agrupamento e
+        # contagem na fonte única (core.analytics), calculado UMA vez e
+        # partilhado com _total_active (sem segunda passagem pelo ledger).
+        derived_by_ev = analytics.legal_states_by_evidence(coc_qs)
 
         custodies_in_transit = sum(1 for s in derived_by_ev.values() if s == 'encaminhada')
         evidences_in_analysis = sum(1 for s in derived_by_ev.values() if s == 'em_pericia')
@@ -1235,9 +1222,7 @@ class DashboardStatsView(APIView):
         # dashboard para a visualização "Cadeia de custódia" (river bar +
         # cards). Itens sem qualquer registo ainda ficam fora — não foram
         # apreendidos formalmente, é o caso de seed parcial / wizard a meio.
-        evidences_by_current_state = {state: 0 for state in sorted(LEGAL_STATES)}
-        for s in derived_by_ev.values():
-            evidences_by_current_state[s] += 1
+        evidences_by_current_state = analytics.state_counts(derived_by_ev)
         # Itens sem nenhum registo de custódia (raros — wizard incompleto).
         evidences_without_custody = total_evidences - len(derived_by_ev)
 
@@ -1253,7 +1238,7 @@ class DashboardStatsView(APIView):
                 'evidences_in_analysis': evidences_in_analysis,
                 # --- Enriquecimento T07 (aditivo) ---
                 'deltas_24h': self._deltas_24h(occ_qs, ev_qs, coc_qs),
-                'total_active': self._total_active(coc_qs, total_evidences),
+                'total_active': self._total_active(derived_by_ev, total_evidences),
                 'occurrences_series_7d': self._occurrences_series_7d(occ_qs),
             }
         )
@@ -1289,26 +1274,20 @@ class DashboardStatsView(APIView):
         }
 
     @staticmethod
-    def _total_active(coc_qs, total_evidences):
+    def _total_active(states_by_ev, total_evidences):
         """Nº de evidências cujo estado legal derivado NÃO é terminal (T07).
 
-        Uma evidência está "activa" enquanto o seu último evento de custódia
-        não é terminal (RESTITUICAO/DESTRUICAO — ``TERMINAL_EVENTS``).
-        Evidências sem qualquer registo de custódia contam como activas
-        (ainda não saíram do circuito). Deriva o estado por evidência a partir
-        da sequência de eventos, coerente com o resto do dashboard.
+        Terminalidade pelo ESTADO LEGAL DERIVADO (``TERMINAL_LEGAL_STATES`` —
+        a fonte única do conceito «concluído», que inclui ``perdida_favor_estado``),
+        não pelo último ``event_type``: o predicado antigo deixava escapar a
+        perda a favor do Estado (auditoria D45). Reaproveita o dict de estados
+        já calculado no request. Evidências sem qualquer registo de custódia
+        contam como activas (ainda não saíram do circuito).
         """
-        eventos_por_evidencia = {}
-        for rec in coc_qs.order_by('evidence_id', 'sequence'):
-            eventos_por_evidencia.setdefault(rec.evidence_id, []).append(rec)
-        terminais = {
-            ev_id
-            for ev_id, eventos in eventos_por_evidencia.items()
-            if eventos[-1].event_type in TERMINAL_EVENTS
-        }
-        # Activas = todas as evidências menos as que estão em estado terminal.
-        # Itens sem custódia não entram em ``terminais`` → contam como activas.
-        return total_evidences - len(terminais)
+        terminais = sum(
+            1 for st in states_by_ev.values() if st in TERMINAL_LEGAL_STATES
+        )
+        return total_evidences - terminais
 
     @staticmethod
     def _occurrences_series_7d(occ_qs):
@@ -1325,13 +1304,9 @@ class DashboardStatsView(APIView):
         # Janela [inicio_local_00h, agora]; agrega por dia local via
         # TruncDate, que respeita o TIME_ZONE activo do projecto.
         inicio_dt = timezone.make_aware(datetime.combine(inicio, dt_time.min))
-        contagens = dict(
-            occ_qs.filter(created_at__gte=inicio_dt)
-            .annotate(dia=TruncDate('created_at'))
-            .values('dia')
-            .annotate(n=Count('id'))
-            .values_list('dia', 'n')
-        )
+        # Pipeline de série bucketizada na fonte única (analytics.bucket_counts),
+        # com granularidade diária (TruncDate respeita o TIME_ZONE do projecto).
+        contagens = analytics.bucket_counts(occ_qs, 'created_at', inicio_dt, trunc=TruncDate)
         return [{'date': dia.isoformat(), 'count': contagens.get(dia, 0)} for dia in dias]
 
 

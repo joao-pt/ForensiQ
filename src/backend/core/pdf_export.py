@@ -40,7 +40,7 @@ from reportlab.platypus import (
 )
 
 from core.labels import LEGAL_STATE_LABELS
-from core.utils import get_user_display_name, sort_custody_chain
+from core.utils import get_user_display_name, legal_state_of, sort_custody_chain
 
 # ---------------------------------------------------------------------------
 # Sanitização — proteção contra injecção em Paragraph
@@ -729,21 +729,14 @@ def _current_custody_state(evidence):
     """Devolve (label sanitizado do estado legal derivado, último record).
 
     O estado legal é DERIVADO da sequência de eventos (ADR-0015), não uma
-    coluna. O label é sanitizado à partida porque vai sempre alimentar
-    ``Paragraph()`` no PDF (auditoria 2026-05-18 §3 N3).
-
-    Lê via ``all()`` para reaproveitar o prefetch ordenado por
-    ``sequence`` aplicado pelas views (audit 2026-05-18 §3 N12). Para
-    robustez contra ausência de prefetch, ordena em memória (lista curta).
+    coluna — o micro-fluxo materializar→ordenar→derivar vive na fonte única
+    :func:`core.utils.legal_state_of` (prefetch-friendly). O label é sanitizado
+    à partida porque vai sempre alimentar ``Paragraph()`` no PDF (auditoria
+    2026-05-18 §3 N3).
     """
-    from core.models import derive_legal_state
-
-    records = list(evidence.custody_chain.all())
-    if not records:
+    estado, last = legal_state_of(evidence, with_last=True)
+    if last is None:
         return ('—', None)
-    records = sort_custody_chain(records)
-    last = records[-1]
-    estado = derive_legal_state(records)
     return (_sanitize(LEGAL_STATE_LABELS.get(estado, estado)), last)
 
 
