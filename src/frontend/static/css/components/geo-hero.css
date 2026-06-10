@@ -284,7 +284,30 @@
     flex-shrink: 0;
 }
 
+/* O inset vive dentro de um <button> de foco regional (conteúdo de fraseado:
+   por isso é um <span> com display:block). */
+.geo-hero__inset-btn {
+    display: flex;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    min-height: 0;
+    min-width: 0;
+    border-radius: var(--r-2);
+    text-align: inherit;
+    font: inherit;
+}
+.geo-hero__inset-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+.geo-hero__inset-btn:hover .geo-hero__inset { border-color: var(--accent); }
+
 .geo-hero__inset {
+    display: block;
+    flex: 1;
+    width: 100%;
     background: var(--bg-inset);
     border: 1px solid var(--border);
     border-radius: var(--r-2);
@@ -293,6 +316,25 @@
     isolation: isolate;
     min-height: 120px;
 }
+
+/* Botão "repor" injetado no mapa principal quando um inset o refoca. */
+.geo-hero__map-reset {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1000;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-1);
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.geo-hero__map-reset:hover { background: var(--surface-hover); }
 .geo-hero__inset .leaflet-container {
     width: 100%;
     height: 100%;

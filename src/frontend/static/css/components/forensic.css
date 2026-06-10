@@ -607,6 +607,16 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .empty { padding: var(--sp-12) var(--sp-4); text-align: center; }
 .empty__title { font-size: var(--fs-lg); color: var(--text-muted); margin: 0 0 var(--sp-1); }
 .empty__hint { font-size: var(--fs-sm); color: var(--text-subtle); margin: 0; }
+/* Variante "ledger" (listas probatórias, ex.: feed de auditoria): voz de
+   terminal — à esquerda, mono, contida — em vez do placeholder centrado. */
+.empty--ledger { padding: var(--sp-4) var(--sp-3); text-align: left; }
+.empty--ledger .empty__hint {
+    font-family: var(--font-mono);
+    font-size: var(--fs-xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-muted);
+}
 
 /* ============================================================
    Factos (lista de pares chave/valor) — drawer e páginas de detalhe

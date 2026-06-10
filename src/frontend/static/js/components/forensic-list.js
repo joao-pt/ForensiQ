@@ -311,6 +311,46 @@
         try { var b = JSON.parse(raw); return (b && b.length === 2) ? b : null; } catch (e) { return null; }
     }
 
+    // Máscara de território (assinatura do hero): polígono-com-furo que esbate
+    // tudo FORA do contorno (GeoJSON estático, ex.: Portugal continental do
+    // Natural Earth) e desenha o contorno a traço âmbar — a figura é o
+    // território, o resto é fundo. Falha ALTO no console se o asset faltar
+    // (o mapa continua utilizável sem máscara).
+    function drawMask(map, url) {
+        fetch(url).then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+        }).then(function (gj) {
+            var geom = gj.geometry || gj;
+            var polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+            var holes = polys.map(function (poly) {
+                return poly[0].map(function (p) { return [p[1], p[0]]; });
+            });
+            var world = [[-89.9, -179.9], [-89.9, 179.9], [89.9, 179.9], [89.9, -179.9]];
+            var fill = L.polygon([world].concat(holes), {
+                stroke: false, fillColor: token('--bg', '#FAFAF9'), fillOpacity: 0.78,
+                interactive: false,
+            }).addTo(map);
+            var lines = holes.map(function (ring) {
+                return L.polygon(ring, {
+                    color: token('--accent', '#B45309'), weight: 1.5,
+                    fill: false, interactive: false,
+                }).addTo(map);
+            });
+            // Os tokens mudam com o tema; o SVG do Leaflet não — re-tinge ao vivo.
+            if (typeof MutationObserver !== 'undefined') {
+                new MutationObserver(function () {
+                    fill.setStyle({ fillColor: token('--bg', '#FAFAF9') });
+                    lines.forEach(function (l) { l.setStyle({ color: token('--accent', '#B45309') }); });
+                }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+            }
+        }).catch(function (err) {
+            if (window.console && console.warn) {
+                console.warn('[ForensiQ] máscara do território indisponível:', err);
+            }
+        });
+    }
+
     // Resumo textual de um payload [data-points], com a distribuição de
     // prioridade que a cor dos pinos codifica (silencioso em caso de erro).
     // Ex.: '8 ocorrências neste mapa: 3 P1, 1 P2, 4 normais'.
@@ -382,6 +422,8 @@
             // application no interativo) + resumo textual com prioridades.
             if (el.dataset.points) describeMap(el, fixed);
 
+            if (el.dataset.mask) drawMask(m, el.dataset.mask);
+
             if (bounds) {
                 m.fitBounds(bounds, { padding: [12, 12] });
                 if (!fixed) {
@@ -404,6 +446,51 @@
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initStaticMaps);
     else initStaticMaps();
+
+    // Foco regional do hero: os insets (Madeira/Açores) funcionam como botões
+    // que refocam o mapa principal nos seus bounds (já presentes no DOM); um
+    // botão "repor" devolve o enquadramento de origem. Sem pedidos novos.
+    function initHeroFocus() {
+        var main = document.querySelector('[data-static-map][data-bounds]:not([data-fixed])');
+        var btns = document.querySelectorAll('[data-hero-focus]');
+        if (!main || !btns.length) return;
+        var homeBounds = parseBounds(main.dataset.bounds);
+        var reset = null;
+
+        function focusOn(b) {
+            var m = main._fqMap;
+            if (!m || !b) return;
+            var llb = L.latLngBounds(b);
+            m.setMinZoom(0);
+            m.setMaxBounds(llb.pad(0.25));
+            m.fitBounds(llb, { padding: [12, 12] });
+            m.setMinZoom(m.getZoom());
+        }
+        function ensureReset() {
+            if (reset) return reset;
+            reset = document.createElement('button');
+            reset.type = 'button';
+            reset.className = 'geo-hero__map-reset';
+            reset.textContent = 'Repor continente';
+            reset.addEventListener('click', function () {
+                focusOn(homeBounds);
+                reset.hidden = true;
+            });
+            main.appendChild(reset);
+            return reset;
+        }
+        btns.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var inner = btn.querySelector('[data-static-map]');
+                var b = inner && parseBounds(inner.dataset.bounds);
+                if (!b) return;
+                focusOn(b);
+                ensureReset().hidden = false;
+            });
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initHeroFocus);
+    else initHeroFocus();
 
     // Abrir um <details> alvo quando a página é aberta com âncora (ex.: o
     // formulário de registo de evento via "#custody-register").

@@ -51,6 +51,7 @@
       </header>
       <div class="geo-hero__map" data-static-map
            data-points="{{ points_continental }}" data-bounds="{{ bounds_continental }}"
+           data-mask="{% static 'geo/portugal-continental.json' %}"
            role="application" aria-label="Mapa de Portugal continental"></div>
       <div class="geo-hero__legend" role="group" aria-label="Legenda de prioridade dos pontos">
         <span class="geo-hero__legend-chip">
@@ -80,17 +81,24 @@
 
     <!-- Coluna 3 — Insets das regiões autónomas + prazos (fluxo, não só stock) -->
     <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas e prazos">
+      {# Insets como BOTÕES de foco regional: clicar refoca o mapa principal nesse arquipélago (bounds já no DOM). #}
       <div class="geo-hero__inset-row">
-        <div class="geo-hero__inset" data-static-map data-fixed
-             data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
-             role="img" aria-label="Mapa da Madeira">
-          <span class="geo-hero__inset-label">Madeira · {{ n_madeira }}</span>
-        </div>
-        <div class="geo-hero__inset" data-static-map data-fixed
-             data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
-             role="img" aria-label="Mapa dos Açores">
-          <span class="geo-hero__inset-label">Açores · {{ n_acores }}</span>
-        </div>
+        <button type="button" class="geo-hero__inset-btn" data-hero-focus
+                aria-label="Focar o mapa principal na Madeira">
+          <span class="geo-hero__inset" data-static-map data-fixed
+               data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
+               role="img" aria-label="Mapa da Madeira">
+            <span class="geo-hero__inset-label">Madeira · {{ n_madeira }}</span>
+          </span>
+        </button>
+        <button type="button" class="geo-hero__inset-btn" data-hero-focus
+                aria-label="Focar o mapa principal nos Açores">
+          <span class="geo-hero__inset" data-static-map data-fixed
+               data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
+               role="img" aria-label="Mapa dos Açores">
+            <span class="geo-hero__inset-label">Açores · {{ n_acores }}</span>
+          </span>
+        </button>
       </div>
       {# Prazos & atenção — aging_sla/custody_dwell de core/analytics (a MESMA fonte de /stats/): responde a "o que está em risco hoje?". #}
       <div class="geo-hero__attn" role="group" aria-label="Prazos e atenção">
