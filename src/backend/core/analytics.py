@@ -226,6 +226,11 @@ def aging_sla(evd_qs, cus_qs, now=None):
       (``VALIDATION_DEADLINE``, CPP art. 178.º/6) SEM evento de validação no ledger.
     - **Em trânsito por receber**: ``ProvaEmTransito`` (handoff em dois tempos) por
       confirmar, restringido ao universo de itens visível, e a paragem mais antiga.
+
+    Devolve também os IDS de evidência de cada conjunto (``overdue_ids``/
+    ``transit_ids``): os números do painel têm de ser RE-DERIVÁVEIS — quem
+    clica num prazo vê exatamente os itens que o contam, não um conjunto
+    parecido (princípio de re-verificabilidade).
     """
     now = now or timezone.now()
     seized = set(
@@ -239,17 +244,19 @@ def aging_sla(evd_qs, cus_qs, now=None):
             'evidence_id', flat=True
         )
     )
-    validations_overdue = len(seized - validated)
+    overdue_ids = seized - validated
 
     in_transit = ProvaEmTransito.objects.filter(
         evidence__in=evd_qs, acknowledged_at__isnull=True
     )
-    in_transit_count = in_transit.count()
+    transit_ids = set(in_transit.values_list('evidence_id', flat=True))
     oldest = in_transit.order_by('created_at').values_list('created_at', flat=True).first()
     oldest_h = round((now - oldest).total_seconds() / 3600, 1) if oldest else 0
     return {
-        'validations_overdue': validations_overdue,
-        'in_transit': in_transit_count,
+        'validations_overdue': len(overdue_ids),
+        'overdue_ids': overdue_ids,
+        'in_transit': len(transit_ids),
+        'transit_ids': transit_ids,
         'oldest_transit_hours': oldest_h,
         'deadline_hours': settings.VALIDATION_DEADLINE_HOURS,
     }

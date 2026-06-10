@@ -30,18 +30,34 @@
       <section class="section" aria-label="Prazos e atenção">
         <header class="section__head"><h2 class="section__title">Prazos &amp; atenção</h2></header>
         <div class="section__body section__body--flush">
+          {# Prazos com contagem >0 FILTRAM a tabela abaixo (?attn=) — o número é re-derivável no clique. #}
           <div class="attn-strip">
-            <a class="attn-row{% if sla.validations_overdue %} attn-row--hot{% endif %}"
-               href="/evidences/?state=a_guarda_opc"
-               title="Abre a lista de TODOS os itens à guarda do OPC (conjunto mais lato que o nº em atraso)">
+            {% if sla.validations_overdue %}
+            <a class="attn-row attn-row--hot{% if attn_filter.key == 'overdue' %} attn-row--active{% endif %}"
+               href="?attn=overdue" title="Filtrar a tabela pelas ocorrências com validações em atraso"
+               {% if attn_filter.key == 'overdue' %}aria-current="true"{% endif %}>
               <span class="attn-row__num">{{ sla.validations_overdue }}</span>
               <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
             </a>
-            <a class="attn-row{% if sla.in_transit %} attn-row--warn{% endif %}"
-               href="/inbound/" title="Prova encaminhada ainda por receber">
+            {% else %}
+            <div class="attn-row">
+              <span class="attn-row__num">0</span>
+              <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
+            </div>
+            {% endif %}
+            {% if sla.in_transit %}
+            <a class="attn-row attn-row--warn{% if attn_filter.key == 'transit' %} attn-row--active{% endif %}"
+               href="?attn=transit" title="Filtrar a tabela pelas ocorrências com prova por receber"
+               {% if attn_filter.key == 'transit' %}aria-current="true"{% endif %}>
               <span class="attn-row__num">{{ sla.in_transit }}</span>
-              <span class="attn-row__label">em trânsito por receber{% if sla.in_transit %} · {{ sla.oldest_transit_hours }}h{% endif %}</span>
+              <span class="attn-row__label">em trânsito por receber · {{ sla.oldest_transit_hours }}h</span>
             </a>
+            {% else %}
+            <div class="attn-row">
+              <span class="attn-row__num">0</span>
+              <span class="attn-row__label">em trânsito por receber</span>
+            </div>
+            {% endif %}
             <div class="attn-row">
               <span class="attn-row__num">{{ dwell.longest_open_hours }}h</span>
               <span class="attn-row__label">paragem atual mais longa</span>
@@ -59,6 +75,12 @@
       <section class="section" aria-label="Últimas ocorrências">
         <header class="section__head">
           <h2 class="section__title">Últimas ocorrências</h2>
+          {% if attn_filter %}
+          <a class="attn-filter-chip" href="/dashboard/"
+             title="Limpar o filtro (mostrar todas)">
+            {{ attn_filter.label }} · {{ attn_filter.n_items }} ite{{ attn_filter.n_items|pluralize:"m,ns" }} em {{ attn_filter.n_occ }} ocorrência{{ attn_filter.n_occ|pluralize }} ✕
+          </a>
+          {% endif %}
           <a class="section__more" href="/occurrences/">Ver todas →</a>
         </header>
         <div class="section__body section__body--flush">

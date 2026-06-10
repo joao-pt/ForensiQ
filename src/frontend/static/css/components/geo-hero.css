@@ -387,3 +387,26 @@ a.attn-row:focus-visible {
 /* Cor SÓ quando classifica: número vermelho/âmbar apenas com risco real (>0). */
 .attn-row--hot .attn-row__num { color: var(--danger); }
 .attn-row--warn .attn-row__num { color: var(--warning-strong); }
+
+/* Prazo ATIVO (a filtrar a tabela abaixo): selecionado = accent, como em
+   toda a app. */
+.attn-row--active {
+    background: var(--accent-tint);
+    border-color: var(--accent);
+}
+
+/* Chip do filtro ativo no cabeçalho da tabela (clicar limpa). */
+.attn-filter-chip {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--accent-on-tint);
+    background: var(--accent-tint);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-pill);
+    padding: 2px var(--sp-2);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.attn-filter-chip:hover { background: var(--accent-tint-hover); }

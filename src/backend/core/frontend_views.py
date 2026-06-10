@@ -557,9 +557,13 @@ def _activity_feed(user, limit=20):
             'id', 'code', 'number'
         ):
             target[(RT.OCCURRENCE, o.id)] = (o.code or o.number, f'/occurrences/{o.id}/')
-    if RT.EVIDENCE in ids_by_type:
-        for e in Evidence.objects.filter(id__in=ids_by_type[RT.EVIDENCE]).only('id', 'code'):
+    # DEVICE: o alvo é o registo de EVIDÊNCIA do dispositivo (mesmo id) —
+    # resolve-se pelo mesmo caminho para o feed ser clicável.
+    ev_ids = ids_by_type.get(RT.EVIDENCE, set()) | ids_by_type.get(RT.DEVICE, set())
+    if ev_ids:
+        for e in Evidence.objects.filter(id__in=ev_ids).only('id', 'code'):
             target[(RT.EVIDENCE, e.id)] = (e.code, f'/evidences/{e.id}/')
+            target[(RT.DEVICE, e.id)] = (e.code, f'/evidences/{e.id}/')
     if RT.CUSTODY in ids_by_type:
         for c in ChainOfCustody.objects.filter(id__in=ids_by_type[RT.CUSTODY]).only(
             'id', 'code', 'evidence_id'
@@ -761,11 +765,31 @@ def dashboard_view(request):
             'normal': sum(1 for p in points if p['pri'] == 0),
         }
 
+    # Filtro local "Prazos & atenção" (?attn=): clicar num prazo mostra na
+    # PRÓPRIA tabela as ocorrências cujos itens o contam — o número do painel
+    # é re-derivável no clique (antes ligava a uma lista mais lata, N≠número).
+    _ATTN = {
+        'overdue': ('validações em atraso', sla['overdue_ids']),
+        'transit': ('em trânsito por receber', sla['transit_ids']),
+    }
+    attn_key = (request.GET.get('attn') or '').strip()
+    attn_filter = None
+    recent_qs = occ_qs
+    if attn_key in _ATTN:
+        label, ev_ids = _ATTN[attn_key]
+        recent_qs = occ_qs.filter(evidences__id__in=ev_ids).distinct()
+        attn_filter = {
+            'key': attn_key,
+            'label': label,
+            'n_items': len(ev_ids),
+            'n_occ': recent_qs.count(),
+        }
+
     recent = list(
         # distinct=True: a lente institucional filtra por evidences__custody_chain__…,
         # e o join multi-valor multiplicava a contagem (1 por EVENTO de custódia).
         # 30 linhas: a lista do painel tem altura fixa com scroll interno.
-        occ_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:30]
+        recent_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:30]
     )
     _decorate_occurrences(recent)
     for o in recent:
@@ -794,6 +818,7 @@ def dashboard_view(request):
             'lens_zone_label': access.lens_label(user, lens),
             'recent': recent,
             'recent_columns': recent_columns,
+            'attn_filter': attn_filter,
             'logs': _activity_feed(user, limit=20),
             'feed_is_national': access.has_national_read(user),
             'tiles': tiles,
