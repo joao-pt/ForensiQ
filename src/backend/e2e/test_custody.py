@@ -29,7 +29,9 @@ def test_register_custody_event_appends_to_ledger(page, auth_as, live_server):
     before = ChainOfCustody.objects.filter(evidence=ev).count()
 
     page.goto(f"/evidences/{ev.id}/custody/", wait_until="load")
-    page.locator("#custody-register summary").click()  # abrir o <details>
+    # Abrir o <details> EXTERIOR do formulário (o .first evita o summary do
+    # portador pontual, aninhado dentro do form).
+    page.locator("#custody-register summary").first.click()
     first_value = (
         page.locator("#r-event option:not([value=''])").first.get_attribute("value")
     )
