@@ -35,15 +35,13 @@ from .tests_api import BaseAPITestCase
 User = get_user_model()
 
 
-from core.tests_base import throttle_rate
+from core.tests_base import image_upload, throttle_rate
 from core.tests_factories import CrimeTipoFactory
 
 
 def _png_upload(name='photo.png', size=(2, 2)):
-    """Devolve um SimpleUploadedFile com PNG válido (Pillow.verify passa)."""
-    buf = io.BytesIO()
-    Image.new('RGB', size, color=(255, 0, 0)).save(buf, 'PNG')
-    return SimpleUploadedFile(name, buf.getvalue(), content_type='image/png')
+    """PNG mínimo para upload — gerador único (tests_base.image_upload, D113)."""
+    return image_upload(name, fmt='PNG', size=size)
 
 
 # ---------------------------------------------------------------------------

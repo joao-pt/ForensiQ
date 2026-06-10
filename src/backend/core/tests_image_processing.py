@@ -22,6 +22,7 @@ from django.test import TestCase
 from django.utils import timezone
 from PIL import Image
 
+from core.tests_base import make_image_bytes
 from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 from .models import Evidence, Occurrence, User
@@ -34,24 +35,18 @@ def _make_jpeg_with_exif(make='Apple', model='iPhone 15', size=(50, 50)):
     exif[0x010F] = make  # Make
     exif[0x0110] = model  # Model
     exif[0x9003] = '2024:01:01 12:00:00'  # DateTimeOriginal
-    buf = BytesIO()
-    img.save(buf, 'JPEG', exif=exif.tobytes())
-    return buf.getvalue()
+    # Serialização no gerador único (tests_base.make_image_bytes, D113).
+    return make_image_bytes(size=size, exif=exif.tobytes())
 
 
 def _make_jpeg_plain(size=(50, 50)):
-    """JPEG mínimo SEM EXIF. Devolve bytes."""
-    img = Image.new('RGB', size, 'red')
-    buf = BytesIO()
-    img.save(buf, 'JPEG')
-    return buf.getvalue()
+    """JPEG mínimo SEM EXIF — gerador único (tests_base.make_image_bytes, D113)."""
+    return make_image_bytes(size=size)
 
 
 def _make_png_plain(size=(50, 50)):
-    img = Image.new('RGB', size, 'blue')
-    buf = BytesIO()
-    img.save(buf, 'PNG')
-    return buf.getvalue()
+    """PNG mínimo — gerador único (tests_base.make_image_bytes, D113)."""
+    return make_image_bytes(fmt='PNG', size=size)
 
 
 class _Fixture:

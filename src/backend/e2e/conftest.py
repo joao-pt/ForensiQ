@@ -186,11 +186,12 @@ def make_user(live_server):
 
 @pytest.fixture
 def tiny_image(tmp_path):
-    """Caminho para um JPEG mínimo válido — para testar o upload de fotografia."""
-    from PIL import Image
+    """Caminho para um JPEG mínimo válido — gerador único
+    (tests_base.make_image_bytes, auditoria D113), gravado em tmp_path."""
+    from core.tests_base import make_image_bytes
 
     path = tmp_path / "evidencia.jpg"
-    Image.new("RGB", (8, 8), (90, 110, 140)).save(str(path), "JPEG")
+    path.write_bytes(make_image_bytes(color=(90, 110, 140)))
     return str(path)
 
 

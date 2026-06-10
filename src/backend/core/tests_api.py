@@ -21,7 +21,7 @@ from rest_framework.test import APIClient
 
 # BaseAPITestCase vive em core.tests_base (auditoria D112) — re-importada aqui
 # para as suites (e tests_new_features/tests_dashboard) continuarem a funcionar.
-from core.tests_base import BaseAPITestCase as BaseAPITestCase
+from core.tests_base import BaseAPITestCase as BaseAPITestCase, make_image_bytes
 from core.tests_factories import LISBOA_GPS, LISBOA_GPS_STR, TEST_PASSWORD, CrimeTipoFactory
 
 from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
@@ -1137,19 +1137,8 @@ class ImageUploadValidationTest(BaseAPITestCase):
         )
 
     def _make_valid_jpeg(self, size_bytes):
-        """Gera um JPEG válido (mínimo) padded até size_bytes."""
-        import io
-
-        from PIL import Image
-
-        img = Image.new('RGB', (1, 1), color='red')
-        buf = io.BytesIO()
-        img.save(buf, format='JPEG')
-        header = buf.getvalue()
-        # Pad com zeros até ao tamanho desejado (JPEG ignora trailing bytes)
-        if len(header) < size_bytes:
-            header += b'\x00' * (size_bytes - len(header))
-        return header
+        """JPEG mínimo padded — gerador único (tests_base.make_image_bytes, D113)."""
+        return make_image_bytes(size=(1, 1), pad_to=size_bytes)
 
     def test_image_upload_valid_size(self):
         """Upload de imagem com tamanho válido (< 25MB) deve ser aceito.
