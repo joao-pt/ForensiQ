@@ -173,7 +173,7 @@
                         </svg>
                         <span class="app-sidebar__label">Ocorrências</span>
                     </a>
-                    {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+                    {% if can_register %}
                     {# Atalho rápido: navega para a página de nova ocorrência. #}
                     <a class="app-sidebar__link app-sidebar__link--action" href="/occurrences/new/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
@@ -206,7 +206,7 @@
                         </svg>
                         <span class="app-sidebar__label">Evidências</span>
                     </a>
-                    {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+                    {% if can_register %}
                     {# Atalho rápido: navega para a página de novo item de prova. #}
                     <a class="app-sidebar__link app-sidebar__link--action" href="/evidences/new/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
@@ -239,7 +239,7 @@
                         {% if inbound_count %}<span class="app-sidebar__badge" aria-label="{{ inbound_count }} por receber">{{ inbound_count }}</span>{% endif %}
                     </a>
                     {% endif %}
-                    {% if user.is_staff or user.profile == 'FORENSIC_EXPERT' %}
+                    {% if can_verify %}
                     <a class="app-sidebar__link" href="/verificacoes/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
@@ -277,7 +277,7 @@
 
                 <div class="app-sidebar__group" data-axis="any">
                     <p class="app-sidebar__group-title" role="presentation">Sistema</p>
-                    {% if user.is_staff or user.has_national_clearance %}
+                    {% if can_manage_institutions %}
                     <a class="app-sidebar__link" href="/institutions/" data-sidebar-link>
                         <svg class="app-sidebar__icon" viewBox="0 0 24 24" fill="none"
                              stroke="currentColor" stroke-width="1.8" stroke-linecap="round"

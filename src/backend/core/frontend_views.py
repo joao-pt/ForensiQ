@@ -32,7 +32,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import AccessToken
 
 from core import access, analytics, evidence_field_config, evidence_type_config, integrity
-from core.audit import log_access
+from core.audit import get_client_ip, log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
@@ -89,13 +89,6 @@ def _throttle_public_verify(request):
 # fica bloqueado por uma janela. Usa a cache (tabela forensiq_cache).
 _VERIFY_FAIL_LIMIT = 20
 _VERIFY_LOCK_SECONDS = 900  # 15 min
-
-
-def _client_ip(request):
-    xff = request.META.get('HTTP_X_FORWARDED_FOR')
-    if xff:
-        return xff.split(',')[0].strip()
-    return request.META.get('REMOTE_ADDR', '')
 
 
 def _verify_is_locked(ip):
@@ -361,7 +354,10 @@ def public_verify_view(request, short_hash):
     # Lockout por IP (escalada) + rate-limit por minuto. Superfície pública
     # não-autenticada; sem freio um atacante poderia tentar enumerar os hashes
     # curtos. Aplicados ANTES de resolver para travar tentativas inválidas.
-    ip = _client_ip(request)
+    # IP pela fonte única endurecida (core.audit.get_client_ip): só confia no
+    # X-Forwarded-For atrás de proxy confiável — um XFF forjado não contorna
+    # nem envenena o lockout (auditoria D7).
+    ip = get_client_ip(request)
     if _verify_is_locked(ip):
         return HttpResponse(
             'Demasiadas tentativas. Tente novamente mais tarde.',
@@ -438,7 +434,7 @@ def verifications_view(request):
     from core.qr_verify import resolve_occurrence, short_hash_for
 
     user = request.user
-    if not (user.is_staff or getattr(user, 'profile', None) == 'FORENSIC_EXPERT'):
+    if not access.is_expert_or_staff(user):
         return HttpResponseForbidden('Acesso reservado a perito forense / staff.')
 
     query = (request.GET.get('q') or '').strip()
@@ -492,13 +488,12 @@ def _activity_feed(user, limit=20):
     Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo de
     auditoria; qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
     CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
-    *need-to-know* (ADR-0017). Espelha :class:`core.views.ActivityFeedView`. É a
-    fonte de verdade do "que aconteceu": criação de prova (com hash), eventos
-    de custódia, exportações de PDF, alertas.
+    *need-to-know* (ADR-0017; âmbito numa fonte única, ``access.scope_audit_logs``,
+    partilhada com :class:`core.views.ActivityFeedView`). É a fonte de verdade do
+    "que aconteceu": criação de prova (com hash), eventos de custódia,
+    exportações de PDF, alertas.
     """
-    qs = AuditLog.objects.select_related('user').order_by('-sequence')
-    if not access.has_national_read(user):
-        qs = qs.filter(user_id=user.id)
+    qs = access.scope_audit_logs(user).select_related('user').order_by('-sequence')
     logs = list(qs[:limit])
     for r in logs:
         r.action_label = r.get_action_display()
@@ -832,7 +827,7 @@ def occurrence_detail_view(request, occurrence_id):
     occ.evidence_count = len(evidences)
     # Encaminhar é ação de escrita: escondida a perfis só-leitura (a porta real é
     # o can_append_custody por item, no serializer).
-    can_handoff = getattr(user, 'profile', None) not in ('CHEFE_SERVICO', 'AUDITOR')
+    can_handoff = not access.is_read_only_profile(user)
     return render(
         request,
         'occurrence_detail.html',
@@ -1016,7 +1011,7 @@ def occurrences_new_view(request):
     from core.serializers import OccurrenceSerializer
 
     user = request.user
-    if not (user.is_staff or getattr(user, 'profile', None) == 'FIRST_RESPONDER'):
+    if not access.can_register_records(user):
         return HttpResponseForbidden('Apenas agentes podem registar ocorrências.')
 
     crime_categories = CrimeCategoria.objects.order_by('codigo')
@@ -1078,12 +1073,6 @@ def occurrences_new_view(request):
     return render(request, template, _ctx({}, initial))
 
 
-def _can_manage_institutions(user):
-    """Gerir instituições (pontos de controlo) é ato de administração: ``staff``
-    ou credencial NACIONAL. Lista e criação partilham o mesmo portão."""
-    return bool(user.is_staff or getattr(user, 'has_national_clearance', False))
-
-
 def _wants_modal(request):
     """Pedido em modo modal (ação-in-place)? GET ``?modal=1`` (abrir) ou o
     campo escondido ``modal`` no POST (submeter)."""
@@ -1101,7 +1090,7 @@ def institutions_view(request):
     sem-JS; o botão "Nova instituição" e os scripts do mapa vivem na casca.
     """
     user = request.user
-    if not _can_manage_institutions(user):
+    if not access.can_manage_institutions(user):
         return HttpResponseForbidden('Sem permissão para gerir instituições.')
 
     def apply_inst_state(filtered_qs, _request, value):
@@ -1172,7 +1161,7 @@ def institution_new_view(request):
     from core.serializers import InstitutionSerializer
 
     user = request.user
-    if not _can_manage_institutions(user):
+    if not access.can_manage_institutions(user):
         return HttpResponseForbidden('Sem permissão para criar instituições.')
 
     modal = _wants_modal(request)
@@ -1309,7 +1298,7 @@ def evidences_new_view(request):
     from core.serializers import EvidenceSerializer
 
     user = request.user
-    if not (user.is_staff or getattr(user, 'profile', None) == 'FIRST_RESPONDER'):
+    if not access.can_register_records(user):
         return HttpResponseForbidden('Apenas agentes podem registar evidências.')
 
     occurrences = _scope_occurrences(user).order_by('-date_time')
@@ -1962,11 +1951,9 @@ def occurrence_intake_view(request, occurrence_id):
     # caixa "prova a chegar" mostra o item ao membro do destino, mas o intake
     # recusava-o (403). A porta de ESCRITA real continua no serializer
     # (can_append_custody, fail-closed); aqui decide-se só quem vê/usa o formulário.
-    is_expert = getattr(user, 'profile', None) == 'FORENSIC_EXPERT'
     can_receive = (
-        user.is_staff
-        or user.is_superuser
-        or is_expert
+        user.is_superuser
+        or access.is_expert_or_staff(user)
         or access.has_inbound_for_occurrence(user, occurrence)
     )
     if not can_receive:

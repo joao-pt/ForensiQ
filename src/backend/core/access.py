@@ -17,7 +17,14 @@ import contextlib
 
 from django.db.models import Q
 
-from core.models import ChainOfCustody, Evidence, Occurrence, ProvaEmTransito, User
+from core.models import (
+    AuditLog,
+    ChainOfCustody,
+    Evidence,
+    Occurrence,
+    ProvaEmTransito,
+    User,
+)
 
 # Atos de despacho que a autoridade do caso (MP) pode praticar (ADR-0017 §5).
 CASE_AUTHORITY_EVENTS = frozenset(
@@ -89,9 +96,56 @@ def has_full_read(user):
     return has_national_read(user) or _profile(user) == User.Profile.FORENSIC_EXPERT
 
 
+def is_read_only_profile(user):
+    """Papel só-leitura (CHEFE_SERVICO/AUDITOR)? Nunca escreve (ADR-0017 §5)."""
+    return _profile(user) in READ_ONLY_PROFILES
+
+
+def can_register_records(user):
+    """Pode REGISTAR ocorrências/itens de prova? Primeiro interveniente ou staff
+    (a génese da prova capta-se no terreno — ADR-0016 §2)."""
+    return bool(
+        getattr(user, 'is_staff', False)
+        or _profile(user) == User.Profile.FIRST_RESPONDER
+    )
+
+
+def is_expert_or_staff(user):
+    """Perito forense ou staff — portão das ferramentas de laboratório
+    (verificações, consultas a APIs externas)."""
+    return bool(
+        getattr(user, 'is_staff', False)
+        or _profile(user) == User.Profile.FORENSIC_EXPERT
+    )
+
+
+def can_manage_institutions(user):
+    """Gerir instituições (pontos de controlo) é ato de administração — a mesma
+    regra da leitura nacional (staff ou credencial NACIONAL). Se um dia divergir,
+    a regra própria fica AQUI, não inline nas views/templates."""
+    return has_national_read(user)
+
+
 # ---------------------------------------------------------------------------
 # Scoping de LEITURA (querysets)
 # ---------------------------------------------------------------------------
+
+
+def scope_audit_logs(user, base_qs=None):
+    """Eventos do trilho de auditoria que o utilizador pode LER (ADR-0017).
+
+    Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo;
+    qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
+    CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
+    *need-to-know*. Fonte única do âmbito do feed (server-rendered e API);
+    ordenação e decoração ficam nos consumidores.
+    """
+    qs = AuditLog.objects.all() if base_qs is None else base_qs
+    if not getattr(user, 'is_authenticated', False):
+        return qs.none()
+    if has_national_read(user):
+        return qs
+    return qs.filter(user_id=user.id)
 
 
 def scope_evidences(user, base_qs=None):

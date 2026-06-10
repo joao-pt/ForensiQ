@@ -106,12 +106,11 @@ def _user_can_access_occurrence(user, occurrence) -> bool:
 
 
 def _user_can_lookup(user) -> bool:
-    """Só FIRST_RESPONDER / FORENSIC_EXPERT (ou staff) consultam APIs externas."""
+    """Só FIRST_RESPONDER / FORENSIC_EXPERT (ou staff) consultam APIs externas
+    (portões de papel numa fonte única — core.access)."""
     if user is None or not user.is_authenticated:
         return False
-    if getattr(user, 'is_staff', False):
-        return True
-    return getattr(user, 'profile', None) in ('FIRST_RESPONDER', 'FORENSIC_EXPERT')
+    return access.can_register_records(user) or access.is_expert_or_staff(user)
 
 
 def _evidence_ids_in_legal_state(custody_qs, state):
@@ -1366,16 +1365,13 @@ class ActivityFeedView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = AuditLog.objects.select_related('user').order_by('-timestamp')
-        user = self.request.user
-        # Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo de
-        # auditoria; qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
-        # CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
-        # *need-to-know* (ADR-0017). Antes só o FIRST_RESPONDER era restringido, o
-        # que vazava o registo global a todos os outros perfis não-nacionais.
-        if not access.has_national_read(user):
-            qs = qs.filter(user_id=user.id)
-        return qs
+        # Âmbito need-to-know do trilho numa fonte única (access.scope_audit_logs,
+        # partilhada com o feed server-rendered); aqui só ordenação/joins locais.
+        return (
+            access.scope_audit_logs(self.request.user)
+            .select_related('user')
+            .order_by('-timestamp')
+        )
 
     def get_serializer_context(self):
         """Pré-carrega os ids de ocorrências prioritárias da página (sem N+1).

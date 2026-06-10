@@ -81,6 +81,25 @@ def lens_nav(request):
     }
 
 
+def role_gates(request):
+    """Injecta os portões de papel na casca/páginas (fonte única em core.access).
+
+    As views aplicam os MESMOS predicados nos GET/POST; os templates testam só
+    estas flags (padrão já usado por ``can_handoff``) — nunca literais de perfil
+    no HTML. Livre de ORM (lê ``profile``/``clearance``/``is_staff``).
+    """
+    from core import access
+
+    user = getattr(request, 'user', None)
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return {}
+    return {
+        'can_register': access.can_register_records(user),
+        'can_verify': access.is_expert_or_staff(user),
+        'can_manage_institutions': access.can_manage_institutions(user),
+    }
+
+
 def inbound_nav(request):
     """Injecta a contagem de "prova a chegar" para o badge da casca (ADR-0016 v2).
 

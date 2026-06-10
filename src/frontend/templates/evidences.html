@@ -23,7 +23,7 @@
       <h1 class="page-head__title" id="evd-title">Itens de prova</h1>
       <span class="page-head__count" id="evd-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
     </div>
-    {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+    {% if can_register %}
     <a class="btn-accent" href="/evidences/new/">
       {% include 'partials/icons/_plus.html' %}
       Novo item de prova

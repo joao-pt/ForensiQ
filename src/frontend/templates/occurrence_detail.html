@@ -44,7 +44,7 @@
         Encaminhar
       </a>
       {% endif %}
-      {% if user.is_staff or user.profile == 'FIRST_RESPONDER' %}
+      {% if can_register %}
       <a class="btn-accent" href="/evidences/new/?occurrence={{ occ.id }}">
         {% include 'partials/icons/_plus.html' %}
         Nova evidência
