@@ -1,0 +1,17 @@
+{% comment %}
+  Botão de captura de GPS + indicador de precisão (fonte ÚNICA — auditoria
+  D64). Conduzido por geo-capture.js sobre o ForensiQGeo. Parâmetros:
+    • lat_target / lng_target — seletores dos inputs (par do _gps_inputs);
+    • acc_target              — seletor do input de precisão (opcional);
+    • decimals                — casas decimais (def. gps_decimals do contexto).
+  O limiar data-acc-flag-m vem de settings.GPS_ACCURACY_FLAG_M (app_metadata).
+  As variações da página (POIs, map-picker) ficam FORA deste partial.
+{% endcomment %}
+<button type="button" class="btn-ghost" data-geo-capture
+        data-lat-target="{{ lat_target }}" data-lng-target="{{ lng_target }}"
+        {% if acc_target %}data-acc-target="{{ acc_target }}"{% endif %}
+        data-decimals="{{ decimals|default:gps_decimals }}" data-acc-flag-m="{{ gps_acc_flag_m }}">
+  {% include 'partials/icons/_gps.html' %}
+  Capturar GPS
+</button>
+<span class="mono facts__src" data-geo-acc></span>

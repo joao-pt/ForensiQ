@@ -35,15 +35,6 @@
       <input type="text" id="f-addr" name="address" value="{{ data.address }}" placeholder="Rua, nº, localidade — resolvida automaticamente">
     </div>
     {% endif %}
-    <div class="form-field">
-      <label for="f-lat">Latitude{% if required %} *{% endif %}</label>
-      <input class="mono" type="text" inputmode="decimal" id="f-lat" name="gps_lat" value="{{ data.gps_lat }}" placeholder="38.7197"{% if required %} required{% endif %}{% if errors.gps_lat %} aria-invalid="true" aria-describedby="f-lat-err"{% endif %}>
-      {% if errors.gps_lat %}<span class="form-error visible" id="f-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
-    </div>
-    <div class="form-field">
-      <label for="f-lng">Longitude{% if required %} *{% endif %}</label>
-      <input class="mono" type="text" inputmode="decimal" id="f-lng" name="gps_lng" value="{{ data.gps_lng }}" placeholder="-9.1467"{% if required %} required{% endif %}{% if errors.gps_lng %} aria-invalid="true" aria-describedby="f-lng-err"{% endif %}>
-      {% if errors.gps_lng %}<span class="form-error visible" id="f-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
-    </div>
+    {% include 'partials/_gps_inputs.html' with id_prefix='f' data=data errors=errors required=required %}
   </div>
 </div>

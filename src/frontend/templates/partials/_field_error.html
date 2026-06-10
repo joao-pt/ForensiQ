@@ -1,0 +1,7 @@
+{% comment %}
+  Span de erro de campo acessível (fonte ÚNICA — auditoria D66). Par do
+  atributo aria-invalid/aria-describedby="<field_id>-err" no widget; migração
+  incremental: os campos compostos mantêm o widget próprio mas usam este span.
+  Parâmetros: field_id (id do widget, sem sufixo) e error (mensagem; omite-se vazio).
+{% endcomment %}
+{% if error %}<span class="form-error visible" id="{{ field_id }}-err">{{ error }}</span>{% endif %}

@@ -36,6 +36,33 @@
     var titleEl = document.getElementById('app-modal-title');
     var lastTrigger = null;
 
+    // Deriva o contrato HTMX dos gatilhos (auditoria D61): no markup fica só
+    // href + data-modal-open + data-modal-title; o hx-get com ?modal=1, o
+    // target #app-modal-body e o swap vivem AQUI — fonte única do contrato.
+    function wireTriggers(root) {
+        if (typeof htmx === 'undefined') return;
+        var scope = (root && root.querySelectorAll) ? root : document;
+        var els = scope.querySelectorAll('[data-modal-open]:not([hx-get])');
+        for (var i = 0; i < els.length; i++) {
+            var el = els[i];
+            var href = el.getAttribute('href');
+            if (!href) continue;
+            el.setAttribute('hx-get', href + (href.indexOf('?') >= 0 ? '&' : '?') + 'modal=1');
+            el.setAttribute('hx-target', '#app-modal-body');
+            el.setAttribute('hx-swap', 'innerHTML');
+            htmx.process(el);
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function () { wireTriggers(); });
+    } else {
+        wireTriggers();
+    }
+    // Gatilhos que cheguem por swap HTMX (fragmentos de grelha, etc.).
+    document.body.addEventListener('htmx:afterSwap', function (ev) {
+        wireTriggers(ev.detail && ev.detail.target);
+    });
+
     function openModal(title) {
         if (titleEl) titleEl.textContent = title || 'Ação';
         // Abre + foco via FQDialog (plumbing partilhada). Em re-render com erros

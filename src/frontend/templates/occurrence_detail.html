@@ -36,9 +36,9 @@
       </a>
       {% if can_handoff %}
       {# Ação in-place: encaminhar a prova em lote (portador + destino) num modal. #}
+      {# Contrato modal (hx-get ?modal=1 → #app-modal-body) derivado em modal-action.js (D61). #}
       <a class="btn-ghost" href="/occurrences/{{ occ.id }}/encaminhar/"
-         data-modal-open data-modal-title="Encaminhar prova"
-         hx-get="/occurrences/{{ occ.id }}/encaminhar/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
+         data-modal-open data-modal-title="Encaminhar prova">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         Encaminhar
       </a>

@@ -17,10 +17,9 @@
       <h1 class="page-head__title" id="inst-title">Instituições</h1>
       <span class="page-head__count" id="inst-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
     </div>
-    {% comment %}Ação-in-place: abre o formulário num modal sobre esta página (sem trocar de janela). O href é o recurso no-JS / navegação direta (página completa).{% endcomment %}
+    {% comment %}Ação-in-place: abre o formulário num modal sobre esta página (sem trocar de janela). O href é o recurso no-JS / navegação direta; o contrato HTMX (hx-get ?modal=1 → #app-modal-body) é derivado em modal-action.js (D61).{% endcomment %}
     <a class="btn-accent" href="/institutions/new/"
-       data-modal-open data-modal-title="Nova instituição"
-       hx-get="/institutions/new/?modal=1" hx-target="#app-modal-body" hx-swap="innerHTML">
+       data-modal-open data-modal-title="Nova instituição">
       {% include 'partials/icons/_plus.html' %}
       Nova instituição
     </a>

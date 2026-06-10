@@ -25,7 +25,7 @@
           <option value="{{ o.id }}" {% if preselect == o.id|stringformat:'s' %}selected{% endif %}>{{ o.code }} · {{ o.number }}</option>
           {% endfor %}
         </select>
-        {% if errors.occurrence %}<span class="form-error visible" id="f-occ-err">{{ errors.occurrence.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-occ' error=errors.occurrence.0 %}
       </div>
 
       <div class="form-field">
@@ -36,7 +36,7 @@
           <option value="{{ p.id }}" {% if data.parent_evidence == p.id|stringformat:'s' %}selected{% endif %}>{{ p.code }} · {{ p.get_type_display }}</option>
           {% endfor %}
         </select>
-        {% if errors.parent_evidence %}<span class="form-error visible" id="f-parent-err">{{ errors.parent_evidence.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-parent' error=errors.parent_evidence.0 %}
       </div>
 
       {# --- Secção 2: identificação do item (foto sobe — documenta o item como encontrado) --- #}
@@ -50,19 +50,19 @@
           <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
-        {% if errors.type %}<span class="form-error visible" id="f-type-err">{{ errors.type.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-type' error=errors.type.0 %}
       </div>
 
       <div class="form-field">
         <label for="f-photo">Fotografia</label>
         <input type="file" id="f-photo" name="photo" accept="image/*" capture="environment"{% if errors.photo %} aria-invalid="true" aria-describedby="f-photo-err"{% endif %}>
-        {% if errors.photo %}<span class="form-error visible" id="f-photo-err">{{ errors.photo.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-photo' error=errors.photo.0 %}
       </div>
 
       <div class="form-field form-field--full">
         <label for="f-desc">Descrição *</label>
         <textarea id="f-desc" name="description" required placeholder="Descrição do item apreendido…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
-        {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-desc' error=errors.description.0 %}
       </div>
 
       {% for f in transversal_fields %}

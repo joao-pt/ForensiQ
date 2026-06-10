@@ -22,13 +22,13 @@
         <label for="f-number">NUIPC / número *</label>
         <input class="mono" type="text" id="f-number" name="number" value="{{ data.number }}" required
                placeholder="NUIPC.000/2026.LISBOA"{% if errors.number %} aria-invalid="true" aria-describedby="f-number-err"{% endif %}>
-        {% if errors.number %}<span class="form-error visible" id="f-number-err">{{ errors.number.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-number' error=errors.number.0 %}
       </div>
 
       <div class="form-field">
         <label for="f-dt">Data / hora da ocorrência *</label>
         <input class="mono" type="datetime-local" id="f-dt" name="date_time" value="{{ data.date_time }}" required{% if errors.date_time %} aria-invalid="true" aria-describedby="f-dt-err"{% endif %}>
-        {% if errors.date_time %}<span class="form-error visible" id="f-dt-err">{{ errors.date_time.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-dt' error=errors.date_time.0 %}
         <span class="form-hint">Preenchido com a data/hora atual — ajuste se a ocorrência foi noutro momento.</span>
       </div>
 
@@ -38,7 +38,7 @@
       <div class="form-field form-field--full">
         <label for="f-desc">Descrição *</label>
         <textarea id="f-desc" name="description" required placeholder="Descrição sumária da ocorrência…"{% if errors.description %} aria-invalid="true" aria-describedby="f-desc-err"{% endif %}>{{ data.description }}</textarea>
-        {% if errors.description %}<span class="form-error visible" id="f-desc-err">{{ errors.description.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-desc' error=errors.description.0 %}
       </div>
 
       <div class="form-field">
@@ -71,7 +71,7 @@
           <input type="checkbox" name="elevar_prioridade" value="true" data-elevate-input{% if data.elevar_prioridade %} checked{% endif %}>
           Marcar como prioritária mesmo que a lei não o exija
         </label>
-        {% if errors.crime_type %}<span class="form-error visible" id="f-crime-err">{{ errors.crime_type.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-crime' error=errors.crime_type.0 %}
       </div>
 
     </div>

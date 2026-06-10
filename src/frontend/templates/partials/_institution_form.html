@@ -11,16 +11,14 @@
 
   {% include 'partials/_form_errors.html' %}
 
-  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
-    {% csrf_token %}
-    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+  {% include 'partials/_modal_form_open.html' %}
     <div class="form-grid">
 
       <div class="form-field">
         <label for="f-i-name">Nome *</label>
         <input type="text" id="f-i-name" name="name" value="{{ data.name }}" required maxlength="255"
                {% if errors.name %}aria-invalid="true" aria-describedby="f-i-name-err"{% endif %}>
-        {% if errors.name %}<span class="form-error visible" id="f-i-name-err">{{ errors.name.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-i-name' error=errors.name.0 %}
       </div>
 
       <div class="form-field">
@@ -32,7 +30,7 @@
           <option value="{{ val }}" {% if data.type == val %}selected{% endif %}>{{ label }}</option>
           {% endfor %}
         </select>
-        {% if errors.type %}<span class="form-error visible" id="f-i-type-err">{{ errors.type.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-i-type' error=errors.type.0 %}
       </div>
 
       <div class="form-field">
@@ -55,7 +53,7 @@
         <input type="text" id="f-i-address" name="address" value="{{ data.address }}" required maxlength="255"
                placeholder="Rua, nº, localidade"
                {% if errors.address %}aria-invalid="true" aria-describedby="f-i-address-err"{% endif %}>
-        {% if errors.address %}<span class="form-error visible" id="f-i-address-err">{{ errors.address.0 }}</span>{% endif %}
+        {% include 'partials/_field_error.html' with field_id='f-i-address' error=errors.address.0 %}
       </div>
 
       {# Localização — ponto de controlo fixo. Clicar no mapa fixa o pino; o GPS do #}
@@ -68,31 +66,11 @@
              data-decimals="{{ gps_decimals }}"></div>
         <p class="map-picker__hint">Clique no mapa para fixar o pino, ou capture o GPS do dispositivo.</p>
         <div class="form-inline">
-          <button type="button" class="btn-ghost" data-geo-capture
-                  data-lat-target="#f-i-lat" data-lng-target="#f-i-lng"
-                  data-decimals="{{ gps_decimals }}" data-acc-flag-m="{{ gps_acc_flag_m }}">
-            {% include 'partials/icons/_gps.html' %}
-            Capturar GPS
-          </button>
-          <span class="mono facts__src" data-geo-acc></span>
+          {% include 'partials/_gps_capture.html' with lat_target='#f-i-lat' lng_target='#f-i-lng' %}
         </div>
       </div>
 
-      <div class="form-field">
-        <label for="f-i-lat">Latitude *</label>
-        <input class="mono" type="text" inputmode="decimal" id="f-i-lat" name="gps_lat" value="{{ data.gps_lat }}" required
-               placeholder="38.7197003"
-               {% if errors.gps_lat %}aria-invalid="true" aria-describedby="f-i-lat-err"{% endif %}>
-        {% if errors.gps_lat %}<span class="form-error visible" id="f-i-lat-err">{{ errors.gps_lat.0 }}</span>{% endif %}
-      </div>
-
-      <div class="form-field">
-        <label for="f-i-lng">Longitude *</label>
-        <input class="mono" type="text" inputmode="decimal" id="f-i-lng" name="gps_lng" value="{{ data.gps_lng }}" required
-               placeholder="-9.1466657"
-               {% if errors.gps_lng %}aria-invalid="true" aria-describedby="f-i-lng-err"{% endif %}>
-        {% if errors.gps_lng %}<span class="form-error visible" id="f-i-lng-err">{{ errors.gps_lng.0 }}</span>{% endif %}
-      </div>
+      {% include 'partials/_gps_inputs.html' with id_prefix='f-i' data=data errors=errors required=True ph_lat='38.7197003' ph_lng='-9.1466657' %}
 
     </div>
 

@@ -125,14 +125,7 @@
                    placeholder="Ex.: Armário A3, Prateleira 2" autocomplete="off">
           </div>
 
-          <div class="form-field">
-            <label for="r-lat">Latitude</label>
-            <input class="mono" type="text" inputmode="decimal" id="r-lat" name="gps_lat" value="{{ register_data.gps_lat }}" placeholder="38.7197" aria-describedby="r-gps-hint">
-          </div>
-          <div class="form-field">
-            <label for="r-lng">Longitude</label>
-            <input class="mono" type="text" inputmode="decimal" id="r-lng" name="gps_lng" value="{{ register_data.gps_lng }}" placeholder="-9.1467" aria-describedby="r-gps-hint">
-          </div>
+          {% include 'partials/_gps_inputs.html' with id_prefix='r' data=register_data hint_id='r-gps-hint' %}
           <div class="form-field form-field--full">
             <span class="form-hint" id="r-gps-hint">Latitude e longitude com ponto decimal (ex.: 38.7197, -9.1467)</span>
           </div>
@@ -141,12 +134,7 @@
           <div class="form-field form-field--full" role="group" aria-labelledby="r-geo-label">
             <span class="subhead" id="r-geo-label">Geolocalização do evento</span>
             <div class="form-inline">
-              <button type="button" class="btn-ghost" data-geo-capture
-                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-acc-target="#r-acc"
-                      data-decimals="4" data-acc-flag-m="{{ gps_acc_flag_m }}">
-                {% include 'partials/icons/_gps.html' %}
-                Capturar GPS
-              </button>
+              {% include 'partials/_gps_capture.html' with lat_target='#r-lat' lng_target='#r-lng' acc_target='#r-acc' decimals=4 %}
               <button type="button" class="btn-ghost" data-nearby-pois
                       data-lat-target="#r-lat" data-lng-target="#r-lng"
                       data-input-target="#r-loc" data-pois-list-target="#r-pois-list" data-radius="500">

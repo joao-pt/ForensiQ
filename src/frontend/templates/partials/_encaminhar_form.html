@@ -10,9 +10,7 @@
   {% include 'partials/_form_errors.html' %}
 
   {% if itens %}
-  <form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
-    {% csrf_token %}
-    {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}
+  {% include 'partials/_modal_form_open.html' %}
 
     <p class="form-hint">A prova não fica no local: escolha o portador e o destino. Cada item gera um encaminhamento e fica <strong>em trânsito</strong> até à receção no destino.</p>
 

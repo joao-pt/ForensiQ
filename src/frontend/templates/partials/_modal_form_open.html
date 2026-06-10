@@ -1,0 +1,10 @@
+{% comment %}
+  Abertura de formulário com contrato modal (fonte ÚNICA — auditoria D61): em
+  modal submete via HTMX para #app-modal-body (erros 400 voltam ao modal; o
+  sucesso responde 204 + HX-Redirect e o HTMX navega); em página é um <form>
+  clássico. Emite a tag de ABERTURA + csrf + hidden modal — o consumidor fecha
+  com </form>. Parâmetros: action (+ o flag `modal` já no contexto).
+{% endcomment %}
+<form {% if modal %}hx-post="{{ action }}" hx-target="#app-modal-body" hx-swap="innerHTML"{% else %}method="post" action="{{ action }}"{% endif %}>
+  {% csrf_token %}
+  {% if modal %}<input type="hidden" name="modal" value="1">{% endif %}

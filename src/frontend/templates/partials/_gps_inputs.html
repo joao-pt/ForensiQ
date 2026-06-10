@@ -1,0 +1,22 @@
+{% comment %}
+  Par de inputs de coordenadas lat/lng (fonte ÚNICA da UI de coordenadas —
+  auditoria D64). Parâmetros do include:
+    • id_prefix     — ids <prefix>-lat / <prefix>-lng (par do _gps_capture);
+    • data          — dict com gps_lat/gps_lng (re-render após erro);
+    • errors        — dict de erros por campo (opcional);
+    • required      — marca * e o atributo required (opcional);
+    • hint_id       — aria-describedby quando não há erro (opcional);
+    • ph_lat/ph_lng — placeholders (def. exemplo canónico de Lisboa).
+{% endcomment %}
+<div class="form-field">
+  <label for="{{ id_prefix }}-lat">Latitude{% if required %} *{% endif %}</label>
+  <input class="mono" type="text" inputmode="decimal" id="{{ id_prefix }}-lat" name="gps_lat" value="{{ data.gps_lat }}"
+         placeholder="{{ ph_lat|default:'38.7197' }}"{% if required %} required{% endif %}{% if errors.gps_lat %} aria-invalid="true" aria-describedby="{{ id_prefix }}-lat-err"{% elif hint_id %} aria-describedby="{{ hint_id }}"{% endif %}>
+  {% include 'partials/_field_error.html' with field_id=id_prefix|add:'-lat' error=errors.gps_lat.0 %}
+</div>
+<div class="form-field">
+  <label for="{{ id_prefix }}-lng">Longitude{% if required %} *{% endif %}</label>
+  <input class="mono" type="text" inputmode="decimal" id="{{ id_prefix }}-lng" name="gps_lng" value="{{ data.gps_lng }}"
+         placeholder="{{ ph_lng|default:'-9.1467' }}"{% if required %} required{% endif %}{% if errors.gps_lng %} aria-invalid="true" aria-describedby="{{ id_prefix }}-lng-err"{% elif hint_id %} aria-describedby="{{ hint_id }}"{% endif %}>
+  {% include 'partials/_field_error.html' with field_id=id_prefix|add:'-lng' error=errors.gps_lng.0 %}
+</div>
