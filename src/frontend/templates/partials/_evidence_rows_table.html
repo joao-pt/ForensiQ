@@ -1,0 +1,33 @@
+{% comment %}
+  Tabela de itens de prova clicável (linha → drawer) partilhada pelos detalhes
+  de ocorrência (itens do processo) e de evidência (sub-componentes) —
+  auditoria D53 (o par de clones diretos numa fonte única). Parâmetros:
+    • items        — evidências decoradas (_decorate_evidences);
+    • table_label  — aria-label da tabela;
+    • tree_prefix  — mostra └ nos sub-itens (vista do processo inteiro);
+    • show_seizure — acrescenta a coluna Data/hora da apreensão.
+{% endcomment %}
+<table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="{{ table_label }}">
+  <thead>
+    <tr role="row">
+      <th role="columnheader" scope="col">Código</th>
+      <th role="columnheader" scope="col">Tipo</th>
+      <th role="columnheader" scope="col">Estado</th>
+      <th role="columnheader" scope="col" class="col-hide-sm">Nº série</th>
+      {% if show_seizure %}<th role="columnheader" scope="col">Apreensão</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for e in items %}
+    <tr role="row" tabindex="0" data-row data-id="{{ e.id }}"
+        aria-haspopup="dialog" aria-label="Abrir detalhe de {{ e.code }}"
+        hx-get="/evidences/?drawer={{ e.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
+      <td role="gridcell" class="mono grid__code">{% if tree_prefix and e.parent_evidence %}<span class="grid__muted">└ </span>{% endif %}{{ e.code }}</td>
+      <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>
+      <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span></td>
+      <td role="gridcell" class="mono grid__muted col-hide-sm">{{ e.serial_number|default:'—' }}</td>
+      {% if show_seizure %}<td role="gridcell" class="mono">{{ e.timestamp_seizure|date:'Y-m-d H:i' }}</td>{% endif %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>

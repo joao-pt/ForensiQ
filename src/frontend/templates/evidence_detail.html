@@ -152,26 +152,7 @@
   <section class="section">
     <header class="section__head"><h2 class="section__title">Sub-componentes · {{ sub_components|length }}</h2></header>
     <div class="section__body section__body--flush">
-      <table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="Sub-componentes">
-        <thead><tr role="row">
-          <th role="columnheader" scope="col">Código</th>
-          <th role="columnheader" scope="col">Tipo</th>
-          <th role="columnheader" scope="col" class="col-hide-sm">Nº série</th>
-          <th role="columnheader" scope="col">Estado</th>
-        </tr></thead>
-        <tbody>
-          {% for s in sub_components %}
-          <tr role="row" tabindex="0" data-row data-id="{{ s.id }}"
-              aria-haspopup="dialog" aria-label="Abrir detalhe de {{ s.code }}"
-              hx-get="/evidences/?drawer={{ s.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
-            <td role="gridcell" class="mono grid__code">{{ s.code }}</td>
-            <td role="gridcell" class="grid__ellipsis">{{ s.type_label }}</td>
-            <td role="gridcell" class="mono grid__muted col-hide-sm">{{ s.serial_number|default:'—' }}</td>
-            <td role="gridcell"><span class="state state--{{ s.state_css }}">{{ s.state_label }}</span></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {% include 'partials/_evidence_rows_table.html' with items=sub_components table_label='Sub-componentes' %}
     </div>
   </section>
   {% endif %}

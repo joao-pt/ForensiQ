@@ -90,30 +90,7 @@
     </header>
     <div class="section__body section__body--flush">
       {% if evidences %}
-      <table class="grid grid--clickable grid--no-toolbar" role="grid" aria-label="Itens de prova da ocorrência">
-        <thead>
-          <tr role="row">
-            <th role="columnheader" scope="col">Código</th>
-            <th role="columnheader" scope="col">Tipo</th>
-            <th role="columnheader" scope="col">Estado</th>
-            <th role="columnheader" scope="col" class="col-hide-sm">Nº série</th>
-            <th role="columnheader" scope="col">Apreensão</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for e in evidences %}
-          <tr role="row" tabindex="0" data-row data-id="{{ e.id }}"
-              aria-haspopup="dialog" aria-label="Abrir detalhe de {{ e.code }}"
-              hx-get="/evidences/?drawer={{ e.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
-            <td role="gridcell" class="mono grid__code">{% if e.parent_evidence %}<span class="grid__muted">└ </span>{% endif %}{{ e.code }}</td>
-            <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>
-            <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span></td>
-            <td role="gridcell" class="mono grid__muted col-hide-sm">{{ e.serial_number|default:'—' }}</td>
-            <td role="gridcell" class="mono">{{ e.timestamp_seizure|date:'Y-m-d H:i' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {% include 'partials/_evidence_rows_table.html' with items=evidences table_label='Itens de prova da ocorrência' tree_prefix=True show_seizure=True %}
       {% else %}
       <div class="empty"><p class="empty__hint">Esta ocorrência ainda não tem itens de prova.</p></div>
       {% endif %}
