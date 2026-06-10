@@ -33,7 +33,7 @@ from core.models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 # =========================================================================
 # 1. IMEI LOOKUP SERVICE
 # =========================================================================
-from core.tests_base import login_client
+from core.tests_base import login_client, mock_httpx_client, mock_httpx_response
 from core.tests_factories import (
     TEST_PASSWORD,
     VALID_IMEI,
@@ -68,11 +68,8 @@ class IMEILookupNetworkErrorsTest(TestCase):
 
         from core.services.imei_lookup import LookupError, lookup_imei
 
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.side_effect = httpx.TimeoutException('timeout')
-        mock_client_cls.return_value = mock_client
+        # Duplo do httpx.Client na fonte unica (tests_base.mock_httpx_client - D107).
+        mock_client_cls.return_value = mock_httpx_client(side_effect=httpx.TimeoutException('timeout'))
 
         with self.assertRaises(LookupError) as ctx:
             lookup_imei(VALID_IMEI)
@@ -85,11 +82,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
 
         from core.services.imei_lookup import LookupError, lookup_imei
 
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.side_effect = httpx.RequestError('connection failed')
-        mock_client_cls.return_value = mock_client
+        mock_client_cls.return_value = mock_httpx_client(side_effect=httpx.RequestError('connection failed'))
 
         with self.assertRaises(LookupError) as ctx:
             lookup_imei(VALID_IMEI)
@@ -100,18 +93,12 @@ class IMEILookupHTTPErrorsTest(TestCase):
     """Testes para códigos HTTP de erro da imeidb.xyz."""
 
     def _make_mock_response(self, status_code, json_data=None):
-        resp = MagicMock()
-        resp.status_code = status_code
-        if json_data is not None:
-            resp.json.return_value = json_data
-        return resp
+        # Fonte unica (tests_base.mock_httpx_response - D107).
+        return mock_httpx_response(status_code, json_data)
 
     def _setup_client_mock(self, mock_client_cls, response):
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = response
-        mock_client_cls.return_value = mock_client
+        # Fonte unica (tests_base.mock_httpx_client - D107).
+        mock_client_cls.return_value = mock_httpx_client(response)
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
@@ -194,11 +181,8 @@ class IMEILookupSuccessTest(TestCase):
         return resp
 
     def _setup_client_mock(self, mock_client_cls, response):
-        mock_client = MagicMock()
-        mock_client.__enter__ = MagicMock(return_value=mock_client)
-        mock_client.__exit__ = MagicMock(return_value=False)
-        mock_client.get.return_value = response
-        mock_client_cls.return_value = mock_client
+        # Fonte unica (tests_base.mock_httpx_client - D107).
+        mock_client_cls.return_value = mock_httpx_client(response)
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')

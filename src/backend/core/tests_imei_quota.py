@@ -23,6 +23,7 @@ from core.services.imei_lookup import (
     LookupError,
     lookup_imei,
 )
+from core.tests_base import mock_httpx_client, mock_httpx_response
 from core.tests_factories import VALID_IMEI
 
 # IMEI Luhn-válido usado em todos os testes (sample Apple iPhone 11 Pro Max TAC)
@@ -30,15 +31,9 @@ _VALID_IMEI = VALID_IMEI
 
 
 def _mock_httpx_response(status_code, json_body=None):
-    """Cria um mock httpx.Client que devolve a resposta indicada."""
-    response = MagicMock()
-    response.status_code = status_code
-    response.json.return_value = json_body or {}
-    client = MagicMock()
-    client.__enter__ = MagicMock(return_value=client)
-    client.__exit__ = MagicMock(return_value=False)
-    client.get.return_value = response
-    return client
+    """Mock httpx.Client com a resposta indicada — duplo na fonte unica
+    (tests_base.mock_httpx_client - auditoria D107)."""
+    return mock_httpx_client(mock_httpx_response(status_code, json_body))
 
 
 class ImeiLookupCallCounterTest(TestCase):
