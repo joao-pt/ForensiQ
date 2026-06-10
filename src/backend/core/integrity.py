@@ -13,12 +13,13 @@ se RE-verifica a partir dos campos relidos da BD, nunca se reescreve. Qualquer
 perito independente reproduz o mesmo cálculo (ISO/IEC 27037; ADR-0013).
 """
 
-from .models import ChainOfCustody, Evidence
+from .models import GENESIS_HASH, ChainOfCustody, Evidence
 from .policy.custody_transitions import is_in_transit
 from .policy.event_states import GENESIS_EVENTS
 
-# Hash semente do 1.º elo (sem registo anterior) — igual ao usado no save().
-ZERO_HASH = '0' * 64
+# Hash semente do 1.º elo: a MESMA constante que o save() usa (fonte única em
+# core.models.GENESIS_HASH — auditoria D29); alias local para os consumidores.
+ZERO_HASH = GENESIS_HASH
 
 
 def _chains(evidence_ids, only_fields=None):

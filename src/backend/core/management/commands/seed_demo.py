@@ -91,6 +91,7 @@ from core.models import (
     ProvaEmTransito,
 )
 from core.policy.event_states import LEGAL_STATES, derive_legal_state
+from core.validators import luhn_check_digit
 
 User = get_user_model()
 ET = Evidence.EvidenceType
@@ -130,16 +131,10 @@ class _Clock:
 
 
 def _luhn_complete(prefix: str) -> str:
-    """Devolve ``prefix`` + dígito de controlo de Luhn (IMEI/ICCID válidos)."""
-    total = 0
-    for i, ch in enumerate(reversed(prefix)):
-        d = ord(ch) - 48
-        if (i + 1) % 2 == 1:  # posição ímpar a contar do dígito de controlo
-            d *= 2
-            if d > 9:
-                d -= 9
-        total += d
-    return prefix + str((10 - total % 10) % 10)
+    """``prefix`` + dígito de controlo de Luhn (IMEI/ICCID válidos) — o dígito
+    vem do MESMO algoritmo que valida (core.validators.luhn_check_digit,
+    auditoria D32): gerador e validador nunca divergem."""
+    return prefix + luhn_check_digit(prefix)
 
 
 def D(value: str) -> Decimal:

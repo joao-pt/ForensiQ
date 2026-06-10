@@ -13,7 +13,6 @@ Conformidade: ISO/IEC 27037 — hash SHA-256 em metadados de prova.
 
 import hashlib
 import uuid
-from datetime import timedelta
 from decimal import Decimal
 
 from django.conf import settings
@@ -30,9 +29,11 @@ from core.policy.event_states import (
     HANDOFF_EVENTS as HANDOFF_EVENTS,
     LEGAL_STATES as LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
+    SHARED_CUSTODIAN_PAIRS,
     STATES_AT_OR_PAST_LAB as STATES_AT_OR_PAST_LAB,
     TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES as TERMINAL_LEGAL_STATES,
+    VALIDATION_DEADLINE as VALIDATION_DEADLINE,
     CustodianType,
     EventType,
     derive_legal_state as derive_legal_state,
@@ -95,6 +96,35 @@ def gps_lng_field(verbose_name):
 
 CODE_MAX_ATTEMPTS = 5
 MAX_SEQUENCE_ATTEMPTS = 10  # Audit 2026-05-18 §3 N10 — retry de AuditLog.sequence
+
+
+def _is_unique_collision(exc, *fields):
+    """O ``IntegrityError`` é uma colisão de unicidade num dos campos dados?
+
+    Predicado único dos retry-loops de geração de código/sequência (auditoria
+    D26): em colisão re-tenta-se; qualquer outra integridade (FK, …) sobe."""
+    msg = str(exc).lower()
+    return any(f in msg for f in fields)
+
+
+class AppendOnlyModel(models.Model):
+    """Base abstrata dos registos IMUTÁVEIS (auditoria D25): ``save`` só admite
+    inserção e ``delete`` é sempre recusado (ISO/IEC 27037; os triggers da BD
+    são a 2.ª linha de defesa). Cada modelo declara as suas mensagens legais e
+    chama :meth:`_assert_insert_only` no início do ``save``."""
+
+    immutable_save_msg = 'Registos são imutáveis. Não é permitido atualizar registos existentes.'
+    immutable_delete_msg = 'Registos são imutáveis. Não é permitido eliminar registos.'
+
+    class Meta:
+        abstract = True
+
+    def _assert_insert_only(self):
+        if self.pk is not None:
+            raise ValidationError(self.immutable_save_msg)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError(self.immutable_delete_msg)
 
 
 def _next_yearly_code(prefix, model, year, field='code', width=5):
@@ -348,14 +378,17 @@ class User(AbstractUser):
 
 
 class InstitutionType(models.TextChoices):
-    """Tipo de instituição custódia (promove o eixo ``CustodianType``)."""
+    """Tipo de instituição custódia (promove o eixo ``CustodianType``).
 
-    OPC = 'OPC', 'Órgão de polícia criminal'
-    LAB_PUBLICO = 'LAB_PUBLICO', 'Laboratório público'
-    LAB_PRIVADO = 'LAB_PRIVADO', 'Laboratório privado'
-    TRIBUNAL = 'TRIBUNAL', 'Tribunal'
+    Os pares comuns vêm da fonte única ``policy.SHARED_CUSTODIAN_PAIRS``
+    (auditoria D33); MP é próprio deste eixo (não promove custódio)."""
+
+    OPC = 'OPC', SHARED_CUSTODIAN_PAIRS['OPC']
+    LAB_PUBLICO = 'LAB_PUBLICO', SHARED_CUSTODIAN_PAIRS['LAB_PUBLICO']
+    LAB_PRIVADO = 'LAB_PRIVADO', SHARED_CUSTODIAN_PAIRS['LAB_PRIVADO']
+    TRIBUNAL = 'TRIBUNAL', SHARED_CUSTODIAN_PAIRS['TRIBUNAL']
     MP = 'MP', 'Ministério Público'
-    DEPOSITARIO = 'DEPOSITARIO', 'Depositário'
+    DEPOSITARIO = 'DEPOSITARIO', SHARED_CUSTODIAN_PAIRS['DEPOSITARIO']
 
 
 class Institution(models.Model):
@@ -909,7 +942,7 @@ def _evidence_type_choices():
         return []
 
 
-class Evidence(models.Model):
+class Evidence(AppendOnlyModel):
     """Evidência apreendida numa ocorrência (com integridade SHA-256).
 
     Taxonomia focada em prova digital (ISO/IEC 27037). Sem documentos
@@ -919,6 +952,15 @@ class Evidence(models.Model):
     Suporta hierarquia de sub-componentes (máx. 3 níveis):
     ex. Telemóvel (raiz) → SIM Card (filho) → (sem mais níveis).
     """
+
+    # Mensagens legais da imutabilidade (AppendOnlyModel — auditoria D25).
+    immutable_save_msg = (
+        'Registos de evidência são imutáveis após criação. '
+        'Não é permitido alterar metadados de prova.'
+    )
+    immutable_delete_msg = (
+        'Registos de evidência são imutáveis. Não é permitido eliminar registos de prova.'
+    )
 
     # Profundidade máxima da árvore pai-filho.
     MAX_TREE_DEPTH = 3
@@ -1293,11 +1335,7 @@ class Evidence(models.Model):
         (ex.: OC-2026-0001.1.1) no momento do registo — ADR-0016 §1.
         Conformidade ISO/IEC 27037 — metadados de prova não são alteráveis.
         """
-        if self.pk is not None:
-            raise ValidationError(
-                'Registos de evidência são imutáveis após criação. '
-                'Não é permitido alterar metadados de prova.'
-            )
+        self._assert_insert_only()
         # full_clean garante que validadores de campo (GPS, etc.) correm
         self.full_clean()
         # Strip EXIF antes do hash para que o ``integrity_hash`` seja
@@ -1326,20 +1364,13 @@ class Evidence(models.Model):
                     super().save(*args, **kwargs)
                 return
             except IntegrityError as exc:
-                msg = str(exc).lower()
-                if 'code' not in msg and 'local_index' not in msg:
+                if not _is_unique_collision(exc, 'code', 'local_index'):
                     raise
                 self.code = ''
                 self.local_index = 0
                 self.pk = None
         raise RuntimeError(
             'Não foi possível gerar um código hierárquico único após várias tentativas.'
-        )
-
-    def delete(self, *args, **kwargs):
-        """Override: NUNCA permite eliminação de registos de evidência."""
-        raise ValidationError(
-            'Registos de evidência são imutáveis. Não é permitido eliminar registos de prova.'
         )
 
     # ------------------------------------------------------------------
@@ -1609,10 +1640,8 @@ class EvidenceTypeRef(models.Model):
 # ``from core.models import EventType, derive_legal_state, ...`` continua válido.
 # ---------------------------------------------------------------------------
 
-# Prazo legal de validação da apreensão (CPP Art. 178.º/6). O incumprimento é
-# assinalado (validation_overdue) no momento em que o evento VALIDACAO é gravado,
-# nunca bloqueado; para leitura/feed (T06) deriva-se dos timestamps gravados.
-VALIDATION_DEADLINE = timedelta(hours=settings.VALIDATION_DEADLINE_HOURS)
+# Prazo legal de validação da apreensão: fonte única em core.policy
+# (VALIDATION_DEADLINE, auditoria D50) — importado/re-exportado no topo.
 
 # Tradução dos códigos de recusa da génese (``policy.genesis_violation``) para a
 # mensagem legal apresentada (ADR-0019 §4: a policy decide, o ``clean()`` traduz).
@@ -1640,6 +1669,12 @@ GENESIS_REFUSAL_MESSAGES = {
 }
 
 
+# Hash-semente do 1.º elo da cadeia (sem registo anterior) — fonte ÚNICA
+# (auditoria D29): o save()/_lookup_previous_hash e o verificador independente
+# (core/integrity.py) usam exatamente a mesma semente.
+GENESIS_HASH = '0' * 64
+
+
 def _hash_escape(value):
     r"""Escapa separadores do hash em campos de texto livre (ADR-0013).
 
@@ -1655,7 +1690,7 @@ def _hash_str(value):
     return '' if value is None else str(value)
 
 
-class ChainOfCustody(models.Model):
+class ChainOfCustody(AppendOnlyModel):
     """
     Registo imutável de UM evento do ledger de custódia (ADR-0015).
 
@@ -1866,6 +1901,15 @@ class ChainOfCustody(models.Model):
             models.Index(fields=['evidence', 'sequence'], name='coc_ev_seq_idx'),
             models.Index(fields=['agent', '-timestamp'], name='coc_agent_ts_idx'),
         ]
+
+    # Mensagens legais da imutabilidade (AppendOnlyModel — auditoria D25).
+    immutable_save_msg = (
+        'Registos de cadeia de custódia são imutáveis. '
+        'Não é permitido atualizar registos existentes.'
+    )
+    immutable_delete_msg = (
+        'Registos de cadeia de custódia são imutáveis. Não é permitido eliminar registos.'
+    )
 
     # Flag DERIVADA (não-coluna): assinala VALIDACAO fora do prazo de 72h.
     # Calculada em clean(); facto juridicamente relevante, não bloqueia.
@@ -2140,7 +2184,7 @@ class ChainOfCustody(models.Model):
         previous_record = (
             ChainOfCustody.objects.filter(evidence=self.evidence).order_by('-sequence').first()
         )
-        return previous_record.record_hash if previous_record else '0' * 64
+        return previous_record.record_hash if previous_record else GENESIS_HASH
 
     def save(self, *args, **kwargs):
         """
@@ -2156,11 +2200,7 @@ class ChainOfCustody(models.Model):
         passado explicitamente a compute_record_hash() para evitar uma
         segunda query fora do lock (fix B-C2).
         """
-        if self.pk is not None:
-            raise ValidationError(
-                'Registos de cadeia de custódia são imutáveis. '
-                'Não é permitido atualizar registos existentes.'
-            )
+        self._assert_insert_only()
 
         for _ in range(CODE_MAX_ATTEMPTS):
             try:
@@ -2210,7 +2250,7 @@ class ChainOfCustody(models.Model):
                     self.full_clean()
                     # Passar o hash explicitamente para a função ficar pura e
                     # reaproveitar a leitura já feita dentro do select_for_update.
-                    previous_hash = last_record.record_hash if last_record else '0' * 64
+                    previous_hash = last_record.record_hash if last_record else GENESIS_HASH
                     self.record_hash = self.compute_record_hash(
                         previous_hash=previous_hash,
                     )
@@ -2236,18 +2276,12 @@ class ChainOfCustody(models.Model):
                         ).update(acknowledged_at=self.timestamp)
                 return
             except IntegrityError as exc:
-                if 'code' not in str(exc).lower():
+                if not _is_unique_collision(exc, 'code'):
                     raise
                 self.code = ''
                 self.pk = None
         raise RuntimeError(
             'Não foi possível gerar um código de movimento único após várias tentativas.'
-        )
-
-    def delete(self, *args, **kwargs):
-        """Override: NUNCA permite eliminação de registos de custódia."""
-        raise ValidationError(
-            'Registos de cadeia de custódia são imutáveis. Não é permitido eliminar registos.'
         )
 
 
@@ -2305,7 +2339,7 @@ class ProvaEmTransito(models.Model):
 # ---------------------------------------------------------------------------
 
 
-class AuditLog(models.Model):
+class AuditLog(AppendOnlyModel):
     """
     Registo de auditoria imutável (append-only) que documenta cada acesso a recursos.
 
@@ -2344,6 +2378,15 @@ class AuditLog(models.Model):
         DEVICE = 'DEVICE', 'Dispositivo Digital'
         CUSTODY = 'CUSTODY', 'Cadeia de Custódia'
         SYSTEM = 'SYSTEM', 'Sistema (meta-auditoria)'
+
+    # Mensagens legais da imutabilidade (AppendOnlyModel — auditoria D25).
+    immutable_save_msg = (
+        'Registos de auditoria são imutáveis. '
+        'Não é permitido atualizar registos existentes.'
+    )
+    immutable_delete_msg = (
+        'Registos de auditoria são imutáveis. Não é permitido eliminar registos.'
+    )
 
     # Relação com o utilizador (nullable para acessos anónimos)
     user = models.ForeignKey(
@@ -2458,11 +2501,7 @@ class AuditLog(models.Model):
         AuditLog (não é hot path) o retry é suficientemente raro para
         dispensar advisory lock. Auditoria 2026-05-18 §3 N10.
         """
-        if self.pk is not None:
-            raise ValidationError(
-                'Registos de auditoria são imutáveis. '
-                'Não é permitido atualizar registos existentes.'
-            )
+        self._assert_insert_only()
 
         from django.db.models import Max
 
@@ -2476,17 +2515,11 @@ class AuditLog(models.Model):
             except IntegrityError as exc:
                 # Só ré-tentamos em colisão de sequence; outras integrity
                 # errors (FK, etc.) sobem.
-                if 'sequence' not in str(exc).lower():
+                if not _is_unique_collision(exc, 'sequence'):
                     raise
                 self.pk = None
                 self.sequence = 0
         raise RuntimeError(
             f'Não foi possível atribuir sequence ao AuditLog após '
             f'{MAX_SEQUENCE_ATTEMPTS} tentativas (contenção excessiva).'
-        )
-
-    def delete(self, *args, **kwargs):
-        """Override: NUNCA permite eliminação de registos de auditoria."""
-        raise ValidationError(
-            'Registos de auditoria são imutáveis. Não é permitido eliminar registos.'
         )

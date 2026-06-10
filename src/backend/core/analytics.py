@@ -20,7 +20,6 @@ Funções puras de leitura (sem efeitos), recebem os querysets já restringidos 
 lente ativa. O vocabulário processual vem de ``core.policy.event_states``.
 """
 
-from datetime import timedelta
 
 from django.conf import settings
 from django.db.models import Count
@@ -34,6 +33,7 @@ from .policy.event_states import (
     SEIZURE_GENESIS_EVENTS,
     TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES,
+    VALIDATION_DEADLINE,
     EventType,
     derive_legal_state,
 )
@@ -49,7 +49,7 @@ DISPOSAL_EVENTS = (
     EventType.DESTRUICAO,
     EventType.PERDA_FAVOR_ESTADO,
 )
-VALIDATION_DEADLINE = timedelta(hours=settings.VALIDATION_DEADLINE_HOURS)
+# VALIDATION_DEADLINE: fonte única em core.policy (auditoria D50) — importado acima.
 
 
 def resolve_window(raw):

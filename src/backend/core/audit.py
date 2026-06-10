@@ -45,6 +45,12 @@ def _remote_addr_trusted(remote_addr: str) -> bool:
     return any(addr in net for net in _trusted_proxies())
 
 
+# Sentinel de origem NÃO-HTTP (jobs de fundo/serviços) — AuditLog.ip_address é
+# NOT NULL. Fonte ÚNICA da convenção (auditoria D34), antes replicada como
+# literal com comentários a apontar números de linha.
+NON_HTTP_SENTINEL_IP = '0.0.0.0'  # noqa: S104 — sentinel de auditoria, nunca um bind
+
+
 def get_client_ip(request: HttpRequest) -> str:
     """
     Extrai o endereço IP do cliente de forma segura.
@@ -77,7 +83,7 @@ def get_client_ip(request: HttpRequest) -> str:
             except ValueError:
                 pass
 
-    return remote_addr or '0.0.0.0'
+    return remote_addr or NON_HTTP_SENTINEL_IP
 
 
 def log_access(
@@ -132,6 +138,21 @@ def log_access(
     )
 
     return audit_log
+
+
+def log_system_event(action: str, resource_type: str, resource_id: int, details: dict = None) -> AuditLog:
+    """AuditLog de origem NÃO-HTTP (jobs de manutenção, serviços de fundo):
+    ``user=None``, IP sentinel e sem correlação — a meta-auditoria fica numa
+    fonte única (auditoria D34) em vez de cada job re-escrever o create."""
+    return AuditLog.objects.create(
+        user=None,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        ip_address=NON_HTTP_SENTINEL_IP,
+        correlation_id='',
+        details=details or {},
+    )
 
 
 def log_custody_create(request: HttpRequest, record, **extra) -> AuditLog:

@@ -38,6 +38,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from core.audit import log_system_event
 from core.models import AuditLog
 
 
@@ -152,16 +153,12 @@ class Command(BaseCommand):
 
         elapsed = time.monotonic() - started
 
-        # Meta-auditoria: regista o próprio expurgo no AuditLog.
-        # IP `0.0.0.0` é o sentinel usado em audit.py:80 para origem
-        # não-HTTP (background job).
-        AuditLog.objects.create(
-            user=None,
+        # Meta-auditoria: regista o próprio expurgo no AuditLog — origem
+        # não-HTTP pela fonte única (audit.log_system_event — auditoria D34).
+        log_system_event(
             action=AuditLog.Action.AUDIT_PURGE,
             resource_type=AuditLog.ResourceType.SYSTEM,
             resource_id=0,
-            ip_address='0.0.0.0',  # noqa: S104 — sentinel não-HTTP (convenção `audit.py:80`)
-            correlation_id='',
             details={
                 'deleted_count': deleted_total,
                 'cutoff_date': cutoff.isoformat(),

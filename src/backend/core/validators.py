@@ -50,24 +50,39 @@ def validate_gps_coherence(lat, lng) -> None:
 _IMEI_RE = re.compile(r'^\d{15}$')
 
 
-def _luhn_check(number: str) -> bool:
-    """Valida o check digit de Luhn sobre uma string de dígitos.
-
-    Algoritmo ISO/IEC 7812-1. Devolve True se o último dígito é o check
-    digit correcto para os restantes. Aceita entrada já sanitizada (só
-    dígitos) — o caller é responsável pela validação de formato.
-    """
+def _luhn_sum(number: str, *, shift: int = 0) -> int:
+    """Soma ponderada de Luhn (ISO/IEC 7812-1) — núcleo ÚNICO do algoritmo
+    (auditoria D32): o validador e o gerador do dígito de controlo derivam
+    ambos daqui. ``shift`` desloca a paridade (0 = o último dígito é o check
+    digit; 1 = a string é um prefixo SEM check digit)."""
     total = 0
-    # Percorre da direita para a esquerda; a partir do segundo dígito
-    # (índice 1 a contar da direita), duplica e soma os dígitos do produto.
+    # Percorre da direita para a esquerda; duplica os dígitos em posições
+    # alternadas e reduz produtos > 9 (equivale a somar os seus dígitos).
     for idx, ch in enumerate(reversed(number)):
         digit = ord(ch) - 48  # '0' == 48
-        if idx % 2 == 1:
+        if (idx + shift) % 2 == 1:
             digit *= 2
             if digit > 9:
                 digit -= 9
         total += digit
-    return total % 10 == 0
+    return total
+
+
+def _luhn_check(number: str) -> bool:
+    """Valida o check digit de Luhn sobre uma string de dígitos.
+
+    Devolve True se o último dígito é o check digit correcto para os
+    restantes. Aceita entrada já sanitizada (só dígitos) — o caller é
+    responsável pela validação de formato.
+    """
+    return _luhn_sum(number) % 10 == 0
+
+
+def luhn_check_digit(prefix: str) -> str:
+    """Dígito de controlo de Luhn para ``prefix`` (gerador — p.ex. IMEIs/ICCIDs
+    sintéticos do seed). Acoplado por construção ao validador: ambos usam a
+    mesma soma ponderada (:func:`_luhn_sum`)."""
+    return str((10 - _luhn_sum(prefix, shift=1) % 10) % 10)
 
 
 def validate_imei(value: str) -> None:

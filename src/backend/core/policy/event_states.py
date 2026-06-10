@@ -18,7 +18,16 @@ nenhuma camada a pode contrariar (ver ``feedback_policy_single_source``; CPP
 art. 154.º/158.º/178.º; ADR-0015/0016).
 """
 
+from datetime import timedelta
+
+from django.conf import settings
 from django.db import models
+
+# Prazo legal de validação da apreensão (CPP art. 178.º/6; default 72h via
+# settings) — fonte ÚNICA da regra processual (auditoria D50): o ledger
+# (flag validation_overdue em core.models) e o SLA (core.analytics) importam
+# daqui em vez de redefinirem a constante.
+VALIDATION_DEADLINE = timedelta(hours=settings.VALIDATION_DEADLINE_HOURS)
 
 
 class EventType(models.TextChoices):
@@ -62,15 +71,31 @@ class EventType(models.TextChoices):
     DESTRUICAO = 'DESTRUICAO', 'Destruição'  # terminal
 
 
+# Pares (slug, rótulo) PARTILHADOS entre o eixo do custódio (CustodianType) e
+# o tipo de instituição (InstitutionType, em core.models) — fonte ÚNICA dos
+# rótulos (auditoria D33): um rótulo novo/alterado edita-se SÓ aqui; o mapa
+# CUSTODIAN_TYPE_BY_INSTITUTION (custody_transitions) deriva as chaves daqui.
+SHARED_CUSTODIAN_PAIRS = {
+    'OPC': 'Órgão de polícia criminal',
+    'LAB_PUBLICO': 'Laboratório público',
+    'LAB_PRIVADO': 'Laboratório privado',
+    'TRIBUNAL': 'Tribunal',
+    'DEPOSITARIO': 'Depositário',
+}
+
+
 class CustodianType(models.TextChoices):
-    """Quem detém a prova APÓS o evento (eixo ortogonal ao event_type)."""
+    """Quem detém a prova APÓS o evento (eixo ortogonal ao event_type).
+
+    Os pares comuns com ``InstitutionType`` vêm de SHARED_CUSTODIAN_PAIRS;
+    LOCAL_CRIME/PROPRIETARIO são próprios deste eixo (não são instituições)."""
 
     LOCAL_CRIME = 'LOCAL_CRIME', 'Local do crime'
-    OPC = 'OPC', 'Órgão de polícia criminal'
-    LAB_PUBLICO = 'LAB_PUBLICO', 'Laboratório público'
-    LAB_PRIVADO = 'LAB_PRIVADO', 'Laboratório privado'
-    TRIBUNAL = 'TRIBUNAL', 'Tribunal'
-    DEPOSITARIO = 'DEPOSITARIO', 'Depositário'
+    OPC = 'OPC', SHARED_CUSTODIAN_PAIRS['OPC']
+    LAB_PUBLICO = 'LAB_PUBLICO', SHARED_CUSTODIAN_PAIRS['LAB_PUBLICO']
+    LAB_PRIVADO = 'LAB_PRIVADO', SHARED_CUSTODIAN_PAIRS['LAB_PRIVADO']
+    TRIBUNAL = 'TRIBUNAL', SHARED_CUSTODIAN_PAIRS['TRIBUNAL']
+    DEPOSITARIO = 'DEPOSITARIO', SHARED_CUSTODIAN_PAIRS['DEPOSITARIO']
     PROPRIETARIO = 'PROPRIETARIO', 'Proprietário'
 
 

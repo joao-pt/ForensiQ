@@ -139,16 +139,15 @@ def _record_critical_event(
             cache.set(cache_key_by_event, now_iso, _CACHE_TTL_24H)
 
     try:
-        # Import tardio para evitar ciclos (models → services → models).
+        # Import tardio para evitar ciclos (models → services → models). A
+        # origem não-HTTP vem da fonte única (audit.log_system_event — D34).
+        from core.audit import log_system_event
         from core.models import AuditLog
 
-        AuditLog.objects.create(
-            user=None,
+        log_system_event(
             action=AuditLog.Action.SYSTEM_ALERT,
             resource_type=AuditLog.ResourceType.SYSTEM,
             resource_id=0,
-            ip_address='0.0.0.0',  # noqa: S104 — sentinel não-HTTP (convenção `audit.py:80`)
-            correlation_id='',
             details={
                 'source': 'imeidb_lookup',
                 'event': event,

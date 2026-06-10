@@ -21,6 +21,7 @@ from core.policy.event_states import (
     GENESIS_EVENTS,
     LAB_CUSTODIANS,
     SEIZURE_GENESIS_EVENTS,
+    SHARED_CUSTODIAN_PAIRS,
     TERMINAL_EVENTS,
     CustodianType,
     EventType,
@@ -39,12 +40,10 @@ LEGACY_MOVE_EVENTS = frozenset(
 # As chaves são SLUGS de ``InstitutionType`` (mantidos como strings para este
 # módulo ficar no fundo do grafo, sem importar ``core.models``; os slugs são
 # contrato estável — ADR-0017/0018).
+# Derivado da fonte única dos pares partilhados (auditoria D33): as chaves são
+# exatamente os slugs de SHARED_CUSTODIAN_PAIRS — um tipo novo entra num só sítio.
 CUSTODIAN_TYPE_BY_INSTITUTION = {
-    'OPC': CustodianType.OPC,
-    'LAB_PUBLICO': CustodianType.LAB_PUBLICO,
-    'LAB_PRIVADO': CustodianType.LAB_PRIVADO,
-    'TRIBUNAL': CustodianType.TRIBUNAL,
-    'DEPOSITARIO': CustodianType.DEPOSITARIO,
+    slug: CustodianType(slug) for slug in SHARED_CUSTODIAN_PAIRS
 }
 
 
