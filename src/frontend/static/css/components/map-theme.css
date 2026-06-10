@@ -25,6 +25,12 @@
     filter: invert(1) hue-rotate(180deg) brightness(0.96) contrast(0.9) saturate(0.85);
 }
 
+/* Fundo do contentor ≈ tom do oceano (já com o filtro do tema aplicado): no
+   zoom fracionário os tiles escalados deixam costuras de 1px que mostravam o
+   fundo creme/escuro da app como linhas visíveis sobre o mar uniforme. */
+[data-theme="light"] .leaflet-container { background: #d7d7d7; }
+[data-theme="dark"] .leaflet-container { background: #20242a; }
+
 /* Atribuição © OpenStreetMap (obrigação ODbL — reposta na auditoria do painel):
    re-estilizada para o idioma da app (mono micro, meio-transparente) em vez do
    branco sólido do Leaflet. O prefixo "Leaflet" é removido no FQMap. */

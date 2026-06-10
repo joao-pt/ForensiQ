@@ -274,6 +274,11 @@
             var key = la.toFixed(2) + ',' + ln.toFixed(2);
             (groups[key] = groups[key] || { ll: [la, ln], items: [] }).items.push(p);
         });
+        // Pane ACIMA do overlayPane (400): os pinos ficam sempre por cima da
+        // máscara de território, que chega depois (fetch) ao pane default.
+        if (!map.getPane('fq-points')) {
+            map.createPane('fq-points').style.zIndex = 450;
+        }
         var drew = false;
         Object.keys(groups).forEach(function (key) {
             var g = groups[key];
@@ -285,6 +290,7 @@
             // Halo claro (casing) para o pino destacar do basemap em qualquer
             // tema — mesmo padrão da polyline da cadeia; raio cresce com √n.
             var marker = L.circleMarker(g.ll, {
+                pane: 'fq-points',
                 radius: n === 1 ? 6 : 6 + 2.5 * Math.sqrt(n),
                 color: '#fff', weight: 2, fillColor: col, fillOpacity: 0.9,
             }).addTo(map);
@@ -326,6 +332,10 @@
             var holes = polys.map(function (poly) {
                 return poly[0].map(function (p) { return [p[1], p[0]]; });
             });
+            // A máscara fica no renderer/pane DEFAULT (re-projeta correto em
+            // qualquer zoom/pan — um renderer dedicado com padding largo
+            // dessincronizava após o foco regional); os PINOS é que sobem
+            // para um pane acima (fq-points), para nunca ficarem por baixo.
             var world = [[-89.9, -179.9], [-89.9, 179.9], [89.9, 179.9], [89.9, -179.9]];
             var fill = L.polygon([world].concat(holes), {
                 stroke: false, fillColor: token('--bg', '#FAFAF9'), fillOpacity: 0.78,
@@ -401,9 +411,10 @@
             var fixed = el.hasAttribute('data-fixed');
             // zoomSnap fracionário: o fitBounds deixa de arredondar para zoom
             // INTEIRO (que enchia o enquadramento de território vizinho e mudava
-            // a moldura conforme a largura do ecrã). scrollWheelZoom fica sempre
-            // desligado nos embeds (evita scroll-jacking ao rolar a página).
-            var opts = { zoomControl: !fixed, zoomSnap: 0.25, scrollWheelZoom: false };
+            // a moldura conforme a largura do ecrã). Scroll-zoom ativo nos mapas
+            // interativos (pedido do dono — os botões só não chegam); o preso
+            // ao território (maxBounds) evita perder o enquadramento.
+            var opts = { zoomControl: !fixed, zoomSnap: 0.25, scrollWheelZoom: !fixed };
             if (fixed) {
                 // Insets minúsculos: sem controlo de atribuição (não cabe) — o
                 // crédito © OpenStreetMap fica adjacente, na legenda do hero.
