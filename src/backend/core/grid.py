@@ -145,6 +145,9 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
         'table_id': f'{grid_key}-table',
         'count_id': f'{grid_key}-count',
         'busy_id': f'{grid_key}-busy',
+        # Consumido pela casca única grid_page.html (auditoria D52) — as páginas
+        # deixam de hard-codar ids (o OOB swap do _grid exige id == count_id).
+        'title_id': f'{grid_key}-title',
         'count_noun': count_noun,
         'count_plural': count_plural,
         'row_clickable': row_clickable,

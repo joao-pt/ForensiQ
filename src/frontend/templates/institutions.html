@@ -1,39 +1,21 @@
-{% extends 'base.html' %}
+{% extends 'grid_page.html' %}
 {% load static %}
 
 {% block title %}Instituições — ForensiQ{% endblock %}
-
-{% block extra_css %}
-  {% include '_leaflet_head.html' %}
-{% endblock %}
-
 {% block breadcrumb %}<span class="breadcrumb-current">Instituições</span>{% endblock %}
 
-{% block content %}
-<section class="fullbleed" aria-labelledby="inst-title">
-
-  <header class="page-head">
-    <div class="page-head__heading">
-      <h1 class="page-head__title" id="inst-title">Instituições</h1>
-      <span class="page-head__count" id="inst-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
-    </div>
+{% block page_title %}Instituições{% endblock %}
+{% block page_cta %}
     {% comment %}Ação-in-place: abre o formulário num modal sobre esta página (sem trocar de janela). O href é o recurso no-JS / navegação direta; o contrato HTMX (hx-get ?modal=1 → #app-modal-body) é derivado em modal-action.js (D61).{% endcomment %}
     <a class="btn-accent" href="/institutions/new/"
        data-modal-open data-modal-title="Nova instituição">
       {% include 'partials/icons/_plus.html' %}
       Nova instituição
     </a>
-  </header>
-
-  {% include 'partials/_grid_toolbar.html' %}
-
-</section>
 {% endblock %}
 
-{% block extra_js %}
-  {# Leaflet (tb. p/ o map-picker do modal) + htmx + forensic-list vêm do _grid_scripts. #}
-  {% include 'partials/_grid_scripts.html' %}
-  {% comment %}Scripts do formulário injetado no modal (ação-in-place): a captura de GPS é delegada no document, o seletor de mapa arranca em fq:modal-open. Leaflet/FQMap já carregados acima.{% endcomment %}
+{% block page_scripts %}
+  {% comment %}Scripts do formulário injetado no modal (ação-in-place): a captura de GPS é delegada no document, o seletor de mapa arranca em fq:modal-open. Leaflet/FQMap vêm do _grid_scripts da casca.{% endcomment %}
   <script src="{% static 'js/components/geo.js' %}"></script>
   <script src="{% static 'js/components/geo-capture.js' %}"></script>
   <script src="{% static 'js/map-picker.js' %}"></script>

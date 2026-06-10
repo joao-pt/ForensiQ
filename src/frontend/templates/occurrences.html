@@ -1,12 +1,6 @@
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'grid_page.html' %}
 
 {% block title %}Ocorrências — ForensiQ{% endblock %}
-
-{% block extra_css %}
-  {% include '_leaflet_head.html' %}
-{% endblock %}
-
 {% block breadcrumb %}<span class="breadcrumb-current">Ocorrências</span>{% endblock %}
 
 {% block drawer_title %}Detalhe da ocorrência{% endblock %}
@@ -14,26 +8,10 @@
   <p class="app-drawer__placeholder">Selecione uma ocorrência na lista.</p>
 {% endblock %}
 
-{% block content %}
-<section class="fullbleed" aria-labelledby="occ-title">
-
-  <header class="page-head">
-    <div class="page-head__heading">
-      <h1 class="page-head__title" id="occ-title">Ocorrências</h1>
-      <span class="page-head__count" id="occ-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
-    </div>
+{% block page_title %}Ocorrências{% endblock %}
+{% block page_cta %}
     <a class="btn-accent" href="/occurrences/new/">
       {% include 'partials/icons/_plus.html' %}
       Nova ocorrência
     </a>
-  </header>
-
-  {% include 'partials/_grid_toolbar.html' %}
-
-</section>
-{% endblock %}
-
-{% block extra_js %}
-  {# Leaflet + htmx + forensic-list vêm todos do _grid_scripts (fonte única). #}
-  {% include 'partials/_grid_scripts.html' %}
 {% endblock %}

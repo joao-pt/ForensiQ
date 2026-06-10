@@ -1,28 +1,6 @@
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'grid_page.html' %}
 
 {% block title %}Guias de transporte — ForensiQ{% endblock %}
-
-{% block extra_css %}
-{% endblock %}
-
 {% block breadcrumb %}<span class="breadcrumb-current">Relatórios</span>{% endblock %}
 
-{% block content %}
-<section class="fullbleed" aria-labelledby="rpt-title">
-
-  <header class="page-head">
-    <div class="page-head__heading">
-      <h1 class="page-head__title" id="rpt-title">Guias de transporte</h1>
-      <span class="page-head__count" id="rpt-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
-    </div>
-  </header>
-
-  {% include 'partials/_grid_toolbar.html' %}
-
-</section>
-{% endblock %}
-
-{% block extra_js %}
-  {% include 'partials/_grid_scripts.html' %}
-{% endblock %}
+{% block page_title %}Guias de transporte{% endblock %}

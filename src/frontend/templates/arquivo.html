@@ -1,12 +1,6 @@
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'grid_page.html' %}
 
 {% block title %}Arquivo — ForensiQ{% endblock %}
-
-{% block extra_css %}
-  {% include '_leaflet_head.html' %}
-{% endblock %}
-
 {% block breadcrumb %}<span class="breadcrumb-current">Arquivo</span>{% endblock %}
 
 {% block drawer_title %}Detalhe do processo{% endblock %}
@@ -14,22 +8,4 @@
   <p class="app-drawer__placeholder">Selecione um processo arquivado na lista.</p>
 {% endblock %}
 
-{% block content %}
-<section class="fullbleed" aria-labelledby="arq-title">
-
-  <header class="page-head">
-    <div class="page-head__heading">
-      <h1 class="page-head__title" id="arq-title">Arquivo</h1>
-      <span class="page-head__count" id="occ-count" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
-    </div>
-  </header>
-
-  {% include 'partials/_grid_toolbar.html' %}
-
-</section>
-{% endblock %}
-
-{% block extra_js %}
-  {# Leaflet + htmx + forensic-list vêm todos do _grid_scripts (fonte única). #}
-  {% include 'partials/_grid_scripts.html' %}
-{% endblock %}
+{% block page_title %}Arquivo{% endblock %}
