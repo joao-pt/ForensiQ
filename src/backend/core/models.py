@@ -2027,9 +2027,25 @@ class ChainOfCustody(AppendOnlyModel):
         # ENCAMINHAMENTO: a origem entrega a prova a um portador, com destino; a
         # prova fica EM TRÂNSITO (sem GPS — a coordenada regista-se na receção).
         if self.event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
-            if self.bearer_id is None:
+            # Portador REGISTADO (FK; o save() copia o snapshot da ficha) OU
+            # PONTUAL (snapshot direto: nome + apelido + matrícula/identificador).
+            # A lei exige IDENTIFICAR quem transporta, não que esteja pré-registado
+            # numa base de dados — a verdade forense é o snapshot, que é o que
+            # entra na cadeia de hash (hv2); o FK é só conveniência de reutilização.
+            has_adhoc = bool(
+                (self.bearer_nome or '').strip()
+                and (self.bearer_apelido or '').strip()
+                and (self.bearer_matricula or '').strip()
+            )
+            if self.bearer_id is None and not has_adhoc:
                 raise ValidationError(
-                    {'bearer': 'O encaminhamento exige um portador (entra na cadeia de hash).'}
+                    {
+                        'bearer': (
+                            'O encaminhamento exige um portador identificado: escolha '
+                            'um registado ou indique nome, apelido e matrícula/'
+                            'identificador (entra na cadeia de hash).'
+                        )
+                    }
                 )
             if not self.custodian_institution_id:
                 raise ValidationError(

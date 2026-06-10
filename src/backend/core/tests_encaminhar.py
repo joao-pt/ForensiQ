@@ -137,6 +137,50 @@ class EncaminharLoteTest(TestCase):
         self.assertEqual(r.status_code, 400)
         self.assertIn('portador', r.content.decode())
 
+    # -- Portador PONTUAL (não registado) ---------------------------------
+
+    def test_encaminha_com_portador_pontual(self):
+        """A lei exige IDENTIFICAR quem transporta, não que esteja pré-registado:
+        nome+apelido+matrícula/identificador entram no snapshot (hash hv2) sem FK."""
+        r = self._post(self._enc_url(), {
+            'modal': '1', 'evidence_ids': [self.ev1.id],
+            'custodian_institution': self.opc2.id,
+            'bearer_nome': 'Carlos', 'bearer_apelido': 'Mota',
+            'bearer_matricula': 'CC 12345678', 'bearer_posto': 'Estafeta',
+        })
+        self.assertEqual(r.status_code, 204)
+        ult = self._last(self.ev1)
+        self.assertEqual(ult.event_type, EventType.ENCAMINHAMENTO_CUSTODIA)
+        self.assertIsNone(ult.bearer_id)            # sem ficha — snapshot direto
+        self.assertEqual(ult.bearer_nome, 'Carlos')
+        self.assertEqual(ult.bearer_apelido, 'Mota')
+        self.assertEqual(ult.bearer_matricula, 'CC 12345678')
+        self.assertEqual(ult.bearer_posto, 'Estafeta')
+        self.assertEqual(legal_state_of(self.ev1), 'em_transito')
+        # O snapshot pontual entra na fórmula hv2 — o hash re-verifica.
+        prev = sort_custody_chain(self.ev1.custody_chain.all())[-2].record_hash
+        self.assertEqual(ult.compute_record_hash(previous_hash=prev), ult.record_hash)
+
+    def test_portador_pontual_incompleto_devolve_erro(self):
+        r = self._post(self._enc_url(), {
+            'modal': '1', 'evidence_ids': [self.ev1.id],
+            'custodian_institution': self.opc2.id,
+            'bearer_nome': 'Carlos',
+        })
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('incompleto', r.content.decode())
+        self.assertEqual(self._last(self.ev1).event_type, EventType.APREENSAO_OBJETO)
+
+    def test_portador_registado_e_pontual_em_simultaneo_devolve_erro(self):
+        r = self._post(self._enc_url(), {
+            'modal': '1', 'evidence_ids': [self.ev1.id],
+            'bearer': self.portador.id, 'custodian_institution': self.opc2.id,
+            'bearer_nome': 'Carlos', 'bearer_apelido': 'Mota',
+            'bearer_matricula': 'CC 12345678',
+        })
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('não ambos', r.content.decode())
+
     # -- Atomicidade do lote (tudo-ou-nada) ------------------------------
 
     def test_lote_misto_reverte_tudo_se_um_falha(self):

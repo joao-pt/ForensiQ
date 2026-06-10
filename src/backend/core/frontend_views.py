@@ -29,6 +29,7 @@ from django.http import (
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from django.utils.html import format_html
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
@@ -38,9 +39,17 @@ from core import access, analytics, evidence_field_config, evidence_type_config,
 from core.audit import get_client_ip, log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response, serialize_columns
-from core.labels import ACTION_CSS, ACTION_SHORT, LEGAL_STATE_CSS, LEGAL_STATE_LABELS
+from core.labels import (
+    ACTION_CSS,
+    ACTION_SHORT,
+    LEGAL_STATE_CSS,
+    LEGAL_STATE_LABELS,
+    VALIDATION_STATUS_CSS,
+    VALIDATION_STATUS_LABELS,
+)
 from core.list_filters import ColFilter
 from core.models import (
+    SEIZURE_GENESIS_EVENTS,
     STATES_AT_OR_PAST_LAB,
     TERMINAL_LEGAL_STATES,
     AuditLog,
@@ -56,7 +65,12 @@ from core.models import (
     Portador,
 )
 from core.policy import custody_transitions
-from core.utils import get_user_display_name, legal_state_of, sort_custody_chain
+from core.utils import (
+    get_user_display_name,
+    legal_state_of,
+    sort_custody_chain,
+    validation_status_of,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +188,7 @@ URGENCY_LEGEND_OCCURRENCE = (
 # Legenda da bolinha por ESTADO LEGAL (evidências/custódias): as cores seguem
 # LEGAL_STATE_CSS (fonte única em core.labels), agrupadas por bucket de cor.
 URGENCY_LEGEND_EVIDENCE = (
-    {'cls': 'info', 'label': 'À guarda / validada'},
+    {'cls': 'info', 'label': 'À guarda do OPC'},
     {'cls': 'warn', 'label': 'Em perícia / trânsito'},
     {'cls': 'ok', 'label': 'Perícia concluída'},
     {'cls': 'danger', 'label': 'Perdida a favor do Estado'},
@@ -349,6 +363,14 @@ def _decorate_evidences(evidences):
         e.state_label, e.state_css = _evidence_state(e)
         e.state_badge = {'css': e.state_css, 'label': e.state_label}
         e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
+        # Estatuto de VALIDAÇÃO da apreensão — eixo ortogonal ao estado (CPP
+        # art. 178.º/6); None = não aplicável (sem badge).
+        vs = validation_status_of(e)
+        e.validation_status = vs
+        e.validation_badge = (
+            {'css': VALIDATION_STATUS_CSS[vs], 'label': VALIDATION_STATUS_LABELS[vs]}
+            if vs else None
+        )
         e.aria_code = e.code or 'item de prova'
         # marca/modelo são campos transversais em type_specific_data (JSON, ADR-0018);
         # expostos aqui (1 fonte) para a grelha e o drawer os mostrarem.
@@ -971,44 +993,101 @@ def occurrence_detail_view(request, occurrence_id):
     evidences = list(_occurrence_items_qs(occ))
     _decorate_evidences(evidences)
     occ.evidence_count = len(evidences)
-    # Encaminhar é ação de escrita: escondida a perfis só-leitura (a porta real é
-    # o can_append_custody por item, no serializer).
+    # Encaminhar/validar são ações de escrita: escondidas a perfis só-leitura (a
+    # porta real é o can_append_custody por item, no serializer). O botão de
+    # validar só aparece havendo apreensões por validar (badge já derivado).
     can_handoff = not access.is_read_only_profile(user)
+    can_validate = can_handoff and any(
+        e.validation_status in ('por_validar', 'em_atraso') for e in evidences
+    )
     return render(
         request,
         'occurrence_detail.html',
-        {'occ': occ, 'evidences': evidences, 'can_handoff': can_handoff},
+        {
+            'occ': occ,
+            'evidences': evidences,
+            'can_handoff': can_handoff,
+            'can_validate': can_validate,
+        },
     )
 
 
-def _encaminhaveis(user, occ):
-    """Itens da ocorrência que o utilizador pode ENCAMINHAR agora: génese feita,
-    não terminais nem já em trânsito (ENCAMINHAMENTO é próximo evento válido) E com
-    permissão de escrita (``can_append_custody``). Lista decorada para o template.
-    Anota ``ev.checked`` (omissão: todos selecionados — encaminha-se a prova junta)."""
+def _itens_com_proximo_evento(user, occ, event_type):
+    """Itens da ocorrência para os quais ``event_type`` é um PRÓXIMO evento
+    válido (guardas da policy via ``_valid_next_events``) E o utilizador tem
+    escrita no ledger (``can_append_custody``). Esqueleto único da seleção das
+    ações em lote da ocorrência (encaminhar, validar). Lista decorada."""
     itens = []
     for ev in _occurrence_items_qs(occ):
         events = sort_custody_chain(ev.custody_chain.all())
         valid = {v for v, _ in _valid_next_events(events, ev)}
-        if EventType.ENCAMINHAMENTO_CUSTODIA.value in valid and access.can_append_custody(
-            user, ev, EventType.ENCAMINHAMENTO_CUSTODIA
-        ):
+        if event_type.value in valid and access.can_append_custody(user, ev, event_type):
             itens.append(ev)
     _decorate_evidences(itens)
     return itens
 
 
-def _register_handoff(request, evidences, bearer_id, destino):
+def _encaminhaveis(user, occ):
+    """Itens da ocorrência que o utilizador pode ENCAMINHAR agora: génese feita,
+    não terminais nem já em trânsito (ENCAMINHAMENTO é próximo evento válido).
+    Anota-se ``ev.checked`` na view (omissão: todos — encaminha-se a prova junta)."""
+    return _itens_com_proximo_evento(user, occ, EventType.ENCAMINHAMENTO_CUSTODIA)
+
+
+def _validaveis(user, occ):
+    """Itens da ocorrência com apreensão POR VALIDAR (dentro ou fora do prazo):
+    VALIDACAO_APREENSAO é próximo evento válido segundo as guardas (há génese de
+    apreensão, ainda não validada, ledger aberto, não em trânsito)."""
+    return _itens_com_proximo_evento(user, occ, EventType.VALIDACAO_APREENSAO)
+
+
+def _bearer_fields_from_post(request):
+    """Lê do POST a identificação do portador (fonte única encaminhar/timeline):
+    portador REGISTADO (``bearer``, FK — o save() copia o snapshot da ficha) OU
+    PONTUAL (``bearer_nome``/``bearer_apelido``/``bearer_matricula``[+``bearer_posto``],
+    snapshot direto — a lei exige identificar quem transporta, não que esteja
+    pré-registado). Devolve ``(payload, erro)``: payload com os campos a juntar
+    ao evento, ou erro accionável (ambos/nenhum/pontual incompleto)."""
+    bearer_id = (request.POST.get('bearer') or '').strip()
+    adhoc = {
+        k: (request.POST.get(f'bearer_{k}') or '').strip()
+        for k in ('nome', 'apelido', 'matricula', 'posto')
+    }
+    given = [k for k in ('nome', 'apelido', 'matricula') if adhoc[k]]
+    if bearer_id and given:
+        return None, (
+            'Escolha o portador registado OU identifique o portador pontual — '
+            'não ambos.'
+        )
+    if bearer_id:
+        return {'bearer': bearer_id}, None
+    if len(given) == 3:
+        payload = {f'bearer_{k}': v for k, v in adhoc.items() if v}
+        return payload, None
+    if given:
+        return None, (
+            'Portador pontual incompleto: indique nome, apelido e '
+            'matrícula/identificador (CC, passaporte ou outro).'
+        )
+    return None, (
+        'Indique o portador que conduz a prova: escolha um registado ou '
+        'identifique o portador pontual.'
+    )
+
+
+def _register_handoff(request, evidences, bearer_fields, destino):
     """Regista ENCAMINHAMENTO_CUSTODIA em cada item (1 evento/item), numa transação
     atómica: portador + destino, custódio promovido pelo tipo do destino, SEM GPS (a
     coordenada regista-se na receção). Reusa o ``ChainOfCustodySerializer`` (guardas
     do ledger, ownership, gate de laboratório, hash, criação da ProvaEmTransito).
+    ``bearer_fields``: payload de :func:`_bearer_fields_from_post` (portador
+    registado ou pontual — em ambos os casos o snapshot entra na cadeia hv2).
     Devolve lista de erros (vazia = sucesso); qualquer falha reverte tudo."""
     base = {
         'event_type': EventType.ENCAMINHAMENTO_CUSTODIA.value,
-        'bearer': bearer_id,
         'custodian_institution': destino.id,
         'observations': (request.POST.get('observations') or '').strip(),
+        **bearer_fields,
     }
     ctype = custody_transitions.CUSTODIAN_TYPE_BY_INSTITUTION.get(destino.type)
     if ctype:
@@ -1058,18 +1137,18 @@ def occurrence_encaminhar_view(request, occurrence_id):
 
     if request.method == 'POST':
         sel = [ev for ev in itens if str(ev.id) in submitted]
-        bearer_id = (request.POST.get('bearer') or '').strip()
+        bearer_fields, bearer_err = _bearer_fields_from_post(request)
         dest_id = (request.POST.get('custodian_institution') or '').strip()
         destino = destinos.filter(pk=dest_id).first() if dest_id.isdigit() else None
         errs = []
         if not sel:
             errs.append('Selecione pelo menos um item para encaminhar.')
-        if not bearer_id:
-            errs.append('Indique o portador que conduz a prova.')
+        if bearer_err:
+            errs.append(bearer_err)
         if destino is None:
             errs.append('Indique uma instituição de destino válida.')
         if not errs:
-            errs = _register_handoff(request, sel, bearer_id, destino)
+            errs = _register_handoff(request, sel, bearer_fields, destino)
         if not errs:
             messages.success(
                 request,
@@ -1079,6 +1158,121 @@ def occurrence_encaminhar_view(request, occurrence_id):
         return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
 
     return render(request, template, _ctx({}, {}))
+
+
+def _register_validation(request, evidences, autoridade, justificacao, ts):
+    """Regista VALIDACAO_APREENSAO em cada item (ato jurídico — CPP art. 178.º/6):
+    sem GPS nem local (a prova não se desloca) e custódio HERDADO do último
+    evento do ledger (a validação não muda quem detém a prova).
+
+    O ``timestamp`` do evento é SEMPRE o do servidor (invariante anti-adulteração
+    do ledger): a data/hora do DESPACHO declarada pela autoridade entra no texto
+    de ``observations`` — que faz parte da fórmula do hash, ficando selada na
+    cadeia. Devolve lista de erros (vazia = sucesso); qualquer falha reverte tudo."""
+    quando = timezone.localtime(ts).strftime('%d/%m/%Y %H:%M')
+    obs = f'Apreensão validada por {autoridade} em {quando}.'
+    if justificacao:
+        obs = f'{obs} {justificacao}'
+
+    def _payload(ev):
+        last = sort_custody_chain(ev.custody_chain.all())[-1]
+        p = {
+            'evidence': ev.id,
+            'event_type': EventType.VALIDACAO_APREENSAO.value,
+            'observations': obs,
+        }
+        if last.custodian_type:
+            p['custodian_type'] = last.custodian_type
+        if last.custodian_institution_id:
+            p['custodian_institution'] = last.custodian_institution_id
+        if last.custodian_user_id:
+            p['custodian_user'] = last.custodian_user_id
+        return p
+
+    return _append_custody_events(
+        request, _payload, evidences,
+        extra_details={'validated_by': autoridade},
+    )
+
+
+@jwt_cookie_user
+def occurrence_validar_view(request, occurrence_id):
+    """Validar a apreensão em LOTE (CPP art. 178.º/6) — ação in-place (modal).
+
+    A validação é um ATO JURÍDICO, não uma deslocação: regista QUEM validou,
+    QUANDO e a justificação — sem GPS, morada ou mudança de custódio (eixo
+    ortogonal ao estado de custódia; ver ``validation_status`` na policy). Um
+    evento VALIDACAO_APREENSAO por item selecionado; todos os itens por validar
+    vêm pré-selecionados e são desmarcáveis (a autoridade pode validar só
+    alguns). Em sucesso no modal devolve 204 + HX-Redirect.
+    """
+    user = request.user
+    occ = _readable_occurrence(user, occurrence_id)
+    if occ is None:
+        return HttpResponseNotFound('Ocorrência não encontrada.')
+
+    modal = _wants_modal(request)
+    template = _modal_template(modal, 'partials/_validar_form.html', 'occurrence_validar.html')
+    itens = _validaveis(user, occ)
+
+    submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
+    for ev in itens:
+        # GET: tudo selecionado; re-render por erro: mantém a escolha do utilizador.
+        ev.checked = submitted is None or str(ev.id) in submitted
+
+    def _ctx(errors, data):
+        return {
+            'occ': occ,
+            'itens': itens,
+            'errors': errors,
+            'data': data if data is not None else {
+                'validated_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            },
+            'modal': modal,
+            'action': f'/occurrences/{occ.id}/validar/',
+            'cancel_url': f'/occurrences/{occ.id}/',
+        }
+
+    if request.method == 'POST':
+        sel = [ev for ev in itens if str(ev.id) in submitted]
+        autoridade = (request.POST.get('validated_by') or '').strip()
+        justificacao = (request.POST.get('justification') or '').strip()
+        raw_ts = (request.POST.get('validated_at') or '').strip()
+        ts = parse_datetime(raw_ts) if raw_ts else None
+        if ts is not None and timezone.is_naive(ts):
+            ts = timezone.make_aware(ts)
+        errs = []
+        if not sel:
+            errs.append('Selecione pelo menos um item para validar.')
+        if not autoridade:
+            errs.append('Indique quem validou a apreensão (autoridade judiciária).')
+        if ts is None:
+            errs.append('Indique a data e hora da validação.')
+        elif ts > timezone.now():
+            errs.append('A data da validação não pode estar no futuro.')
+        else:
+            # A validação nunca antecede a apreensão que valida. O input só tem
+            # granularidade de MINUTO: arredonda-se a apreensão ao minuto para
+            # não recusar um despacho no próprio minuto da apreensão.
+            for ev in sel:
+                seizure = next(
+                    (r for r in sort_custody_chain(ev.custody_chain.all())
+                     if r.event_type in SEIZURE_GENESIS_EVENTS), None,
+                )
+                if seizure and ts < seizure.timestamp.replace(second=0, microsecond=0):
+                    local = timezone.localtime(seizure.timestamp)
+                    errs.append(
+                        f'A validação de {ev.code} não pode anteceder a apreensão '
+                        f'({local:%d/%m/%Y %H:%M}).'
+                    )
+        if not errs:
+            errs = _register_validation(request, sel, autoridade, justificacao, ts)
+        if not errs:
+            messages.success(request, f'Apreensão validada: {len(sel)} item(ns).')
+            return _form_success_response(modal, f'/occurrences/{occ.id}/')
+        return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
+
+    return render(request, template, _ctx({}, None))
 
 
 @jwt_cookie_user
@@ -1734,6 +1928,12 @@ def _register_custody_event(request, evidence, targets):
         val = (request.POST.get(fk) or '').strip()
         if val:
             base[fk] = val
+    # Portador PONTUAL (não registado): snapshot direto no evento — o clean()
+    # exige nome+apelido+matrícula no encaminhamento; com FK, o save() sobrepõe.
+    for fld in ('bearer_nome', 'bearer_apelido', 'bearer_matricula', 'bearer_posto'):
+        val = (request.POST.get(fld) or '').strip()
+        if val:
+            base[fld] = val
     # Selagem por-evento (ADR-0016 §4) — opcionais.
     if request.POST.get('sealed'):
         base['sealed'] = True

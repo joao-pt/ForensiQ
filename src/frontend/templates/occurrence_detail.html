@@ -35,6 +35,14 @@
         {% include 'partials/icons/_file.html' %}
         Guia PDF
       </a>
+      {% if can_validate %}
+      {# Ação in-place: validar a apreensão em lote (CPP 178.º) — ato jurídico, sem GPS. #}
+      <a class="btn-ghost" href="/occurrences/{{ occ.id }}/validar/"
+         data-modal-open data-modal-title="Validar apreensão">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+        Validar apreensão
+      </a>
+      {% endif %}
       {% if can_handoff %}
       {# Ação in-place: encaminhar a prova em lote (portador + destino) num modal. #}
       {# Contrato modal (hx-get ?modal=1 → #app-modal-body) derivado em modal-action.js (D61). #}

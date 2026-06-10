@@ -24,7 +24,7 @@
         hx-get="/evidences/?drawer={{ e.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML">
       <td role="gridcell" class="mono grid__code">{% if tree_prefix and e.parent_evidence %}<span class="grid__muted">└ </span>{% endif %}{{ e.code }}</td>
       <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>
-      <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span></td>
+      <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span>{% if e.validation_badge and e.validation_status != 'validada' %} <span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}</td>
       <td role="gridcell" class="mono grid__muted col-hide-sm">{{ e.serial_number|default:'—' }}</td>
       {% if show_seizure %}<td role="gridcell" class="mono">{{ e.timestamp_seizure|date:'Y-m-d H:i' }}</td>{% endif %}
     </tr>

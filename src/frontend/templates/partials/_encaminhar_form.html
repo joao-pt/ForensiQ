@@ -27,8 +27,8 @@
 
     <div class="form-grid">
       <div class="form-field">
-        <label for="f-enc-bearer">Portador *</label>
-        <select id="f-enc-bearer" name="bearer" required>
+        <label for="f-enc-bearer">Portador (registado)</label>
+        <select id="f-enc-bearer" name="bearer">
           <option value="">— selecionar —</option>
           {% for p in portadores %}
           <option value="{{ p.id }}" {% if data.bearer == p.id|stringformat:'s' %}selected{% endif %}>{{ p.option_label }}</option>
@@ -44,6 +44,30 @@
           {% endfor %}
         </select>
       </div>
+      {# Portador PONTUAL (não registado): a lei exige identificar quem transporta, #}
+      {# não que esteja pré-registado — o snapshot entra igual na cadeia de hash. #}
+      <details class="form-field form-field--full"{% if data.bearer_nome or data.bearer_apelido or data.bearer_matricula %} open{% endif %}>
+        <summary>Portador pontual (não registado)</summary>
+        <p class="form-hint">Quem levanta a prova sem estar na lista: identifique-o aqui — agente de outra força, estafeta, etc. Matrícula para agentes; CC, passaporte ou outro identificador para civis.</p>
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="f-enc-bnome">Primeiro nome</label>
+            <input id="f-enc-bnome" name="bearer_nome" type="text" value="{{ data.bearer_nome|default:'' }}">
+          </div>
+          <div class="form-field">
+            <label for="f-enc-bapelido">Último nome</label>
+            <input id="f-enc-bapelido" name="bearer_apelido" type="text" value="{{ data.bearer_apelido|default:'' }}">
+          </div>
+          <div class="form-field">
+            <label for="f-enc-bmat">Matrícula / identificador</label>
+            <input id="f-enc-bmat" name="bearer_matricula" type="text" value="{{ data.bearer_matricula|default:'' }}">
+          </div>
+          <div class="form-field">
+            <label for="f-enc-bposto">Posto / categoria</label>
+            <input id="f-enc-bposto" name="bearer_posto" type="text" placeholder="(opcional)" value="{{ data.bearer_posto|default:'' }}">
+          </div>
+        </div>
+      </details>
       <div class="form-field form-field--full">
         <label for="f-enc-obs">Observações</label>
         <textarea id="f-enc-obs" name="observations" placeholder="Notas do encaminhamento (opcional)">{{ data.observations }}</textarea>

@@ -29,7 +29,7 @@
   <header class="detail__head">
     <div>
       <h1 class="detail__title" id="ct-title">Cadeia de custódia</h1>
-      <p class="detail__sub"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></p>
+      <p class="detail__sub"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span>{% if ev.validation_badge %} · <span class="state state--{{ ev.validation_badge.css }}">{{ ev.validation_badge.label }}</span>{% endif %}</p>
     </div>
     <div class="detail__actions">
       <a class="btn-ghost" href="/evidences/{{ ev.id }}/">
@@ -111,6 +111,30 @@
             </select>
             <span class="form-hint">Obrigatório no encaminhamento: entra na cadeia de hash (snapshot).</span>
           </div>
+
+          {# Portador PONTUAL (não registado) — alternativa ao select: identifica #}
+          {# quem transporta sem ficha na base; o snapshot entra igual no hash. #}
+          <details class="form-field form-field--full"{% if register_data.bearer_nome or register_data.bearer_apelido or register_data.bearer_matricula %} open{% endif %}>
+            <summary>Portador pontual (não registado)</summary>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="r-bnome">Primeiro nome</label>
+                <input id="r-bnome" name="bearer_nome" type="text" value="{{ register_data.bearer_nome|default:'' }}">
+              </div>
+              <div class="form-field">
+                <label for="r-bapelido">Último nome</label>
+                <input id="r-bapelido" name="bearer_apelido" type="text" value="{{ register_data.bearer_apelido|default:'' }}">
+              </div>
+              <div class="form-field">
+                <label for="r-bmat">Matrícula / identificador</label>
+                <input id="r-bmat" name="bearer_matricula" type="text" value="{{ register_data.bearer_matricula|default:'' }}">
+              </div>
+              <div class="form-field">
+                <label for="r-bposto">Posto / categoria</label>
+                <input id="r-bposto" name="bearer_posto" type="text" placeholder="(opcional)" value="{{ register_data.bearer_posto|default:'' }}">
+              </div>
+            </div>
+          </details>
 
           <div class="form-field">
             <label for="r-loc">Local (POI)</label>

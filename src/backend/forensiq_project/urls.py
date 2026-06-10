@@ -55,6 +55,7 @@ from core.frontend_views import (
     occurrence_encaminhar_view,
     occurrence_intake_view,
     occurrence_singular_redirect,
+    occurrence_validar_view,
     occurrences_new_view,
     occurrences_view,
     public_verify_view,
@@ -134,6 +135,12 @@ urlpatterns = [
         'occurrences/<int:occurrence_id>/encaminhar/',
         occurrence_encaminhar_view,
         name='occurrence_encaminhar',
+    ),
+    # Validar a apreensão em lote (CPP art. 178.º/6) — ação in-place (modal)
+    path(
+        'occurrences/<int:occurrence_id>/validar/',
+        occurrence_validar_view,
+        name='occurrence_validar',
     ),
 
     # Evidências

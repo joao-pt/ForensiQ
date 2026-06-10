@@ -1,0 +1,21 @@
+{% extends 'form_page.html' %}
+
+{% block title %}Validar apreensão — ForensiQ{% endblock %}
+
+{# Sem mapa nesta página (a validação é um ato jurídico, sem GPS). #}
+{% block extra_css %}{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/occurrences/">Ocorrências</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a href="/occurrences/{{ occ.id }}/" class="mono">{{ occ.code|default:occ.number }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Validar apreensão</span>
+{% endblock %}
+
+{% block form_title %}Validar apreensão{% endblock %}
+{% block form_subtitle %}
+      <p class="detail__sub">{{ occ.code|default:occ.number }} — quem validou, quando e justificação (CPP art. 178.º; sem GPS, a prova não se move)</p>
+{% endblock %}
+
+{% block form_body %}{% include 'partials/_validar_form.html' %}{% endblock %}

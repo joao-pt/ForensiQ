@@ -578,12 +578,11 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'sequence',
             'legal_state',
             'timestamp',
-            # Snapshot do portador + versão: derivados/gravados pelo modelo no
-            # save() (ADR-0016 v2) — só o FK ``bearer`` é input do cliente.
-            'bearer_matricula',
-            'bearer_nome',
-            'bearer_apelido',
-            'bearer_posto',
+            # Snapshot do portador: com FK ``bearer`` o save() SOBREPÕE estes
+            # campos com a ficha (ADR-0016 v2); sem FK são o input direto do
+            # portador PONTUAL (não registado) — o clean() exige nome+apelido+
+            # matrícula no encaminhamento. Em ambos os casos é o snapshot que
+            # entra na cadeia de hash (hv2).
             'record_hash',
             'hash_version',
         ]
