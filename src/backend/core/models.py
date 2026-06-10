@@ -37,6 +37,7 @@ from core.policy.event_states import (
     CustodianType,
     EventType,
     derive_legal_state as derive_legal_state,
+    validation_status as validation_status,
 )
 from core.validators import validate_gps_coherence, validate_imei
 

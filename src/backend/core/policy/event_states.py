@@ -131,8 +131,14 @@ def derive_legal_state(eventos_ordenados):
     registos ``ChainOfCustody`` de uma evidência **ordenada por sequence**
     e devolve uma de:
 
-        a_guarda_opc | validada | em_pericia | pericia_concluida |
+        a_guarda_opc | em_pericia | pericia_concluida |
         em_transito | encaminhada | restituida | perdida_favor_estado | destruida
+
+    Este eixo descreve SÓ a custódia/localização da prova (em mãos de quem está,
+    em que fase de movimentação/perícia). Os ATOS jurídicos que não deslocam a
+    prova — apreensão e validação da apreensão (CPP art. 178.º) — não são estados:
+    ficam no ledger e derivam-se à parte (:func:`validation_status`). Misturar os
+    dois eixos fazia a etiqueta "validada" desaparecer quando o item viajava.
 
     O estado segue o ÚLTIMO acto relevante (a custódia é não-linear: várias
     perícias e encaminhamentos em ordem livre — CPP Art. 158.º), com duas
@@ -147,8 +153,8 @@ def derive_legal_state(eventos_ordenados):
       volta ao OPC, senão ``encaminhada``.
     - último TRANSFERENCIA_CUSTODIA/ASSUNCAO_CUSTODIA (LEGADO) → ``a_guarda_opc`` se
       de volta ao OPC, senão ``encaminhada`` (lab/tribunal/depositário/proprietário).
-    - DESPACHO_PERICIA/VALIDACAO_APREENSAO/génese como último → patamar atingido
-      (``validada`` se já houve validação, senão ``a_guarda_opc``).
+    - DESPACHO_PERICIA/VALIDACAO_APREENSAO/génese como último → ``a_guarda_opc``
+      (a prova não se moveu; o despacho/validação são atos, não deslocações).
     """
     if not eventos_ordenados:
         return 'a_guarda_opc'
@@ -185,9 +191,8 @@ def derive_legal_state(eventos_ordenados):
         # qualquer outro custódio = encaminhada.
         return 'a_guarda_opc' if ultimo.custodian_type == CustodianType.OPC else 'encaminhada'
 
-    # DESPACHO_PERICIA / VALIDACAO_APREENSAO / génese como último: patamar atingido.
-    if EventType.VALIDACAO_APREENSAO in tipos:
-        return 'validada'
+    # DESPACHO_PERICIA / VALIDACAO_APREENSAO / génese como último: a prova não se
+    # moveu — continua à guarda do OPC (a validação deriva-se no OUTRO eixo).
     return 'a_guarda_opc'
 
 
@@ -195,7 +200,6 @@ def derive_legal_state(eventos_ordenados):
 LEGAL_STATES = frozenset(
     {
         'a_guarda_opc',
-        'validada',
         'em_pericia',
         'pericia_concluida',
         'em_transito',
@@ -225,3 +229,50 @@ TERMINAL_LEGAL_STATES = frozenset(
 STATES_AT_OR_PAST_LAB = (
     frozenset({'encaminhada', 'em_pericia', 'pericia_concluida'}) | TERMINAL_LEGAL_STATES
 )
+
+
+# Disposição FINAL do item ao nível de EVENTO (restituição, destruição, perda a
+# favor do Estado) — contraparte de TERMINAL_LEGAL_STATES no eixo dos eventos.
+# Fonte única de dois consumos: o critério de "concluído" do fluxo
+# (``core.analytics``) e a EXTINÇÃO de uma validação pendente — encerrada a
+# custódia ou decidido o destino legal, deixa de haver apreensão mantida para
+# validar (CPP art. 178.º).
+DISPOSAL_EVENTS = TERMINAL_EVENTS | {EventType.PERDA_FAVOR_ESTADO}
+
+
+def validation_status(eventos_ordenados, now):
+    """Estatuto da VALIDAÇÃO da apreensão — eixo ORTOGONAL ao estado de custódia.
+
+    A validação (CPP art. 178.º/6, prazo de 72h em ``VALIDATION_DEADLINE``) é um
+    ato jurídico, não uma deslocação: não muda quem detém a prova nem onde está.
+    Por isso não entra em :func:`derive_legal_state`; deriva-se aqui, sempre do
+    ledger (nunca guardado), e apresenta-se como atributo próprio do item.
+
+    Recebe os registos ``ChainOfCustody`` ordenados por sequence e o instante de
+    referência ``now`` (passado pelo chamador — função pura) e devolve:
+
+    - ``None`` — não aplicável: sem génese de apreensão (ex.: item autonomizado
+      no laboratório, que herda a base legal do item-pai), ou exigência extinta
+      por um evento de ``DISPOSAL_EVENTS`` sem validação registada;
+    - ``'validada'`` — existe VALIDACAO_APREENSAO no ledger (valida-se uma vez;
+      o registo fora de prazo fica assinalado no próprio evento);
+    - ``'em_atraso'`` — apreensão há mais de ``VALIDATION_DEADLINE`` sem validação;
+    - ``'por_validar'`` — apreensão dentro do prazo, validação ainda por registar.
+    """
+    seizure = next(
+        (r for r in eventos_ordenados if r.event_type in SEIZURE_GENESIS_EVENTS), None
+    )
+    if seizure is None:
+        return None
+    tipos = [r.event_type for r in eventos_ordenados]
+    if EventType.VALIDACAO_APREENSAO in tipos:
+        return 'validada'
+    if any(t in DISPOSAL_EVENTS for t in tipos):
+        return None
+    if now - seizure.timestamp > VALIDATION_DEADLINE:
+        return 'em_atraso'
+    return 'por_validar'
+
+
+# Conjunto canónico dos estatutos de validação deriváveis (sem o ``None``).
+VALIDATION_STATUSES = frozenset({'validada', 'em_atraso', 'por_validar'})

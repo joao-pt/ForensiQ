@@ -29,6 +29,7 @@ from django.utils import timezone
 from .labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from .models import ProvaEmTransito
 from .policy.event_states import (
+    DISPOSAL_EVENTS,
     LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
     TERMINAL_EVENTS,
@@ -43,13 +44,8 @@ WINDOW_CHOICES = (7, 30, 90, 365)
 DEFAULT_WINDOW_DAYS = 30
 
 # "Concluído" para efeitos de fluxo = disposição final do item — o mesmo critério
-# do Arquivo (restituída / perdida a favor do Estado / destruída).
-DISPOSAL_EVENTS = (
-    EventType.RESTITUICAO,
-    EventType.DESTRUICAO,
-    EventType.PERDA_FAVOR_ESTADO,
-)
-# VALIDATION_DEADLINE: fonte única em core.policy (auditoria D50) — importado acima.
+# do Arquivo. DISPOSAL_EVENTS/VALIDATION_DEADLINE: fonte única em core.policy
+# (auditoria D50) — importados acima.
 
 
 def resolve_window(raw):
@@ -244,7 +240,14 @@ def aging_sla(evd_qs, cus_qs, now=None):
             'evidence_id', flat=True
         )
     )
-    overdue_ids = seized - validated
+    # Disposição final (restituída/destruída/perdida) extingue a exigência de
+    # validação pendente — mesmo critério de validation_status (core.policy).
+    closed = set(
+        cus_qs.filter(event_type__in=DISPOSAL_EVENTS).values_list(
+            'evidence_id', flat=True
+        )
+    )
+    overdue_ids = seized - validated - closed
 
     in_transit = ProvaEmTransito.objects.filter(
         evidence__in=evd_qs, acknowledged_at__isnull=True

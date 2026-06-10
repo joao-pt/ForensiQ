@@ -9,10 +9,10 @@ máquina de estados e os tipos de evento ficam em ``core.models``; aqui só o te
 e a cor. Editar um rótulo/cor (ou acrescentar o de um novo estado) faz-se SÓ aqui.
 """
 
-# Rótulo PT de cada estado legal derivado.
+# Rótulo PT de cada estado legal derivado (eixo de custódia/localização; a
+# validação da apreensão é eixo próprio — VALIDATION_STATUS_LABELS abaixo).
 LEGAL_STATE_LABELS = {
     'a_guarda_opc': 'À guarda do OPC',
-    'validada': 'Validada',
     'em_pericia': 'Em perícia',
     'pericia_concluida': 'Perícia concluída',
     'em_transito': 'Em trânsito',
@@ -47,7 +47,6 @@ ACTION_SHORT = {
 # Variante semântica do ponto do badge .state (a cor classifica o estado).
 LEGAL_STATE_CSS = {
     'a_guarda_opc': 'info',
-    'validada': 'info',
     'em_pericia': 'warn',
     'pericia_concluida': 'ok',
     'em_transito': 'warn',
@@ -55,4 +54,17 @@ LEGAL_STATE_CSS = {
     'restituida': 'muted',
     'perdida_favor_estado': 'danger',
     'destruida': 'muted',
+}
+
+# Rótulo + cor do ESTATUTO DE VALIDAÇÃO da apreensão (eixo ortogonal ao estado
+# de custódia — core.policy.event_states.validation_status; CPP art. 178.º/6).
+VALIDATION_STATUS_LABELS = {
+    'validada': 'Validada',
+    'por_validar': 'Por validar',
+    'em_atraso': 'Validação em atraso',
+}
+VALIDATION_STATUS_CSS = {
+    'validada': 'ok',
+    'por_validar': 'info',
+    'em_atraso': 'danger',
 }

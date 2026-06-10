@@ -8,7 +8,9 @@ pontos. Sem side effects; :func:`legal_state_of` lê a relação ``custody_chain
 
 from __future__ import annotations
 
-from core.policy.event_states import derive_legal_state
+from django.utils import timezone
+
+from core.policy.event_states import derive_legal_state, validation_status
 
 
 def get_user_display_name(user, default: str = 'sistema') -> str:
@@ -48,3 +50,15 @@ def legal_state_of(evidence, *, with_last=False):
     if with_last:
         return state, (eventos[-1] if eventos else None)
     return state
+
+
+def validation_status_of(evidence, now=None):
+    """Estatuto de validação da apreensão de UMA evidência (eixo ORTOGONAL ao
+    estado de custódia — :func:`core.policy.event_states.validation_status`).
+
+    Mesmo micro-fluxo de :func:`legal_state_of` (materializar → ordenar →
+    derivar; reaproveita o prefetch quando existe). ``None`` = não aplicável
+    (sem apreensão própria, ou exigência extinta pela disposição final).
+    """
+    eventos = sort_custody_chain(evidence.custody_chain.all())
+    return validation_status(eventos, now or timezone.now())

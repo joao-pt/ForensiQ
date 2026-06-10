@@ -110,15 +110,17 @@ class LegalStatesByEvidenceTest(TestCase):
         )
 
     def test_estado_por_item(self):
+        # A validação é ATO, não deslocação: o estado de custódia mantém-se
+        # a_guarda_opc (o estatuto de validação deriva-se no eixo próprio).
         states = analytics.legal_states_by_evidence(ChainOfCustody.objects.all())
-        self.assertEqual(states[self.ev1.id], 'validada')
+        self.assertEqual(states[self.ev1.id], 'a_guarda_opc')
         self.assertEqual(states[self.ev2.id], 'a_guarda_opc')
 
     def test_with_events_devolve_registos_agrupados_por_ordem_canonica(self):
         states, eventos = analytics.legal_states_by_evidence(
             ChainOfCustody.objects.all(), with_events=True
         )
-        self.assertEqual(states[self.ev1.id], 'validada')
+        self.assertEqual(states[self.ev1.id], 'a_guarda_opc')
         self.assertEqual(
             [r.event_type for r in eventos[self.ev1.id]],
             [EventType.APREENSAO_OBJETO, EventType.VALIDACAO_APREENSAO],

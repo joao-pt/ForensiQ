@@ -29,6 +29,7 @@ from django.utils import timezone
 from core.tests_factories import LISBOA_GPS, CrimeTipoFactory
 
 from .models import (
+    VALIDATION_DEADLINE,
     ChainOfCustody,
     CustodianType,
     EventType,
@@ -36,6 +37,7 @@ from .models import (
     Occurrence,
     User,
     derive_legal_state,
+    validation_status,
 )
 
 
@@ -347,7 +349,9 @@ class DeriveLegalStateTest(TestCase):
         eventos = self._chain(ev, [(EventType.APREENSAO_OBJETO, CustodianType.OPC)])
         self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
 
-    def test_validada(self):
+    def test_validacao_nao_muda_o_estado_de_custodia(self):
+        """A validação é ATO jurídico, não deslocação: o estado de custódia
+        mantém-se a_guarda_opc; o estatuto deriva-se no eixo próprio."""
         ev = self._evidence('DLS-2')
         eventos = self._chain(
             ev,
@@ -356,7 +360,8 @@ class DeriveLegalStateTest(TestCase):
                 (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
             ],
         )
-        self.assertEqual(derive_legal_state(eventos), 'validada')
+        self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
+        self.assertEqual(validation_status(eventos, timezone.now()), 'validada')
 
     def test_encaminhada(self):
         ev = self._evidence('DLS-3')
@@ -493,6 +498,68 @@ class DeriveLegalStateTest(TestCase):
             ],
         )
         self.assertEqual(derive_legal_state(eventos), 'a_guarda_opc')
+
+
+class _RegStub:
+    """Registo mínimo para testar funções PURAS da policy (event_type+timestamp)."""
+
+    def __init__(self, event_type, timestamp=None):
+        self.event_type = event_type
+        self.timestamp = timestamp
+
+
+class ValidationStatusTest(TestCase):
+    """Estatuto de validação da apreensão (CPP art. 178.º/6) — eixo ORTOGONAL ao
+    estado de custódia: a validação é ato jurídico, não deslocação, e por isso
+    nunca aparece em derive_legal_state nem desaparece quando o item viaja."""
+
+    def setUp(self):
+        self.now = timezone.now()
+
+    def _seizure(self, age):
+        return _RegStub(EventType.APREENSAO_OBJETO, self.now - age)
+
+    def test_sem_apreensao_nao_aplicavel(self):
+        # Item autonomizado no laboratório herda a base legal do pai.
+        eventos = [_RegStub(EventType.DERIVACAO_ITEM, self.now)]
+        self.assertIsNone(validation_status(eventos, self.now))
+        self.assertIsNone(validation_status([], self.now))
+
+    def test_apreensao_dentro_do_prazo_por_validar(self):
+        eventos = [self._seizure(timedelta(hours=1))]
+        self.assertEqual(validation_status(eventos, self.now), 'por_validar')
+
+    def test_apreensao_fora_do_prazo_em_atraso(self):
+        eventos = [self._seizure(VALIDATION_DEADLINE + timedelta(minutes=1))]
+        self.assertEqual(validation_status(eventos, self.now), 'em_atraso')
+
+    def test_validada_sobrevive_a_viagem(self):
+        # O marco legal não se perde com encaminhamento+receção (a nota que
+        # motivou a separação dos eixos).
+        eventos = [
+            self._seizure(timedelta(days=5)),
+            _RegStub(EventType.VALIDACAO_APREENSAO, self.now - timedelta(days=4)),
+            _RegStub(EventType.ENCAMINHAMENTO_CUSTODIA, self.now - timedelta(days=2)),
+            _RegStub(EventType.RECEPCAO_CUSTODIA, self.now - timedelta(days=1)),
+        ]
+        self.assertEqual(validation_status(eventos, self.now), 'validada')
+
+    def test_disposicao_final_extingue_exigencia(self):
+        # Restituída sem validação: a apreensão cessou — nada resta para validar.
+        eventos = [
+            self._seizure(timedelta(days=5)),
+            _RegStub(EventType.RESTITUICAO, self.now - timedelta(days=1)),
+        ]
+        self.assertIsNone(validation_status(eventos, self.now))
+
+    def test_validada_e_depois_restituida_continua_validada(self):
+        # A validação registada é facto histórico; a disposição não a apaga.
+        eventos = [
+            self._seizure(timedelta(days=5)),
+            _RegStub(EventType.VALIDACAO_APREENSAO, self.now - timedelta(days=4)),
+            _RegStub(EventType.RESTITUICAO, self.now - timedelta(days=1)),
+        ]
+        self.assertEqual(validation_status(eventos, self.now), 'validada')
 
 
 class CustodyHashFormulaTest(TestCase):
