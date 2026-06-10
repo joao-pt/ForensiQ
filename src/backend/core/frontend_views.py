@@ -508,7 +508,9 @@ def verifications_view(request):
 
 _HERO_BOUNDS = {
     'continental': [[36.95, -9.55], [42.15, -6.18]],
-    'madeira': [[32.40, -17.40], [33.10, -16.50]],
+    # Madeira inclui Porto Santo (33.02-33.12, -16.42…-16.29) — os bounds
+    # antigos cortavam-no; as Selvagens ficam de fora conscientemente.
+    'madeira': [[32.35, -17.45], [33.15, -16.25]],
     'acores': [[36.85, -31.40], [39.85, -24.70]],
 }
 
@@ -684,9 +686,11 @@ def dashboard_view(request):
         {'key': k, 'label': LEGAL_STATE_LABELS[k], 'n': tile_counts[k]} for k in LEGAL_STATE_LABELS
     ]
 
-    # Pontos georreferenciados por região (mapa do hero).
+    # Pontos georreferenciados por região (mapa do hero). O `id` permite o
+    # drill-down (popup com link) no mapa interativo.
     pts = [
-        {'lat': float(o.gps_lat), 'lng': float(o.gps_lng), 'label': o.code or o.number, 'pri': _occ_pri_code(o)}
+        {'id': o.id, 'lat': float(o.gps_lat), 'lng': float(o.gps_lng),
+         'label': o.code or o.number, 'pri': _occ_pri_code(o)}
         for o in occ_qs.exclude(gps_lat=None).exclude(gps_lng=None)
     ]
 
@@ -694,6 +698,16 @@ def dashboard_view(request):
         return b[0][0] <= p['lat'] <= b[1][0] and b[0][1] <= p['lng'] <= b[1][1]
 
     regions = {name: [p for p in pts if _within(b, p)] for name, b in _HERO_BOUNDS.items()}
+    # Pontos fora das 3 caixas NUNCA desaparecem em silêncio (princípio de
+    # re-verificabilidade): contam-se e o template expõe-os na legenda.
+    n_fora_mapa = sum(1 for p in pts if not any(_within(b, p) for b in _HERO_BOUNDS.values()))
+
+    def _pri_counts(points):
+        return {
+            'p1': sum(1 for p in points if p['pri'] == 1),
+            'p2': sum(1 for p in points if p['pri'] == 2),
+            'normal': sum(1 for p in points if p['pri'] == 0),
+        }
 
     recent = list(occ_qs.order_by('-date_time')[:8])
     _decorate_occurrences(recent)
@@ -717,6 +731,14 @@ def dashboard_view(request):
             'bounds_continental': json.dumps(_HERO_BOUNDS['continental']),
             'bounds_madeira': json.dumps(_HERO_BOUNDS['madeira']),
             'bounds_acores': json.dumps(_HERO_BOUNDS['acores']),
+            # Contagens que batem certo com os pontos DESENHADOS em cada mapa
+            # (occ_total inclui sem-GPS e ilhas — não serve para o cabeçalho
+            # do mapa continental).
+            'n_continental': len(regions['continental']),
+            'n_madeira': len(regions['madeira']),
+            'n_acores': len(regions['acores']),
+            'n_fora_mapa': n_fora_mapa,
+            'pri_continental': _pri_counts(regions['continental']),
         },
     )
 

@@ -20,10 +20,17 @@
     // geo-field.js e map-picker.js — auditoria D98).
     var DEFAULT_VIEW = { center: [39.5, -8.0], zoom: 6 };
 
-    /** Cria um mapa Leaflet com a camada OSM padrão. `opts` é passado a L.map. */
+    /** Cria um mapa Leaflet com a camada OSM padrão. `opts` é passado a L.map.
+     * A atribuição © OpenStreetMap é obrigatória pela licença ODbL; vive aqui
+     * (fonte única) para nenhum mapa a perder. Quem a esconder (insets
+     * minúsculos) tem de repor o crédito adjacente ao mapa. */
     function createMap(el, opts) {
         var map = L.map(el, opts);
-        L.tileLayer(OSM_TILE_URL, { maxZoom: OSM_MAX_ZOOM }).addTo(map);
+        L.tileLayer(OSM_TILE_URL, {
+            maxZoom: OSM_MAX_ZOOM,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        }).addTo(map);
+        if (map.attributionControl) map.attributionControl.setPrefix('');
         return map;
     }
 

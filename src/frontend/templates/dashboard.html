@@ -38,43 +38,53 @@
       </div>
     </article>
 
-    <!-- Coluna 2 — Mapa continental + legenda de prioridade -->
+    <!-- Coluna 2 — Mapa continental (interativo, preso ao território) + legenda -->
     <article class="geo-hero__col geo-hero__continental" aria-label="Mapa de ocorrências em Portugal continental">
       <header class="geo-hero__header">
         <h2 class="geo-hero__title">Portugal continental</h2>
-        <span class="geo-hero__meta">ocorrências · {{ occ_total }}</span>
+        <span class="geo-hero__meta">geolocalizadas · {{ n_continental }}</span>
       </header>
-      <div class="geo-hero__map" data-static-map data-fixed
+      <div class="geo-hero__map" data-static-map
            data-points="{{ points_continental }}" data-bounds="{{ bounds_continental }}"
-           role="img" aria-label="Mapa de Portugal continental"></div>
+           role="application" aria-label="Mapa de Portugal continental"></div>
       <div class="geo-hero__legend" role="group" aria-label="Legenda de prioridade dos pontos">
         <span class="geo-hero__legend-chip">
           <span class="geo-hero__legend-dot geo-hero__legend-dot--p1" aria-hidden="true"></span>
-          <span class="geo-hero__legend-label">P1</span>
+          <span class="geo-hero__legend-label">P1 · {{ pri_continental.p1 }}</span>
         </span>
         <span class="geo-hero__legend-chip">
           <span class="geo-hero__legend-dot geo-hero__legend-dot--p2" aria-hidden="true"></span>
-          <span class="geo-hero__legend-label">P2</span>
+          <span class="geo-hero__legend-label">P2 · {{ pri_continental.p2 }}</span>
         </span>
         <span class="geo-hero__legend-chip">
           <span class="geo-hero__legend-dot geo-hero__legend-dot--normal" aria-hidden="true"></span>
-          <span class="geo-hero__legend-label">Normal</span>
+          <span class="geo-hero__legend-label">Normal · {{ pri_continental.normal }}</span>
+        </span>
+        {% if n_fora_mapa %}
+        <span class="geo-hero__legend-chip" title="Ocorrências geolocalizadas fora dos três mapas">
+          <span class="geo-hero__legend-label">fora do mapa · {{ n_fora_mapa }}</span>
+        </span>
+        {% endif %}
+        {# Crédito ODbL adjacente — cobre os insets, que não têm controlo de atribuição. #}
+        <span class="geo-hero__legend-chip geo-hero__legend-chip--credit">
+          <a class="geo-hero__legend-label" href="https://www.openstreetmap.org/copyright"
+             target="_blank" rel="noopener">© OpenStreetMap</a>
         </span>
       </div>
     </article>
 
-    <!-- Coluna 3 — Insets + CTA -->
-    <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas e acção rápida">
+    <!-- Coluna 3 — Insets das regiões autónomas -->
+    <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas">
       <div class="geo-hero__inset-row">
         <div class="geo-hero__inset" data-static-map data-fixed
              data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
              role="img" aria-label="Mapa da Madeira">
-          <span class="geo-hero__inset-label">Madeira</span>
+          <span class="geo-hero__inset-label">Madeira · {{ n_madeira }}</span>
         </div>
         <div class="geo-hero__inset" data-static-map data-fixed
              data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
              role="img" aria-label="Mapa dos Açores">
-          <span class="geo-hero__inset-label">Açores</span>
+          <span class="geo-hero__inset-label">Açores · {{ n_acores }}</span>
         </div>
       </div>
     </article>

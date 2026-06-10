@@ -1,0 +1,40 @@
+/**
+ * ForensiQ — Tema dos mapas (FONTE ÚNICA, era map-dark.css). Carregado com o
+ * Leaflet via _leaflet_head.html, logo cobre TODOS os mapas de uma vez (painel,
+ * detalhe, trajetória da cadeia, geo-field, picker de instituição) e qualquer
+ * mapa futuro.
+ *
+ * Atua APENAS no pane dos tiles (o basemap OSM). Os pinos, a trajetória da
+ * cadeia, os tooltips e os controlos vivem noutros panes do Leaflet e mantêm
+ * as suas cores — é isso que torna o "mapa por filtro" legível. Pareia ao vivo
+ * com o toggle de tema (reage à mudança de [data-theme] no <html> sem recriar
+ * o mapa). Sem terceiros novos (GDPR: tiles continuam os mesmos).
+ */
+
+/* Tema claro: o basemap OSM em cores plenas era a única cor decorativa da
+   página (regra da art direction: cor classifica, não decora) e camuflava os
+   pinos de prioridade nas estradas. Dessaturado vira "papel topográfico" e a
+   única cor saturada no mapa passa a ser informação. */
+[data-theme="light"] .leaflet-tile-pane {
+    filter: grayscale(0.85) saturate(0.4) brightness(1.02) contrast(0.92);
+}
+
+/* Tema noite: invert + hue-rotate repõem as cores reais depois da inversão;
+   o resto afina o tom para casar com a casca escura. */
+[data-theme="dark"] .leaflet-tile-pane {
+    filter: invert(1) hue-rotate(180deg) brightness(0.96) contrast(0.9) saturate(0.85);
+}
+
+/* Atribuição © OpenStreetMap (obrigação ODbL — reposta na auditoria do painel):
+   re-estilizada para o idioma da app (mono micro, meio-transparente) em vez do
+   branco sólido do Leaflet. O prefixo "Leaflet" é removido no FQMap. */
+.leaflet-control-attribution {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+}
+.leaflet-control-attribution a {
+    color: var(--text-muted);
+    text-decoration: underline;
+}

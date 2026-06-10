@@ -174,7 +174,7 @@
             return;
         }
         destroyDrawerMap();
-        drawerMap = FQMap.createMap(el, { zoomControl: true, attributionControl: false });
+        drawerMap = FQMap.createMap(el, { zoomControl: true });
 
         // Cadeia se houver trajeto; senão, pino único pela fonte única (D74).
         if (!renderChain(el) && !FQMap.pinFromDataset(drawerMap, el)) {
@@ -249,42 +249,96 @@
             0: token('--pri-normal', '#60A5FA'),
         };
     }
-    function drawPoints(map, raw) {
+    // Severidade visual da prioridade: P1 (lei) > P2 (manual) > normal.
+    var PRI_RANK = { 1: 2, 2: 1, 0: 0 };
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function drawPoints(map, raw, interactive) {
         if (!raw) return false;
         var pts;
         try { pts = JSON.parse(raw); } catch (e) { return false; }
         if (!pts || !pts.length) return false;
         var colors = priColors();
+
+        // Agrega pontos coincidentes (≈1km a zoom nacional): num painel a zoom
+        // baixo, N ocorrências na mesma cidade viravam UMA mancha indistinguível.
+        var groups = {};
         pts.forEach(function (p) {
             var la = parseFloat(p.lat), ln = parseFloat(p.lng);
             if (isNaN(la) || isNaN(ln)) return;
-            var col = colors[p.pri] || colors[0];
-            L.circleMarker([la, ln], { radius: 5, color: col, weight: 2, fillColor: col, fillOpacity: 0.7 })
-                .addTo(map).bindTooltip(p.label || '', { permanent: false });
+            var key = la.toFixed(2) + ',' + ln.toFixed(2);
+            (groups[key] = groups[key] || { ll: [la, ln], items: [] }).items.push(p);
         });
-        return true;
+        var drew = false;
+        Object.keys(groups).forEach(function (key) {
+            var g = groups[key];
+            var top = g.items.reduce(function (a, b) {
+                return (PRI_RANK[b.pri] || 0) > (PRI_RANK[a.pri] || 0) ? b : a;
+            });
+            var col = colors[top.pri] || colors[0];
+            var n = g.items.length;
+            // Halo claro (casing) para o pino destacar do basemap em qualquer
+            // tema — mesmo padrão da polyline da cadeia; raio cresce com √n.
+            var marker = L.circleMarker(g.ll, {
+                radius: n === 1 ? 6 : 6 + 2.5 * Math.sqrt(n),
+                color: '#fff', weight: 2, fillColor: col, fillOpacity: 0.9,
+            }).addTo(map);
+            var labels = g.items.map(function (p) { return p.label || ''; }).filter(Boolean);
+            if (interactive && g.items.some(function (p) { return p.id; })) {
+                // Drill-down: popup com link por ocorrência (mapa interativo).
+                var html = g.items.map(function (p) {
+                    var text = escapeHtml(p.label || ('#' + p.id));
+                    return p.id
+                        ? '<a href="/occurrences/' + encodeURIComponent(p.id) + '/">' + text + '</a>'
+                        : text;
+                }).join('<br>');
+                marker.bindPopup(html);
+            } else {
+                marker.bindTooltip(n === 1 ? (labels[0] || '') : n + ' ocorrências: ' + labels.join(' · '),
+                    { permanent: false });
+            }
+            drew = true;
+        });
+        return drew;
     }
     function parseBounds(raw) {
         if (!raw) return null;
         try { var b = JSON.parse(raw); return (b && b.length === 2) ? b : null; } catch (e) { return null; }
     }
 
-    // Conta os pontos de um payload [data-points] (silencioso em caso de erro).
-    function countPoints(raw) {
-        if (!raw) return 0;
-        try { var p = JSON.parse(raw); return (p && p.length) ? p.length : 0; } catch (e) { return 0; }
-    }
-
-    // Acessibilidade dos mapas fixos (insets/hero): são imagens, não aplicações.
-    // Força role=img e anexa um resumo textual ('N ocorrências') via
-    // aria-describedby, dando a quem usa leitor de ecrã a informação que os
-    // tooltips Leaflet (só hover/foco) não oferecem num mapa não-focável.
-    function describeFixedMap(el) {
-        el.setAttribute('role', 'img');
-        el.removeAttribute('aria-haspopup');
-        var n = countPoints(el.dataset.points);
+    // Resumo textual de um payload [data-points], com a distribuição de
+    // prioridade que a cor dos pinos codifica (silencioso em caso de erro).
+    // Ex.: '8 ocorrências neste mapa: 3 P1, 1 P2, 4 normais'.
+    function summarizePoints(raw) {
+        var pts = [];
+        if (raw) { try { pts = JSON.parse(raw) || []; } catch (e) { pts = []; } }
+        var n = pts.length;
         var noun = n === 1 ? 'ocorrência' : 'ocorrências';
         var summary = n + ' ' + noun + ' neste mapa';
+        if (n) {
+            var by = { 1: 0, 2: 0, 0: 0 };
+            pts.forEach(function (p) { by[p.pri in by ? p.pri : 0] += 1; });
+            var parts = [];
+            if (by[1]) parts.push(by[1] + ' P1');
+            if (by[2]) parts.push(by[2] + ' P2');
+            if (by[0]) parts.push(by[0] + (by[0] === 1 ? ' normal' : ' normais'));
+            summary += ': ' + parts.join(', ');
+        }
+        return summary;
+    }
+
+    // Acessibilidade dos mapas do hero: os fixos (insets) são imagens, não
+    // aplicações; o interativo é uma application com o mesmo resumo. Em ambos
+    // anexa-se um resumo textual via aria-describedby (com a distribuição de
+    // prioridade), porque os tooltips Leaflet (só hover) não chegam a AT.
+    function describeMap(el, fixed) {
+        el.setAttribute('role', fixed ? 'img' : 'application');
+        el.removeAttribute('aria-haspopup');
         var descId = (el.id || 'fqmap-' + Math.random().toString(36).slice(2, 8)) + '-desc';
         var desc = document.getElementById(descId);
         if (!desc) {
@@ -293,7 +347,7 @@
             desc.className = 'visually-hidden';
             el.appendChild(desc);
         }
-        desc.textContent = summary;
+        desc.textContent = summarizePoints(el.dataset.points);
         el.setAttribute('aria-describedby', descId);
     }
 
@@ -305,26 +359,39 @@
         document.querySelectorAll('[data-static-map]').forEach(function (el) {
             if (el._fqMap) return;
             var fixed = el.hasAttribute('data-fixed');
-            var opts = { attributionControl: false, zoomControl: !fixed };
+            // zoomSnap fracionário: o fitBounds deixa de arredondar para zoom
+            // INTEIRO (que enchia o enquadramento de território vizinho e mudava
+            // a moldura conforme a largura do ecrã). scrollWheelZoom fica sempre
+            // desligado nos embeds (evita scroll-jacking ao rolar a página).
+            var opts = { zoomControl: !fixed, zoomSnap: 0.25, scrollWheelZoom: false };
             if (fixed) {
-                opts.dragging = false; opts.scrollWheelZoom = false; opts.doubleClickZoom = false;
+                // Insets minúsculos: sem controlo de atribuição (não cabe) — o
+                // crédito © OpenStreetMap fica adjacente, na legenda do hero.
+                opts.attributionControl = false;
+                opts.dragging = false; opts.doubleClickZoom = false;
                 opts.boxZoom = false; opts.keyboard = false; opts.touchZoom = false; opts.tap = false;
             }
             var m = FQMap.createMap(el, opts);
             el._fqMap = m;
 
             var bounds = parseBounds(el.dataset.bounds);
-            var drewPoints = drawPoints(m, el.dataset.points);
+            var drewPoints = drawPoints(m, el.dataset.points, !fixed);
             var drewChain = !drewPoints && drawChainOn(m, el.dataset.chain);
 
-            // Mapas fixos são figuras, não widgets: garante role=img (o template
-            // já o declara, isto cobre fragmentos antigos) e um resumo textual
-            // do nº de pontos via aria-describedby, já que os pins/tooltips
-            // Leaflet são inacessíveis num mapa não-focável.
-            if (fixed) describeFixedMap(el);
+            // Acessibilidade: role coerente com a interação (img nos fixos,
+            // application no interativo) + resumo textual com prioridades.
+            if (el.dataset.points) describeMap(el, fixed);
 
             if (bounds) {
-                m.fitBounds(bounds);
+                m.fitBounds(bounds, { padding: [12, 12] });
+                if (!fixed) {
+                    // Interativo mas PRESO ao território: pode-se ampliar/navegar
+                    // dentro dos bounds, nunca perder o enquadramento de origem.
+                    var llb = L.latLngBounds(bounds);
+                    m.options.maxBoundsViscosity = 1.0;
+                    m.setMaxBounds(llb.pad(0.25));
+                    m.setMinZoom(m.getZoom());
+                }
             } else if (!drewPoints && !drewChain && !FQMap.pinFromDataset(m, el)) {
                 // Pino único pela fonte única (D74); sem coordenadas válidas
                 // não há nada para mostrar.

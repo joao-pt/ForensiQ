@@ -40,6 +40,14 @@
     padding: 0;
 }
 
+/* Banda 768-1279: 2 colunas (cadeia | mapa) e insets numa faixa baixa por
+   baixo — antes era empilhamento total e os insets viravam quadrados gigantes
+   de oceano que empurravam o conteúdo acionável ~2 ecrãs para baixo. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .geo-hero { grid-template-columns: 220px 1fr; }
+    .geo-hero__insets { grid-column: 1 / -1; }
+}
+
 @media (min-width: 1280px) {
     .geo-hero {
         grid-template-columns: 220px 1fr 300px;
@@ -224,6 +232,9 @@
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
 }
+/* Crédito ODbL: encostado à direita, sem competir com a legenda semântica. */
+.geo-hero__legend-chip--credit { margin-left: auto; }
+.geo-hero__legend-chip--credit a { text-decoration: underline; }
 
 /* =====================================================================
    Coluna 3 — Insets (Madeira / Açores)
@@ -242,7 +253,6 @@
 }
 
 .geo-hero__inset {
-    aspect-ratio: 1;
     background: var(--bg-inset);
     border: 1px solid var(--border);
     border-radius: var(--r-2);
@@ -270,6 +280,25 @@
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
     pointer-events: none;
+}
+
+/* Faixa intermédia (768-1279): os insets vivem numa banda larga e baixa. */
+@media (min-width: 768px) and (max-width: 1279.98px) {
+    .geo-hero__inset { min-height: 150px; }
+}
+
+/* ≥1280: insets empilhados ao alto a ocupar a coluna inteira — cada
+   arquipélago fica panorâmico (~280×165px), o aspeto certo para Madeira e
+   Açores (2,2:1), em vez de dois quadrados de 134px com 60% da coluna vazia.
+   (Estas regras vivem DEPOIS das base: mesma especificidade, a ordem decide.) */
+@media (min-width: 1280px) {
+    .geo-hero__inset-row {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+        flex: 1;
+        min-height: 0;
+    }
+    .geo-hero__inset { min-height: 0; }
 }
 
 
