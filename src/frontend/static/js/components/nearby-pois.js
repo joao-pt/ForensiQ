@@ -79,30 +79,27 @@
 
     window.FQDom.onClick('[data-nearby-pois]', function (btn) {
         var Geo = window.ForensiQGeo;
-        var latEl = q(btn.getAttribute('data-lat-target'));
-        var lngEl = q(btn.getAttribute('data-lng-target'));
         var datalist = q(btn.getAttribute('data-pois-target'));
         var listEl = q(btn.getAttribute('data-pois-list-target'));
         var inputEl = q(btn.getAttribute('data-input-target'));
         var status = document.querySelector('[data-nearby-pois-status]');
-        if (!latEl || !lngEl || !Geo) return;
+        if (!Geo) return;
 
-        var lat = parseFloat(latEl.value);
-        var lon = parseFloat(lngEl.value);
-        if (isNaN(lat) || isNaN(lon)) {
-            if (status) status.textContent = 'Capture o GPS primeiro.';
+        // Esqueleto do botão de ação geo na fonte única (Geo.readTargets +
+        // Geo.runAction — auditoria D72); aqui fica só o render do picker.
+        var t = Geo.readTargets(btn);
+        if (!t.latEl || !t.lngEl) return;
+        if (isNaN(t.lat) || isNaN(t.lng)) {
+            if (status) status.textContent = Geo.MSG_CAPTURE_FIRST;
             return;
         }
         var radius = parseInt(btn.getAttribute('data-radius') || '500', 10);
 
-        btn.disabled = true;
-        if (status) status.textContent = 'A carregar POIs…';
-        Geo.searchPOI(lat, lon, radius)
-            .then(function (pois) {
+        Geo.runAction(btn, status, 'A carregar POIs…', function () {
+            return Geo.searchPOI(t.lat, t.lng, radius).then(function (pois) {
                 renderPicker(listEl, inputEl, datalist, pois);
                 if (status) status.textContent = pois.length ? (pois.length + ' POIs encontrados') : 'Sem POIs próximos';
-            })
-            .catch(function (e) { if (status) status.textContent = 'Falha: ' + e.message; })
-            .finally(function () { btn.disabled = false; });
+            });
+        });
     });
 })();

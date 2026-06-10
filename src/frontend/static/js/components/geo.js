@@ -35,6 +35,58 @@
     // valor canónico vem de settings.GPS_ACCURACY_FLAG_M via data-acc-flag-m.
     Geo.ACC_FLAG_M = 50;
 
+    // Mensagem única dos botões de ação geo que exigem coordenadas prévias.
+    Geo.MSG_CAPTURE_FIRST = 'Capture o GPS primeiro.';
+
+    /**
+     * Resolve os inputs-alvo de um elemento com data-lat-target/data-lng-target
+     * e devolve { latEl, lngEl, lat, lng } (lat/lng em float, NaN se vazio) —
+     * esqueleto único dos botões de ação geo (auditoria D72).
+     */
+    Geo.readTargets = function (el) {
+        var latEl = document.querySelector(el.getAttribute('data-lat-target') || '');
+        var lngEl = document.querySelector(el.getAttribute('data-lng-target') || '');
+        return {
+            latEl: latEl,
+            lngEl: lngEl,
+            lat: latEl ? parseFloat(latEl.value) : NaN,
+            lng: lngEl ? parseFloat(lngEl.value) : NaN,
+        };
+    };
+
+    /**
+     * Corre uma ação geo com o funil único disable→busy→catch('Falha: …')→
+     * re-enable (auditoria D72). ``promiseFn`` devolve a Promise da ação; o
+     * sucesso (texto/render próprios) fica no consumidor.
+     */
+    Geo.runAction = function (btn, statusEl, busyText, promiseFn) {
+        btn.disabled = true;
+        if (statusEl) statusEl.textContent = busyText || '';
+        return promiseFn()
+            .catch(function (e) { if (statusEl) statusEl.textContent = 'Falha: ' + e.message; })
+            .finally(function () { btn.disabled = false; });
+    };
+
+    /**
+     * Captura a posição E preenche os campos — o fluxo «decimals → fill →
+     * precisão → flag» numa fonte única (auditoria D71). opts: { latEl, lngEl,
+     * accEl, decimals, flagM, highAccuracy }. Resolve para
+     * { lat, lng, m, flagged }; a APRESENTAÇÃO (status/classe) fica no consumidor.
+     */
+    Geo.captureToFields = function (opts) {
+        return Geo.getPosition({ highAccuracy: opts.highAccuracy !== false })
+            .then(function (pos) {
+                var lat = pos.coords.latitude;
+                var lng = pos.coords.longitude;
+                var dec = (opts.decimals == null ? 5 : opts.decimals);
+                if (opts.latEl) opts.latEl.value = lat.toFixed(dec);
+                if (opts.lngEl) opts.lngEl.value = lng.toFixed(dec);
+                var m = Math.round(pos.coords.accuracy);
+                if (opts.accEl) opts.accEl.value = m;
+                return { lat: lat, lng: lng, m: m, flagged: m > (opts.flagM || Geo.ACC_FLAG_M) };
+            });
+    };
+
     /** Mensagem PT-PT para um GeolocationPositionError (ou Error genérico). */
     function errorMessage(err) {
         if (!err) return 'Falha ao obter a localização.';

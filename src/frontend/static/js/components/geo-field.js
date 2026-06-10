@@ -34,8 +34,6 @@
     if (window.__fqGeoFieldReady) return;
     window.__fqGeoFieldReady = true;
 
-    var DEFAULT = { lat: 39.5, lng: -8.0, zoom: 6 };  // Portugal continental
-
     function initOne(el) {
         if (!el || el._fqGeoFieldReady) return;
         el._fqGeoFieldReady = true;
@@ -58,7 +56,7 @@
         var Geo = window.ForensiQGeo;
         var flagM = parseInt(el.getAttribute('data-acc-flag-m') || '', 10)
             || (Geo && Geo.ACC_FLAG_M) || 50;
-        var map = null, marker = null;
+        var map = null, picker = null;
         var addrTouched = false;  // o utilizador editou a morada → não atropelar
 
         if (addrEl) addrEl.addEventListener('input', function () { addrTouched = true; });
@@ -70,13 +68,14 @@
         }
 
         function place(lat, lng) {
-            if (map) {
-                if (marker) marker.setLatLng([lat, lng]);
-                else marker = L.marker([lat, lng]).addTo(map);
-                map.setView([lat, lng], Math.max(map.getZoom(), 15));
+            // Com mapa: pino + inputs via primitivo único (FQMap.bindPinPicker);
+            // sem Leaflet nesta página: só os inputs.
+            if (picker) {
+                picker.place(lat, lng);
+            } else {
+                if (latEl) latEl.value = lat.toFixed(dec);
+                if (lngEl) lngEl.value = lng.toFixed(dec);
             }
-            if (latEl) latEl.value = lat.toFixed(dec);
-            if (lngEl) lngEl.value = lng.toFixed(dec);
         }
 
         // Coordenadas vindas de GPS/mapa são autoritativas → bloqueiam-se para
@@ -101,22 +100,37 @@
 
         // --- Mapa (só se o Leaflet estiver presente nesta página) ---
         if (mapEl && typeof L !== 'undefined' && window.FQMap) {
+            var FQMap = window.FQMap;
             var la0 = parseFloat(latEl && latEl.value), ln0 = parseFloat(lngEl && lngEl.value);
             var has0 = !isNaN(la0) && !isNaN(ln0);
-            map = window.FQMap.createMap(mapEl, {
-                center: has0 ? [la0, ln0] : [DEFAULT.lat, DEFAULT.lng],
-                zoom: has0 ? 15 : DEFAULT.zoom,
+            map = FQMap.createMap(mapEl, {
+                center: has0 ? [la0, ln0] : FQMap.DEFAULT_VIEW.center,
+                zoom: has0 ? FQMap.DEFAULT_ZOOM : FQMap.DEFAULT_VIEW.zoom,
                 zoomControl: true,
             });
-            if (has0) place(la0, ln0);
-            map.on('click', function (ev) {
-                place(ev.latlng.lat, ev.latlng.lng);
-                lockCoords(true);
-                if (accEl) accEl.value = '';   // já não é a precisão do GPS
-                setStatus('Localização escolhida no mapa.', 'ok');
-                reverse(ev.latlng.lat, ev.latlng.lng);
+            el._fqGeoMap = map;   // para o teardown em fq:modal-close
+            // Pin-picker na fonte única; as reações próprias deste campo
+            // (recentrar sempre, bloquear/limpar/estado/morada) ficam nos callbacks.
+            picker = FQMap.bindPinPicker(map, {
+                latEl: latEl,
+                lngEl: lngEl,
+                decimals: dec,
+                onPlace: function (lat, lng, source) {
+                    map.setView([lat, lng], Math.max(map.getZoom(), FQMap.DEFAULT_ZOOM));
+                    if (source === 'click') {
+                        lockCoords(true);
+                        if (accEl) accEl.value = '';   // já não é a precisão do GPS
+                        setStatus('Localização escolhida no mapa.', 'ok');
+                        reverse(lat, lng);
+                    }
+                },
+                onSync: function (la, ln) {
+                    if (accEl) accEl.value = '';
+                    reverse(la, ln);
+                },
             });
-            window.FQMap.refreshSize(map, mapEl);
+            if (has0) picker.place(la0, ln0, 'init');
+            FQMap.refreshSize(map, mapEl);
         } else if (mapEl) {
             mapEl.hidden = true;  // sem Leaflet: esconde o mapa, mantém o resto
         }
@@ -125,19 +139,21 @@
             if (!Geo) { setStatus('Geolocalização indisponível neste dispositivo.', 'error'); return; }
             setStatus('A localizar…', 'busy');
             if (locateBtn) locateBtn.disabled = true;
-            Geo.getPosition({ highAccuracy: true })
-                .then(function (pos) {
-                    var lat = pos.coords.latitude, lng = pos.coords.longitude;
-                    place(lat, lng);
+            // Captura + preenchimento + limiar na fonte única (Geo.captureToFields);
+            // aqui fica só o pino/recentrar e a apresentação do estado.
+            Geo.captureToFields({
+                latEl: latEl, lngEl: lngEl, accEl: accEl,
+                decimals: dec, flagM: flagM, highAccuracy: true,
+            })
+                .then(function (r) {
+                    place(r.lat, r.lng);
                     lockCoords(true);
-                    var m = Math.round(pos.coords.accuracy);
-                    if (accEl) accEl.value = m;
-                    if (m > flagM) {
-                        setStatus('Localização obtida (±' + m + ' m — pouco precisa; ajuste no mapa se necessário).', 'flag');
+                    if (r.flagged) {
+                        setStatus('Localização obtida (±' + r.m + ' m — pouco precisa; ajuste no mapa se necessário).', 'flag');
                     } else {
-                        setStatus('Localização obtida (±' + m + ' m). Ajuste no mapa se o facto ocorreu noutro ponto.', 'ok');
+                        setStatus('Localização obtida (±' + r.m + ' m). Ajuste no mapa se o facto ocorreu noutro ponto.', 'ok');
                     }
-                    reverse(lat, lng);
+                    reverse(r.lat, r.lng);
                 })
                 .catch(function (err) {
                     setStatus(Geo.errorMessage(err) + ' Clique no mapa ou escreva as coordenadas.', 'error');
@@ -147,16 +163,18 @@
 
         if (locateBtn) locateBtn.addEventListener('click', locate);
 
-        // Edição manual das coordenadas → reposiciona o pino e resolve a morada.
-        function syncFromInputs() {
-            var la = parseFloat(latEl && latEl.value), ln = parseFloat(lngEl && lngEl.value);
-            if (isNaN(la) || isNaN(ln)) return;
-            place(la, ln);
-            if (accEl) accEl.value = '';
-            reverse(la, ln);
+        // Edição manual SEM mapa nesta página: o pin-picker (que normalmente faz
+        // o sync) não existe — mantém-se a limpeza da precisão + morada.
+        if (!picker) {
+            var manualSync = function () {
+                var la = parseFloat(latEl && latEl.value), ln = parseFloat(lngEl && lngEl.value);
+                if (isNaN(la) || isNaN(ln)) return;
+                if (accEl) accEl.value = '';
+                reverse(la, ln);
+            };
+            if (latEl) latEl.addEventListener('change', manualSync);
+            if (lngEl) lngEl.addEventListener('change', manualSync);
         }
-        if (latEl) latEl.addEventListener('change', syncFromInputs);
-        if (lngEl) lngEl.addEventListener('change', syncFromInputs);
 
         // Auto-localiza ao abrir — mas nunca atropela coordenadas já presentes
         // (ex.: re-render após erro de validação preserva o que o utilizador pôs).
@@ -185,5 +203,19 @@
     // Modal ação-in-place: o fragmento é injetado depois do load.
     document.addEventListener('fq:modal-open', function (ev) {
         initAll(ev.detail && ev.detail.root);
+    });
+    // Teardown do mapa ao fechar o modal (antes fugia — auditoria D73): o
+    // desmonte vive na fonte única FQMap.destroy.
+    document.addEventListener('fq:modal-close', function (ev) {
+        if (!window.FQMap) return;
+        var root = (ev.detail && ev.detail.root) || document;
+        var els = root.querySelectorAll('[data-geo-field]');
+        for (var i = 0; i < els.length; i++) {
+            if (els[i]._fqGeoMap) {
+                window.FQMap.destroy(els[i]._fqGeoMap, els[i].querySelector('[data-geo-field-map]'));
+                els[i]._fqGeoMap = null;
+                els[i]._fqGeoFieldReady = false;
+            }
+        }
     });
 })();

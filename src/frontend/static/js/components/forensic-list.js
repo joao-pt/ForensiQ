@@ -147,9 +147,7 @@
 
     function destroyDrawerMap() {
         if (!drawerMap) return;
-        var dm = document.getElementById('drawer-map');
-        if (dm && dm._fqRO) { dm._fqRO.disconnect(); dm._fqRO = null; }
-        try { drawerMap.remove(); } catch (e) { /* container já destacado */ }
+        FQMap.destroy(drawerMap, document.getElementById('drawer-map'));
         drawerMap = null;
     }
 
@@ -175,16 +173,13 @@
             }
             return;
         }
-        var lat = parseFloat(el.dataset.lat);
-        var lng = parseFloat(el.dataset.lng);
         destroyDrawerMap();
         drawerMap = FQMap.createMap(el, { zoomControl: true, attributionControl: false });
 
-        var drewChain = renderChain(el);
-        if (!drewChain) {
-            if (isNaN(lat) || isNaN(lng)) { destroyDrawerMap(); return; }
-            drawerMap.setView([lat, lng], 15);
-            L.marker([lat, lng]).addTo(drawerMap).bindTooltip(el.dataset.label || '', { permanent: false });
+        // Cadeia se houver trajeto; senão, pino único pela fonte única (D74).
+        if (!renderChain(el) && !FQMap.pinFromDataset(drawerMap, el)) {
+            destroyDrawerMap();
+            return;
         }
         FQMap.refreshSize(drawerMap, el);
     }
@@ -239,7 +234,7 @@
         });
 
         if (latlngs.length > 1) map.fitBounds(latlngs, { padding: [34, 34] });
-        else map.setView(latlngs[0], 15);
+        else map.setView(latlngs[0], FQMap.DEFAULT_ZOOM);
         return true;
     }
 
@@ -330,11 +325,12 @@
 
             if (bounds) {
                 m.fitBounds(bounds);
-            } else if (!drewPoints && !drewChain) {
-                var lat = parseFloat(el.dataset.lat), lng = parseFloat(el.dataset.lng);
-                if (isNaN(lat) || isNaN(lng)) { m.remove(); el._fqMap = null; return; }
-                m.setView([lat, lng], 15);
-                L.marker([lat, lng]).addTo(m).bindTooltip(el.dataset.label || '', { permanent: false });
+            } else if (!drewPoints && !drewChain && !FQMap.pinFromDataset(m, el)) {
+                // Pino único pela fonte única (D74); sem coordenadas válidas
+                // não há nada para mostrar.
+                FQMap.destroy(m, el);
+                el._fqMap = null;
+                return;
             }
             FQMap.refreshSize(m, el);
         });

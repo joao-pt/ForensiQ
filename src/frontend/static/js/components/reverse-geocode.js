@@ -15,27 +15,24 @@
     window.__fqReverseGeocodeReady = true;
     window.FQDom.onClick('[data-reverse-geocode]', function (btn) {
         var Geo = window.ForensiQGeo;
-        var latEl = document.querySelector(btn.getAttribute('data-lat-target'));
-        var lngEl = document.querySelector(btn.getAttribute('data-lng-target'));
         var addrEl = document.querySelector(btn.getAttribute('data-addr-target'));
         var status = document.querySelector('[data-reverse-geocode-status]');
-        if (!latEl || !lngEl || !addrEl || !Geo) return;
+        if (!Geo || !addrEl) return;
 
-        var lat = parseFloat(latEl.value);
-        var lon = parseFloat(lngEl.value);
-        if (isNaN(lat) || isNaN(lon)) {
-            if (status) status.textContent = 'Capture o GPS primeiro.';
+        // Esqueleto do botão de ação geo na fonte única (Geo.readTargets +
+        // Geo.runAction — auditoria D72); aqui fica só o preenchimento da morada.
+        var t = Geo.readTargets(btn);
+        if (!t.latEl || !t.lngEl) return;
+        if (isNaN(t.lat) || isNaN(t.lng)) {
+            if (status) status.textContent = Geo.MSG_CAPTURE_FIRST;
             return;
         }
 
-        btn.disabled = true;
-        if (status) status.textContent = 'A resolver morada…';
-        Geo.reverseGeocode(lat, lon)
-            .then(function (res) {
+        Geo.runAction(btn, status, 'A resolver morada…', function () {
+            return Geo.reverseGeocode(t.lat, t.lng).then(function (res) {
                 addrEl.value = res.address || addrEl.value;
                 if (status) status.textContent = '';
-            })
-            .catch(function (e) { if (status) status.textContent = 'Falha: ' + e.message; })
-            .finally(function () { btn.disabled = false; });
+            });
+        });
     });
 })();

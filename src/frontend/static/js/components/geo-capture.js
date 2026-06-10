@@ -29,27 +29,28 @@
         var acc = (scope && scope.querySelector('[data-geo-acc]')) || document.querySelector('[data-geo-acc]');
         if (!Geo) { if (acc) acc.textContent = 'Geolocalização indisponível.'; return; }
 
-        var latEl = document.querySelector(btn.getAttribute('data-lat-target'));
-        var lngEl = document.querySelector(btn.getAttribute('data-lng-target'));
+        var targets = Geo.readTargets(btn);
         var accTargetSel = btn.getAttribute('data-acc-target');
         var accEl = accTargetSel ? document.querySelector(accTargetSel) : null;
-        var dec = parseInt(btn.getAttribute('data-decimals') || '5', 10);
-        var flagM = parseInt(btn.getAttribute('data-acc-flag-m') || '', 10) || Geo.ACC_FLAG_M;
 
         btn.disabled = true;
         if (acc) { acc.textContent = 'A localizar…'; acc.classList.remove('geo-acc--flag', 'geo-acc--error'); }
 
-        Geo.getPosition({ highAccuracy: btn.getAttribute('data-high-accuracy') !== 'false' })
-            .then(function (pos) {
-                if (latEl) latEl.value = pos.coords.latitude.toFixed(dec);
-                if (lngEl) lngEl.value = pos.coords.longitude.toFixed(dec);
-                var m = Math.round(pos.coords.accuracy);
-                // A precisão só é persistida em páginas de MOVIMENTO de custódia
-                // (campo gps_accuracy_m do evento); na génese da prova é só informativa.
-                if (accEl) accEl.value = m;
+        // Captura + preenchimento + limiar na fonte única (Geo.captureToFields);
+        // aqui fica só a apresentação. A precisão só é persistida em páginas de
+        // MOVIMENTO de custódia (campo gps_accuracy_m); na génese é informativa.
+        Geo.captureToFields({
+            latEl: targets.latEl,
+            lngEl: targets.lngEl,
+            accEl: accEl,
+            decimals: parseInt(btn.getAttribute('data-decimals') || '5', 10),
+            flagM: parseInt(btn.getAttribute('data-acc-flag-m') || '', 10) || Geo.ACC_FLAG_M,
+            highAccuracy: btn.getAttribute('data-high-accuracy') !== 'false',
+        })
+            .then(function (r) {
                 if (acc) {
-                    acc.textContent = '±' + m + ' m';
-                    acc.classList.toggle('geo-acc--flag', m > flagM);
+                    acc.textContent = '±' + r.m + ' m';
+                    acc.classList.toggle('geo-acc--flag', r.flagged);
                 }
                 // Sinaliza a captura para componentes dependentes (ex.: POIs próximos),
                 // que só funcionam depois de haver coordenadas.

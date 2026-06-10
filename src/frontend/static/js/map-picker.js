@@ -19,7 +19,6 @@
 (function () {
     'use strict';
 
-    var DEFAULT = { lat: 39.5, lng: -8.0, zoom: 6 };  // Portugal continental
     var pickers = [];  // estado dos seletores ativos (p/ sincronizar com GPS)
 
     function initOne(el) {
@@ -27,6 +26,7 @@
         if (typeof L === 'undefined' || !window.FQMap) return;  // Leaflet é por-página
         el._fqPickerReady = true;
 
+        var FQMap = window.FQMap;
         // Precisão vem do atributo (fonte: settings.GPS_DECIMAL_PLACES); o 7 é
         // só o default degradado quando o atributo falta.
         var decimals = parseInt(el.getAttribute('data-decimals') || '', 10) || 7;
@@ -37,43 +37,33 @@
         var lng0 = parseFloat(el.getAttribute('data-lng'));
         var hasInit = !isNaN(lat0) && !isNaN(lng0);
         var zoom = parseInt(el.getAttribute('data-zoom') || '', 10);
-        if (isNaN(zoom)) zoom = hasInit ? 15 : DEFAULT.zoom;
+        if (isNaN(zoom)) zoom = hasInit ? FQMap.DEFAULT_ZOOM : FQMap.DEFAULT_VIEW.zoom;
 
-        var center = hasInit ? [lat0, lng0] : [DEFAULT.lat, DEFAULT.lng];
-        var map = window.FQMap.createMap(el, { center: center, zoom: zoom });
-        var marker = null;
+        var center = hasInit ? [lat0, lng0] : FQMap.DEFAULT_VIEW.center;
+        var map = FQMap.createMap(el, { center: center, zoom: zoom });
 
-        function place(lat, lng) {
-            if (marker) marker.setLatLng([lat, lng]);
-            else marker = L.marker([lat, lng]).addTo(map);
-            if (latInput) latInput.value = lat.toFixed(decimals);
-            if (lngInput) lngInput.value = lng.toFixed(decimals);
-        }
-        function syncFromInputs() {
-            var la = parseFloat(latInput && latInput.value);
-            var ln = parseFloat(lngInput && lngInput.value);
-            if (!isNaN(la) && !isNaN(ln)) {
-                place(la, ln);
-                map.setView([la, ln], Math.max(map.getZoom(), 14));
-            }
-        }
+        // Pin-picker na fonte única (FQMap.bindPinPicker); aqui só o recentrar
+        // na edição manual (clicar no mapa não desloca a vista).
+        var picker = FQMap.bindPinPicker(map, {
+            latEl: latInput,
+            lngEl: lngInput,
+            decimals: decimals,
+            onSync: function (la, ln) {
+                map.setView([la, ln], Math.max(map.getZoom(), FQMap.DEFAULT_ZOOM));
+            },
+        });
+        if (hasInit) picker.place(lat0, lng0, 'init');
 
-        if (hasInit) place(lat0, lng0);
-        map.on('click', function (ev) { place(ev.latlng.lat, ev.latlng.lng); });
-        if (latInput) latInput.addEventListener('change', syncFromInputs);
-        if (lngInput) lngInput.addEventListener('change', syncFromInputs);
-
-        var rec = { el: el, map: map, sync: syncFromInputs };
+        var rec = { el: el, map: map, sync: picker.sync };
         pickers.push(rec);
         el._fqPickerRec = rec;
-        window.FQMap.refreshSize(map, el);
+        FQMap.refreshSize(map, el);
     }
 
     function destroyOne(el) {
         var rec = el && el._fqPickerRec;
         if (!rec) return;
-        try { rec.map.remove(); } catch (e) { /* noop */ }
-        if (el._fqRO) { try { el._fqRO.disconnect(); } catch (e2) { /* noop */ } el._fqRO = null; }
+        window.FQMap.destroy(rec.map, el);   // desmonte na fonte única (D73)
         pickers = pickers.filter(function (p) { return p !== rec; });
         el._fqPickerRec = null;
         el._fqPickerReady = false;
