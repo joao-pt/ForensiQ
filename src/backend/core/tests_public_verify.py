@@ -27,10 +27,10 @@ from core.qr_verify import short_hash_for
 User = get_user_model()
 
 
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 
-def _make_user(username, profile='FIRST_RESPONDER', password='TestPass123!'):
+def _make_user(username, profile='FIRST_RESPONDER', password=TEST_PASSWORD):
     return User.objects.create_user(
         username=username,
         password=password,
@@ -62,11 +62,9 @@ def _make_evidence(occurrence, agent, *, serial='SN-PV-001'):
     )
 
 
-def _login_cookie(client, user):
-    """Coloca um JWT access cookie no APIClient (simula login)."""
-    refresh = RefreshToken.for_user(user)
-    access = str(refresh.access_token)
-    client.cookies['fq_access'] = access
+# Cookie JWT na fonte única (tests_base.auth_cookie — auditoria D105); o alias
+# mantém os call sites locais. (Antes usava RefreshToken + literal 'fq_access'.)
+from core.tests_base import auth_cookie as _login_cookie  # noqa: E402
 
 
 class ShortHashTest(TestCase):

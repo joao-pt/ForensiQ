@@ -19,16 +19,12 @@ from django.test import TestCase
 from django.utils import timezone
 
 from core.models import AuditLog
+from core.tests_factories import AuditLogFactory
 
 
 def _create_log(action=AuditLog.Action.VIEW):
-    return AuditLog.objects.create(
-        user=None,
-        action=action,
-        resource_type=AuditLog.ResourceType.EVIDENCE,
-        resource_id=1,
-        ip_address='10.0.0.1',
-    )
+    # Criacao na fonte unica (AuditLogFactory - auditoria D108).
+    return AuditLogFactory(user=None, action=action, resource_id=1, ip_address='10.0.0.1')
 
 
 class AuditLogSequenceMonotonicTest(TestCase):
@@ -132,8 +128,6 @@ class AuditLogFactoryTest(TestCase):
     """
 
     def test_factory_cria_registo_persistido_com_sequence(self):
-        from core.tests_factories import AuditLogFactory
-
         log = AuditLogFactory()
         self.assertIsNotNone(log.pk)
         self.assertGreater(log.sequence, 0)
@@ -142,8 +136,6 @@ class AuditLogFactoryTest(TestCase):
         self.assertIsNotNone(log.user)
 
     def test_factory_atribui_sequences_distintas(self):
-        from core.tests_factories import AuditLogFactory
-
         a = AuditLogFactory()
         b = AuditLogFactory()
         self.assertNotEqual(a.sequence, b.sequence)

@@ -31,6 +31,8 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from core.tests_factories import TEST_PASSWORD, AuditLogFactory
+
 from .models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 from .tests_factories import (
     CrimeTipoFactory,
@@ -46,21 +48,21 @@ class DashboardBaseTestCase(TestCase):
         self.client = APIClient()
         self.agent = User.objects.create_user(
             username='agente_dash',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             first_name='Ana',
             last_name='Silva',
         )
         self.other_agent = User.objects.create_user(
             username='agente_dash_2',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             first_name='Bruno',
             last_name='Mendes',
         )
         self.expert = User.objects.create_user(
             username='perito_dash',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FORENSIC_EXPERT,
             clearance=User.Clearance.NACIONAL,
             first_name='Carlos',
@@ -104,12 +106,9 @@ class ActivityFeedTest(DashboardBaseTestCase):
     """Testes do endpoint read-only GET /api/activity-feed/ (T06)."""
 
     def _log(self, user, action, resource_type, resource_id):
-        return AuditLog.objects.create(
-            user=user,
-            action=action,
-            resource_type=resource_type,
-            resource_id=resource_id,
-            ip_address='127.0.0.1',
+        # Criacao na fonte unica (AuditLogFactory - auditoria D108).
+        return AuditLogFactory(
+            user=user, action=action, resource_type=resource_type, resource_id=resource_id
         )
 
     def test_requires_authentication(self):

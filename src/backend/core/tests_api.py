@@ -42,7 +42,7 @@ class JWTAuthTest(BaseAPITestCase):
 
     def test_login_success(self):
         """Login válido devolve 200 e semeia os cookies fq_access / fq_refresh."""
-        response = self.get_jwt_token('agente_api', 'TestPass123!')
+        response = self.get_jwt_token('agente_api', TEST_PASSWORD)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Os tokens não são devolvidos no body — ficam em cookies HttpOnly.
         self.assertIn(ACCESS_COOKIE_NAME, response.cookies)
@@ -74,7 +74,7 @@ class JWTAuthTest(BaseAPITestCase):
 
     def test_token_refresh(self):
         """Refresh lê o cookie fq_refresh e rotaciona os tokens."""
-        login = self.get_jwt_token('agente_api', 'TestPass123!')
+        login = self.get_jwt_token('agente_api', TEST_PASSWORD)
         self.assertEqual(login.status_code, status.HTTP_200_OK)
 
         # O APIClient mantém cookies em `self.client.cookies` — o endpoint
@@ -416,7 +416,7 @@ class AuthorizationIDORTest(BaseAPITestCase):
         # Criar um segundo agente
         self.agent_b = User.objects.create_user(
             username='agente_b_api',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-API-02',
             first_name='Bruno',
@@ -1290,7 +1290,7 @@ class JWTSecurityTest(BaseAPITestCase):
             login_url,
             {
                 'username': 'agente_api',
-                'password': 'TestPass123!',
+                'password': TEST_PASSWORD,
             },
         )
         self.assertEqual(login_response.status_code, status.HTTP_200_OK)
@@ -1524,7 +1524,7 @@ class CsrfCookieFlowTest(TestCase):
         self.client = APIClient(enforce_csrf_checks=True)
         self.agent = User.objects.create_user(
             username='ag_csrf',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-CSRF-01',
         )
@@ -1551,7 +1551,7 @@ class CsrfCookieFlowTest(TestCase):
         """
         resp = self.client.post(
             reverse('auth_login'),
-            {'username': 'ag_csrf', 'password': 'TestPass123!'},
+            {'username': 'ag_csrf', 'password': TEST_PASSWORD},
         )
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         self.assertIn('csrftoken', self.client.cookies)

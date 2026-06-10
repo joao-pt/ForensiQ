@@ -22,7 +22,7 @@ from django.test import TestCase
 from django.utils import timezone
 from PIL import Image
 
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 from .models import Evidence, Occurrence, User
 
@@ -61,7 +61,7 @@ class _Fixture:
     def _setup_common(cls):
         cls.agent = User.objects.create_user(
             username='agente_exif',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-EXIF-01',
         )

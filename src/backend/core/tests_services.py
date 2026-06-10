@@ -33,7 +33,9 @@ from core.models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 # =========================================================================
 # 1. IMEI LOOKUP SERVICE
 # =========================================================================
+from core.tests_base import login_client
 from core.tests_factories import (
+    TEST_PASSWORD,
     ChainOfCustodyFactory,
     CrimeTipoFactory,
     EvidenceMobileFactory,
@@ -719,7 +721,7 @@ class CookieLoginViewTest(APITestCase):
     """Testes para POST /api/auth/login/."""
 
     def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
+        self.user = UserFactory.create(password=TEST_PASSWORD)
         self.url = reverse('auth_login')
 
     def test_login_success_sets_cookies(self):
@@ -727,7 +729,7 @@ class CookieLoginViewTest(APITestCase):
             self.url,
             {
                 'username': self.user.username,
-                'password': 'TestPass123!',
+                'password': TEST_PASSWORD,
             },
         )
 
@@ -764,7 +766,7 @@ class CookieRefreshViewTest(APITestCase):
     """Testes para POST /api/auth/refresh/."""
 
     def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
+        self.user = UserFactory.create(password=TEST_PASSWORD)
         self.login_url = reverse('auth_login')
         self.refresh_url = reverse('auth_refresh')
 
@@ -778,7 +780,7 @@ class CookieRefreshViewTest(APITestCase):
             self.login_url,
             {
                 'username': self.user.username,
-                'password': 'TestPass123!',
+                'password': TEST_PASSWORD,
             },
         )
         self.assertEqual(login_resp.status_code, 200)
@@ -795,7 +797,7 @@ class CookieLogoutViewTest(APITestCase):
     """Testes para POST /api/auth/logout/."""
 
     def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
+        self.user = UserFactory.create(password=TEST_PASSWORD)
         self.login_url = reverse('auth_login')
         self.logout_url = reverse('auth_logout')
 
@@ -809,7 +811,7 @@ class CookieLogoutViewTest(APITestCase):
             self.login_url,
             {
                 'username': self.user.username,
-                'password': 'TestPass123!',
+                'password': TEST_PASSWORD,
             },
         )
         # Set cookies for subsequent requests
@@ -831,19 +833,9 @@ class EvidenceFilterTest(APITestCase):
     """Testes para EvidenceFilter (type, date_after, has_gps)."""
 
     def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        login_resp = self.client.post(
-            reverse('auth_login'),
-            {
-                'username': self.user.username,
-                'password': 'TestPass123!',
-            },
-        )
-        for name in ('fq_access', 'fq_refresh'):
-            cookie = login_resp.cookies.get(name)
-            if cookie:
-                self.client.cookies[name] = cookie.value
+        self.user = UserFactory.create()
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.user)
 
         self.occ = Occurrence.objects.create(
             crime_type=CrimeTipoFactory(),
@@ -891,19 +883,9 @@ class CustodyFilterTest(APITestCase):
     """Testes para CustodyFilter (event_type, legal_state, date_after)."""
 
     def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        login_resp = self.client.post(
-            reverse('auth_login'),
-            {
-                'username': self.user.username,
-                'password': 'TestPass123!',
-            },
-        )
-        for name in ('fq_access', 'fq_refresh'):
-            cookie = login_resp.cookies.get(name)
-            if cookie:
-                self.client.cookies[name] = cookie.value
+        self.user = UserFactory.create()
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.user)
 
         self.occ = Occurrence.objects.create(
             crime_type=CrimeTipoFactory(),
@@ -957,19 +939,9 @@ class PaginationEdgeCasesTest(APITestCase):
     """Testes para paginação com valores extremos."""
 
     def setUp(self):
-        self.user = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        login_resp = self.client.post(
-            reverse('auth_login'),
-            {
-                'username': self.user.username,
-                'password': 'TestPass123!',
-            },
-        )
-        for name in ('fq_access', 'fq_refresh'):
-            cookie = login_resp.cookies.get(name)
-            if cookie:
-                self.client.cookies[name] = cookie.value
+        self.user = UserFactory.create()
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.user)
 
     def test_negative_page_size_uses_default(self):
         url = reverse('core:occurrence-list') + '?page_size=-1'

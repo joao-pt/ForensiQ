@@ -18,7 +18,13 @@ from core.models import (
     InstitutionMembership,
     InstitutionType,
 )
-from core.tests_access import _event, _evidence, _occ, _user
+from core.tests_base import auth_cookie
+from core.tests_factories import (
+    make_event as _event,
+    make_evidence as _evidence,
+    make_occ as _occ,
+    make_user as _user,
+)
 
 User = get_user_model()
 
@@ -59,7 +65,7 @@ class ConsoleFrontendTest(TestCase):
         return _user(username, profile)
 
     def _get(self, user, url):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(user))
+        auth_cookie(self.client, user)
         return self.client.get(url)
 
     # -- Seletor de consola -------------------------------------------------

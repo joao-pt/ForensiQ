@@ -20,26 +20,14 @@ from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.models import AuditLog, User
+from core.tests_factories import AuditLogFactory, backdate
 
 
 def _make_log(*, days_ago, action=AuditLog.Action.VIEW):
-    """Helper: cria um AuditLog com timestamp simulado no passado.
-
-    `auto_now_add=True` no campo timestamp impede atribuição directa no
-    `create()`; usamos `update` em segunda passagem para forçar o valor.
-    """
-    log = AuditLog.objects.create(
-        user=None,
-        action=action,
-        resource_type=AuditLog.ResourceType.EVIDENCE,
-        resource_id=1,
-        ip_address='10.0.0.1',
-    )
-    AuditLog.objects.filter(pk=log.pk).update(
-        timestamp=timezone.now() - timedelta(days=days_ago),
-    )
-    log.refresh_from_db()
-    return log
+    """AuditLog retrodatado — criação e retrodatar nas fontes únicas
+    (AuditLogFactory + backdate — auditoria D108)."""
+    log = AuditLogFactory(user=None, action=action, resource_id=1, ip_address='10.0.0.1')
+    return backdate(log, days=days_ago)
 
 
 class PurgeAuditLogsTest(TestCase):

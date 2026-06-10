@@ -33,7 +33,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from core.middleware import CorrelationIDMiddleware
 from core.models import ChainOfCustody, CustodianType, EventType, Evidence, Occurrence
 from core.qr_verify import short_hash_for
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 User = get_user_model()
 
@@ -50,7 +50,7 @@ class PublicVerifyThrottleTest(TestCase):
     def setUpTestData(cls):
         cls.agent = User.objects.create_user(
             username='agent_vp_throttle',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-VPT-01',
         )
@@ -131,7 +131,7 @@ class CascadeErrorShapeTest(TestCase):
         self.client = APIClient()
         self.agent = User.objects.create_user(
             username='agent_cascade_shape',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-CSH-01',
         )
@@ -193,7 +193,7 @@ class PdfExportErrorShapeTest(TestCase):
         self.client = APIClient()
         self.agent = User.objects.create_user(
             username='agent_pdf_shape',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FIRST_RESPONDER,
             badge_number='AGT-PDF-01',
         )

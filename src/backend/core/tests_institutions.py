@@ -12,7 +12,8 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from core.auth import ACCESS_COOKIE_NAME
 from core.models import Institution, InstitutionType
-from core.tests_access import _user
+from core.tests_base import auth_cookie
+from core.tests_factories import make_user as _user
 
 User = get_user_model()
 
@@ -30,7 +31,7 @@ class InstitutionViewsTest(TestCase):
         Institution.objects.create(name='PSP Lisboa', type=InstitutionType.OPC, sigla='PSP-LX')
 
     def _auth(self, user):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(user))
+        auth_cookie(self.client, user)
 
     def _get(self, user, url):
         self._auth(user)

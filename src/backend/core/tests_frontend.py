@@ -38,10 +38,10 @@ class AuthenticatedFrontendTestCase(TestCase):
         )
 
     def setUp(self):
-        # Importar aqui para evitar dependência circular em classe base.
-        from core.auth import ACCESS_COOKIE_NAME
-        token = AccessToken.for_user(self.test_user)
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(token)
+        # Cookie JWT na fonte única (auditoria D105).
+        from core.tests_base import auth_cookie
+
+        auth_cookie(self.client, self.test_user)
 
 
 class LoginPageTest(TestCase):

@@ -29,7 +29,9 @@ from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOn
 # =========================================================================
 # 1. VALIDADORES - testes unitarios puros (sem BD)
 # =========================================================================
+from core.tests_base import login_client
 from core.tests_factories import (
+    TEST_PASSWORD,
     ChainOfCustodyFactory,
     CrimeTipoFactory,
     EvidenceMobileFactory,
@@ -285,7 +287,7 @@ class IsAgentOrExpertPermissionTest(TestCase):
         """Superuser sem perfil AGENT/EXPERT nao pode escrever."""
         user = User.objects.create_superuser(
             username='admin_no_profile',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             email='admin@test.com',
         )
         user.profile = ''
@@ -453,9 +455,9 @@ class DashboardStatsOwnershipTest(APITestCase):
     """Verifica que os endpoints de stats respeitam ownership."""
 
     def setUp(self):
-        self.agent_a = UserFactory.create(password='TestPass123!')
-        self.agent_b = UserFactory.create(password='TestPass123!')
-        self.expert = ExpertFactory.create(password='TestPass123!')
+        self.agent_a = UserFactory.create(password=TEST_PASSWORD)
+        self.agent_b = UserFactory.create(password=TEST_PASSWORD)
+        self.expert = ExpertFactory.create(password=TEST_PASSWORD)
 
         self.occ_a = OccurrenceFactory.create(agent=self.agent_a)
         self.occ_b = OccurrenceFactory.create(agent=self.agent_b)
@@ -469,16 +471,8 @@ class DashboardStatsOwnershipTest(APITestCase):
         )
 
     def _login(self, user):
-        client = APIClient()
-        resp = client.post(
-            '/api/auth/login/',
-            {
-                'username': user.username,
-                'password': 'TestPass123!',
-            },
-        )
-        self.assertEqual(resp.status_code, 200)
-        return client
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        return login_client(user)
 
     def test_agent_a_sees_only_own_stats(self):
         client = self._login(self.agent_a)
@@ -599,17 +593,10 @@ class SerializerEdgeCasesTest(APITestCase):
     """Testes de edge cases em serializers."""
 
     def setUp(self):
-        self.agent = UserFactory.create(password='TestPass123!')
+        self.agent = UserFactory.create(password=TEST_PASSWORD)
         self.occ = OccurrenceFactory.create(agent=self.agent)
-        self.client = APIClient()
-        resp = self.client.post(
-            '/api/auth/login/',
-            {
-                'username': self.agent.username,
-                'password': 'TestPass123!',
-            },
-        )
-        self.assertEqual(resp.status_code, 200)
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.agent)
 
     def test_evidence_timestamp_seizure_is_readonly(self):
         """Confirma que timestamp_seizure nao pode ser manipulado pelo cliente."""
@@ -677,16 +664,9 @@ class IMEILookupViewTest(APITestCase):
     """Cobertura de ``EvidenceIMEILookupView``."""
 
     def setUp(self):
-        self.agent = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        resp = self.client.post(
-            '/api/auth/login/',
-            {
-                'username': self.agent.username,
-                'password': 'TestPass123!',
-            },
-        )
-        self.assertEqual(resp.status_code, 200)
+        self.agent = UserFactory.create(password=TEST_PASSWORD)
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.agent)
 
     def test_invalid_imei_returns_400(self):
         resp = self.client.get('/api/evidences/lookup/imei/12345/')
@@ -701,16 +681,9 @@ class VINLookupViewTest(APITestCase):
     """Cobertura de ``EvidenceVINLookupView``."""
 
     def setUp(self):
-        self.agent = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        resp = self.client.post(
-            '/api/auth/login/',
-            {
-                'username': self.agent.username,
-                'password': 'TestPass123!',
-            },
-        )
-        self.assertEqual(resp.status_code, 200)
+        self.agent = UserFactory.create(password=TEST_PASSWORD)
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.agent)
 
     def test_valid_vin_returns_url(self):
         resp = self.client.get('/api/evidences/lookup/vin/WVWZZZ3CZWE123456/')
@@ -736,16 +709,9 @@ class OccurrenceCodeTest(APITestCase):
     """Verifica que codigos de ocorrencia sao gerados automaticamente."""
 
     def setUp(self):
-        self.agent = UserFactory.create(password='TestPass123!')
-        self.client = APIClient()
-        resp = self.client.post(
-            '/api/auth/login/',
-            {
-                'username': self.agent.username,
-                'password': 'TestPass123!',
-            },
-        )
-        self.assertEqual(resp.status_code, 200)
+        self.agent = UserFactory.create(password=TEST_PASSWORD)
+        # Login real na fonte unica (tests_base.login_client - auditoria D106).
+        self.client = login_client(self.agent)
 
     def test_occurrence_code_auto_generated(self):
         resp = self.client.post(
@@ -922,7 +888,7 @@ class ImeiLookupThrottleTest(APITestCase):
     def setUp(self):
         from django.core.cache import cache
 
-        self.agent = UserFactory.create(password='TestPass123!')
+        self.agent = UserFactory.create(password=TEST_PASSWORD)
         self.client = APIClient()
         self.client.force_authenticate(user=self.agent)
         # SimpleRateThrottle conta na Django default cache; sem clear()

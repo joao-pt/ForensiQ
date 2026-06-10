@@ -28,7 +28,7 @@ from rest_framework.test import APIClient
 # ---------------------------------------------------------------------------
 # Fixtures reutilizáveis
 # ---------------------------------------------------------------------------
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 from .models import (
     ChainOfCustody,
@@ -42,7 +42,7 @@ from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 def _make_agent(username='agente_pdf', badge='AGT-PDF-01'):
     return User.objects.create_user(
         username=username,
-        password='TestPass123!',
+        password=TEST_PASSWORD,
         profile=User.Profile.FIRST_RESPONDER,
         badge_number=badge,
         first_name='Maria',
@@ -150,7 +150,7 @@ class PDFAPIEndpointTest(TestCase):
         cls.agent = _make_agent('agente_api_pdf', 'AGT-API-PDF-01')
         cls.expert = User.objects.create_user(
             username='perito_api_pdf',
-            password='TestPass123!',
+            password=TEST_PASSWORD,
             profile=User.Profile.FORENSIC_EXPERT,
             clearance=User.Clearance.NACIONAL,
         )

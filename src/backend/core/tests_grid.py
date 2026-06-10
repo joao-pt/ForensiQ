@@ -16,8 +16,14 @@ from rest_framework_simplejwt.tokens import AccessToken
 from core.auth import ACCESS_COOKIE_NAME
 from core.grid import GridColumn, grid_list_response
 from core.templatetags.grid_extras import cellattr
-from core.tests_access import _event, _evidence, _occ, _user
-from core.tests_factories import OccurrenceFactory
+from core.tests_base import auth_cookie
+from core.tests_factories import (
+    OccurrenceFactory,
+    make_event as _event,
+    make_evidence as _evidence,
+    make_occ as _occ,
+    make_user as _user,
+)
 from core.tests_frontend import AuthenticatedFrontendTestCase
 
 User = get_user_model()
@@ -137,7 +143,7 @@ class CustodyListRenderTest(TestCase):
         _event(ev, cls.user)   # apreensão → item à guarda (estado derivado)
 
     def _get(self, url):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(self.user))
+        auth_cookie(self.client, self.user)
         return self.client.get(url)
 
     def test_custody_list_renders_with_filters_and_dot(self):

@@ -40,13 +40,13 @@ from core.models import (
 User = get_user_model()
 
 
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 
 def _make_user(username, profile='FIRST_RESPONDER', is_staff=False, is_superuser=False):
     user = User.objects.create_user(
         username=username,
-        password='TestPass123!',
+        password=TEST_PASSWORD,
         profile=profile,
     )
     if is_staff:
@@ -58,10 +58,9 @@ def _make_user(username, profile='FIRST_RESPONDER', is_staff=False, is_superuser
     return user
 
 
-def _login_cookie(client, user):
-    refresh = RefreshToken.for_user(user)
-    access = str(refresh.access_token)
-    client.cookies['fq_access'] = access
+# Cookie JWT na fonte única (tests_base.auth_cookie — auditoria D105); o alias
+# mantém os call sites locais. (Antes usava RefreshToken + literal 'fq_access'.)
+from core.tests_base import auth_cookie as _login_cookie  # noqa: E402
 
 
 def _make_occurrence(agent):

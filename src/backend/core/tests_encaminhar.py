@@ -19,7 +19,13 @@ from core.models import (
     Portador,
     ProvaEmTransito,
 )
-from core.tests_access import _event, _evidence, _occ, _user
+from core.tests_base import auth_cookie
+from core.tests_factories import (
+    make_event as _event,
+    make_evidence as _evidence,
+    make_occ as _occ,
+    make_user as _user,
+)
 from core.utils import legal_state_of, sort_custody_chain
 
 User = get_user_model()
@@ -44,7 +50,7 @@ class EncaminharLoteTest(TestCase):
         _event(cls.ev2, cls.agent, inst=cls.opc)
 
     def _auth(self):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(self.agent))
+        auth_cookie(self.client, self.agent)
 
     def _get(self, url):
         self._auth()

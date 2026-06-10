@@ -18,7 +18,8 @@ from core.models import (
     InstitutionMembership,
     InstitutionType,
 )
-from core.tests_access import _occ, _user
+from core.tests_base import auth_cookie
+from core.tests_factories import make_occ as _occ, make_user as _user
 from core.utils import legal_state_of
 
 User = get_user_model()
@@ -35,7 +36,7 @@ class RegistoEhApreensaoTest(TestCase):
         cls.occ = _occ(cls.agent, 'SEIZ-1')
 
     def _post_new_evidence(self, **extra):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(self.agent))
+        auth_cookie(self.client, self.agent)
         data = {
             'occurrence': self.occ.id,
             'type': Evidence.EvidenceType.MOBILE_DEVICE,
@@ -74,7 +75,7 @@ class RegistoEhApreensaoTest(TestCase):
         # Um agente sem pertença institucional ainda apreende (custódio OPC), mas
         # sem instituição associada — não bloqueia o registo.
         loner = _user('seiz_loner', User.Profile.FIRST_RESPONDER)
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(loner))
+        auth_cookie(self.client, loner)
         occ = _occ(loner, 'SEIZ-2')
         r = self.client.post('/evidences/new/', {
             'occurrence': occ.id,

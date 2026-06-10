@@ -24,7 +24,13 @@ from core.models import (
     Portador,
     ProvaEmTransito,
 )
-from core.tests_access import _event, _evidence, _occ, _user
+from core.tests_base import auth_cookie
+from core.tests_factories import (
+    make_event as _event,
+    make_evidence as _evidence,
+    make_occ as _occ,
+    make_user as _user,
+)
 
 User = get_user_model()
 
@@ -52,7 +58,7 @@ class InboundCaixaTest(TestCase):
         _event(cls.ev2, cls.agent, inst=cls.opc)
 
     def _auth(self, user):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(user))
+        auth_cookie(self.client, user)
 
     def _seed_notices(self):
         """Encaminha ev1+ev2 para opc2 pelo fluxo HTTP real → 2 avisos a chegar."""

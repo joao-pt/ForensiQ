@@ -23,8 +23,8 @@ from core.models import (
     InstitutionType,
     Occurrence,
 )
-from core.tests_access import _occ, _user
-from core.tests_factories import CrimeTipoFactory
+from core.tests_base import auth_cookie
+from core.tests_factories import CrimeTipoFactory, make_occ as _occ, make_user as _user
 
 User = get_user_model()
 
@@ -43,7 +43,7 @@ class NewFormPageTest(TestCase):
         cls.occ = _occ(cls.agent, 'FORM-1')
 
     def _auth(self, user):
-        self.client.cookies[ACCESS_COOKIE_NAME] = str(AccessToken.for_user(user))
+        auth_cookie(self.client, user)
 
     # -- Ocorrência: página completa ------------------------------------------
 
