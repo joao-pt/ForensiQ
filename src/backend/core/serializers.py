@@ -24,7 +24,7 @@ from .models import (
     Institution,
     Occurrence,
 )
-from .utils import get_user_display_name, legal_state_of
+from .utils import get_user_display_name, legal_state_of, validation_status_of
 from .validators import validate_gps_coherence
 
 User = get_user_model()
@@ -339,6 +339,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
     type_specific_data = serializers.JSONField(required=False)
     sub_components = serializers.SerializerMethodField()
     current_state = serializers.SerializerMethodField()
+    validation_status = serializers.SerializerMethodField()
     # Declarado explicitamente (ADR-0018): o campo do modelo usa um ``choices``
     # callable (catálogo vivo); validamos aqui contra os códigos ACTIVOS, sem
     # depender de como o DRF mapearia um callable.
@@ -394,6 +395,13 @@ class EvidenceSerializer(serializers.ModelSerializer):
         """
         return legal_state_of(obj)
 
+    def get_validation_status(self, obj):
+        """Estatuto da VALIDAÇÃO da apreensão — eixo ORTOGONAL ao estado de
+        custódia (CPP art. 178.º/6): ``por_validar`` | ``em_atraso`` |
+        ``validada`` | ``None`` (não aplicável). Derivado do ledger na fonte
+        única :func:`core.utils.validation_status_of`, nunca gravado."""
+        return validation_status_of(obj)
+
     def validate_type(self, value):
         """O tipo tem de ser um código ACTIVO do catálogo editável (ADR-0018)."""
         if value not in evidence_type_config.active_codes():
@@ -426,6 +434,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'external_lookup_at',
             'sub_components',
             'current_state',
+            'validation_status',
             'created_at',
             'updated_at',
         ]
@@ -440,6 +449,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
             'external_lookup_at',
             'sub_components',
             'current_state',
+            'validation_status',
             'occurrence_number',
             'occurrence_code',
             'parent_evidence_label',
@@ -609,6 +619,22 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
                     '(ADR-0017): só o custódio atual, um membro da instituição que o '
                     'detém, o perito ou a autoridade do caso.'
                 )
+        # Certificação do ato de validação (CPP art. 178.º/6): o evento tem de
+        # identificar quem validou (texto em observations, que entra na fórmula
+        # do hash). Fecha na FRONTEIRA de escrita externa (UI + API usam este
+        # serializer) o caminho do evento "nu" — o modal constrói o texto a
+        # partir dos campos obrigatórios.
+        if attrs.get('event_type') == EventType.VALIDACAO_APREENSAO and not (
+            attrs.get('observations') or ''
+        ).strip():
+            raise serializers.ValidationError(
+                {
+                    'observations': (
+                        'A validação da apreensão exige a identificação de quem a '
+                        'proferiu (autoridade judiciária) nas observações.'
+                    )
+                }
+            )
         return attrs
 
 

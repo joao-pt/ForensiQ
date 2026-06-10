@@ -375,6 +375,39 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_validacao_sem_identificacao_da_autoridade_e_rejeitada(self):
+        """VALIDACAO_APREENSAO 'nua' (sem observations) → 400: o ato exige a
+        identificação de quem validou — o caminho único vale também na API
+        (a UI constrói o texto certificado a partir dos campos do modal)."""
+        ChainOfCustody(
+            evidence=self.evidence,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
+            agent=self.agent,
+        ).save()
+        self.authenticate_as(self.agent)
+        response = self.client.post(
+            reverse('core:custody-list'),
+            {'evidence': self.evidence.pk, 'event_type': 'VALIDACAO_APREENSAO'},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('observations', response.data)
+
+    def test_validation_status_exposto_na_api_de_evidencias(self):
+        """O eixo de validação é visível aos consumidores da API (PWA):
+        campo read-only derivado, nunca gravado."""
+        ChainOfCustody(
+            evidence=self.evidence,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
+            agent=self.agent,
+        ).save()
+        self.authenticate_as(self.agent)
+        url = reverse('core:evidence-detail', kwargs={'pk': self.evidence.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['validation_status'], 'por_validar')
+
     def test_timeline_endpoint(self):
         """Endpoint timeline retorna histórico ordenado."""
         ChainOfCustody(
