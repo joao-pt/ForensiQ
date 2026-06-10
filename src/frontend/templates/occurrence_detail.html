@@ -30,7 +30,8 @@
       <p class="detail__sub">{{ occ.crime_label }}</p>
     </div>
     <div class="detail__actions">
-      <a class="btn-ghost" href="/api/occurrences/{{ occ.id }}/pdf/">
+      {# Rota nomeada do router DRF — fonte única do caminho (auditoria D103). #}
+      <a class="btn-ghost" href="{% url 'core:occurrence-export-pdf' occ.id %}">
         {% include 'partials/icons/_file.html' %}
         Guia PDF
       </a>

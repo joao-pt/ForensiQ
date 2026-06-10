@@ -251,13 +251,10 @@ def lookup_imei(imei: str) -> dict:
         )
         # Em códigos críticos vindo no body (não no HTTP status), também
         # regista alerta — o upstream usa 200 + body.code para alguns
-        # cenários (auditoria 2026-05-18 §3 N9).
-        if api_code in (401, 402, 429):
-            event = {
-                401: 'token_invalid',
-                402: 'quota_exhausted',
-                429: 'rate_limited',
-            }[api_code]
+        # cenários (auditoria 2026-05-18 §3 N9). Evento + mensagem vêm da
+        # MESMA tabela (_API_CODES — auditoria D47).
+        event = _API_CODES[api_code][0] if api_code in _API_CODES else None
+        if event:
             _record_critical_event(event, imei, http_status=200, api_code=api_code)
         raise LookupError(_message_for_api_code(api_code, api_msg))
 
@@ -269,8 +266,23 @@ def lookup_imei(imei: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# Tabela ÚNICA código→(evento crítico, mensagem PT) da imeidb.xyz (auditoria
+# D47): _raise_for_status, _message_for_api_code e o ramo success=false do
+# lookup consultam-na — o registo do evento e a mensagem nunca dessincronizam.
+# Evento None = não-crítico (sem SYSTEM_ALERT). 460 é o código próprio da
+# imeidb.xyz para IMEI inválido/desconhecido (equivalente a 404).
+_API_CODES = {
+    401: ('token_invalid', 'Token de imeidb.xyz inválido. Contacta o administrador.'),
+    402: ('quota_exhausted', 'Saldo da API imeidb.xyz esgotado. Preenche manualmente.'),
+    429: ('rate_limited', 'Limite de consultas atingido em imeidb.xyz. Tenta mais tarde.'),
+    404: (None, 'IMEI não encontrado em imeidb.xyz. Preenche manualmente.'),
+    460: (None, 'IMEI não encontrado em imeidb.xyz. Preenche manualmente.'),
+}
+
+
 def _raise_for_status(status_code: int, imei: str = '') -> None:
-    """Mapeia códigos HTTP da imeidb.xyz para mensagens PT-PT.
+    """Mapeia códigos HTTP da imeidb.xyz para mensagens PT-PT (tabela única
+    ``_API_CODES`` — auditoria D47).
 
     Em códigos críticos operacionais (401/402/429), regista entrada
     SYSTEM_ALERT no AuditLog via `_record_critical_event` antes de
@@ -278,33 +290,21 @@ def _raise_for_status(status_code: int, imei: str = '') -> None:
     """
     if 200 <= status_code < 300:
         return
-    if status_code == 401:
-        _record_critical_event('token_invalid', imei, http_status=401)
-        raise LookupError('Token de imeidb.xyz inválido. Contacta o administrador.')
-    if status_code == 402:
-        _record_critical_event('quota_exhausted', imei, http_status=402)
-        raise LookupError('Saldo da API imeidb.xyz esgotado. Preenche manualmente.')
-    if status_code in (404, 460):
-        # 460 é o código próprio da imeidb.xyz para IMEI inválido/desconhecido.
-        raise LookupError('IMEI não encontrado em imeidb.xyz. Preenche manualmente.')
-    if status_code == 429:
-        _record_critical_event('rate_limited', imei, http_status=429)
-        raise LookupError('Limite de consultas atingido em imeidb.xyz. Tenta mais tarde.')
+    if status_code in _API_CODES:
+        event, msg = _API_CODES[status_code]
+        if event:
+            _record_critical_event(event, imei, http_status=status_code)
+        raise LookupError(msg)
     if status_code >= 500:
         raise LookupError(f'imeidb.xyz indisponível (HTTP {status_code}). Tenta mais tarde.')
     raise LookupError(f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).')
 
 
 def _message_for_api_code(code, fallback_msg: str) -> str:
-    """Mensagem PT-PT para o ``code`` no body da imeidb.xyz."""
-    mapping = {
-        401: 'Token de imeidb.xyz inválido. Contacta o administrador.',
-        402: 'Saldo da API imeidb.xyz esgotado. Preenche manualmente.',
-        429: 'Limite de consultas atingido em imeidb.xyz. Tenta mais tarde.',
-        460: 'IMEI não encontrado em imeidb.xyz. Preenche manualmente.',
-    }
-    if isinstance(code, int) and code in mapping:
-        return mapping[code]
+    """Mensagem PT-PT para o ``code`` no body da imeidb.xyz (tabela única
+    ``_API_CODES`` — auditoria D47)."""
+    if isinstance(code, int) and code in _API_CODES:
+        return _API_CODES[code][1]
     if fallback_msg:
         return f'imeidb.xyz: {fallback_msg}'
     return 'Resposta de imeidb.xyz em formato inesperado.'

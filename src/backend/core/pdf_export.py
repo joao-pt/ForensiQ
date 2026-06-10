@@ -22,7 +22,6 @@ import html as _html
 from datetime import UTC, datetime
 from io import BytesIO
 
-from django.conf import settings
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -62,15 +61,11 @@ def _sanitize(text):
 
 
 def _build_verify_url(occurrence):
-    """URL pública adaptativa de verificação para uma ocorrência.
+    """URL pública adaptativa de verificação — composição na fonte única
+    ``core.qr_verify.verify_url_for`` (auditoria D43)."""
+    from core.qr_verify import verify_url_for
 
-    Composição: `settings.SITE_URL` + `/v/<short_hash>/`. O short_hash
-    é derivado por HMAC do `occurrence.id` (não-enumerável).
-    """
-    from core.qr_verify import short_hash_for
-
-    base = getattr(settings, 'SITE_URL', 'https://forensiq.pt').rstrip('/')
-    return f'{base}/v/{short_hash_for(occurrence.id)}/'
+    return verify_url_for(occurrence.id)
 
 
 def _qr_flowable(url, size_cm=3.0):
@@ -330,12 +325,92 @@ def _draw_page_chrome(canvas, doc):
 # ---------------------------------------------------------------------------
 
 
+# Format string ÚNICO dos carimbos temporais do PDF (auditoria D39) — usado
+# pelos valores (_fmt_datetime) e pelo carimbo de geração (_start_doc).
+_TS_FMT = '%d/%m/%Y %H:%M:%S UTC'
+
+
 def _fmt_datetime(dt):
     if dt is None:
         return '—'
     if hasattr(dt, 'strftime'):
-        return dt.strftime('%d/%m/%Y %H:%M:%S UTC')
+        return dt.strftime(_TS_FMT)
     return str(dt)
+
+
+# TableStyle ÚNICO das tabelas de dados (ledger de custódia e inventário de
+# itens — auditoria D41): paleta/paddings mudam num só sítio.
+_DATA_TABLE_STYLE = TableStyle(
+    [
+        ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
+        ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
+        ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+    ]
+)
+
+
+def _start_doc(buffer, *, title, doc_subject, header_subject):
+    """Arranque comum dos dois geradores (auditoria D39): ``SimpleDocTemplate``
+    com as margens/metadata padrão, estilos e carimbo de geração exposto ao
+    chrome do cabeçalho. Devolve ``(doc, styles, gen_ts)``."""
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=HEADER_HEIGHT + 0.6 * cm,
+        bottomMargin=FOOTER_HEIGHT + 0.4 * cm,
+        title=title,
+        author='ForensiQ Platform',
+        subject=doc_subject,
+    )
+    styles = _build_styles()
+    gen_ts = datetime.now(UTC).strftime(_TS_FMT)
+    doc.fq_header_subject = header_subject
+    doc.fq_header_generated = f'Gerado em {gen_ts}'
+    return doc, styles, gen_ts
+
+
+def _finish_doc(doc, story, buffer):
+    """Epílogo comum (auditoria D39): build com o chrome de página + close
+    garantido do buffer mesmo se o ``build`` levantar (audit 2026-05-18 §3
+    N14; ``BytesIO.close()`` é idempotente). Devolve os bytes do PDF."""
+    try:
+        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
+        return buffer.getvalue()
+    finally:
+        buffer.close()
+
+
+def _occurrence_summary_rows(occ):
+    """Pares rótulo/valor do resumo da ocorrência (auditoria D40) — a MESMA
+    lista nos dois geradores; um rótulo/formatador edita-se num só sítio."""
+    return [
+        ('NUIPC / Número:', occ.number or '—'),
+        ('Código interno:', occ.code or '—'),
+        ('Data / Hora:', _fmt_datetime(occ.date_time)),
+        ('Localização GPS:', _fmt_gps(occ.gps_lat, occ.gps_lng)),
+        ('Morada aproximada:', _sanitize(occ.address) or '—'),
+        ('Agente responsável:', _fmt_agent(occ.agent)),
+        ('Descrição:', _sanitize(occ.description)),
+    ]
+
+
+def _evidence_core_rows(evidence):
+    """Pares rótulo/valor comuns de um item (auditoria D40) — partilhados entre
+    a identificação do item principal e cada sub-componente."""
+    return [
+        ('Nº de série:', _sanitize(evidence.serial_number) or '—'),
+        ('Data / Hora de apreensão:', _fmt_datetime(evidence.timestamp_seizure)),
+        ('Descrição:', _sanitize(evidence.description)),
+    ]
 
 
 def _fmt_gps(lat, lng):
@@ -424,22 +499,7 @@ def _custody_table(custody_records, styles):
 
     col_w = [0.7 * cm, 3.6 * cm, 3.0 * cm, 3.5 * cm, 3.2 * cm, 2.8 * cm]
     t = Table(table_data, colWidths=col_w, repeatRows=1)
-    t.setStyle(
-        TableStyle(
-            [
-                ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
-                ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
-                ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
-                ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 4),
-                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-                ('TOPPADDING', (0, 0), (-1, -1), 4),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ('FONTSIZE', (0, 0), (-1, 0), 8),
-            ]
-        )
-    )
+    t.setStyle(_DATA_TABLE_STYLE)
     flow = [t, Spacer(1, 0.4 * cm)]
 
     last = custody_records[-1]
@@ -525,20 +585,19 @@ def _render_item_identification(evidence, styles):
     flow.append(Paragraph('2. Identificação do Item de Prova', styles['section']))
     flow.append(Spacer(1, 0.2 * cm))
 
+    serial_row, seizure_row, desc_row = _evidence_core_rows(evidence)
     rows = [
-        ('Código:', evidence.code or f'#{evidence.pk}'),
+        ('Código:', evidence.display_code),
         ('Tipo:', _sanitize(evidence.get_type_display())),
-        ('Nº de série:', _sanitize(evidence.serial_number) or '—'),
-        ('Data / Hora de apreensão:', _fmt_datetime(evidence.timestamp_seizure)),
+        serial_row,
+        seizure_row,
         ('Localização GPS:', _fmt_gps(evidence.gps_lat, evidence.gps_lng)),
         ('Agente que apreendeu:', _fmt_agent(evidence.agent)),
-        ('Descrição:', _sanitize(evidence.description)),
+        desc_row,
     ]
     if evidence.parent_evidence_id:
         parent = evidence.parent_evidence
-        parent_label = (
-            f'{parent.code or f"#{parent.pk}"} — ' f'{_sanitize(parent.get_type_display())}'
-        )
+        parent_label = f'{parent.display_code} — {_sanitize(parent.get_type_display())}'
         rows.insert(
             0,
             (
@@ -597,21 +656,15 @@ def _render_sub_components(evidence, styles):
 
     # Sub-componentes Evidence
     for i, sub in enumerate(sub_components, start=1):
-        sub_label = sub.code or f'#{sub.pk}'
         block = [
             Paragraph(
-                f'3.{i}. {_sanitize(sub.get_type_display())} ({sub_label})',
+                f'3.{i}. {_sanitize(sub.get_type_display())} ({sub.display_code})',
                 styles['subsection'],
             ),
         ]
         block.extend(
             _label_value_rows(
-                [
-                    ('Nº de série:', _sanitize(sub.serial_number) or '—'),
-                    ('Data / Hora de apreensão:', _fmt_datetime(sub.timestamp_seizure)),
-                    ('Descrição:', _sanitize(sub.description)),
-                    ('Agente:', _fmt_agent(sub.agent)),
-                ],
+                [*_evidence_core_rows(sub), ('Agente:', _fmt_agent(sub.agent))],
                 styles,
                 col_widths=(4 * cm, 13 * cm),
             )
@@ -634,29 +687,17 @@ def generate_evidence_pdf(evidence):
         bytes — PDF pronto a servir como ``application/pdf``.
     """
     buffer = BytesIO()
-    item_label = evidence.code or f'#{evidence.pk}'
-    doc = SimpleDocTemplate(
+    item_label = evidence.display_code
+    doc, styles, gen_ts = _start_doc(
         buffer,
-        pagesize=A4,
-        leftMargin=2 * cm,
-        rightMargin=2 * cm,
-        topMargin=HEADER_HEIGHT + 0.6 * cm,
-        bottomMargin=FOOTER_HEIGHT + 0.4 * cm,
         title=f'ForensiQ — Item {item_label}',
-        author='ForensiQ Platform',
-        subject='Relatório Forense — ISO/IEC 27037',
+        doc_subject='Relatório Forense — ISO/IEC 27037',
+        header_subject=f'Cadeia de Custódia · {item_label}',
     )
-
-    styles = _build_styles()
     story = []
-    gen_ts = datetime.now(UTC).strftime('%d/%m/%Y %H:%M:%S UTC')
-
-    # Metadata exposta ao chrome (cabeçalho)
-    doc.fq_header_subject = f'Cadeia de Custódia · {item_label}'
-    doc.fq_header_generated = f'Gerado em {gen_ts}'
 
     occ = evidence.occurrence
-    occ_label = occ.number or occ.code or f'#{occ.pk}'
+    occ_label = occ.display_label
     _doc_header(
         story,
         styles,
@@ -671,18 +712,7 @@ def generate_evidence_pdf(evidence):
     # 1. Ocorrência
     story.append(Paragraph('1. Ocorrência', styles['section']))
     story.append(Spacer(1, 0.2 * cm))
-    story += _label_value_rows(
-        [
-            ('NUIPC / Número:', occ.number or '—'),
-            ('Código interno:', occ.code or '—'),
-            ('Data / Hora:', _fmt_datetime(occ.date_time)),
-            ('Localização GPS:', _fmt_gps(occ.gps_lat, occ.gps_lng)),
-            ('Morada aproximada:', _sanitize(occ.address) or '—'),
-            ('Agente responsável:', _fmt_agent(occ.agent)),
-            ('Descrição:', _sanitize(occ.description)),
-        ],
-        styles,
-    )
+    story += _label_value_rows(_occurrence_summary_rows(occ), styles)
 
     # 2. Identificação do item
     story += _render_item_identification(evidence, styles)
@@ -710,14 +740,7 @@ def generate_evidence_pdf(evidence):
     # Declaração
     story += _integrity_declaration(styles, gen_ts)
 
-    try:
-        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
-        pdf_bytes = buffer.getvalue()
-    finally:
-        # Garantir close() do BytesIO mesmo se `doc.build` levantar
-        # (audit 2026-05-18 §3 N14). `BytesIO.close()` é idempotente.
-        buffer.close()
-    return pdf_bytes
+    return _finish_doc(doc, story, buffer)
 
 
 # ---------------------------------------------------------------------------
@@ -748,25 +771,14 @@ def generate_occurrence_pdf(occurrence):
     de cada um.
     """
     buffer = BytesIO()
-    occ_label = occurrence.number or occurrence.code or f'#{occurrence.pk}'
-    doc = SimpleDocTemplate(
+    occ_label = occurrence.display_label
+    doc, styles, gen_ts = _start_doc(
         buffer,
-        pagesize=A4,
-        leftMargin=2 * cm,
-        rightMargin=2 * cm,
-        topMargin=HEADER_HEIGHT + 0.6 * cm,
-        bottomMargin=FOOTER_HEIGHT + 0.4 * cm,
         title=f'ForensiQ — Caso {occ_label}',
-        author='ForensiQ Platform',
-        subject='Resumo do processo — ISO/IEC 27037',
+        doc_subject='Resumo do processo — ISO/IEC 27037',
+        header_subject=f'Resumo do Processo · Caso {occ_label}',
     )
-
-    styles = _build_styles()
     story = []
-    gen_ts = datetime.now(UTC).strftime('%d/%m/%Y %H:%M:%S UTC')
-
-    doc.fq_header_subject = f'Resumo do Processo · Caso {occ_label}'
-    doc.fq_header_generated = f'Gerado em {gen_ts}'
 
     _doc_header(
         story,
@@ -781,18 +793,7 @@ def generate_occurrence_pdf(occurrence):
     # 1. Descrição do caso
     story.append(Paragraph('1. Descrição do Caso', styles['section']))
     story.append(Spacer(1, 0.2 * cm))
-    story += _label_value_rows(
-        [
-            ('NUIPC / Número:', occurrence.number or '—'),
-            ('Código interno:', occurrence.code or '—'),
-            ('Data / Hora:', _fmt_datetime(occurrence.date_time)),
-            ('Localização GPS:', _fmt_gps(occurrence.gps_lat, occurrence.gps_lng)),
-            ('Morada aproximada:', _sanitize(occurrence.address) or '—'),
-            ('Agente responsável:', _fmt_agent(occurrence.agent)),
-            ('Descrição:', _sanitize(occurrence.description)),
-        ],
-        styles,
-    )
+    story += _label_value_rows(_occurrence_summary_rows(occurrence), styles)
 
     # 2. Inventário de itens — `all()` reaproveita o prefetch_related
     # aplicado pela view (N12). Sort em memória (lista curta).
@@ -832,7 +833,7 @@ def generate_occurrence_pdf(occurrence):
         rows = list(header)
         for idx, item in enumerate(root_items, start=1):
             state_label, _ = _current_custody_state(item)
-            item_label = item.code or f'#{item.pk}'
+            item_label = item.display_code
             rows.append(
                 [
                     Paragraph(str(idx), styles['value']),
@@ -848,7 +849,7 @@ def generate_occurrence_pdf(occurrence):
             )
             for sub in children_by_parent.get(item.pk, []):
                 sub_state, _ = _current_custody_state(sub)
-                sub_label = sub.code or f'#{sub.pk}'
+                sub_label = sub.display_code
                 rows.append(
                     [
                         Paragraph('', styles['label']),
@@ -865,33 +866,11 @@ def generate_occurrence_pdf(occurrence):
 
         col_w = [0.8 * cm, 7.2 * cm, 3.5 * cm, 2.8 * cm, 2.5 * cm]
         t = Table(rows, colWidths=col_w, repeatRows=1)
-        t.setStyle(
-            TableStyle(
-                [
-                    ('BACKGROUND', (0, 0), (-1, 0), ACCENT_BLUE),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [WHITE, GREY_LIGHT]),
-                    ('GRID', (0, 0), (-1, -1), 0.5, GREY_MED),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 4),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                    ('FONTSIZE', (0, 0), (-1, 0), 8),
-                ]
-            )
-        )
+        t.setStyle(_DATA_TABLE_STYLE)
         story.append(t)
         story.append(Spacer(1, 0.4 * cm))
 
     # 3. Declaração
     story += _integrity_declaration(styles, gen_ts)
 
-    try:
-        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
-        pdf_bytes = buffer.getvalue()
-    finally:
-        # Garantir close() do BytesIO mesmo se `doc.build` levantar
-        # (audit 2026-05-18 §3 N14). `BytesIO.close()` é idempotente.
-        buffer.close()
-    return pdf_bytes
+    return _finish_doc(doc, story, buffer)

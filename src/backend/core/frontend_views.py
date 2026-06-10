@@ -26,6 +26,7 @@ from django.http import (
     HttpResponseRedirect,
 )
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils.html import format_html
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
@@ -469,9 +470,7 @@ def verifications_view(request):
     de dados por código nem pesquisa pública — é ferramenta interna de
     gestão/auditoria, pelo que respeita o ADR-0012 §6. Só resolve casos dentro
     do âmbito do operador (need-to-know)."""
-    from django.conf import settings as dj_settings
-
-    from core.qr_verify import resolve_occurrence, short_hash_for
+    from core.qr_verify import resolve_occurrence, short_hash_for, verify_url_for
 
     user = request.user
     if not access.is_expert_or_staff(user):
@@ -489,14 +488,13 @@ def verifications_view(request):
             if cand is not None and _scope_occurrences(user).filter(pk=cand.id).exists():
                 occ = cand
         if occ is not None:
-            site = (getattr(dj_settings, 'SITE_URL', '') or '').rstrip('/')
-            sh = short_hash_for(occ.id)
             result = {
                 'id': occ.id,
                 'code': occ.code or f'#{occ.id}',
                 'number': occ.number,
-                'short_hash': sh,
-                'verify_url': f'{site}/v/{sh}/',
+                'short_hash': short_hash_for(occ.id),
+                # Composição do URL público na fonte única (qr_verify — D43).
+                'verify_url': verify_url_for(occ.id),
             }
         else:
             not_found = True
@@ -1851,7 +1849,8 @@ def reports_view(request):
         _decorate_occurrences(items)
         for o in items:
             o.detail_href = f'/occurrences/{o.id}/'
-            o.guia = {'href': f'/api/occurrences/{o.id}/pdf/', 'label': 'PDF',
+            # Caminho do PDF pela rota nomeada do router (fonte única — D103).
+            o.guia = {'href': reverse('core:occurrence-export-pdf', args=[o.id]), 'label': 'PDF',
                       'aria': f'Descarregar guia PDF de {o.code}'}
 
     columns = [

@@ -37,7 +37,8 @@
         {% include 'partials/icons/_link.html' %}
         Cadeia de custódia
       </a>
-      <a class="btn-ghost" href="/api/evidences/{{ ev.id }}/pdf/">
+      {# Rota nomeada do router DRF — fonte única do caminho (auditoria D103). #}
+      <a class="btn-ghost" href="{% url 'core:evidence-export-pdf' ev.id %}">
         {% include 'partials/icons/_file.html' %}
         Guia PDF
       </a>

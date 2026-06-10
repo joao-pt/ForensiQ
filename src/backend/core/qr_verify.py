@@ -43,6 +43,17 @@ def short_hash_for(occurrence_id: int) -> str:
     return digest[:length]
 
 
+def verify_url_for(occurrence_id: int) -> str:
+    """URL pública ABSOLUTA de verificação ``/v/<short_hash>/`` (ADR-0012).
+
+    Fonte ÚNICA da composição (auditoria D43) — o PDF (QR da guia) e o centro
+    de verificação consomem daqui; um único default de ``SITE_URL`` e um único
+    formato de rota.
+    """
+    base = getattr(settings, 'SITE_URL', 'https://forensiq.pt').rstrip('/')
+    return f'{base}/v/{short_hash_for(occurrence_id)}/'
+
+
 def resolve_occurrence(short_hash: str) -> Occurrence | None:
     """Resolve um `short_hash` para a Occurrence correspondente.
 

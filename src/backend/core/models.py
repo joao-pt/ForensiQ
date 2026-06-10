@@ -812,6 +812,12 @@ class Occurrence(models.Model):
         verbose_name_plural = 'Ocorrências'
         ordering = ['-date_time']
 
+    @property
+    def display_label(self):
+        """Etiqueta de exibição do processo — «NUIPC, senão código, senão #pk»
+        (fonte ÚNICA do fallback, auditoria D42; PDF e vistas consomem daqui)."""
+        return self.number or self.code or f'#{self.pk}'
+
     def __str__(self):
         parts = [self.number]
         if self.code and self.code != self.number:
@@ -1215,9 +1221,14 @@ class Evidence(AppendOnlyModel):
             ),
         ]
 
+    @property
+    def display_code(self):
+        """Etiqueta de exibição do item — «código, senão #pk» (fonte ÚNICA do
+        fallback, auditoria D42; PDF e vistas consomem daqui)."""
+        return self.code or f'#{self.pk}'
+
     def __str__(self):
-        label = self.code or f'#{self.pk}'
-        return f'Item {label} — {self.get_type_display()} ({self.occurrence.number})'
+        return f'Item {self.display_code} — {self.get_type_display()} ({self.occurrence.number})'
 
     # ------------------------------------------------------------------
     # Hierarquia pai-filho
