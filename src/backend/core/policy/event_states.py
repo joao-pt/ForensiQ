@@ -192,3 +192,11 @@ TERMINAL_LEGAL_STATES = frozenset(
         'destruida',
     }
 )
+
+# Estados legais em que a prova já está (ou já passou) no destino do handoff —
+# encaminhada/recebida, em perícia ou além, incluindo os terminais. Do ponto de
+# vista do intake/receção, "já recebida": não volta a ser oferecida para receção.
+# Subconjunto de LEGAL_STATES.
+STATES_AT_OR_PAST_LAB = (
+    frozenset({'encaminhada', 'em_pericia', 'pericia_concluida'}) | TERMINAL_LEGAL_STATES
+)

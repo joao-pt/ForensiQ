@@ -28,14 +28,12 @@
       <p class="detail__sub">{{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></p>
     </div>
     <div class="detail__actions">
-      {% with last_event=events|last %}
-      {% if last_event.event_type != 'RESTITUICAO' and last_event.event_type != 'DESTRUICAO' %}
+      {% if not ledger_closed %}
       <a class="btn-accent" href="/evidences/{{ ev.id }}/custody/#custody-register">
         {% include 'partials/icons/_plus.html' %}
         Registar evento
       </a>
       {% endif %}
-      {% endwith %}
       <a class="btn-ghost" href="/evidences/{{ ev.id }}/custody/">
         {% include 'partials/icons/_link.html' %}
         Cadeia de custódia

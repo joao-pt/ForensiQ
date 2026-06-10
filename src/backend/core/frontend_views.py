@@ -38,6 +38,7 @@ from core.grid import GridColumn, grid_list_response
 from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.list_filters import ColFilter
 from core.models import (
+    STATES_AT_OR_PAST_LAB,
     TERMINAL_LEGAL_STATES,
     AuditLog,
     ChainOfCustody,
@@ -1453,6 +1454,9 @@ def evidence_detail_view(request, evidence_id):
             'events': events,
             'sub_components': sub_components,
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
+            # Mesma fonte única da página de custódia (policy.next_events): ledger
+            # fechado ⇒ não se oferece «Registar evento» (auditoria D96).
+            'ledger_closed': not _valid_next_events(events, ev),
         },
     )
 
@@ -1974,17 +1978,6 @@ def occurrence_intake_view(request, occurrence_id):
     # eventos. "Já recebida" = já encaminhada para laboratório ou além.
     from core.models import ChainOfCustody, EventType, Evidence, derive_legal_state
 
-    # Estados legais a partir dos quais a prova já está (ou passou) no
-    # laboratório — não faz sentido voltar a "receber" no intake.
-    received_states = {
-        'encaminhada',
-        'em_pericia',
-        'pericia_concluida',
-        'restituida',
-        'perdida_favor_estado',
-        'destruida',
-    }
-
     evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
     # Uma só query para TODOS os eventos da ocorrência (antes: uma query por
     # evidência — N+1 a cada carregamento da página de intake). Agrupa por
@@ -2111,7 +2104,9 @@ def occurrence_intake_view(request, occurrence_id):
             'current_state_css': LEGAL_STATE_CSS.get(state_by_evidence[ev.id], 'muted'),
             # Recebível = em trânsito (encaminhado, ainda por receber — ADR-0016 v2).
             'in_transit': state_by_evidence[ev.id] == 'em_transito',
-            'already_received': state_by_evidence[ev.id] in received_states,
+            # «Já recebida» = já está (ou passou) no destino — fonte única na
+            # policy (STATES_AT_OR_PAST_LAB); não volta a oferecer-se para receção.
+            'already_received': state_by_evidence[ev.id] in STATES_AT_OR_PAST_LAB,
         }
         for ev in evidences
     ]

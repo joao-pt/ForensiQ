@@ -98,6 +98,83 @@ class GenesisEventForTests(SimpleTestCase):
         )
 
 
+class GenesisViolationTests(SimpleTestCase):
+    """Coerência da génese por igualdade estrita com ``genesis_event_for``
+    (auditoria D31): o ``clean()`` traduz estes códigos em mensagem legal, pelo
+    que o modelo nunca aceita uma génese que o ecrã não ofereceria."""
+
+    def test_genese_correta_nao_e_recusada(self):
+        self.assertIsNone(
+            ct.genesis_violation(APREENSAO_OBJETO, has_parent=False, is_digital_file=False)
+        )
+        self.assertIsNone(
+            ct.genesis_violation(APREENSAO_DADOS, has_parent=False, is_digital_file=True)
+        )
+        self.assertIsNone(
+            ct.genesis_violation(DERIVACAO_ITEM, has_parent=True, is_digital_file=False)
+        )
+        self.assertIsNone(
+            ct.genesis_violation(DERIVACAO_ITEM, has_parent=True, is_digital_file=True)
+        )
+
+    def test_evento_que_nao_e_genese(self):
+        self.assertEqual(
+            ct.genesis_violation(VALIDACAO, has_parent=False, is_digital_file=False),
+            'nao_genese',
+        )
+
+    def test_apreensao_em_subcomponente_recusada(self):
+        self.assertEqual(
+            ct.genesis_violation(APREENSAO_OBJETO, has_parent=True, is_digital_file=False),
+            'genese_com_pai',
+        )
+        self.assertEqual(
+            ct.genesis_violation(APREENSAO_DADOS, has_parent=True, is_digital_file=True),
+            'genese_com_pai',
+        )
+
+    def test_derivacao_sem_pai_recusada(self):
+        self.assertEqual(
+            ct.genesis_violation(DERIVACAO_ITEM, has_parent=False, is_digital_file=False),
+            'derivacao_sem_pai',
+        )
+        self.assertEqual(
+            ct.genesis_violation(DERIVACAO_ITEM, has_parent=False, is_digital_file=True),
+            'derivacao_sem_pai',
+        )
+
+    def test_dados_fora_de_digital_file_recusada(self):
+        self.assertEqual(
+            ct.genesis_violation(APREENSAO_DADOS, has_parent=False, is_digital_file=False),
+            'dados_sem_digital',
+        )
+
+    def test_objeto_para_copia_de_dados_recusada(self):
+        # O drift D31: o clean() aceitava APREENSAO_OBJETO num DIGITAL_FILE raiz
+        # que next_events nunca oferecia. A igualdade estrita fecha-o.
+        self.assertEqual(
+            ct.genesis_violation(APREENSAO_OBJETO, has_parent=False, is_digital_file=True),
+            'objeto_para_dados',
+        )
+
+    def test_todos_os_codigos_tem_mensagem_legal_no_clean(self):
+        # Varre o domínio completo do predicado e garante que o tradutor do
+        # clean() (GENESIS_REFUSAL_MESSAGES) cobre todos os códigos possíveis.
+        from core.models import GENESIS_REFUSAL_MESSAGES
+
+        codigos = set()
+        for et in EventType:
+            for has_parent in (False, True):
+                for is_digital in (False, True):
+                    c = ct.genesis_violation(
+                        et, has_parent=has_parent, is_digital_file=is_digital
+                    )
+                    if c is not None:
+                        codigos.add(c)
+        self.assertTrue(codigos)
+        self.assertLessEqual(codigos, set(GENESIS_REFUSAL_MESSAGES))
+
+
 class NextEventsTests(SimpleTestCase):
     def _values(self, prior_types, **kw):
         return {et.value for et in ct.next_events(prior_types, **kw)}
@@ -149,6 +226,25 @@ class NextEventsTests(SimpleTestCase):
     def test_derivacao_sem_apreensao_nao_oferece_validacao(self):
         # DERIVACAO_ITEM é génese mas NÃO é apreensão validável (CPP art. 178.º/6).
         self.assertNotIn(VALIDACAO, self._values([DERIVACAO_ITEM]))
+
+
+class StatesAtOrPastLabTests(SimpleTestCase):
+    """``STATES_AT_OR_PAST_LAB`` — fonte única do conceito «já recebida» do
+    intake (auditoria D13): composta sobre ``TERMINAL_LEGAL_STATES``."""
+
+    def test_subconjunto_e_fronteiras(self):
+        from core.policy.event_states import (
+            LEGAL_STATES,
+            STATES_AT_OR_PAST_LAB,
+            TERMINAL_LEGAL_STATES,
+        )
+
+        self.assertLessEqual(STATES_AT_OR_PAST_LAB, LEGAL_STATES)
+        self.assertLessEqual(TERMINAL_LEGAL_STATES, STATES_AT_OR_PAST_LAB)
+        # Em trânsito é exatamente o estado RECEBÍVEL no intake — nunca «já
+        # recebida»; e a guarda do OPC ainda não passou pelo handoff.
+        self.assertNotIn('em_transito', STATES_AT_OR_PAST_LAB)
+        self.assertNotIn('a_guarda_opc', STATES_AT_OR_PAST_LAB)
 
 
 class MapaCustodioTests(SimpleTestCase):

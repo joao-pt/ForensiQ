@@ -14,7 +14,8 @@ perito independente reproduz o mesmo cálculo (ISO/IEC 27037; ADR-0013).
 """
 
 from .models import ChainOfCustody, Evidence
-from .policy.event_states import GENESIS_EVENTS, EventType
+from .policy.custody_transitions import is_in_transit
+from .policy.event_states import GENESIS_EVENTS
 
 # Hash semente do 1.º elo (sem registo anterior) — igual ao usado no save().
 ZERO_HASH = '0' * 64
@@ -99,7 +100,7 @@ def detect_anomalies(evidence_ids):
     findings = []
     for ev_id, chain in chains.items():
         code = codes.get(ev_id) or str(ev_id)
-        first, last = chain[0], chain[-1]
+        first = chain[0]
         if first.event_type not in GENESIS_EVENTS:
             findings.append(
                 {
@@ -108,7 +109,7 @@ def detect_anomalies(evidence_ids):
                     'msg': f'Primeiro evento não é génese ({first.get_event_type_display()}).',
                 }
             )
-        if last.event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
+        if is_in_transit([r.event_type for r in chain]):
             findings.append(
                 {
                     'code': code,

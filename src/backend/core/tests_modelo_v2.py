@@ -120,6 +120,21 @@ class GenesisGuardTest(TestCase):
         with self.assertRaises(ValidationError):
             self._genesis(sub, EventType.APREENSAO_OBJETO)
 
+    def test_apreensao_objeto_nao_em_digital_file_raiz(self):
+        # Drift fechado (auditoria D31): a cópia de dados entra por
+        # APREENSAO_DADOS; o clean() aceitava o que o ecrã nunca oferecia.
+        dig = _ev(self.occ, self.agent, Evidence.EvidenceType.DIGITAL_FILE)
+        with self.assertRaises(ValidationError):
+            self._genesis(dig, EventType.APREENSAO_OBJETO)
+
+    def test_apreensao_dados_nao_em_subcomponente(self):
+        # Idem: um DIGITAL_FILE com evidência-pai autonomiza-se por derivação.
+        raiz = _ev(self.occ, self.agent)
+        self._genesis(raiz, EventType.APREENSAO_OBJETO)
+        sub = _ev(self.occ, self.agent, Evidence.EvidenceType.DIGITAL_FILE, parent=raiz)
+        with self.assertRaises(ValidationError):
+            self._genesis(sub, EventType.APREENSAO_DADOS)
+
     def test_validacao_exige_apreensao_previa(self):
         # Numa cadeia que começa por DERIVACAO_ITEM não há apreensão a validar.
         raiz = _ev(self.occ, self.agent)

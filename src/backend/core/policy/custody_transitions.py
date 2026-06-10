@@ -62,6 +62,36 @@ def genesis_event_for(*, has_parent, is_digital_file):
     return EventType.APREENSAO_OBJETO
 
 
+def genesis_violation(event_type, *, has_parent, is_digital_file):
+    """Por que razão ``event_type`` é recusado como génese desta proveniência?
+
+    Devolve um código de recusa (que o ``clean()`` traduz na mensagem legal —
+    ADR-0019 §4) ou ``None`` se o evento for EXATAMENTE a génese que
+    :func:`genesis_event_for` determina. A coerência é por igualdade estrita,
+    pelo que o modelo nunca aceita uma génese que o ecrã (:func:`next_events`)
+    não ofereceria (ADR-0016 §2).
+
+    Códigos: ``nao_genese`` (não é evento de génese); ``genese_com_pai``
+    (apreensão num sub-componente — autonomiza-se por derivação);
+    ``derivacao_sem_pai`` (derivação num item-raiz); ``dados_sem_digital``
+    (``APREENSAO_DADOS`` fora de ``DIGITAL_FILE``); ``objeto_para_dados``
+    (``APREENSAO_OBJETO`` numa cópia de dados — entra por apreensão de dados).
+    """
+    if event_type not in GENESIS_EVENTS:
+        return 'nao_genese'
+    if event_type == genesis_event_for(
+        has_parent=has_parent, is_digital_file=is_digital_file
+    ):
+        return None
+    if has_parent:
+        return 'genese_com_pai'
+    if event_type == EventType.DERIVACAO_ITEM:
+        return 'derivacao_sem_pai'
+    if event_type == EventType.APREENSAO_DADOS:
+        return 'dados_sem_digital'
+    return 'objeto_para_dados'
+
+
 def ledger_has_terminal(prior_types):
     """Há um evento terminal (restituição/destruição) no ledger? Fecha-o — nenhum
     evento é aceite depois, em qualquer posição (semântica de presença, ADR-0015)."""

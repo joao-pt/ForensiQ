@@ -30,6 +30,7 @@ from core.policy.event_states import (
     HANDOFF_EVENTS as HANDOFF_EVENTS,
     LEGAL_STATES as LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
+    STATES_AT_OR_PAST_LAB as STATES_AT_OR_PAST_LAB,
     TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES as TERMINAL_LEGAL_STATES,
     CustodianType,
@@ -1607,6 +1608,31 @@ class EvidenceTypeRef(models.Model):
 # nunca bloqueado; para leitura/feed (T06) deriva-se dos timestamps gravados.
 VALIDATION_DEADLINE = timedelta(hours=settings.VALIDATION_DEADLINE_HOURS)
 
+# Tradução dos códigos de recusa da génese (``policy.genesis_violation``) para a
+# mensagem legal apresentada (ADR-0019 §4: a policy decide, o ``clean()`` traduz).
+GENESIS_REFUSAL_MESSAGES = {
+    'nao_genese': (
+        'O primeiro evento tem de ser de génese (apreensão de objeto/dados ou '
+        'derivação de item).'
+    ),
+    'genese_com_pai': (
+        'Um sub-componente (com evidência-pai) entra por DERIVACAO_ITEM, '
+        'não por apreensão.'
+    ),
+    'derivacao_sem_pai': (
+        'DERIVACAO_ITEM só é válida como génese de um sub-componente '
+        '(com evidência-pai).'
+    ),
+    'dados_sem_digital': (
+        'APREENSAO_DADOS só é válida para evidência do tipo DIGITAL_FILE '
+        '(cópia de dados).'
+    ),
+    'objeto_para_dados': (
+        'Uma cópia de dados (DIGITAL_FILE) entra por APREENSAO_DADOS, '
+        'não por APREENSAO_OBJETO.'
+    ),
+}
+
 
 def _hash_escape(value):
     r"""Escapa separadores do hash em campos de texto livre (ADR-0013).
@@ -1876,56 +1902,18 @@ class ChainOfCustody(models.Model):
         evidence = self.evidence
 
         # Génese (1.º evento): exatamente um evento de génese, na posição 1,
-        # coerente com a proveniência da evidência (ADR-0016 §2).
+        # coerente com a proveniência da evidência (ADR-0016 §2). A coerência é
+        # por igualdade estrita com ``genesis_event_for`` — a fonte única decide
+        # (``policy.genesis_violation``), aqui só se traduz o código de recusa
+        # na mensagem legal (ADR-0019 §4).
         if not prior:
-            if self.event_type not in GENESIS_EVENTS:
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'O primeiro evento tem de ser de génese (apreensão de '
-                            'objeto/dados ou derivação de item).'
-                        )
-                    }
-                )
-            # APREENSAO_DADOS só para DIGITAL_FILE (cópia em suporte autónomo).
-            if (
-                self.event_type == EventType.APREENSAO_DADOS
-                and evidence.type != Evidence.EvidenceType.DIGITAL_FILE
-            ):
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'APREENSAO_DADOS só é válida para evidência do tipo '
-                            'DIGITAL_FILE (cópia de dados).'
-                        )
-                    }
-                )
-            # DERIVACAO_ITEM só para sub-componente (tem evidência-pai).
-            if (
-                self.event_type == EventType.DERIVACAO_ITEM
-                and evidence.parent_evidence_id is None
-            ):
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'DERIVACAO_ITEM só é válida como génese de um '
-                            'sub-componente (com evidência-pai).'
-                        )
-                    }
-                )
-            # APREENSAO_OBJETO só para item-raiz (sub-componentes derivam-se).
-            if (
-                self.event_type == EventType.APREENSAO_OBJETO
-                and evidence.parent_evidence_id is not None
-            ):
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'Um sub-componente (com evidência-pai) entra por '
-                            'DERIVACAO_ITEM, não por APREENSAO_OBJETO.'
-                        )
-                    }
-                )
+            violation = custody_transitions.genesis_violation(
+                self.event_type,
+                has_parent=evidence.parent_evidence_id is not None,
+                is_digital_file=evidence.type == Evidence.EvidenceType.DIGITAL_FILE,
+            )
+            if violation is not None:
+                raise ValidationError({'event_type': GENESIS_REFUSAL_MESSAGES[violation]})
             # Derivação de pai com evento terminal é proibida (ADR-0016 edge 2).
             if self.event_type == EventType.DERIVACAO_ITEM and ChainOfCustody.objects.filter(
                 evidence_id=evidence.parent_evidence_id,
@@ -2012,7 +2000,7 @@ class ChainOfCustody(models.Model):
                         )
                     }
                 )
-            if prior and prior[-1].event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
+            if custody_transitions.is_in_transit(prior_types):
                 raise ValidationError(
                     {
                         'event_type': (
