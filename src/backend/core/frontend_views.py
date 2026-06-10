@@ -764,7 +764,8 @@ def dashboard_view(request):
     recent = list(
         # distinct=True: a lente institucional filtra por evidences__custody_chain__…,
         # e o join multi-valor multiplicava a contagem (1 por EVENTO de custódia).
-        occ_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:8]
+        # 30 linhas: a lista do painel tem altura fixa com scroll interno.
+        occ_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:30]
     )
     _decorate_occurrences(recent)
     for o in recent:
@@ -772,13 +773,15 @@ def dashboard_view(request):
 
     # Colunas da grelha "Últimas ocorrências" — gerador único (core.grid), como
     # todas as listas; um painel read-only só dispensa filtros/paginação.
+    # Larguras dimensionadas para a coluna ESQUERDA da dash-grid (~700px a
+    # 1440): código e data nunca truncam; o tipo de crime é o que cede.
     recent_columns = serialize_columns([
-        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6),
-        GridColumn('code', 'Código', cell='code', width=14, link_key='detail_url'),
-        GridColumn('number', 'NUIPC', css='mono', width=16),
-        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=34),
+        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=8),
+        GridColumn('code', 'Código', cell='code', width=18, link_key='detail_url'),
+        GridColumn('number', 'NUIPC', css='mono', width=18),
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=24),
         GridColumn('n_items', 'Itens', cell='num', css='col-hide-sm', width=8),
-        GridColumn('date_time', 'Data / hora', cell='date', time=True, width=22),
+        GridColumn('date_time', 'Data / hora', cell='date', time=True, width=24),
     ])
 
     return render(

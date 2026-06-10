@@ -92,20 +92,19 @@ class DashboardPageTest(AuthenticatedFrontendTestCase):
         self.assertTemplateUsed(response, 'dashboard.html')
 
     def test_dashboard_contains_stats(self):
-        """A página do dashboard deve conter a hero geo da cadeia de custódia.
+        """A página do dashboard deve conter a grelha operacional + território.
 
-        Fase 3 (server-rendered): a ``geo-hero`` é um hero de 3 colunas que
-        combina o estado legal derivado do ledger (coluna esquerda, tiles
-        ``cs-tile`` na ``geo-hero__custody-list``) com a distribuição
-        territorial em Portugal (mapa continental ``geo-hero__map`` + insets
-        Madeira/Açores). É marcação semântica por classe — sem os ``id``
-        antigos (``geo-hero``/``cs-tiles``/``geo-hero-map-continental``) que
-        existiam quando o hero era hidratado por JS.
+        Rearranjo v3 (2026-06): operação à esquerda (banda de prazos
+        ``attn-strip``, últimas ocorrências, grelha de tiles ``custody-grid``
+        com o estado legal derivado do ledger) e o território à direita
+        (mapa alto ``geo-hero__map`` + insets Madeira/Açores). É marcação
+        semântica por classe — sem ``id`` antigos de hidratação por JS.
         """
         response = self.client.get(reverse('dashboard'))
         content = response.content.decode('utf-8')
-        self.assertIn('class="geo-hero"', content)
-        self.assertIn('geo-hero__custody-list', content)
+        self.assertIn('class="dash-grid"', content)
+        self.assertIn('custody-grid', content)
+        self.assertIn('attn-strip', content)
         self.assertIn('cs-tile', content)
         self.assertIn('aria-label="Mapa de Portugal continental"', content)
 

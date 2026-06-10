@@ -1,64 +1,51 @@
 /**
- * ForensiQ — Geo Hero (refactor v2)
+ * ForensiQ — Painel geo (v3, rearranjo a pedido do dono):
  *
- * Hero do dashboard em 3 colunas com altura comum (sweet spot V20):
+ *   ┌──────────────────────────────┬──────────────┐
+ *   │ Prazos & atenção (banda)     │ PORTUGAL     │
+ *   │ Últimas ocorrências          │ mapa ALTO    │
+ *   │  (altura fixa + scroll)      │ (aspeto do   │
+ *   │ Estado da cadeia (grelha)    │  país)       │
+ *   │                              │ legenda      │
+ *   │                              │ Madeira·Açores│
+ *   ├──────────────────────────────┴──────────────┤
+ *   │ Registo de atividade (full-width)           │
+ *   └─────────────────────────────────────────────┘
  *
- *   ┌──────┬──────────────────────┬─────────────────┐
- *   │ 220px│ 1fr                  │ 300px           │
- *   │ Cad. │ Mapa continental     │ Madeira         │
- *   │ vert.│ + legenda prioridade │ Açores          │
- *   │      │                      │                 │
- *   └──────┴──────────────────────┴─────────────────┘
- *                  altura comum: 400px
- *
- * Coluna 1 — 7 tiles do estado da cadeia distribuídos com `flex: 1`,
- * sem cor por estado (regra V19: estado é informacional, não classifica).
- *
- * Coluna 2 — Leaflet com OSM tiles (CSP já permite), bounds fixos a
- * Portugal continental. Legenda de prioridade ABAIXO do mapa, em banner
- * horizontal (V17 — não sobrepõe o mapa). A legenda é discreta (3 chips
- * P1/P2/Normal) e casa POR CONSTRUÇÃO com priColors() do forensic-list.js:
- * ambos leem os tokens únicos --pri-p1/--pri-p2/--pri-normal de main.css
- * (auditoria D91). Cor só semântica, sem gradiente decorativo.
- *
- * Coluna 3 — Insets de Madeira/Açores (não-arrastáveis).
- *
- * Em <1280px, hero colapsa para empilhamento vertical.
- *
- * Ver a especificação de art direction §Hero.
+ * O mapa vive numa coluna ESTREITA E ALTA — o aspeto de Portugal continental
+ * (~0.62) preenche o enquadramento sem encher de Espanha. Os títulos de cartão
+ * usam a receita única (.section__title); a cor só classifica (prioridade).
  */
 
 /* =====================================================================
-   Wrapper do hero
+   Grelha principal do painel
    ===================================================================== */
 
-.geo-hero {
+.dash-grid {
     display: grid;
     grid-template-columns: 1fr;
     gap: var(--sp-3);
-    margin: 0;
-    padding: 0;
-}
-
-/* Banda 768-1279: 2 colunas (cadeia | mapa) e insets numa faixa baixa por
-   baixo — antes era empilhamento total e os insets viravam quadrados gigantes
-   de oceano que empurravam o conteúdo acionável ~2 ecrãs para baixo. */
-@media (min-width: 768px) and (max-width: 1279.98px) {
-    .geo-hero { grid-template-columns: 220px 1fr; }
-    .geo-hero__insets { grid-column: 1 / -1; }
+    align-items: start;
 }
 
 @media (min-width: 1280px) {
-    .geo-hero {
-        grid-template-columns: 220px 1fr 300px;
-        grid-template-rows: 400px;
-    }
-    /* Dentro da linha fixa de 400px, o mapa volta a poder encolher (flex:1)
-       sem que o piso responsivo o force a transbordar e a cortar a legenda. */
-    .geo-hero__map { min-height: 0; }
+    .dash-grid { grid-template-columns: minmax(0, 1fr) 440px; }
 }
 
-/* Todas as colunas do hero como cartões sólidos */
+.dash-grid__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-width: 0;
+}
+/* O gap da grelha é a única fonte de espaçamento entre os cartões. */
+.dash-grid__main > .section { margin-bottom: 0; }
+.dash-grid__side { min-width: 0; }
+
+/* =====================================================================
+   Cartão do território (coluna direita)
+   ===================================================================== */
+
 .geo-hero__col {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -81,8 +68,7 @@
 }
 
 .geo-hero__title {
-    /* Receita única de título de cartão — igual à .section__title (a página
-       tinha 2 tamanhos e 3 cores para o mesmo nível hierárquico). */
+    /* Receita única de título de cartão — igual à .section__title. */
     margin: 0;
     font-size: var(--fs-2xs);
     font-weight: var(--fw-semi);
@@ -96,41 +82,175 @@
     font-family: var(--font-mono);
     font-size: var(--fs-2xs);
     /* --text-muted (não --text-subtle) para garantir contraste AA do texto
-       pequeno a 10px sobre --bg-subtle (claro ~5.6:1 / escuro suficiente). */
+       pequeno sobre --bg-subtle (claro ~5.6:1 / escuro suficiente). */
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: var(--tracking-wide);
 }
 
+/* Mapa ALTO: o aspeto do contentor ≈ aspeto de Portugal continental. */
+.geo-hero__map {
+    isolation: isolate;  /* contém z-index do Leaflet */
+    position: relative;
+    background: var(--bg-inset);
+    min-height: 280px;
+}
+.geo-hero__map--tall {
+    height: clamp(480px, 72vh, 690px);
+}
+.geo-hero__map .leaflet-container {
+    width: 100%;
+    height: 100%;
+    /* Sem background próprio: o tom vem da fonte única map-theme.css
+       (≈ oceano filtrado), que esconde as costuras de 1px dos tiles
+       escalados em zoom fracionário. */
+}
+
+/* Botão "repor" injetado no mapa principal quando um inset o refoca. */
+.geo-hero__map-reset {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1000;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-1);
+    padding: 4px 8px;
+    cursor: pointer;
+}
+.geo-hero__map-reset:hover { background: var(--surface-hover); }
+
+/* Legenda de prioridade — chips que mapeiam 1:1 para os pinos do mapa
+   (priColors() em forensic-list.js): ambos leem os tokens únicos
+   --pri-p1/--pri-p2/--pri-normal (auditoria D91). Cor só semântica. */
+.geo-hero__legend {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
+    border-top: 1px solid var(--border);
+    background: var(--bg-subtle);
+}
+.geo-hero__legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+.geo-hero__legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.geo-hero__legend-dot--p1     { background: var(--pri-p1); }
+.geo-hero__legend-dot--p2     { background: var(--pri-p2); }
+.geo-hero__legend-dot--normal { background: var(--pri-normal); }
+.geo-hero__legend-label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+}
+/* Crédito ODbL: encostado à direita, sem competir com a legenda semântica. */
+.geo-hero__legend-chip--credit { margin-left: auto; }
+.geo-hero__legend-chip--credit a { text-decoration: underline; }
+
 /* =====================================================================
-   Coluna 1 — Cadeia vertical (7 estados)
+   Insets das regiões autónomas (botões de foco regional)
    ===================================================================== */
 
-.geo-hero__custody {
-    /* Tiles distribuem-se uniformemente em altura */
+.geo-hero__inset-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    flex-shrink: 0;
 }
 
-.geo-hero__custody-list {
-    flex: 1;
+/* O inset vive dentro de um <button> de foco regional (conteúdo de fraseado:
+   por isso é um <span> com display:block). */
+.geo-hero__inset-btn {
     display: flex;
-    flex-direction: column;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
     min-height: 0;
-    padding: var(--sp-2);
-    gap: 2px;
-    /* É um <ul> nativo (a11y: role=list/listitem em <a> suprimia a semântica
-       de link nos leitores de ecrã). */
+    min-width: 0;
+    border-radius: var(--r-2);
+    text-align: inherit;
+    font: inherit;
+}
+.geo-hero__inset-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+}
+.geo-hero__inset-btn:hover .geo-hero__inset { border-color: var(--accent); }
+
+.geo-hero__inset {
+    display: block;
+    flex: 1;
+    width: 100%;
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    min-height: 132px;
+}
+.geo-hero__inset .leaflet-container {
+    width: 100%;
+    height: 100%;
+    /* Background na fonte única map-theme.css (ver nota no mapa principal). */
+}
+.geo-hero__inset-label {
+    position: absolute;
+    left: 6px;
+    bottom: 4px;
+    /* Acima de TODOS os panes do Leaflet (tiles 200 … controls 800): com
+       z-index baixo o rótulo ficava por baixo dos tiles mal eles carregassem. */
+    z-index: 1000;
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    color: var(--text-muted);
+    background: var(--surface);
+    padding: 1px 5px;
+    border-radius: var(--r-1);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    pointer-events: none;
+}
+
+/* =====================================================================
+   Estado da cadeia — grelha de tiles (estado legal derivado)
+   ===================================================================== */
+
+.custody-grid {
     list-style: none;
     margin: 0;
+    padding: var(--sp-1);
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
 }
-.geo-hero__custody-list > li {
-    display: flex;
-    flex: 1 1 0;
-    min-height: 0;
+@media (min-width: 768px) {
+    .custody-grid { grid-template-columns: repeat(3, 1fr); }
 }
+.custody-grid > li { display: flex; min-width: 0; }
 
 .cs-tile {
     flex: 1 1 0;
-    min-height: 0;
+    min-width: 0;
+    min-height: var(--min-touch);
     display: grid;
     grid-template-columns: auto 1fr auto;
     grid-template-rows: auto auto;
@@ -146,9 +266,8 @@
     background: transparent;
     border: 1px solid transparent;
 }
-/* Affordance de navegação: os tiles SÃO links mas liam-se como estatísticas
-   (sem sublinhado, sem seta, cor herdada). O chevron declara-o e acende no
-   hover/foco — alinhado com .grid--clickable. */
+/* Affordance de navegação: os tiles SÃO links mas liam-se como estatísticas.
+   O chevron declara-o e acende no hover/foco — alinhado com .grid--clickable. */
 .cs-tile::after {
     content: '›';
     grid-column: 3;
@@ -187,8 +306,7 @@
     grid-column: 2;
     font-family: var(--font-mono);
     /* Piso da escala (--fs-2xs, auditoria D83) e quebra a 2 linhas em vez de
-       ellipsis: um estado LEGAL nunca aparece cortado a meio ("PERDIDA A
-       FAVOR DO ESTA…" minava a credibilidade da nomenclatura). */
+       ellipsis: um estado LEGAL nunca aparece cortado a meio. */
     font-size: var(--fs-2xs);
     color: var(--text-muted);
     text-transform: uppercase;
@@ -200,164 +318,6 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     overflow: hidden;
-}
-
-/* =====================================================================
-   Coluna 2 — Mapa continental + legenda de prioridade
-   ===================================================================== */
-
-.geo-hero__continental {
-    /* contém Leaflet com isolation; legenda de prioridade fica abaixo */
-}
-
-.geo-hero__map {
-    flex: 1;
-    /* Altura base garantida em TODAS as larguras. Sem isto, na banda
-       768–1279px (onde a grelha não tem grid-template-rows) o container
-       colapsava para 0px e o Leaflet ficava cinzento/vazio. Com a linha fixa
-       de 400px (≥1280px) o fl:1 cresce para além deste piso. */
-    min-height: clamp(280px, 38vh, 420px);
-    isolation: isolate;  /* contém z-index do Leaflet */
-    position: relative;
-    background: var(--bg-inset);
-}
-.geo-hero__map .leaflet-container {
-    width: 100%;
-    height: 100%;
-    /* Sem background próprio: o tom vem da fonte única map-theme.css
-       (≈ oceano filtrado), que esconde as costuras de 1px dos tiles
-       escalados em zoom fracionário. */
-}
-
-/* Legenda de prioridade — chips discretos que mapeiam 1:1 para os pins do
-   mapa (priColors() em forensic-list.js). Cor só semântica: nenhum gradiente
-   decorativo. Cada chip tem um ponto colorido + rótulo textual, pelo que a
-   distinção não depende exclusivamente da cor. */
-.geo-hero__legend {
-    flex-shrink: 0;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--sp-2) var(--sp-3);
-    padding: var(--sp-2) var(--sp-3);
-    border-top: 1px solid var(--border);
-    background: var(--bg-subtle);
-}
-.geo-hero__legend-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-1);
-}
-.geo-hero__legend-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-/* Tokens únicos de prioridade (auditoria D91) — os MESMOS que priColors()
-   lê em forensic-list.js; legenda e pontos do mapa nunca dessincronizam. */
-.geo-hero__legend-dot--p1     { background: var(--pri-p1); }
-.geo-hero__legend-dot--p2     { background: var(--pri-p2); }
-.geo-hero__legend-dot--normal { background: var(--pri-normal); }
-.geo-hero__legend-label {
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-}
-/* Crédito ODbL: encostado à direita, sem competir com a legenda semântica. */
-.geo-hero__legend-chip--credit { margin-left: auto; }
-.geo-hero__legend-chip--credit a { text-decoration: underline; }
-
-/* =====================================================================
-   Coluna 3 — Insets (Madeira / Açores)
-   ===================================================================== */
-
-.geo-hero__insets {
-    padding: var(--sp-2);
-    gap: var(--sp-2);
-}
-
-.geo-hero__inset-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--sp-2);
-    flex-shrink: 0;
-}
-
-/* O inset vive dentro de um <button> de foco regional (conteúdo de fraseado:
-   por isso é um <span> com display:block). */
-.geo-hero__inset-btn {
-    display: flex;
-    padding: 0;
-    border: 0;
-    background: none;
-    cursor: pointer;
-    min-height: 0;
-    min-width: 0;
-    border-radius: var(--r-2);
-    text-align: inherit;
-    font: inherit;
-}
-.geo-hero__inset-btn:focus-visible {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-}
-.geo-hero__inset-btn:hover .geo-hero__inset { border-color: var(--accent); }
-
-.geo-hero__inset {
-    display: block;
-    flex: 1;
-    width: 100%;
-    background: var(--bg-inset);
-    border: 1px solid var(--border);
-    border-radius: var(--r-2);
-    position: relative;
-    overflow: hidden;
-    isolation: isolate;
-    min-height: 120px;
-}
-
-/* Botão "repor" injetado no mapa principal quando um inset o refoca. */
-.geo-hero__map-reset {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    z-index: 1000;
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--r-1);
-    padding: 4px 8px;
-    cursor: pointer;
-}
-.geo-hero__map-reset:hover { background: var(--surface-hover); }
-.geo-hero__inset .leaflet-container {
-    width: 100%;
-    height: 100%;
-    /* Background na fonte única map-theme.css (ver nota no mapa principal). */
-}
-.geo-hero__inset-label {
-    position: absolute;
-    left: 6px;
-    bottom: 4px;
-    /* Acima de TODOS os panes do Leaflet (tiles 200 … controls 800): com
-       z-index baixo o rótulo ficava por baixo dos tiles mal eles carregassem. */
-    z-index: 1000;
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    color: var(--text-muted);
-    background: var(--surface);
-    padding: 1px 5px;
-    border-radius: var(--r-1);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    pointer-events: none;
 }
 
 /* Estado a zero: o NÚMERO perde a ênfase (cor muted, peso normal) — o olho
@@ -374,42 +334,38 @@
 }
 
 /* =====================================================================
-   Prazos & atenção (coluna 3) — fluxo do ledger, não só stock
+   Prazos & atenção — banda horizontal (fluxo do ledger, não só stock)
    ===================================================================== */
 
-.geo-hero__attn {
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
+.attn-strip {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
     gap: 2px;
-    margin-top: var(--sp-2);
-    padding-top: var(--sp-2);
-    border-top: 1px solid var(--border);
+    padding: var(--sp-1);
 }
-.geo-hero__attn-title {
-    margin: 0 0 2px;
-    padding: 0 var(--sp-2);
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    font-weight: var(--fw-semi);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    color: var(--text-muted);
+@media (min-width: 1024px) {
+    .attn-strip { grid-template-columns: repeat(4, 1fr); }
 }
+
 .attn-row {
     display: grid;
     grid-template-columns: auto 1fr;
     column-gap: var(--sp-2);
     align-items: baseline;
-    padding: var(--sp-1) var(--sp-2);
+    padding: var(--sp-2);
     border-radius: var(--r-1);
     text-decoration: none;
     color: inherit;
     border: 1px solid transparent;
+    min-width: 0;
 }
 a.attn-row:hover {
     background: var(--surface-hover);
     border-color: var(--border);
+}
+a.attn-row:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: -2px;
 }
 .attn-row__num {
     font-family: var(--font-mono);
@@ -431,43 +387,3 @@ a.attn-row:hover {
 /* Cor SÓ quando classifica: número vermelho/âmbar apenas com risco real (>0). */
 .attn-row--hot .attn-row__num { color: var(--danger); }
 .attn-row--warn .attn-row__num { color: var(--warning-strong); }
-
-/* Faixa intermédia (768-1279): os insets vivem numa banda larga e baixa. */
-@media (min-width: 768px) and (max-width: 1279.98px) {
-    .geo-hero__inset { min-height: 150px; }
-}
-
-/* ≥1280: insets empilhados ao alto a ocupar a coluna inteira — cada
-   arquipélago fica panorâmico (~280×165px), o aspeto certo para Madeira e
-   Açores (2,2:1), em vez de dois quadrados de 134px com 60% da coluna vazia.
-   (Estas regras vivem DEPOIS das base: mesma especificidade, a ordem decide.) */
-@media (min-width: 1280px) {
-    .geo-hero__inset-row {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1fr 1fr;
-        flex: 1;
-        min-height: 0;
-    }
-    .geo-hero__inset { min-height: 0; }
-}
-
-
-/* Em mobile, esconde o hero (será reactivado em mobile-first commit) */
-@media (max-width: 767px) {
-    .geo-hero__custody-list {
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: var(--sp-1);
-    }
-    .geo-hero__custody-list > li {
-        flex: 1 1 calc(50% - var(--sp-1));
-    }
-    .cs-tile {
-        flex: 1 1 auto;
-        /* Alvo de toque do projeto (Apple HIG / uso com luvas) — os tiles são
-           os únicos alvos clicáveis do hero e ficavam a ~34px. */
-        min-height: var(--min-touch);
-    }
-    .geo-hero__map { min-height: 240px; }
-    .geo-hero__inset { min-height: 100px; }
-}

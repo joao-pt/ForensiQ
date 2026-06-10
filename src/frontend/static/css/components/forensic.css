@@ -433,6 +433,9 @@
 /* Scroll horizontal nas grelhas densas (replica .data-table-wrap): em ecrãs
    estreitos as colunas mono nowrap não cabem — deslizar em vez de cortar. */
 .gridwrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Variante de painel: altura fixa com scroll interno — a lista mostra sempre
+   várias linhas sem truncar (o thead sticky cola ao topo deste contentor). */
+.gridwrap--scroll { max-height: 396px; overflow-y: auto; }
 .grid { width: 100%; min-width: max-content; border-collapse: collapse; font-size: var(--fs-sm); }
 .grid thead th {
     position: sticky;

@@ -19,128 +19,137 @@
     <span class="dash__regie-meta">{{ lens_zone_label }} · {{ occ_total }} ocorrência{{ occ_total|pluralize }} · {{ custody_total }} ite{{ custody_total|pluralize:"m,ns" }} · dados a {% now 'Y-m-d H:i' %}</span>
   </header>
 
-  <!-- Geo Hero — server-rendered (Fase 3): tiles do estado legal do ledger +
-       mapa panorâmico + insets, tudo a partir do ORM (sem drift). -->
-  <section class="geo-hero" aria-label="Cadeia de custódia e distribuição territorial">
+  <!-- Grelha principal (pedido do dono): operação à esquerda (prazos → últimas
+       ocorrências com scroll → estado da cadeia), TERRITÓRIO à direita num
+       mapa ALTO com o aspeto do país + insets das regiões autónomas. -->
+  <div class="dash-grid">
+    <div class="dash-grid__main">
 
-    <!-- Coluna 1 — Estado da cadeia (estado legal derivado, sem cor por estado) -->
-    <article class="geo-hero__col geo-hero__custody" aria-label="Estado da cadeia de custódia">
-      <header class="geo-hero__header">
-        <h2 class="geo-hero__title">Estado da cadeia</h2>
-        <span class="geo-hero__meta">{{ custody_total }} ite{{ custody_total|pluralize:"m,ns" }}</span>
-      </header>
-      {# <ul> nativo: role=listitem num <a> suprimia a semântica de link nos leitores de ecrã. #}
-      <ul class="geo-hero__custody-list">
-        {% for t in tiles %}
-        <li>
-          <a class="cs-tile{% if t.n == 0 %} cs-tile--zero{% endif %}" href="/evidences/?state={{ t.key }}"
-             title="Ver itens no estado: {{ t.label }}">
-            <span class="cs-tile__num">{{ t.n }}</span>
-            <span class="cs-tile__label">{{ t.label }}</span>
-          </a>
-        </li>
-        {% endfor %}
-      </ul>
-    </article>
-
-    <!-- Coluna 2 — Mapa continental (interativo, preso ao território) + legenda -->
-    <article class="geo-hero__col geo-hero__continental" aria-label="Mapa de ocorrências em Portugal continental">
-      <header class="geo-hero__header">
-        <h2 class="geo-hero__title">Portugal continental</h2>
-        <span class="geo-hero__meta">geolocalizadas · {{ n_geo }}</span>
-      </header>
-      <div class="geo-hero__map" data-static-map
-           data-points="{{ points_main }}" data-bounds="{{ bounds_continental }}"
-           data-mask="{% static 'geo/portugal-continental.json' %}"
-           role="application" aria-label="Mapa de Portugal continental"></div>
-      <div class="geo-hero__legend" role="group" aria-label="Legenda de prioridade dos pontos">
-        <span class="geo-hero__legend-chip">
-          <span class="geo-hero__legend-dot geo-hero__legend-dot--p1" aria-hidden="true"></span>
-          <span class="geo-hero__legend-label">P1 · {{ pri_points.p1 }}</span>
-        </span>
-        <span class="geo-hero__legend-chip">
-          <span class="geo-hero__legend-dot geo-hero__legend-dot--p2" aria-hidden="true"></span>
-          <span class="geo-hero__legend-label">P2 · {{ pri_points.p2 }}</span>
-        </span>
-        <span class="geo-hero__legend-chip">
-          <span class="geo-hero__legend-dot geo-hero__legend-dot--normal" aria-hidden="true"></span>
-          <span class="geo-hero__legend-label">Normal · {{ pri_points.normal }}</span>
-        </span>
-        {% if n_fora_mapa %}
-        <span class="geo-hero__legend-chip" title="Ocorrências geolocalizadas fora dos enquadramentos continental, Madeira e Açores">
-          <span class="geo-hero__legend-label">fora dos enquadramentos · {{ n_fora_mapa }}</span>
-        </span>
-        {% endif %}
-        {# Crédito ODbL adjacente — cobre os insets, que não têm controlo de atribuição. #}
-        <span class="geo-hero__legend-chip geo-hero__legend-chip--credit">
-          <a class="geo-hero__legend-label" href="https://www.openstreetmap.org/copyright"
-             target="_blank" rel="noopener">© OpenStreetMap</a>
-        </span>
-      </div>
-    </article>
-
-    <!-- Coluna 3 — Insets das regiões autónomas + prazos (fluxo, não só stock) -->
-    <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas e prazos">
-      {# Insets como BOTÕES de foco regional: clicar refoca o mapa principal nesse arquipélago (bounds já no DOM). #}
-      <div class="geo-hero__inset-row">
-        {# A contagem regional vive no aria-label do BOTÃO: role=button torna os descendentes apresentacionais e o leitor de ecrã não chega ao rótulo visível nem ao resumo interno. #}
-        <button type="button" class="geo-hero__inset-btn" data-hero-focus
-                aria-label="Focar o mapa principal na Madeira — {{ n_madeira }} ocorrência{{ n_madeira|pluralize }}">
-          <span class="geo-hero__inset" data-static-map data-fixed
-               data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
-               role="img" aria-label="Mapa da Madeira">
-            <span class="geo-hero__inset-label">Madeira · {{ n_madeira }}</span>
-          </span>
-        </button>
-        <button type="button" class="geo-hero__inset-btn" data-hero-focus
-                aria-label="Focar o mapa principal nos Açores — {{ n_acores }} ocorrência{{ n_acores|pluralize }}">
-          <span class="geo-hero__inset" data-static-map data-fixed
-               data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
-               role="img" aria-label="Mapa dos Açores">
-            <span class="geo-hero__inset-label">Açores · {{ n_acores }}</span>
-          </span>
-        </button>
-      </div>
-      {# Prazos & atenção — aging_sla/custody_dwell de core/analytics (a MESMA fonte de /stats/): responde a "o que está em risco hoje?". #}
-      <div class="geo-hero__attn" role="group" aria-label="Prazos e atenção">
-        <h3 class="geo-hero__attn-title">Prazos &amp; atenção</h3>
-        <a class="attn-row{% if sla.validations_overdue %} attn-row--hot{% endif %}"
-           href="/evidences/?state=a_guarda_opc"
-           title="Abre a lista de TODOS os itens à guarda do OPC (conjunto mais lato que o nº em atraso)">
-          <span class="attn-row__num">{{ sla.validations_overdue }}</span>
-          <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
-        </a>
-        <a class="attn-row{% if sla.in_transit %} attn-row--warn{% endif %}"
-           href="/inbound/" title="Prova encaminhada ainda por receber">
-          <span class="attn-row__num">{{ sla.in_transit }}</span>
-          <span class="attn-row__label">em trânsito por receber{% if sla.in_transit %} · {{ sla.oldest_transit_hours }}h{% endif %}</span>
-        </a>
-        <div class="attn-row">
-          <span class="attn-row__num">{{ dwell.longest_open_hours }}h</span>
-          <span class="attn-row__label">paragem atual mais longa</span>
+      <!-- Prazos & atenção — fluxo do ledger (aging_sla/custody_dwell, a MESMA
+           fonte única de /stats/): responde a "o que está em risco hoje?". -->
+      <section class="section" aria-label="Prazos e atenção">
+        <header class="section__head"><h2 class="section__title">Prazos &amp; atenção</h2></header>
+        <div class="section__body section__body--flush">
+          <div class="attn-strip">
+            <a class="attn-row{% if sla.validations_overdue %} attn-row--hot{% endif %}"
+               href="/evidences/?state=a_guarda_opc"
+               title="Abre a lista de TODOS os itens à guarda do OPC (conjunto mais lato que o nº em atraso)">
+              <span class="attn-row__num">{{ sla.validations_overdue }}</span>
+              <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
+            </a>
+            <a class="attn-row{% if sla.in_transit %} attn-row--warn{% endif %}"
+               href="/inbound/" title="Prova encaminhada ainda por receber">
+              <span class="attn-row__num">{{ sla.in_transit }}</span>
+              <span class="attn-row__label">em trânsito por receber{% if sla.in_transit %} · {{ sla.oldest_transit_hours }}h{% endif %}</span>
+            </a>
+            <div class="attn-row">
+              <span class="attn-row__num">{{ dwell.longest_open_hours }}h</span>
+              <span class="attn-row__label">paragem atual mais longa</span>
+            </div>
+            <div class="attn-row" title="Movimentos de custódia nas últimas 24 horas">
+              <span class="attn-row__num">{{ moves_24h }}</span>
+              <span class="attn-row__label">movimentos nas últimas 24h</span>
+            </div>
+          </div>
         </div>
-        <div class="attn-row" title="Movimentos de custódia nas últimas 24 horas">
-          <span class="attn-row__num">{{ moves_24h }}</span>
-          <span class="attn-row__label">movimentos nas últimas 24h</span>
-        </div>
-      </div>
-    </article>
-  </section>
+      </section>
 
-  <!-- Últimas ocorrências — grelha pelo gerador ÚNICO (core.grid): a tabela
-       bespoke não tinha .gridwrap (a coluna Data era CORTADA às cegas em
-       mobile/zoom 200%) nem larguras fixas (colunas esticadas a 1920). -->
-  <section class="section">
-    <header class="section__head">
-      <h2 class="section__title">Últimas ocorrências</h2>
-      <a class="section__more" href="/occurrences/">Ver todas →</a>
-    </header>
-    <div class="section__body section__body--flush">
-      <div class="gridwrap">
-        {% include 'partials/_grid.html' with columns=recent_columns page_obj=recent table_id='dash-recent-table' table_label='Últimas ocorrências' row_clickable=False mobile_reduce=True hide_filter_row=True urgency_legend=None has_filters=False empty_hint='Ainda não há ocorrências.' empty_title='' empty_filtered='' is_htmx=False %}
-      </div>
+      <!-- Últimas ocorrências — grelha pelo gerador ÚNICO (core.grid), altura
+           fixa com scroll interno: mostra sempre várias sem truncar a lista. -->
+      <section class="section" aria-label="Últimas ocorrências">
+        <header class="section__head">
+          <h2 class="section__title">Últimas ocorrências</h2>
+          <a class="section__more" href="/occurrences/">Ver todas →</a>
+        </header>
+        <div class="section__body section__body--flush">
+          <div class="gridwrap gridwrap--scroll">
+            {% include 'partials/_grid.html' with columns=recent_columns page_obj=recent table_id='dash-recent-table' table_label='Últimas ocorrências' row_clickable=False mobile_reduce=True hide_filter_row=True urgency_legend=None has_filters=False empty_hint='Ainda não há ocorrências.' empty_title='' empty_filtered='' is_htmx=False %}
+          </div>
+        </div>
+      </section>
+
+      <!-- Estado da cadeia — estado legal derivado do ledger (sem cor por
+           estado, regra V19); tiles em grelha compacta, todos clicáveis. -->
+      <section class="section" aria-label="Estado da cadeia de custódia">
+        <header class="section__head">
+          <h2 class="section__title">Estado da cadeia</h2>
+          <span class="geo-hero__meta">{{ custody_total }} ite{{ custody_total|pluralize:"m,ns" }}</span>
+        </header>
+        <div class="section__body section__body--flush">
+          {# <ul> nativo: role=listitem num <a> suprimia a semântica de link nos leitores de ecrã. #}
+          <ul class="custody-grid">
+            {% for t in tiles %}
+            <li>
+              <a class="cs-tile{% if t.n == 0 %} cs-tile--zero{% endif %}" href="/evidences/?state={{ t.key }}"
+                 title="Ver itens no estado: {{ t.label }}">
+                <span class="cs-tile__num">{{ t.n }}</span>
+                <span class="cs-tile__label">{{ t.label }}</span>
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
     </div>
-  </section>
+
+    <!-- Coluna do território: mapa ALTO (aspeto do país — Portugal preenche o
+         enquadramento sem encher de Espanha) + regiões autónomas. -->
+    <aside class="dash-grid__side" aria-label="Território nacional">
+      <article class="geo-hero__col">
+        <header class="geo-hero__header">
+          <h2 class="geo-hero__title">Portugal</h2>
+          <span class="geo-hero__meta">geolocalizadas · {{ n_geo }}</span>
+        </header>
+        <div class="geo-hero__map geo-hero__map--tall" data-static-map
+             data-points="{{ points_main }}" data-bounds="{{ bounds_continental }}"
+             data-mask="{% static 'geo/portugal-continental.json' %}"
+             role="application" aria-label="Mapa de Portugal continental"></div>
+        <div class="geo-hero__legend" role="group" aria-label="Legenda de prioridade dos pontos">
+          <span class="geo-hero__legend-chip">
+            <span class="geo-hero__legend-dot geo-hero__legend-dot--p1" aria-hidden="true"></span>
+            <span class="geo-hero__legend-label">P1 · {{ pri_points.p1 }}</span>
+          </span>
+          <span class="geo-hero__legend-chip">
+            <span class="geo-hero__legend-dot geo-hero__legend-dot--p2" aria-hidden="true"></span>
+            <span class="geo-hero__legend-label">P2 · {{ pri_points.p2 }}</span>
+          </span>
+          <span class="geo-hero__legend-chip">
+            <span class="geo-hero__legend-dot geo-hero__legend-dot--normal" aria-hidden="true"></span>
+            <span class="geo-hero__legend-label">Normal · {{ pri_points.normal }}</span>
+          </span>
+          {% if n_fora_mapa %}
+          <span class="geo-hero__legend-chip" title="Ocorrências geolocalizadas fora dos enquadramentos continental, Madeira e Açores">
+            <span class="geo-hero__legend-label">fora dos enquadramentos · {{ n_fora_mapa }}</span>
+          </span>
+          {% endif %}
+          {# Crédito ODbL adjacente — cobre os insets, que não têm controlo de atribuição. #}
+          <span class="geo-hero__legend-chip geo-hero__legend-chip--credit">
+            <a class="geo-hero__legend-label" href="https://www.openstreetmap.org/copyright"
+               target="_blank" rel="noopener">© OpenStreetMap</a>
+          </span>
+        </div>
+        {# Insets como BOTÕES de foco regional: clicar refoca o mapa principal nesse arquipélago (bounds já no DOM). A contagem vive no aria-label do BOTÃO: role=button torna os descendentes apresentacionais. #}
+        <div class="geo-hero__inset-row">
+          <button type="button" class="geo-hero__inset-btn" data-hero-focus
+                  aria-label="Focar o mapa principal na Madeira — {{ n_madeira }} ocorrência{{ n_madeira|pluralize }}">
+            <span class="geo-hero__inset" data-static-map data-fixed
+                 data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
+                 role="img" aria-label="Mapa da Madeira">
+              <span class="geo-hero__inset-label">Madeira · {{ n_madeira }}</span>
+            </span>
+          </button>
+          <button type="button" class="geo-hero__inset-btn" data-hero-focus
+                  aria-label="Focar o mapa principal nos Açores — {{ n_acores }} ocorrência{{ n_acores|pluralize }}">
+            <span class="geo-hero__inset" data-static-map data-fixed
+                 data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
+                 role="img" aria-label="Mapa dos Açores">
+              <span class="geo-hero__inset-label">Açores · {{ n_acores }}</span>
+            </span>
+          </button>
+        </div>
+      </article>
+    </aside>
+  </div>
 
   <!-- Registo de atividade (AuditLog append-only). O âmbito segue a credencial
        (has_national_read), não a lente: um perito NORMAL tem leitura total da
