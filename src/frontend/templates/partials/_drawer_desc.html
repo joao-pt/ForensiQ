@@ -1,0 +1,10 @@
+{% comment %}
+  Bloco de descrição/observações dos drawers (fonte ÚNICA — auditoria D56).
+  Parâmetros: title (ex.: 'Descrição'/'Observações') e text (omite-se vazio).
+{% endcomment %}
+{% if text %}
+<div class="dd__desc">
+  <h3 class="subhead">{{ title }}</h3>
+  <p>{{ text }}</p>
+</div>
+{% endif %}

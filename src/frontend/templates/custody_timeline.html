@@ -42,18 +42,13 @@
   <section class="section">
     <header class="section__head"><h2 class="section__title">Trajeto da prova</h2></header>
     <div class="section__body section__body--flush">
+      {% include 'partials/_geo_map.html' with lat=ev.gps_lat lng=ev.gps_lng label=ev.code chain=chain_json css_class='map-box map-box--tall' static=True nogeo_msg='Sem georreferência registada nos eventos desta evidência.' %}
       {% if chain_json != '[]' or ev.gps_lat is not None %}
-      <div class="map-box map-box--tall" data-static-map
-           data-chain="{{ chain_json }}"
-           {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
-           data-label="{{ ev.code }}"></div>
       <ul class="map-legend" aria-label="Legenda do trajeto">
         <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--first" aria-hidden="true">1</span>Origem</li>
         <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--current" aria-hidden="true">N</span>Localização atual</li>
         <li class="map-legend__item"><span class="map-legend__dash" aria-hidden="true"></span>Trajeto</li>
       </ul>
-      {% else %}
-      <p class="dd__nogeo">Sem georreferência registada nos eventos desta evidência.</p>
       {% endif %}
     </div>
   </section>

@@ -1,0 +1,11 @@
+{% comment %}
+  Linha de facto copiável de valor longo — hash/URL (fonte ÚNICA do idiom ⧉ —
+  auditoria D54). Parâmetros do include:
+    • value      — valor apresentado e copiado (mono, com quebra dd__hash);
+    • label      — texto do <dt> (def. 'Hash');
+    • copy_title — title/aria do botão (def. 'Copiar hash').
+{% endcomment %}
+<div class="facts__row"><dt>{{ label|default:'Hash' }}</dt>
+  <dd class="mono"><span class="dd__hash">{{ value }}</span>
+    <button type="button" class="copy-btn" data-copy="{{ value }}"
+            aria-label="{{ copy_title|default:'Copiar hash' }}" title="{{ copy_title|default:'Copiar hash' }}">⧉</button></dd></div>

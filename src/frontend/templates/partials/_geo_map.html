@@ -1,0 +1,22 @@
+{% comment %}
+  Embed de mapa read-only por data-attributes + fallback "sem georreferência"
+  (fonte ÚNICA — auditoria D55). O runtime já é único (forensic-list.js trata
+  #drawer-map e [data-static-map]); este partial unifica o HTML. Parâmetros:
+    • lat / lng  — coordenadas do pino (opcionais se houver chain);
+    • label      — tooltip do pino;
+    • chain      — JSON do trajeto (opcional, modo Cadeia);
+    • css_class  — classe do container (def. dd__map);
+    • map_id     — id do container (ex.: drawer-map nos drawers);
+    • static     — True acrescenta data-static-map (páginas de detalhe; os
+                   drawers NÃO o levam — seriam inicializados duas vezes);
+    • nogeo_msg  — mensagem do fallback (def. única).
+{% endcomment %}
+{% load l10n %}
+{% if lat is not None or chain and chain != '[]' %}
+<div class="{{ css_class|default:'dd__map' }}"{% if map_id %} id="{{ map_id }}"{% endif %}{% if static %} data-static-map{% endif %}
+     {% if chain %}data-chain="{{ chain }}"{% endif %}
+     {% if lat is not None %}data-lat="{{ lat|unlocalize }}" data-lng="{{ lng|unlocalize }}"{% endif %}
+     data-label="{{ label }}"></div>
+{% else %}
+<p class="dd__nogeo">{{ nogeo_msg|default:'Sem georreferência registada.' }}</p>
+{% endif %}

@@ -2,10 +2,7 @@
 {% load l10n %}
 <article class="dd" data-custody-detail>
 
-  <div class="dd__top" tabindex="-1" data-drawer-head>
-    <span class="dd__code mono">{{ r.code|default:r.event_label }}</span>
-    {% if r.code %}<button type="button" class="copy-btn" data-copy="{{ r.code }}" aria-label="Copiar código" title="Copiar código">⧉</button>{% endif %}
-  </div>
+  {% include 'partials/_drawer_head.html' with code=r.code|default:r.event_label copy_value=r.code %}
 
   <dl class="facts">
     <div class="facts__row"><dt>Evento</dt><dd>{{ r.event_label }}</dd></div>
@@ -18,24 +15,18 @@
     {% if r.location_name %}<div class="facts__row"><dt>Local</dt><dd>{{ r.location_name }}</dd></div>{% endif %}
     {% if r.storage_location %}<div class="facts__row"><dt>Armazenamento</dt><dd>{{ r.storage_location }}</dd></div>{% endif %}
     {% if r.gps_lat is not None %}
-    <div class="facts__row"><dt>GPS</dt>
-      <dd class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}{% if r.gps_accuracy_m %} <span class="facts__src">±{{ r.gps_accuracy_m }}m</span>{% endif %}
-        <button type="button" class="copy-btn" data-copy="{{ r.gps_lat|unlocalize }},{{ r.gps_lng|unlocalize }}" aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+    {% include 'partials/_fact_gps.html' with lat=r.gps_lat lng=r.gps_lng acc=r.gps_accuracy_m %}
     {% endif %}
-    <div class="facts__row"><dt>Hash</dt><dd class="mono"><span class="dd__hash">{{ r.record_hash }}</span>
-      <button type="button" class="copy-btn" data-copy="{{ r.record_hash }}" aria-label="Copiar hash" title="Copiar hash do registo">⧉</button></dd></div>
+    {% include 'partials/_fact_hash.html' with value=r.record_hash copy_title='Copiar hash do registo' %}
   </dl>
 
-  {% if r.observations %}
-  <div class="dd__desc"><h3 class="subhead">Observações</h3><p>{{ r.observations }}</p></div>
-  {% endif %}
+  {% include 'partials/_drawer_desc.html' with title='Observações' text=r.observations %}
 
   {% if r.gps_lat is not None %}
-  <div class="dd__map" id="drawer-map" data-lat="{{ r.gps_lat|unlocalize }}" data-lng="{{ r.gps_lng|unlocalize }}" data-label="{{ r.event_label }}"></div>
-  {% elif r.evidence.gps_lat is not None %}
-  <div class="dd__map" id="drawer-map" data-lat="{{ r.evidence.gps_lat|unlocalize }}" data-lng="{{ r.evidence.gps_lng|unlocalize }}" data-label="{{ r.evidence.code }}"></div>
+  {% include 'partials/_geo_map.html' with lat=r.gps_lat lng=r.gps_lng label=r.event_label map_id='drawer-map' %}
   {% else %}
-  <p class="dd__nogeo">Sem georreferência neste evento.</p>
+  {# Fallback: GPS da apreensão do item; sem ele, o partial mostra o nogeo. #}
+  {% include 'partials/_geo_map.html' with lat=r.evidence.gps_lat lng=r.evidence.gps_lng label=r.evidence.code map_id='drawer-map' nogeo_msg='Sem georreferência neste evento.' %}
   {% endif %}
 
 </article>

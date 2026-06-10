@@ -65,22 +65,16 @@
           <div class="facts__row"><dt>Nº série</dt><dd class="mono">{{ ev.serial_number|default:'—' }}</dd></div>
           <div class="facts__row"><dt>Apreensão</dt><dd class="mono">{{ ev.timestamp_seizure|date:'Y-m-d H:i' }}</dd></div>
           <div class="facts__row"><dt>Agente</dt><dd>{{ ev.agent_label }}</dd></div>
-          <div class="facts__row"><dt>Hash do registo</dt>
-            <dd class="mono"><span class="dd__hash">{{ ev.integrity_hash }}</span>
-              <button type="button" class="copy-btn" data-copy="{{ ev.integrity_hash }}" aria-label="Copiar hash do registo" title="Copiar hash SHA-256 do registo">⧉</button></dd></div>
+          {% include 'partials/_fact_hash.html' with label='Hash do registo' value=ev.integrity_hash copy_title='Copiar hash SHA-256 do registo' %}
           {% if ev.gps_lat is not None %}
-          <div class="facts__row"><dt>GPS</dt>
-            <dd class="mono">{{ ev.gps_lat|unlocalize }}, {{ ev.gps_lng|unlocalize }}
-              <button type="button" class="copy-btn" data-copy="{{ ev.gps_lat|unlocalize }},{{ ev.gps_lng|unlocalize }}" aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>
+          {% include 'partials/_fact_gps.html' with lat=ev.gps_lat lng=ev.gps_lng %}
           {% endif %}
         </dl>
 
         {% if ev.acquisition_hash %}
         <h3 class="subhead">Aquisição</h3>
         <dl class="facts">
-          <div class="facts__row"><dt>Hash de aquisição</dt>
-            <dd class="mono"><span class="dd__hash">{{ ev.acquisition_hash }}</span>
-              <button type="button" class="copy-btn" data-copy="{{ ev.acquisition_hash }}" aria-label="Copiar hash de aquisição" title="Copiar hash de aquisição">⧉</button></dd></div>
+          {% include 'partials/_fact_hash.html' with label='Hash de aquisição' value=ev.acquisition_hash copy_title='Copiar hash de aquisição' %}
           {% if ev.acquisition_hash_algo %}
           <div class="facts__row"><dt>Algoritmo</dt><dd class="mono">{{ ev.acquisition_hash_algo }}</dd></div>
           {% endif %}
@@ -146,16 +140,9 @@
         <h2 class="section__title">{% if chain_json != '[]' %}Localização / Cadeia{% else %}Localização da apreensão{% endif %}</h2>
       </header>
       <div class="section__body section__body--flush">
-        {% if ev.gps_lat is not None or chain_json != '[]' %}
-        <div class="map-box" data-static-map
-             data-chain="{{ chain_json }}"
-             {% if ev.gps_lat is not None %}data-lat="{{ ev.gps_lat|unlocalize }}" data-lng="{{ ev.gps_lng|unlocalize }}"{% endif %}
-             data-label="{{ ev.code }}"></div>
+        {% include 'partials/_geo_map.html' with lat=ev.gps_lat lng=ev.gps_lng label=ev.code chain=chain_json css_class='map-box' static=True nogeo_msg='Sem georreferência (nem na apreensão, nem nos eventos de custódia).' %}
         {% if ev.gps_lat is not None and chain_json == '[]' %}
         <p class="dd__nogeo">Sem georreferência nos eventos de custódia.</p>
-        {% endif %}
-        {% else %}
-        <p class="dd__nogeo">Sem georreferência (nem na apreensão, nem nos eventos de custódia).</p>
         {% endif %}
       </div>
     </section>

@@ -1,0 +1,11 @@
+{% comment %}
+  Linha de facto GPS copiável (fonte ÚNICA do idiom ⧉ para coordenadas —
+  auditoria D54). Parâmetros do include:
+    • lat / lng — Decimais (unlocalize garante ponto decimal);
+    • acc       — precisão em metros (opcional, anexo informativo).
+{% endcomment %}
+{% load l10n %}
+<div class="facts__row"><dt>GPS</dt>
+  <dd class="mono">{{ lat|unlocalize }}, {{ lng|unlocalize }}{% if acc %} <span class="facts__src">±{{ acc }}m</span>{% endif %}
+    <button type="button" class="copy-btn" data-copy="{{ lat|unlocalize }},{{ lng|unlocalize }}"
+            aria-label="Copiar coordenadas" title="Copiar coordenadas">⧉</button></dd></div>

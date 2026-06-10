@@ -36,12 +36,7 @@
         <div class="facts__row"><dt>Código</dt><dd class="mono">{{ result.code }}</dd></div>
         <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ result.number }}</dd></div>
         <div class="facts__row"><dt>Hash do QR</dt><dd class="mono">{{ result.short_hash }}</dd></div>
-        <div class="facts__row">
-          <dt>URL de verificação</dt>
-          <dd class="mono">{{ result.verify_url }}
-            <button type="button" class="copy-btn" data-copy="{{ result.verify_url }}" aria-label="Copiar URL" title="Copiar URL">⧉</button>
-          </dd>
-        </div>
+        {% include 'partials/_fact_hash.html' with label='URL de verificação' value=result.verify_url copy_title='Copiar URL' %}
       </dl>
       <div class="form-actions">
         <a class="btn-accent" href="/occurrences/{{ result.id }}/">Abrir ocorrência</a>
