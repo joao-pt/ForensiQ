@@ -141,7 +141,7 @@
     grid-row: 1;
     grid-column: 1;
     font-family: var(--font-mono);
-    font-feature-settings: "tnum" 1, "zero" 1;
+    font-feature-settings: var(--ffs-forensic);
     font-size: 18px;
     font-weight: var(--fw-semi);
     color: var(--text-emphasis);

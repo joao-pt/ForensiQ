@@ -444,19 +444,10 @@
     margin-bottom: var(--sp-2);
 }
 
+/* Ponto "vivo": componente único .live-dot em main.css (auditoria D87) — o
+   template emite class="live-dot lp-dot"; aqui fica só o halo próprio do login. */
 .lp-dot {
-    display: inline-block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--success);
     box-shadow: 0 0 6px var(--success-tint);
-    animation: lp-pulse-dot 2.4s ease-in-out infinite;
-}
-
-@keyframes lp-pulse-dot {
-    0%, 100% { opacity: 0.7; transform: scale(1); }
-    50%      { opacity: 1;   transform: scale(1.15); }
 }
 
 .lp-version {
@@ -513,7 +504,6 @@
 @media (prefers-reduced-motion: reduce) {
     .lp-form-card,
     .lp-error,
-    .lp-dot,
     .btn-hero::before {
         animation: none !important;
         transition: none !important;

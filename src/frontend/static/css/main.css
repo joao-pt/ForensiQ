@@ -13,7 +13,7 @@
  * Tipografia: IBM Plex Sans (UI) + IBM Plex Mono (hashes, IDs, timestamps
  * forenses). Ambas SIL OFL 1.1. `font-feature-settings` global: "zero" 1
  * (slashed zero — assinatura terminal/forense), "tnum" 1 (tabular numbers
- * para alinhar colunas), "ss05" 1 (alternate Q). Ver 
+ * para alinhar colunas), "ss05" 1 (alternate Q). Ver
  * art direction e docs/design/login-design-credits.md.
  *
  * Accent: amber (#F6AD55 dark / #B45309 light) — quente, denso, forense.
@@ -182,6 +182,10 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.32);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.32), 0 1px 2px rgba(0, 0, 0, 0.20);
     --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.44), 0 2px 6px rgba(0, 0, 0, 0.24);
+
+    /* Features tipográficas forenses (zero riscado + dígitos tabulares) — fonte
+       única do literal antes repetido 9× entre folhas (auditoria D82). */
+    --ffs-forensic: "zero" 1, "tnum" 1;
 
     --scrollbar-thumb: rgba(255, 255, 255, 0.10);
     --scrollbar-thumb-hover: rgba(255, 255, 255, 0.18);
@@ -399,9 +403,20 @@ h4 { font-size: var(--fs-md); }
 
 p { line-height: var(--lh-base); }
 
-code, kbd, samp, .mono {
+code, kbd, samp {
     font-family: var(--font-mono);
     font-variant-ligatures: none;
+    font-size: 0.92em;
+}
+
+/* Utilitário .mono canónico (auditoria D82): semântica forense única — antes
+   havia duas definições concorrentes (aqui e em forensic.css), decididas pela
+   ordem de carregamento. */
+.mono {
+    font-family: var(--font-mono);
+    font-variant-ligatures: none;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: var(--ffs-forensic);
     font-size: 0.92em;
 }
 
@@ -924,9 +939,49 @@ textarea.form-input {
     flex-shrink: 0;
 }
 
-
+/* @keyframes ÚNICO de rotação (auditoria D86) — consumido também pelo
+   .toolbar__busy de forensic.css (antes havia um fq-spin idêntico). */
 @keyframes spin {
     to { transform: rotate(360deg); }
+}
+
+/* Ponto de estado "vivo" pulsante (rodapé da casca + login) — componente único
+   (auditoria D87); o guard de reduced-motion existe só aqui. */
+.live-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    flex-shrink: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .live-dot { animation: live-pulse 2.4s ease-in-out infinite; }
+    @keyframes live-pulse {
+        0%, 100% { opacity: 0.6; transform: scale(0.9); }
+        50%      { opacity: 1;   transform: scale(1.05); }
+    }
+}
+
+/* ============================================================
+   13. SKIP-LINK (a11y) — fonte única (auditoria D80): carregada por TODOS os
+   documentos (casca, 500.html standalone e páginas públicas); antes clonado
+   em app-shell.css e error.css.
+   ============================================================ */
+
+.skip-link {
+    position: absolute;
+    left: -10000px;
+    top: 0;
+    z-index: 200;
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: var(--fw-semi);
+    border-radius: 0 0 var(--r-2) 0;
+}
+.skip-link:focus {
+    left: 0;
 }
 
 /* ============================================================

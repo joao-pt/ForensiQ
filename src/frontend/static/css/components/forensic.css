@@ -12,13 +12,31 @@
 /* ============================================================
    Utilidades
    ============================================================ */
-.mono {
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
-    font-feature-settings: "zero" 1, "tnum" 1;
-}
+/* .mono: utilitário canónico em main.css (auditoria D82) — sem redefinição aqui. */
 /* Páginas densas usam a largura toda do main (anula o container só onde marcado) */
 .app-main .container:has(> .fullbleed) { max-width: none; padding: 0; }
+
+/* Receita ÚNICA de ícone outline (auditoria D90): stroke herda a cor do texto;
+   cada consumidor declara só tamanho/posicionamento. */
+:is(.btn-accent, .btn-ghost) svg,
+.toolbar__search-icon,
+.grid__geo {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Moldura ÚNICA dos contentores de mapa Leaflet (auditoria D85): cada
+   componente define só a altura via --map-h (e o overflow no picker). */
+.map-box, .geo-field__map, .dd__map, .map-picker {
+    height: var(--map-h, 240px);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    background: var(--bg-inset);
+    z-index: 0;
+}
 
 /* ============================================================
    Cabeçalho de página
@@ -78,7 +96,7 @@
 }
 .btn-accent:hover { background: var(--accent-hover); }
 .btn-accent:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.btn-accent svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.btn-accent svg { width: 16px; height: 16px; }
 
 /* Botão secundário/neutro.
    Auto-contido: declara todas as suas propriedades (background, color, border,
@@ -103,7 +121,7 @@
 }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--accent); }
 .btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.btn-ghost svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.btn-ghost svg { width: 15px; height: 15px; }
 /* Alvo de toque >=44px nas ações de página em mobile (uso de campo, luvas) */
 @media (max-width: 767px) {
     .btn-accent, .btn-ghost { min-height: var(--min-touch); }
@@ -258,7 +276,6 @@
     width: 15px; height: 15px;
     transform: translateY(-50%);
     color: var(--text-subtle);
-    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round;
     pointer-events: none;
 }
 .toolbar input[type="search"],
@@ -328,9 +345,9 @@
     opacity: 0;
     transition: opacity var(--t-fast);
 }
-.toolbar__busy.htmx-request { opacity: 1; animation: fq-spin 0.6s linear infinite; }
-@keyframes fq-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .toolbar__busy.htmx-request { animation: none; } }
+/* @keyframes `spin` único em main.css (auditoria D86); o bloco global de
+   prefers-reduced-motion de main.css cobre a exceção que vivia aqui. */
+.toolbar__busy.htmx-request { opacity: 1; animation: spin 0.6s linear infinite; }
 
 /* Disclosure "Filtros" (custody_list) — em desktop os filtros ficam sempre
    inline na toolbar (o summary é escondido e o <details> comporta-se como um
@@ -458,7 +475,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     vertical-align: middle;
     white-space: nowrap;
 }
-.grid .mono { font-family: var(--font-mono); font-feature-settings: "zero" 1, "tnum" 1; }
 .grid__code { color: var(--text-emphasis); font-weight: var(--fw-medium); }
 .grid--clickable tbody tr:hover .grid__code { color: var(--accent); }
 .grid__ellipsis { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
@@ -469,7 +485,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     margin-right: 4px;
     color: var(--accent);
     vertical-align: -1px;
-    fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round;
 }
 
 /* ============================================================
@@ -494,13 +509,13 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .urgency-dot--p1 { background: var(--danger); }
 .urgency-dot--p2 { background: var(--warning); }
 .urgency-dot--none { background: var(--border-strong); }
-/* Variantes por estado (mesmas cores de .state--*): a bolinha reflete o estado
-   legal (evidências/custódias) ou ativo/inativo (instituições). */
-.urgency-dot--ok { background: var(--success); }
-.urgency-dot--warn { background: var(--warning); }
-.urgency-dot--info { background: var(--info); }
-.urgency-dot--danger { background: var(--danger); }
-.urgency-dot--muted { background: var(--text-subtle); }
+/* Mapa tom→cor ÚNICO (auditoria D88): a bolinha de urgência e o ponto do badge
+   .state consomem a mesma regra (os NOMES de tom vêm de core/labels.py). */
+.urgency-dot--ok, .state--ok::before { background: var(--success); }
+.urgency-dot--warn, .state--warn::before { background: var(--warning); }
+.urgency-dot--info, .state--info::before { background: var(--info); }
+.urgency-dot--danger, .state--danger::before { background: var(--danger); }
+.urgency-dot--muted, .state--muted::before { background: var(--text-subtle); }
 /* Na grelha a bolinha prefixa a coluna identificadora (QUALQUER tipo de célula,
    via .grid__dot-host) e SÓ aparece na vista mobile reduzida. */
 .grid__dot-host > .urgency-dot { display: none; margin-right: var(--sp-2); }
@@ -532,11 +547,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     content: ""; width: 6px; height: 6px; border-radius: 50%;
     background: var(--text-subtle); flex-shrink: 0;
 }
-.state--ok::before { background: var(--success); }
-.state--warn::before { background: var(--warning); }
-.state--info::before { background: var(--info); }
-.state--danger::before { background: var(--danger); }
-.state--muted::before { background: var(--text-subtle); }
+/* Variantes .state--*::before: no mapa tom→cor único, junto ao .urgency-dot (D88). */
 
 /* ============================================================
    Paginação
@@ -586,7 +597,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     color: var(--text-subtle);
 }
 .facts__row dd { margin: 0; font-size: var(--fs-sm); color: var(--text); }
-.facts__row dd.mono { font-family: var(--font-mono); font-feature-settings: "zero" 1, "tnum" 1; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.facts__row dd.mono { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .facts__src { color: var(--text-subtle); font-size: var(--fs-xs); }
 
 /* ============================================================
@@ -620,7 +631,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .intake-dest__addr { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
 .intake-dest__gps {
     margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--text);
-    font-feature-settings: "zero" 1, "tnum" 1;
+    font-feature-settings: var(--ffs-forensic);
     display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap;
 }
 .intake-dest__src { font-family: var(--font-sans); font-size: var(--fs-xs); color: var(--text-subtle); }
@@ -659,18 +670,23 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .detail__actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 .cols-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
 @media (max-width: 1023px) { .cols-2 { grid-template-columns: 1fr; } }
-.map-box { height: 280px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
-.map-box--tall { height: 380px; }
+.map-box { --map-h: 280px; }
+.map-box--tall { --map-h: 380px; }
 
 /* Marcadores da trajetória de custódia (forensic-list.js, modo Cadeia).
    Carregado DEPOIS do leaflet.css → o reset sobrepõe-se ao .leaflet-div-icon
    default (caixa branca com borda). Sem estilo inline (CSP estrita). */
 .fq-chain-pin { background: transparent; border: 0; display: flex; align-items: center; justify-content: center; }
-.fq-chain-pin__num {
+/* Base ÚNICA do pino numerado — mapa da cadeia E legenda (auditoria D89):
+   a receita (pill âmbar + número mono) vive aqui; cada lado só dimensiona. */
+.fq-chain-pin__num, .map-legend__pin {
     display: flex; align-items: center; justify-content: center;
-    width: 24px; height: 24px; border-radius: var(--r-pill);
+    border-radius: var(--r-pill);
     background: var(--accent); color: var(--on-accent);
-    font-family: var(--font-mono); font-size: 11px; font-weight: var(--fw-semi); line-height: 1;
+    font-family: var(--font-mono); font-weight: var(--fw-semi); line-height: 1;
+}
+.fq-chain-pin__num {
+    width: 24px; height: 24px; font-size: 11px;
     border: 2px solid var(--bg-subtle); box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
 }
 /* Origem (1.º ponto): contorno âmbar, fundo sóbrio. */
@@ -684,12 +700,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 /* Legenda do trajeto (sob o mapa da cadeia). */
 .map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: 0; padding: var(--sp-2) var(--sp-4); list-style: none; font-size: var(--fs-xs); color: var(--text-muted); }
 .map-legend__item { display: inline-flex; align-items: center; gap: 6px; }
-.map-legend__pin {
-    display: inline-flex; align-items: center; justify-content: center;
-    width: 18px; height: 18px; border-radius: var(--r-pill);
-    background: var(--accent); color: var(--on-accent);
-    font-family: var(--font-mono); font-size: 10px; font-weight: var(--fw-semi); line-height: 1;
-}
+.map-legend__pin { display: inline-flex; width: 18px; height: 18px; font-size: 10px; }
 .map-legend__pin--first { background: var(--bg-subtle); color: var(--accent); border: 1.5px solid var(--accent); }
 .map-legend__pin--current { box-shadow: 0 0 0 2px var(--accent-tint); }
 .map-legend__dash { width: 22px; height: 0; border-top: 3px dashed var(--accent); }
@@ -698,7 +709,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    estado + inputs. Reutilizável em qualquer formulário com localização. */
 .geo-field { margin-bottom: var(--sp-5); }
 .geo-field__title { margin: 0 0 var(--sp-2); }
-.geo-field__map { height: 300px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
+.geo-field__map { --map-h: 300px; }
 .geo-field__map[hidden] { display: none; }
 .geo-field__bar { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin: var(--sp-2) 0 var(--sp-3); }
 .geo-field__status { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); }
@@ -731,7 +742,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .dash__greet p { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
 .stat { border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--sp-3) var(--sp-4); background: var(--bg-subtle); }
-.stat__num { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: "zero" 1, "tnum" 1; }
+.stat__num { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: var(--ffs-forensic); }
 .stat__label { font-family: var(--font-mono); font-size: 10px; text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-subtle); margin-top: 2px; }
 @media (max-width: 767px) { .stats { grid-template-columns: repeat(2, 1fr); } }
 .stats--3 { grid-template-columns: repeat(3, 1fr); }
@@ -808,8 +819,8 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .dd__code { font-size: var(--fs-md); font-weight: var(--fw-semi); color: var(--text-emphasis); letter-spacing: 0.01em; flex: 1; min-width: 0; word-break: break-all; }
 .dd__desc p { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-base); }
 
-/* Mapa do drawer (Local) */
-.dd__map { height: 220px; border: 1px solid var(--border); border-radius: var(--r-2); background: var(--bg-inset); z-index: 0; }
+/* Mapa do drawer (Local) — moldura única .map-* (auditoria D85). */
+.dd__map { --map-h: 220px; }
 /* Estado honesto quando o Leaflet não está disponível (em vez de aba sem mapa). */
 .dd__map--unavailable {
     display: flex; align-items: center; justify-content: center;
@@ -845,7 +856,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .timeline__event { font-weight: var(--fw-semi); color: var(--text-emphasis); font-size: var(--fs-sm); }
 .timeline__time { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); margin-left: auto; }
 .timeline__meta { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-1); font-size: var(--fs-xs); color: var(--text-muted); }
-.timeline__meta .mono { font-family: var(--font-mono); }
 .timeline__acc--flag { color: var(--danger); }
 
 /* ============================================================
@@ -1009,9 +1019,11 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     font-family: var(--font-mono); font-size: var(--fs-micro);
     text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-muted);
 }
-.feed__action[data-act="CREATE"] { color: var(--success); }
-.feed__action[data-act="EXPORT_PDF"] { color: var(--info); }
-.feed__action[data-act="SYSTEM_ALERT"] { color: var(--danger); }
+/* Cor por TOM semântico (auditoria D97): a tradução ação→tom vive em
+   core/labels.py (ACTION_CSS), não em strings do enum coladas no CSS. */
+.feed__action--ok { color: var(--success); }
+.feed__action--info { color: var(--info); }
+.feed__action--danger { color: var(--danger); }
 .feed__what { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .feed__who { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
 /* Em mobile reorganiza em duas linhas em vez de ocultar: o timestamp e o tipo

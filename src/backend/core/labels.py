@@ -22,6 +22,15 @@ LEGAL_STATE_LABELS = {
     'destruida': 'Destruída',
 }
 
+# Variante semântica da cor das AÇÕES de auditoria no feed (mesma paleta dos
+# badges .state; auditoria D97). Ações fora do mapa ficam neutras (sem classe).
+ACTION_CSS = {
+    'CREATE': 'ok',
+    'EXPORT_PDF': 'info',
+    'EXPORT_CSV': 'info',
+    'SYSTEM_ALERT': 'danger',
+}
+
 # Variante semântica do ponto do badge .state (a cor classifica o estado).
 LEGAL_STATE_CSS = {
     'a_guarda_opc': 'info',

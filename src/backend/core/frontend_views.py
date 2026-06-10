@@ -35,7 +35,7 @@ from core import access, analytics, evidence_field_config, evidence_type_config,
 from core.audit import get_client_ip, log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response
-from core.labels import LEGAL_STATE_CSS, LEGAL_STATE_LABELS
+from core.labels import ACTION_CSS, LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.list_filters import ColFilter
 from core.models import (
     STATES_AT_OR_PAST_LAB,
@@ -537,6 +537,9 @@ def _activity_feed(user, limit=20):
     logs = list(qs[:limit])
     for r in logs:
         r.action_label = r.get_action_display()
+        # Tom semântico da ação numa fonte única (labels.ACTION_CSS — D97);
+        # o template emite a variante, o CSS não conhece o enum.
+        r.action_css = ACTION_CSS.get(r.action, '')
         r.resource_label = r.get_resource_type_display()
         r.user_label = get_user_display_name(r.user)
         d = r.details or {}

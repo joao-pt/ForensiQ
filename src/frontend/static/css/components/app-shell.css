@@ -39,21 +39,7 @@ body.app-body {
     min-height: 100vh;
 }
 
-/* Skip-link (a11y) */
-.skip-link {
-    position: absolute;
-    left: -10000px;
-    top: 0;
-    z-index: 200;
-    padding: var(--sp-2) var(--sp-4);
-    background: var(--accent);
-    color: var(--on-accent);
-    font-weight: var(--fw-semi);
-    border-radius: 0 0 var(--r-2) 0;
-}
-.skip-link:focus {
-    left: 0;
-}
+/* Skip-link (a11y): fonte única em main.css (auditoria D80). */
 
 /* =====================================================================
    app-top — header de contexto operacional
@@ -199,7 +185,7 @@ body.app-body {
 .app-top__clock {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "zero" 1;
+    font-feature-settings: var(--ffs-forensic);
     font-size: var(--fs-sm);
     color: var(--text-muted);
     padding: 2px var(--sp-2);
@@ -208,7 +194,7 @@ body.app-body {
 .app-top__date {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    font-feature-settings: "tnum" 1, "zero" 1;
+    font-feature-settings: var(--ffs-forensic);
     /* Mesmo estilo da hora (.app-top__clock): tamanho e cor iguais — a data e a
        hora leem-se como um só carimbo temporal. */
     font-size: var(--fs-sm);
@@ -657,23 +643,8 @@ body.app-body {
     user-select: none;
 }
 
-.app-bottom__dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--success);
-    flex-shrink: 0;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .app-bottom__dot {
-        animation: fq-pulse 2.4s ease-in-out infinite;
-    }
-    @keyframes fq-pulse {
-        0%, 100% { opacity: 0.6; transform: scale(0.9); }
-        50%      { opacity: 1;   transform: scale(1.05); }
-    }
-}
+/* Ponto "vivo" do rodapé: componente único .live-dot em main.css (auditoria
+   D87) — o template emite class="live-dot app-bottom__dot". */
 
 /* =====================================================================
    Lente de acesso (consolas por papel — ADR-0017)
@@ -945,13 +916,11 @@ body.app-body {
     .confirm-dialog__actions { flex-direction: column-reverse; }
 }
 
-/* Seletor de localização no mapa (map-picker.js) — precisa de altura explícita
-   ou o Leaflet arranca sem dimensões. */
+/* Seletor de localização no mapa (map-picker.js) — a moldura vem da regra
+   única de forensic.css (auditoria D85); aqui só a altura e o overflow. */
 .map-picker {
-    height: 240px;
+    --map-h: 240px;
     width: 100%;
-    border: 1px solid var(--border);
-    border-radius: var(--r-1);
     overflow: hidden;
 }
 .map-picker__hint {
