@@ -19,7 +19,10 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from core.tests_factories import CrimeTipoFactory
+# BaseAPITestCase vive em core.tests_base (auditoria D112) — re-importada aqui
+# para as suites (e tests_new_features/tests_dashboard) continuarem a funcionar.
+from core.tests_base import BaseAPITestCase as BaseAPITestCase
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import (
@@ -28,57 +31,6 @@ from .models import (
     Occurrence,
     User,
 )
-
-
-class BaseAPITestCase(TestCase):
-    """Classe base com setup comum para testes da API."""
-
-    def setUp(self):
-        self.client = APIClient()
-
-        # Criar utilizadores de teste
-        self.agent = User.objects.create_user(
-            username='agente_api',
-            password='TestPass123!',
-            profile=User.Profile.FIRST_RESPONDER,
-            badge_number='AGT-API-01',
-            first_name='Ana',
-            last_name='Silva',
-        )
-        self.expert = User.objects.create_user(
-            username='perito_api',
-            password='TestPass123!',
-            profile=User.Profile.FORENSIC_EXPERT,
-            clearance=User.Clearance.NACIONAL,
-            first_name='Carlos',
-            last_name='Costa',
-        )
-        self.admin = User.objects.create_superuser(
-            username='admin_api',
-            password='AdminPass123!',
-        )
-
-    def authenticate_as(self, user):
-        """Autentica o cliente via JWT."""
-        self.client.force_authenticate(user=user)
-
-    def get_jwt_token(self, username, password):
-        """Obtém tokens JWT via endpoint de login (cookies, ADR-0009).
-
-        Devolve a resposta completa. Os tokens ficam disponíveis nos
-        cookies (`fq_access`, `fq_refresh`) em `response.cookies` e
-        também em `self.client.cookies` para pedidos subsequentes.
-        """
-        url = reverse('auth_login')
-        response = self.client.post(
-            url,
-            {
-                'username': username,
-                'password': password,
-            },
-        )
-        return response
-
 
 # ---------------------------------------------------------------------------
 # Testes de Autenticação JWT

@@ -26,6 +26,7 @@ Factories de evidência seguem a taxonomia digital-first (ADR-0010):
 - :class:`EvidenceSimCardFactory`  — SIM_CARD (sub-componente típico).
 """
 
+from datetime import timedelta
 from decimal import Decimal
 
 import factory
@@ -38,9 +39,32 @@ from core.models import (
     CrimeSubcategoria,
     CrimeTipo,
     Evidence,
+    Institution,
+    InstitutionType,
     Occurrence,
+    Portador,
     User,
 )
+
+# ---------------------------------------------------------------------------
+# Constantes canónicas de teste (fontes ÚNICAS — auditoria D111/D121/D107)
+# ---------------------------------------------------------------------------
+
+# Password default da UserFactory e do login real (antes 48 literais em 12
+# ficheiros — D111).
+TEST_PASSWORD = 'TestPass123!'
+
+# Coordenada-fixture de Lisboa (Marquês de Pombal) usada pelas factories,
+# payloads de API e E2E (antes literal em 7 ficheiros — D121).
+LISBOA_GPS = (Decimal('38.7223340'), Decimal('-9.1393366'))
+LISBOA_GPS_STR = ('38.7223340', '-9.1393366')
+
+# Coordenada do laboratório de Lisboa repetida byte-a-byte em 4 ficheiros
+# (default da InstitutionFactory — D109).
+LAB_LISBOA_GPS = (Decimal('38.7256000'), Decimal('-9.1430000'))
+
+# IMEI Luhn-válido canónico dos testes de lookup (antes 23 ocorrências — D107).
+VALID_IMEI = '490154203237518'
 
 # ---------------------------------------------------------------------------
 # Utilizadores
@@ -66,7 +90,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     @classmethod
     def _create(cls, model_class, *args, **kwargs):
         """Usa ``create_user`` para garantir hashing da password."""
-        password = kwargs.pop('password', 'TestPass123!')
+        password = kwargs.pop('password', TEST_PASSWORD)
         user = model_class.objects.create_user(*args, password=password, **kwargs)
         return user
 
@@ -145,8 +169,8 @@ class OccurrenceFactory(factory.django.DjangoModelFactory):
         locale='pt_PT',
     )
     date_time = factory.LazyFunction(timezone.now)
-    gps_lat = Decimal('38.7223340')
-    gps_lng = Decimal('-9.1393366')
+    gps_lat = LISBOA_GPS[0]
+    gps_lng = LISBOA_GPS[1]
     address = 'Marquês de Pombal, Lisboa'
     agent = factory.SubFactory(UserFactory)
     crime_type = factory.SubFactory(CrimeTipoFactory)
@@ -172,8 +196,8 @@ class EvidenceMobileFactory(factory.django.DjangoModelFactory):
     )
     serial_number = factory.Sequence(lambda n: f'IMEI-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
-    gps_lat = Decimal('38.7223340')
-    gps_lng = Decimal('-9.1393366')
+    gps_lat = LISBOA_GPS[0]
+    gps_lng = LISBOA_GPS[1]
     agent = factory.SubFactory(UserFactory)
 
 
@@ -197,8 +221,8 @@ class EvidenceVehicleFactory(factory.django.DjangoModelFactory):
     # ``VEH-SN-`` evita confundir leitores dos testes.
     serial_number = factory.Sequence(lambda n: f'VEH-SN-{n:010d}')
     timestamp_seizure = factory.LazyFunction(timezone.now)
-    gps_lat = Decimal('38.7223340')
-    gps_lng = Decimal('-9.1393366')
+    gps_lat = LISBOA_GPS[0]
+    gps_lng = LISBOA_GPS[1]
     agent = factory.SubFactory(UserFactory)
 
 
@@ -229,6 +253,49 @@ class EvidenceSimCardFactory(factory.django.DjangoModelFactory):
     gps_lat = None
     gps_lng = None
     agent = factory.SubFactory(UserFactory)
+
+
+# ---------------------------------------------------------------------------
+# Instituições e portadores (auditoria D109)
+# ---------------------------------------------------------------------------
+
+
+class InstitutionFactory(factory.django.DjangoModelFactory):
+    """Instituição custódia — default: laboratório público de Lisboa (a forma
+    que 4 ficheiros repetiam byte-a-byte). Variante OPC em
+    :class:`OpcInstitutionFactory`."""
+
+    class Meta:
+        model = Institution
+        django_get_or_create = ('sigla',)
+
+    name = factory.Sequence(lambda n: f'Laboratório Forense {n:03d}')
+    sigla = factory.Sequence(lambda n: f'LAB-{n:03d}')
+    type = InstitutionType.LAB_PUBLICO
+    gps_lat = LAB_LISBOA_GPS[0]
+    gps_lng = LAB_LISBOA_GPS[1]
+    is_active = True
+
+
+class OpcInstitutionFactory(InstitutionFactory):
+    """Órgão de polícia criminal (esquadra/diretoria)."""
+
+    name = factory.Sequence(lambda n: f'Esquadra PSP {n:03d}')
+    sigla = factory.Sequence(lambda n: f'PSP-{n:03d}')
+    type = InstitutionType.OPC
+
+
+class PortadorFactory(factory.django.DjangoModelFactory):
+    """Portador de prova (ADR-0016 v2) — quem conduz entre pontos de controlo."""
+
+    class Meta:
+        model = Portador
+        django_get_or_create = ('matricula',)
+
+    matricula = factory.Sequence(lambda n: f'PORT-{n:05d}')
+    nome = factory.Faker('first_name', locale='pt_PT')
+    apelido = factory.Faker('last_name', locale='pt_PT')
+    posto = 'Agente'
 
 
 # ---------------------------------------------------------------------------
@@ -275,7 +342,86 @@ class AuditLogFactory(factory.django.DjangoModelFactory):
     details = factory.LazyFunction(dict)
 
 
+# ---------------------------------------------------------------------------
+# Helpers de domínio partilhados (auditoria D104/D108/D110)
+# ---------------------------------------------------------------------------
+
+
+def make_user(username, profile, clearance=User.Clearance.NORMAL):
+    """Atalho de utilizador com perfil/clearance explícitos (antes ``_user``
+    re-implementado em tests_access e cross-importado por 7 módulos — D104)."""
+    return UserFactory(username=username, profile=profile, clearance=clearance)
+
+
+def make_occ(agent, n):
+    """Ocorrência mínima de testes de acesso (antes ``_occ`` — D104)."""
+    return OccurrenceFactory(
+        number=f'NUIPC-ACC-{n}',
+        description='caso de teste de acesso',
+        agent=agent,
+    )
+
+
+def make_evidence(occ, agent, etype=Evidence.EvidenceType.MOBILE_DEVICE, parent=None):
+    """Item mínimo, sem GPS próprio (antes ``_evidence`` — D104)."""
+    return Evidence.objects.create(
+        occurrence=occ,
+        type=etype,
+        description='item de teste',
+        timestamp_seizure=timezone.now(),
+        agent=agent,
+        parent_evidence=parent,
+    )
+
+
+def make_event(ev, agent, *, event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+               inst=None, holder=None, **kwargs):
+    """Evento de ledger com custódio institucional opcional (antes ``_event`` — D104)."""
+    return ChainOfCustody.objects.create(
+        evidence=ev,
+        event_type=event_type,
+        agent=agent,
+        custodian_institution=inst,
+        custodian_user=holder,
+        **kwargs,
+    )
+
+
+def make_chain(evidence, *events, agent=None):
+    """Escadinha canónica de eventos do ledger numa chamada (auditoria D110).
+
+    Cada item é um ``EventType`` ou um par ``(EventType, kwargs)`` — os kwargs
+    (``custodian_type``, ``custodian_institution``, ``bearer``, GPS, …) vão
+    diretos ao ``create``. As guardas do modelo continuam a valer, pelo que a
+    ordem tem de ser processualmente válida (génese → validação → …).
+    """
+    agent = agent or evidence.agent
+    records = []
+    for item in events:
+        event_type, kwargs = item if isinstance(item, (tuple, list)) else (item, {})
+        records.append(
+            ChainOfCustody.objects.create(
+                evidence=evidence, event_type=event_type, agent=agent, **kwargs
+            )
+        )
+    return records
+
+
+def backdate(obj, **delta):
+    """Retrodata ``timestamp`` (``auto_now_add``) via ``.update()`` — o ÚNICO
+    caminho que não dispara o ``save()`` imutável (auditoria D108). ``delta``
+    são kwargs de ``timedelta`` (``days=3``, ``hours=2``, …)."""
+    type(obj).objects.filter(pk=obj.pk).update(timestamp=timezone.now() - timedelta(**delta))
+    obj.refresh_from_db()
+    return obj
+
+
 __all__ = [
+    'TEST_PASSWORD',
+    'LISBOA_GPS',
+    'LISBOA_GPS_STR',
+    'LAB_LISBOA_GPS',
+    'VALID_IMEI',
     'UserFactory',
     'ExpertFactory',
     'PeritoFactory',
@@ -286,6 +432,15 @@ __all__ = [
     'EvidenceMobileFactory',
     'EvidenceVehicleFactory',
     'EvidenceSimCardFactory',
+    'InstitutionFactory',
+    'OpcInstitutionFactory',
+    'PortadorFactory',
     'ChainOfCustodyFactory',
     'AuditLogFactory',
+    'make_user',
+    'make_occ',
+    'make_evidence',
+    'make_event',
+    'make_chain',
+    'backdate',
 ]

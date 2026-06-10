@@ -24,47 +24,16 @@ from core.models import (
     Occurrence,
     User,
 )
-from core.tests_factories import CrimeTipoFactory
 
-
-def _user(username, profile, clearance=User.Clearance.NORMAL):
-    return User.objects.create_user(
-        username=username,
-        password='TestPass123!',
-        profile=profile,
-        clearance=clearance,
-    )
-
-
-def _occ(agent, n):
-    return Occurrence.objects.create(
-        number=f'NUIPC-ACC-{n}',
-        crime_type=CrimeTipoFactory(),
-        description='caso de teste de acesso',
-        date_time=timezone.now(),
-        agent=agent,
-    )
-
-
-def _evidence(occ, agent, etype=Evidence.EvidenceType.MOBILE_DEVICE, parent=None):
-    return Evidence.objects.create(
-        occurrence=occ,
-        type=etype,
-        description='item de teste',
-        timestamp_seizure=timezone.now(),
-        agent=agent,
-        parent_evidence=parent,
-    )
-
-
-def _event(ev, agent, *, event_type=EventType.APREENSAO_OBJETO, inst=None, holder=None):
-    return ChainOfCustody.objects.create(
-        evidence=ev,
-        event_type=event_type,
-        agent=agent,
-        custodian_institution=inst,
-        custodian_user=holder,
-    )
+# Helpers de domínio na fonte única (auditoria D104): este módulo era
+# cross-importado por 7 outros como segundo módulo de factories de facto —
+# os aliases mantêm os call sites locais legíveis.
+from core.tests_factories import (
+    make_event as _event,
+    make_evidence as _evidence,
+    make_occ as _occ,
+    make_user as _user,
+)
 
 
 class AccessReadItemLevelTest(TestCase):
