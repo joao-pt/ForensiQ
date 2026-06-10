@@ -425,6 +425,15 @@ def remember_console_mode(request, mode):
         session[CONSOLE_SESSION_KEY] = mode
 
 
+def active_console_mode(request, user):
+    """Resolve a zona de consola ativa E memoriza-a, num só passo — o par
+    ``console_mode`` + ``remember_console_mode`` que todas as vistas de lista
+    invocam (fonte única do protocolo; antes colado verbatim em 7 vistas)."""
+    mode = console_mode(request, user)
+    remember_console_mode(request, mode)
+    return mode
+
+
 # ---------------------------------------------------------------------------
 # Permissões object-level (LEITURA)
 # ---------------------------------------------------------------------------

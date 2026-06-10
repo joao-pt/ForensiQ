@@ -30,7 +30,6 @@ from django.utils.html import format_html
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.tokens import AccessToken
 
 from core import access, analytics, evidence_field_config, evidence_type_config, integrity
 from core.audit import get_client_ip, log_access
@@ -115,46 +114,36 @@ def _verify_clear_fails(ip):
         cache.delete(f'verify_fail:{ip}')
 
 
-def jwt_cookie_required(view_func):
-    """
-    Decorator que verifica a presença de um token JWT válido no cookie
-    'fq_access'. Redireciona para /login/ se ausente ou inválido.
-    """
-
-    @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
-        token = request.COOKIES.get('fq_access')
-        if not token:
-            return HttpResponseRedirect('/login/')
-        try:
-            AccessToken(token)
-        except TokenError:
-            return HttpResponseRedirect('/login/')
-        return view_func(request, *args, **kwargs)
-
-    return wrapper
+def _user_from_jwt_cookie(request):
+    """Utilizador autenticado pelo cookie JWT, ou ``None`` (token ausente,
+    inválido ou expirado). Fonte única da descodificação —
+    :class:`core.auth.JWTCookieAuthentication` — consumida pelo decorator
+    :func:`jwt_cookie_user` e pelo ramo de auth OPCIONAL do ``/v/``
+    (auditoria D12)."""
+    try:
+        result = JWTCookieAuthentication().authenticate(request)
+    except (TokenError, AuthenticationFailed):
+        return None
+    return result[0] if result else None
 
 
 def jwt_cookie_user(view_func):
     """Resolve ``request.user`` a partir do cookie JWT, para páginas
     server-rendered (Fase 3 — Django + HTMX).
 
-    Ao contrário de :func:`jwt_cookie_required` (que só verifica a presença do
-    token), reusa :class:`core.auth.JWTCookieAuthentication` para popular
-    ``request.user`` — permitindo às views ler o ORM com a identidade e o
-    ownership corretos. Redireciona para ``/login/`` se ausente ou inválido.
-    O login mantém-se intacto (continua a emitir o cookie ``fq_access``).
+    Reusa :class:`core.auth.JWTCookieAuthentication` (via
+    :func:`_user_from_jwt_cookie`) para popular ``request.user`` — permitindo às
+    views ler o ORM com a identidade e o ownership corretos. Redireciona para
+    ``/login/`` se ausente ou inválido. O login mantém-se intacto (continua a
+    emitir o cookie ``fq_access``).
     """
 
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
-        try:
-            result = JWTCookieAuthentication().authenticate(request)
-        except (TokenError, AuthenticationFailed):
-            result = None
-        if result is None:
+        user = _user_from_jwt_cookie(request)
+        if user is None:
             return HttpResponseRedirect('/login/')
-        request.user = result[0]
+        request.user = user
         return view_func(request, *args, **kwargs)
 
     return wrapper
@@ -211,11 +200,83 @@ _OCC_SORTS = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Base-querysets por recurso (joins canónicos — auditoria D11) e dados de
+# referência (filtro ativo + ordenação + formato do label — auditoria D10):
+# UMA fonte por expressão, consumida por scopes, lentes, detalhes e formulários.
+# ---------------------------------------------------------------------------
+
+
+def _occurrence_base_qs():
+    return Occurrence.objects.select_related('agent', 'crime_type')
+
+
+def _evidence_base_qs():
+    return Evidence.objects.select_related(
+        'occurrence', 'agent', 'parent_evidence'
+    ).prefetch_related('custody_chain')
+
+
+def _custody_base_qs():
+    return ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
+
+
+def _occurrence_items_qs(occ):
+    """Itens do processo, em ordem de árvore (raízes primeiro) — partilhado pelo
+    detalhe da ocorrência e pelos encaminháveis."""
+    return _evidence_base_qs().filter(occurrence=occ).order_by('parent_evidence_id', 'id')
+
+
+def _crime_categories():
+    return CrimeCategoria.objects.order_by('codigo')
+
+
+def _crime_cat_choices():
+    """(id, rótulo) das categorias de crime — o rótulo vem de
+    ``CrimeCategoria.__str__`` ('{codigo} — {nome}', fonte única do formato)."""
+    return tuple((c.id, str(c)) for c in _crime_categories())
+
+
+def _active_institutions():
+    return Institution.objects.filter(is_active=True).order_by('name')
+
+
+def _active_portadores():
+    return Portador.objects.filter(is_active=True).order_by('apelido', 'nome')
+
+
+def _readable(base_qs, pk, *predicates):
+    """Objeto por ``pk`` se ALGUM dos predicados autorizar a leitura; ``None`` se
+    não existe ou está fora de acesso — esqueleto único das portas de
+    detalhe/drawer por recurso (auditoria D2)."""
+    try:
+        obj = base_qs.get(pk=pk)
+    except (base_qs.model.DoesNotExist, ValueError, TypeError):
+        return None
+    return obj if any(p(obj) for p in predicates) else None
+
+
+def _drawer_response(request, user, drawer_id, *, fetch, decorate, template, ctx_key, not_found):
+    """Fragmento HTMX do painel direito (detalhe Local) — esqueleto único dos
+    drawers por recurso (auditoria D2)."""
+    obj = fetch(user, drawer_id)
+    if obj is None:
+        return HttpResponseNotFound(not_found)
+    decorate([obj])
+    return render(request, template, {ctx_key: obj})
+
+
+def _drawer_dispatch(request, user, drawer_view):
+    """Atalho comum das listas: com ``?drawer=<id>`` devolve o fragmento do
+    painel de detalhe; sem ele devolve ``None`` (a lista segue)."""
+    drawer_id = request.GET.get('drawer')
+    return drawer_view(request, user, drawer_id) if drawer_id else None
+
+
 def _scope_occurrences(user):
     """Ocorrências legíveis pelo utilizador — *need-to-know* derivado do ledger
     (ADR-0017; fonte única em :mod:`core.access`)."""
-    qs = Occurrence.objects.select_related('agent', 'crime_type')
-    return access.scope_occurrences(user, base_qs=qs)
+    return access.scope_occurrences(user, base_qs=_occurrence_base_qs())
 
 
 def _readable_occurrence(user, pk):
@@ -226,23 +287,25 @@ def _readable_occurrence(user, pk):
     OU por pertença institucional (a instituição é dona do processo, abre o
     processo inteiro — :func:`is_occurrence_institutional`). A API/PDF/verificação
     pública mantêm o need-to-know item-level (não passam por aqui)."""
-    try:
-        occ = Occurrence.objects.select_related('agent', 'crime_type').get(pk=pk)
-    except (Occurrence.DoesNotExist, ValueError, TypeError):
-        return None
-    if access.can_access_occurrence(user, occ) or access.is_occurrence_institutional(user, occ):
-        return occ
-    return None
+    return _readable(
+        _occurrence_base_qs(), pk,
+        lambda occ: access.can_access_occurrence(user, occ),
+        lambda occ: access.is_occurrence_institutional(user, occ),
+    )
 
 
 def _occurrence_drawer(request, user, drawer_id):
     """Fragmento HTMX do painel direito (detalhe Local) de uma ocorrência."""
-    occ = _readable_occurrence(user, drawer_id)
-    if occ is None:
-        return HttpResponseNotFound('Ocorrência não encontrada.')
-    _decorate_occurrences([occ])
-    occ.evidence_count = occ.evidences.count()
-    return render(request, 'partials/_occurrence_drawer.html', {'occ': occ})
+    def deco(objs):
+        _decorate_occurrences(objs)
+        objs[0].evidence_count = objs[0].evidences.count()
+
+    return _drawer_response(
+        request, user, drawer_id,
+        fetch=_readable_occurrence, decorate=deco,
+        template='partials/_occurrence_drawer.html', ctx_key='occ',
+        not_found='Ocorrência não encontrada.',
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -262,10 +325,7 @@ _EVD_SORTS = {
 def _scope_evidences(user):
     """Evidências legíveis pelo utilizador — *need-to-know* item-level
     (ADR-0017; fonte única em :mod:`core.access`)."""
-    qs = Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence').prefetch_related(
-        'custody_chain'
-    )
-    return access.scope_evidences(user, base_qs=qs)
+    return access.scope_evidences(user, base_qs=_evidence_base_qs())
 
 
 def _evidence_state(evidence):
@@ -302,28 +362,21 @@ def _readable_evidence(user, pk):
     que a sua instituição nunca custodiou — coerente com a zona "Instituição" da
     consola, que lista o processo todo). A ESCRITA continua governada pelo
     serializer (``can_append_custody``, fail-closed), independente desta porta."""
-    try:
-        ev = (
-            Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence')
-            .prefetch_related('custody_chain')
-            .get(pk=pk)
-        )
-    except (Evidence.DoesNotExist, ValueError, TypeError):
-        return None
-    if access.can_view_evidence(user, ev) or access.is_occurrence_institutional(
-        user, ev.occurrence
-    ):
-        return ev
-    return None
+    return _readable(
+        _evidence_base_qs(), pk,
+        lambda ev: access.can_view_evidence(user, ev),
+        lambda ev: access.is_occurrence_institutional(user, ev.occurrence),
+    )
 
 
 def _evidence_drawer(request, user, drawer_id):
     """Fragmento HTMX do painel direito (detalhe Local) de uma evidência."""
-    ev = _readable_evidence(user, drawer_id)
-    if ev is None:
-        return HttpResponseNotFound('Evidência não encontrada.')
-    _decorate_evidences([ev])
-    return render(request, 'partials/_evidence_drawer.html', {'ev': ev})
+    return _drawer_response(
+        request, user, drawer_id,
+        fetch=_readable_evidence, decorate=_decorate_evidences,
+        template='partials/_evidence_drawer.html', ctx_key='ev',
+        not_found='Evidência não encontrada.',
+    )
 
 
 def login_view(request):
@@ -378,27 +431,15 @@ def public_verify_view(request, short_hash):
         return render(request, 'public_verify_notfound.html', status=404)
     _verify_clear_fails(ip)
 
-    # Tenta autenticar via cookie JWT.
-    token = request.COOKIES.get('fq_access')
-    user_can_see_full = False
-    if token:
-        try:
-            # NB: variável local `decoded` (não `access`) — `access` é o módulo
-            # core.access; reutilizar o nome aqui mascarava-o e rebentava a chamada.
-            decoded = AccessToken(token)
-            from django.contrib.auth import get_user_model
-
-            user = get_user_model().objects.filter(pk=decoded['user_id']).first()
-            # "Ver tudo" = poder aceder à ocorrência pelo mesmo critério da vista
-            # autenticada (access.can_access_occurrence: titular / leitura total —
-            # staff/NACIONAL/perito forense — / autoridade do caso). Antes concedia-se
-            # a QUALQUER FORENSIC_EXPERT e redirecionava-se para /occurrences/<id>/,
-            # que reaplica o âmbito e devolvia 404 a quem não tinha acesso; agora os
-            # critérios coincidem. Quem não pode aceder cai na vista pública mínima.
-            if user and user.is_authenticated and access.can_access_occurrence(user, occurrence):
-                user_can_see_full = True
-        except TokenError:
-            pass
+    # Auth OPCIONAL via cookie JWT (fonte única _user_from_jwt_cookie — D12).
+    # "Ver tudo" = poder aceder à ocorrência pelo mesmo critério da vista
+    # autenticada (access.can_access_occurrence: titular / leitura total —
+    # staff/NACIONAL/perito forense — / autoridade do caso). Quem não pode
+    # aceder cai na vista pública mínima.
+    user = _user_from_jwt_cookie(request)
+    user_can_see_full = bool(
+        user and user.is_authenticated and access.can_access_occurrence(user, occurrence)
+    )
 
     if user_can_see_full:
         return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
@@ -538,8 +579,7 @@ def _lens_occurrences(user, lens):
     """Ocorrências para a zona ativa: ``MINE`` = âmbito de caso pessoal;
     ``INSTITUTION`` = ocorrências da instituição (processo inteiro, sem item)."""
     if lens == access.Lens.INSTITUTION:
-        qs = Occurrence.objects.select_related('agent', 'crime_type')
-        return access.scope_occurrences_institutional(user, base_qs=qs)
+        return access.scope_occurrences_institutional(user, base_qs=_occurrence_base_qs())
     return _scope_occurrences(user)
 
 
@@ -550,9 +590,7 @@ def _lens_evidences(user, lens):
     inteiro — a instituição é dona do processo). ``MINE`` mostra os itens legíveis
     (item-level, ADR-0017) das ocorrências do utilizador.
     """
-    qs = Evidence.objects.select_related('occurrence', 'agent', 'parent_evidence').prefetch_related(
-        'custody_chain'
-    )
+    qs = _evidence_base_qs()
     if lens == access.Lens.INSTITUTION:
         return qs.filter(
             occurrence__in=access.scope_occurrences_institutional(user).values('pk')
@@ -564,7 +602,7 @@ def _lens_evidences(user, lens):
 
 def _lens_custody(user, lens):
     """Eventos de custódia para a zona ativa (mesma lógica case-axis)."""
-    qs = ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
+    qs = _custody_base_qs()
     if lens == access.Lens.INSTITUTION:
         return qs.filter(
             evidence__occurrence__in=access.scope_occurrences_institutional(user).values('pk')
@@ -630,8 +668,7 @@ def dashboard_view(request):
     """Painel — hero geo + últimas ocorrências + registo de atividade, TUDO
     server-rendered (Fase 3). Sem o JS antigo do hero (drift eliminado)."""
     user = request.user
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     # O hero segue a zona ativa da consola: "as minhas" (âmbito de caso pessoal)
     # ou "Instituição" (processo inteiro das ocorrências da instituição).
     occ_qs = _lens_occurrences(user, lens)
@@ -692,16 +729,14 @@ def _occurrences_list_response(request, archived=False):
     único :func:`core.grid.grid_list_response`; aqui declara-se só a spec."""
     user = request.user
 
-    drawer_id = request.GET.get('drawer')
-    if drawer_id:
-        return _occurrence_drawer(request, user, drawer_id)
+    drawer = _drawer_dispatch(request, user, _occurrence_drawer)
+    if drawer is not None:
+        return drawer
 
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     qs = _lens_occurrences(user, lens)
 
-    crime_categories = CrimeCategoria.objects.order_by('codigo')
-    cat_choices = tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)
+    cat_choices = _crime_cat_choices()
     # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente.
     columns = [
         GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
@@ -803,12 +838,7 @@ def occurrence_detail_view(request, occurrence_id):
     # por item (a instituição é dona do processo). O object-level já foi imposto
     # por _readable_occurrence; a lista cross-ocorrência (Evidências) é que mantém
     # o need-to-know item-level.
-    evidences = list(
-        Evidence.objects.filter(occurrence=occ)
-        .select_related('occurrence', 'agent', 'parent_evidence')
-        .prefetch_related('custody_chain')
-        .order_by('parent_evidence_id', 'id')
-    )
+    evidences = list(_occurrence_items_qs(occ))
     _decorate_evidences(evidences)
     occ.evidence_count = len(evidences)
     # Encaminhar é ação de escrita: escondida a perfis só-leitura (a porta real é
@@ -827,13 +857,7 @@ def _encaminhaveis(user, occ):
     permissão de escrita (``can_append_custody``). Lista decorada para o template.
     Anota ``ev.checked`` (omissão: todos selecionados — encaminha-se a prova junta)."""
     itens = []
-    qs = (
-        Evidence.objects.filter(occurrence=occ)
-        .select_related('occurrence', 'agent', 'parent_evidence')
-        .prefetch_related('custody_chain')
-        .order_by('parent_evidence_id', 'id')
-    )
-    for ev in qs:
+    for ev in _occurrence_items_qs(occ):
         events = sort_custody_chain(ev.custody_chain.all())
         valid = {v for v, _ in _valid_next_events(events, ev)}
         if EventType.ENCAMINHAMENTO_CUSTODIA.value in valid and access.can_append_custody(
@@ -850,10 +874,6 @@ def _register_handoff(request, evidences, bearer_id, destino):
     coordenada regista-se na receção). Reusa o ``ChainOfCustodySerializer`` (guardas
     do ledger, ownership, gate de laboratório, hash, criação da ProvaEmTransito).
     Devolve lista de erros (vazia = sucesso); qualquer falha reverte tudo."""
-    from django.db import transaction
-
-    from core.serializers import ChainOfCustodySerializer
-
     base = {
         'event_type': EventType.ENCAMINHAMENTO_CUSTODIA.value,
         'bearer': bearer_id,
@@ -863,29 +883,9 @@ def _register_handoff(request, evidences, bearer_id, destino):
     ctype = custody_transitions.CUSTODIAN_TYPE_BY_INSTITUTION.get(destino.type)
     if ctype:
         base['custodian_type'] = ctype
-    errors = []
-    try:
-        with transaction.atomic():
-            for ev in evidences:
-                serializer = ChainOfCustodySerializer(
-                    data=dict(base, evidence=ev.id), context={'request': request}
-                )
-                serializer.is_valid(raise_exception=True)
-                record = serializer.save(agent=request.user)
-                log_access(
-                    request=request,
-                    action=AuditLog.Action.CREATE,
-                    resource_type=AuditLog.ResourceType.CUSTODY,
-                    resource_id=record.pk,
-                    details={
-                        'evidence_id': record.evidence_id,
-                        'event_type': record.event_type,
-                        'destino': destino.id,
-                    },
-                )
-    except (DRFValidationError, DjangoValidationError) as exc:
-        errors = _flatten_validation_error(exc)
-    return errors
+    return _append_custody_events(
+        request, base, evidences, extra_details={'destino': destino.id}
+    )
 
 
 @jwt_cookie_user
@@ -903,10 +903,10 @@ def occurrence_encaminhar_view(request, occurrence_id):
         return HttpResponseNotFound('Ocorrência não encontrada.')
 
     modal = _wants_modal(request)
-    template = 'partials/_encaminhar_form.html' if modal else 'occurrence_encaminhar.html'
+    template = _modal_template(modal, 'partials/_encaminhar_form.html', 'occurrence_encaminhar.html')
     itens = _encaminhaveis(user, occ)
-    destinos = Institution.objects.filter(is_active=True).order_by('name')
-    portadores = Portador.objects.filter(is_active=True).order_by('apelido', 'nome')
+    destinos = _active_institutions()
+    portadores = _active_portadores()
 
     submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
     for ev in itens:
@@ -945,11 +945,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
                 request,
                 f'{len(sel)} item(ns) encaminhado(s) para {destino.sigla or destino.name}.',
             )
-            if modal:
-                resp = HttpResponse(status=204)
-                resp['HX-Redirect'] = f'/occurrences/{occ.id}/'
-                return resp
-            return HttpResponseRedirect(f'/occurrences/{occ.id}/')
+            return _form_success_response(modal, f'/occurrences/{occ.id}/')
         return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
 
     return render(request, template, _ctx({}, {}))
@@ -1000,7 +996,7 @@ def occurrences_new_view(request):
     if not access.can_register_records(user):
         return HttpResponseForbidden('Apenas agentes podem registar ocorrências.')
 
-    crime_categories = CrimeCategoria.objects.order_by('codigo')
+    crime_categories = _crime_categories()
     # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
     # → redireciona para a ocorrência criada; erro → re-render com os erros.
     template = 'occurrences_new.html'
@@ -1063,6 +1059,22 @@ def _wants_modal(request):
     """Pedido em modo modal (ação-in-place)? GET ``?modal=1`` (abrir) ou o
     campo escondido ``modal`` no POST (submeter)."""
     return request.GET.get('modal') == '1' or request.POST.get('modal') == '1'
+
+
+def _modal_template(modal, partial, page):
+    """Template do contrato modal (F7): fragmento para a ação-in-place, página
+    completa para o fallback sem-JS/navegação direta (auditoria D5)."""
+    return partial if modal else page
+
+
+def _form_success_response(modal, redirect_url):
+    """Sucesso de um formulário com contrato modal (F7): ``204 + HX-Redirect``
+    (o HTMX navega e fecha o modal) ou redirect clássico (auditoria D5)."""
+    if modal:
+        resp = HttpResponse(status=204)
+        resp['HX-Redirect'] = redirect_url
+        return resp
+    return HttpResponseRedirect(redirect_url)
 
 
 @jwt_cookie_user
@@ -1151,7 +1163,7 @@ def institution_new_view(request):
         return HttpResponseForbidden('Sem permissão para criar instituições.')
 
     modal = _wants_modal(request)
-    template = 'partials/_institution_form.html' if modal else 'institution_new.html'
+    template = _modal_template(modal, 'partials/_institution_form.html', 'institution_new.html')
 
     def _ctx(errors, data):
         return {
@@ -1179,11 +1191,7 @@ def institution_new_view(request):
                 details={'institution': inst.pk, 'name': inst.name, 'type': inst.type},
             )
             messages.success(request, f'Instituição {inst.sigla or inst.name} criada.')
-            if modal:
-                resp = HttpResponse(status=204)
-                resp['HX-Redirect'] = '/institutions/'
-                return resp
-            return HttpResponseRedirect('/institutions/')
+            return _form_success_response(modal, '/institutions/')
         return render(request, template, _ctx(serializer.errors, request.POST), status=400)
 
     return render(request, template, _ctx({}, {}))
@@ -1199,12 +1207,11 @@ def evidences_view(request):
     """
     user = request.user
 
-    drawer_id = request.GET.get('drawer')
-    if drawer_id:
-        return _evidence_drawer(request, user, drawer_id)
+    drawer = _drawer_dispatch(request, user, _evidence_drawer)
+    if drawer is not None:
+        return drawer
 
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     qs = _lens_evidences(user, lens)
 
     # Ordem = colunas: Ocorrência · Código · Data e Hora · Marca · Modelo · Nº série · Estado.
@@ -1294,6 +1301,24 @@ def evidences_new_view(request):
     # → redireciona para o item criado; erro → re-render com os erros.
     template = 'evidences_new.html'
 
+    def _ctx(errors, data, preselect):
+        """Contexto único da página (antes copiado 3× — auditoria D4).
+
+        ``data`` é o input cru (não validated_data), intencional: repopula o
+        ``<select>`` com a PK em string (casa com o value da opção); é um
+        serializer DRF, não um Form, e o re-render mostra o que foi submetido."""
+        return {
+            'occurrences': occurrences,
+            'parents': parents,
+            'evidence_types': evidence_type_config.active_choices(),
+            'transversal_fields': transversal_fields,
+            'type_fields': type_fields,
+            'preselect': preselect,  # nosemgrep
+            'errors': errors,
+            'data': data,  # nosemgrep
+            'action': '/evidences/new/',
+        }
+
     if request.method == 'POST':
         tsd_keys = evidence_field_config.all_keys()
         data = {
@@ -1320,21 +1345,8 @@ def evidences_new_view(request):
                 return render(
                     request,
                     template,
-                    {
-                        'occurrences': occurrences,
-                        'parents': parents,
-                        'evidence_types': evidence_type_config.active_choices(),
-                        'transversal_fields': transversal_fields,
-                        'type_fields': type_fields,
-                        # Input cru (não validated_data) é intencional: repopula
-                        # o <select> com a PK em string (casa com o value da opção);
-                        # é um serializer DRF, não um Form, e o re-render mostra o
-                        # que o utilizador submeteu.
-                        'preselect': request.POST.get('occurrence', ''),  # nosemgrep
-                        'errors': {'geral': _flatten_validation_error(exc)},
-                        'data': request.POST,  # nosemgrep
-                        'action': '/evidences/new/',
-                    },
+                    _ctx({'geral': _flatten_validation_error(exc)}, request.POST,
+                         request.POST.get('occurrence', '')),
                     status=400,
                 )
             log_access(
@@ -1349,35 +1361,11 @@ def evidences_new_view(request):
         return render(
             request,
             template,
-            {
-                'occurrences': occurrences,
-                'parents': parents,
-                'evidence_types': evidence_type_config.active_choices(),
-                'transversal_fields': transversal_fields,
-                'type_fields': type_fields,
-                'preselect': request.POST.get('occurrence', ''),
-                'errors': serializer.errors,
-                'data': request.POST,
-                'action': '/evidences/new/',
-            },
+            _ctx(serializer.errors, request.POST, request.POST.get('occurrence', '')),
             status=400,
         )
 
-    return render(
-        request,
-        template,
-        {
-            'occurrences': occurrences,
-            'parents': parents,
-            'evidence_types': evidence_type_config.active_choices(),
-            'transversal_fields': transversal_fields,
-            'type_fields': type_fields,
-            'preselect': request.GET.get('occurrence', ''),
-            'errors': {},
-            'data': {},
-            'action': '/evidences/new/',
-        },
-    )
+    return render(request, template, _ctx({}, {}, request.GET.get('occurrence', '')))
 
 
 def _decorate_events(events):
@@ -1467,8 +1455,6 @@ def _register_seizure_genesis(request, ev):
     o ``ChainOfCustodySerializer`` — mesmas guardas, ownership (génese pelo agente)
     e hash encadeado. Corre dentro da mesma transação do registo da evidência.
     """
-    from core.serializers import ChainOfCustodySerializer
-
     if ev.parent_evidence_id is not None:
         return  # sub-componente: a génese por derivação é ato do perito (manual)
     genesis = _genesis_event_for(ev)  # APREENSAO_OBJETO ou APREENSAO_DADOS
@@ -1487,19 +1473,10 @@ def _register_seizure_genesis(request, ev):
     if ev.gps_lat is not None and ev.gps_lng is not None:
         data['gps_lat'] = ev.gps_lat
         data['gps_lng'] = ev.gps_lng
-    serializer = ChainOfCustodySerializer(data=data, context={'request': request})
-    serializer.is_valid(raise_exception=True)
-    record = serializer.save(agent=request.user)
-    log_access(
-        request=request,
-        action=AuditLog.Action.CREATE,
-        resource_type=AuditLog.ResourceType.CUSTODY,
-        resource_id=record.pk,
-        details={
-            'evidence_id': record.evidence_id,
-            'event_type': record.event_type,
-            'genesis': True,
-        },
+    # propagate=True: corre DENTRO da transação do registo do item e a exceção
+    # sobe — se a génese falhar, o item não persiste (auditoria D1).
+    _append_custody_events(
+        request, data, [ev], extra_details={'genesis': True}, propagate=True
     )
 
 
@@ -1547,6 +1524,61 @@ def _flatten_validation_error(exc):
     return msgs
 
 
+def _append_custody_events(request, base_payload, targets, *, extra_details=None, propagate=False):
+    """Regista UM evento de custódia por alvo via ``ChainOfCustodySerializer``,
+    em transação atómica com auditoria por registo — esqueleto ÚNICO do registo
+    em lote (handoff, formulário da timeline, génese no registo do item, receção
+    no intake — auditoria D1). O serializer mantém as guardas do ledger, o
+    ownership e o hash encadeado.
+
+    ``base_payload``: dict comum (o ``evidence`` é injetado por alvo) OU uma
+    função ``f(alvo) -> payload completo`` quando o payload varia por item (ex.:
+    o ``location_name`` da receção vem do destino de cada encaminhamento).
+    ``extra_details``: dict ou ``f(record) -> dict`` juntos aos detalhes base da
+    auditoria (``evidence_id`` + ``event_type``).
+
+    Devolve a lista de erros achatada (vazia = sucesso). Com ``propagate=True``
+    NÃO abre transação própria nem captura: a exceção sobe para reverter a
+    transação envolvente (caso da génese, que corre dentro da transação do
+    registo do item).
+    """
+    from django.db import transaction
+
+    from core.serializers import ChainOfCustodySerializer
+
+    def _run():
+        for tgt in targets:
+            payload = (
+                base_payload(tgt) if callable(base_payload)
+                else dict(base_payload, evidence=tgt.id)
+            )
+            serializer = ChainOfCustodySerializer(data=payload, context={'request': request})
+            serializer.is_valid(raise_exception=True)
+            record = serializer.save(agent=request.user)
+            details = {'evidence_id': record.evidence_id, 'event_type': record.event_type}
+            if extra_details:
+                details.update(
+                    extra_details(record) if callable(extra_details) else extra_details
+                )
+            log_access(
+                request=request,
+                action=AuditLog.Action.CREATE,
+                resource_type=AuditLog.ResourceType.CUSTODY,
+                resource_id=record.pk,
+                details=details,
+            )
+
+    if propagate:
+        _run()
+        return []
+    try:
+        with transaction.atomic():
+            _run()
+    except (DRFValidationError, DjangoValidationError) as exc:
+        return _flatten_validation_error(exc)
+    return []
+
+
 def _register_custody_event(request, evidence, targets):
     """Regista um evento de custódia em ``targets`` (evidência + opcionalmente
     sub-componentes) via ``ChainOfCustodySerializer``, numa transação atómica.
@@ -1555,11 +1587,6 @@ def _register_custody_event(request, evidence, targets):
     hash encadeado) e regista auditoria por registo. Devolve lista de erros
     (vazia = sucesso). Em qualquer falha, a transação reverte por completo.
     """
-    from django.db import transaction
-
-    from core.serializers import ChainOfCustodySerializer
-
-    user = request.user
     event_type = (request.POST.get('event_type') or '').strip()
     if not event_type:
         return ['Selecione o tipo de evento.']
@@ -1595,29 +1622,10 @@ def _register_custody_event(request, evidence, targets):
         if acc:
             base['gps_accuracy_m'] = acc
 
-    errors = []
-    try:
-        with transaction.atomic():
-            for tgt in targets:
-                serializer = ChainOfCustodySerializer(
-                    data=dict(base, evidence=tgt.id), context={'request': request}
-                )
-                serializer.is_valid(raise_exception=True)
-                record = serializer.save(agent=user)
-                log_access(
-                    request=request,
-                    action=AuditLog.Action.CREATE,
-                    resource_type=AuditLog.ResourceType.CUSTODY,
-                    resource_id=record.pk,
-                    details={
-                        'evidence_id': record.evidence_id,
-                        'event_type': record.event_type,
-                        'custodian_type': record.custodian_type,
-                    },
-                )
-    except (DRFValidationError, DjangoValidationError) as exc:
-        errors = _flatten_validation_error(exc)
-    return errors
+    return _append_custody_events(
+        request, base, targets,
+        extra_details=lambda r: {'custodian_type': r.custodian_type},
+    )
 
 
 @jwt_cookie_user
@@ -1661,9 +1669,9 @@ def custody_timeline_view(request, evidence_id):
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             'valid_events': valid_events,
             'custodian_types': CustodianType.choices,
-            'institutions': Institution.objects.filter(is_active=True).order_by('name'),
+            'institutions': _active_institutions(),
             # Portadores ativos para o select do ENCAMINHAMENTO (ADR-0016 v2).
-            'portadores': Portador.objects.filter(is_active=True).order_by('apelido', 'nome'),
+            'portadores': _active_portadores(),
             'seal_conditions': Evidence.SealCondition.choices,
             'sub_components': sub_components,
             'ledger_closed': not valid_events,
@@ -1680,37 +1688,25 @@ _CUSTODY_SORTS = {
 }
 
 
-def _scope_custody(user):
-    """Eventos de custódia dos itens legíveis pelo utilizador (ADR-0017;
-    fonte única em :mod:`core.access`)."""
-    qs = ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
-    return access.scope_custody(user, base_qs=qs)
-
-
 def _readable_custody(user, pk):
     """Evento de custódia por ``pk`` se o utilizador pode LER o seu item na consola
     (item-level ``can_view_evidence`` OU processo da instituição —
     :func:`_readable_evidence`); ``None`` caso contrário."""
-    try:
-        rec = ChainOfCustody.objects.select_related(
-            'evidence', 'evidence__occurrence', 'agent'
-        ).get(pk=pk)
-    except (ChainOfCustody.DoesNotExist, ValueError, TypeError):
-        return None
-    if access.can_view_evidence(user, rec.evidence) or access.is_occurrence_institutional(
-        user, rec.evidence.occurrence
-    ):
-        return rec
-    return None
+    return _readable(
+        _custody_base_qs(), pk,
+        lambda rec: access.can_view_evidence(user, rec.evidence),
+        lambda rec: access.is_occurrence_institutional(user, rec.evidence.occurrence),
+    )
 
 
 def _custody_drawer(request, user, drawer_id):
     """Fragmento HTMX do painel direito (detalhe Local) de um evento de custódia."""
-    rec = _readable_custody(user, drawer_id)
-    if rec is None:
-        return HttpResponseNotFound('Registo de custódia não encontrado.')
-    _decorate_events([rec])
-    return render(request, 'partials/_custody_drawer.html', {'r': rec})
+    return _drawer_response(
+        request, user, drawer_id,
+        fetch=_readable_custody, decorate=_decorate_events,
+        template='partials/_custody_drawer.html', ctx_key='r',
+        not_found='Registo de custódia não encontrado.',
+    )
 
 
 @jwt_cookie_user
@@ -1722,17 +1718,16 @@ def custody_list_view(request):
     estado legal no telemóvel (mesma fonte das evidências)."""
     user = request.user
 
-    drawer_id = request.GET.get('drawer')
-    if drawer_id:
-        return _custody_drawer(request, user, drawer_id)
+    drawer = _drawer_dispatch(request, user, _custody_drawer)
+    if drawer is not None:
+        return drawer
 
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     # evidence já vem de _lens_custody; redeclara-se aqui (com a instituição) para
     # tornar explícita a dependência do gerador (cellattr 'evidence.code' + estado).
     qs = _lens_custody(user, lens).select_related('custodian_institution', 'evidence')
 
-    institutions = Institution.objects.filter(is_active=True).order_by('name')
+    institutions = _active_institutions()
     inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
 
     # Estados legais derivados da lente, calculados UMA vez por request e
@@ -1823,8 +1818,7 @@ def audit_console_view(request):
     hash não é duplicada (chama ``compute_record_hash``). CSP-safe, server-rendered.
     """
     user = request.user
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     evidence_ids = list(_lens_evidences(user, lens).values_list('id', flat=True))
     return render(
         request,
@@ -1845,12 +1839,10 @@ def reports_view(request):
     gerador único. Linhas NÃO-clicáveis: o Código liga ao detalhe da ocorrência e
     a coluna Guia descarrega o PDF; filtros por coluna iguais às ocorrências."""
     user = request.user
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences'))
 
-    crime_categories = CrimeCategoria.objects.order_by('codigo')
-    cat_choices = tuple((c.id, f'{c.codigo} — {c.nome}') for c in crime_categories)
+    cat_choices = _crime_cat_choices()
 
     def decorate_reports(items):
         _decorate_occurrences(items)
@@ -1897,6 +1889,7 @@ def reports_view(request):
     )
 
 
+@jwt_cookie_user
 def occurrence_intake_view(request, occurrence_id):
     """Página de check-list de RECEÇÃO (2.ª metade do handoff, ADR-0016 v2).
 
@@ -1905,7 +1898,9 @@ def occurrence_intake_view(request, occurrence_id):
     do encaminhamento e, em instituição fixa, a coordenada do registo da instituição).
 
     Requisitos de auth (impostos no servidor antes do render):
-    1. JWT válido em cookie `fq_access`.
+    1. JWT válido em cookie `fq_access` (decorator canónico ``jwt_cookie_user``,
+       que popula ``request.user`` — antes havia aqui uma reimplementação manual
+       do decode, com um ``?next=`` que o login nem honrava; auditoria D12).
     2. Pode receber: EXPERT/staff (intake de laboratório) OU membro da instituição
        de destino de um encaminhamento pendente desta ocorrência (receção OPC→OPC —
        alinha com a caixa "prova a chegar"). A ESCRITA é, ainda assim, validada por
@@ -1913,30 +1908,7 @@ def occurrence_intake_view(request, occurrence_id):
 
     Quem não cumpra recebe HTTP 403.
     """
-    from django.contrib.auth import get_user_model
-
-    from core.models import Occurrence
-
-    token = request.COOKIES.get('fq_access')
-    if not token:
-        return HttpResponseRedirect('/login/?next=' + request.path)
-    try:
-        # `decoded` (não `access`): `access` é o módulo core.access — reutilizar o
-        # nome mascará-lo-ia e rebentaria qualquer chamada access.* nesta função.
-        decoded = AccessToken(token)
-    except TokenError:
-        return HttpResponseRedirect('/login/?next=' + request.path)
-
-    user = get_user_model().objects.filter(pk=decoded['user_id']).first()
-    if user is None:
-        return HttpResponseRedirect('/login/?next=' + request.path)
-
-    # Esta view descodifica o JWT à mão (não passa pela auth do DRF), por isso
-    # request.user ficaria anónimo. Fixamo-lo para que o gate de escrita do
-    # ChainOfCustodySerializer (access.can_append_custody, agora fail-closed)
-    # autorize com base no utilizador real do intake.
-    request.user = user
-
+    user = request.user
     occurrence = Occurrence.objects.filter(pk=occurrence_id).first()
     # Quem pode RECEBER (abrir o intake): operador de laboratório (EXPERT) ou staff
     # — E TAMBÉM um membro da instituição de destino de um encaminhamento pendente
@@ -1991,10 +1963,6 @@ def occurrence_intake_view(request, occurrence_id):
     # encaminhamento no clean() do modelo; aqui passa-se só o item + metadados.
     intake_errors = []
     if request.method == 'POST':
-        from django.db import transaction
-
-        from core.serializers import ChainOfCustodySerializer
-
         selected = set(request.POST.getlist('evidence_ids'))
         storage = (request.POST.get('storage_location') or '').strip()
         observations = (request.POST.get('observations') or '').strip()
@@ -2014,52 +1982,29 @@ def occurrence_intake_view(request, occurrence_id):
                 'Selecione pelo menos um item em trânsito (encaminhado, ainda por receber).'
             )
         else:
+            def _payload(ev):
+                # Rótulo de local = nome da instituição de destino (herdado do
+                # encaminhamento). O FK custodian_institution identifica o
+                # destino com precisão; location_name é só a etiqueta legível.
+                p = {'evidence': ev.id, 'event_type': EventType.RECEPCAO_CUSTODIA}
+                destino = eventos_por_ev[ev.id][-1].custodian_institution
+                if destino is not None:
+                    p['location_name'] = destino.name
+                if storage:
+                    p['storage_location'] = storage
+                if observations:
+                    p['observations'] = observations
+                return p
+
             try:
-                with transaction.atomic():
-                    for ev in to_receive:
-                        payload = {
-                            'evidence': ev.id,
-                            'event_type': EventType.RECEPCAO_CUSTODIA,
-                        }
-                        # Rótulo de local = nome da instituição de destino (herdado do
-                        # encaminhamento). O FK custodian_institution identifica o
-                        # destino com precisão; location_name é só a etiqueta legível.
-                        destino = eventos_por_ev[ev.id][-1].custodian_institution
-                        if destino is not None:
-                            payload['location_name'] = destino.name
-                        if storage:
-                            payload['storage_location'] = storage
-                        if observations:
-                            payload['observations'] = observations
-                        s = ChainOfCustodySerializer(
-                            data=payload, context={'request': request}
-                        )
-                        s.is_valid(raise_exception=True)
-                        rec = s.save(agent=user)
-                        log_access(
-                            request=request,
-                            action=AuditLog.Action.CREATE,
-                            resource_type=AuditLog.ResourceType.CUSTODY,
-                            resource_id=rec.pk,
-                            details={
-                                'evidence_id': rec.evidence_id,
-                                'event_type': rec.event_type,
-                                'custodian_type': rec.custodian_type,
-                            },
-                        )
-                messages.success(
-                    request,
-                    f'Receção registada: {len(to_receive)} item(ns).',
+                # Esqueleto único do registo em lote (auditoria D1): loop atómico
+                # + serializer + auditoria; os erros de validação (guardas do
+                # ledger, GPS, permissão) voltam achatados — accionáveis e
+                # seguros de mostrar ao operador.
+                intake_errors = _append_custody_events(
+                    request, _payload, to_receive,
+                    extra_details=lambda r: {'custodian_type': r.custodian_type},
                 )
-                return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
-            except (DjangoValidationError, DRFValidationError) as exc:
-                # Erros de validação (guardas do ledger, GPS, permissão) são
-                # accionáveis e seguros de mostrar ao operador.
-                messages_list = getattr(exc, 'messages', None)
-                if messages_list:
-                    intake_errors.extend(messages_list)
-                else:
-                    intake_errors.append(str(getattr(exc, 'detail', exc)))
             except Exception:  # noqa: BLE001 — falha inesperada → rollback (atomic) + msg genérica
                 # NÃO interpolar a excepção crua na página (fuga de detalhe interno
                 # + mascarava o erro real). Regista-se o stack trace e mostra-se
@@ -2069,6 +2014,12 @@ def occurrence_intake_view(request, occurrence_id):
                     'Falha no registo. A operação foi revertida; tente novamente '
                     'ou contacte o suporte se persistir.'
                 )
+            if not intake_errors:
+                messages.success(
+                    request,
+                    f'Receção registada: {len(to_receive)} item(ns).',
+                )
+                return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
 
     rows = [
         {
@@ -2116,8 +2067,7 @@ def stats_view(request):
     from django.utils import timezone
 
     user = request.user
-    lens = access.console_mode(request, user)
-    access.remember_console_mode(request, lens)
+    lens = access.active_console_mode(request, user)
     occ_qs = _lens_occurrences(user, lens)
     evd_qs = _lens_evidences(user, lens)
     cus_qs = _lens_custody(user, lens)
