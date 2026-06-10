@@ -49,6 +49,46 @@ def gps_quantum():
     return Decimal(1).scaleb(-settings.GPS_DECIMAL_PLACES)
 
 
+def quantize_gps_pair(lat, lng):
+    """Valida a coerência do par GPS e devolve-o quantizado ao quantum canónico
+    (ADR-0013). Operação compósita ÚNICA dos ``clean()`` com coordenadas que
+    entram (diretamente, ou copiadas na receção) na cadeia de hash — um terceiro
+    consumidor futuro não pode divergir da fórmula que o perito recalcula."""
+    validate_gps_coherence(lat, lng)
+    q = gps_quantum()
+    return (
+        lat.quantize(q) if lat is not None else None,
+        lng.quantize(q) if lng is not None else None,
+    )
+
+
+def gps_lat_field(verbose_name):
+    """``DecimalField`` canónico de LATITUDE (ADR-0013): 10 dígitos, precisão
+    única ``settings.GPS_DECIMAL_PLACES``, gama ±90. Fonte única do par GPS
+    declarado pelos modelos georreferenciados — a precisão vem da MESMA
+    constante que alimenta :func:`gps_quantum`."""
+    return models.DecimalField(
+        max_digits=10,
+        decimal_places=settings.GPS_DECIMAL_PLACES,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-90), MaxValueValidator(90)],
+        verbose_name=verbose_name,
+    )
+
+
+def gps_lng_field(verbose_name):
+    """``DecimalField`` canónico de LONGITUDE (gama ±180); ver :func:`gps_lat_field`."""
+    return models.DecimalField(
+        max_digits=10,
+        decimal_places=settings.GPS_DECIMAL_PLACES,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-180), MaxValueValidator(180)],
+        verbose_name=verbose_name,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Gerador de códigos humanos ANO-TIPO-SEQ (ex.: OCC-2026-00001)
 # ---------------------------------------------------------------------------
@@ -344,22 +384,8 @@ class Institution(models.Model):
         default='',
         verbose_name='Morada',
     )
-    gps_lat = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-90), MaxValueValidator(90)],
-        verbose_name='Latitude GPS',
-    )
-    gps_lng = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-180), MaxValueValidator(180)],
-        verbose_name='Longitude GPS',
-    )
+    gps_lat = gps_lat_field('Latitude GPS')
+    gps_lng = gps_lng_field('Longitude GPS')
     email = models.EmailField(
         blank=True,
         default='',
@@ -389,14 +415,9 @@ class Institution(models.Model):
 
     def clean(self):
         super().clean()
-        validate_gps_coherence(self.gps_lat, self.gps_lng)
-        # Quantização a 7 casas (ADR-0013), igual ao ledger — a coordenada da
-        # instituição entra no hash da receção, logo tem de coincidir bit a bit.
-        q = gps_quantum()
-        if self.gps_lat is not None:
-            self.gps_lat = self.gps_lat.quantize(q)
-        if self.gps_lng is not None:
-            self.gps_lng = self.gps_lng.quantize(q)
+        # Coerência + quantização (ADR-0013) na operação compósita única — a
+        # coordenada da instituição entra no hash da receção (coincide bit a bit).
+        self.gps_lat, self.gps_lng = quantize_gps_pair(self.gps_lat, self.gps_lng)
 
 
 class InstitutionMembership(models.Model):
@@ -703,22 +724,8 @@ class Occurrence(models.Model):
         default=timezone.now,
         verbose_name='Data/hora da ocorrência',
     )
-    gps_lat = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-90), MaxValueValidator(90)],
-        verbose_name='Latitude GPS',
-    )
-    gps_lng = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-180), MaxValueValidator(180)],
-        verbose_name='Longitude GPS',
-    )
+    gps_lat = gps_lat_field('Latitude GPS')
+    gps_lng = gps_lng_field('Longitude GPS')
     address = models.CharField(
         max_length=255,
         blank=True,
@@ -1004,22 +1011,8 @@ class Evidence(models.Model):
         validators=[validate_image_max_size],
         verbose_name='Fotografia da evidência',
     )
-    gps_lat = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-90), MaxValueValidator(90)],
-        verbose_name='Latitude GPS (apreensão)',
-    )
-    gps_lng = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-180), MaxValueValidator(180)],
-        verbose_name='Longitude GPS (apreensão)',
-    )
+    gps_lat = gps_lat_field('Latitude GPS (apreensão)')
+    gps_lng = gps_lng_field('Longitude GPS (apreensão)')
     timestamp_seizure = models.DateTimeField(
         default=timezone.now,
         verbose_name='Data/hora da apreensão',
@@ -1739,22 +1732,8 @@ class ChainOfCustody(models.Model):
         default='',
         verbose_name='Localização interna de armazenamento',
     )
-    gps_lat = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-90), MaxValueValidator(90)],
-        verbose_name='Latitude GPS (evento)',
-    )
-    gps_lng = models.DecimalField(
-        max_digits=10,
-        decimal_places=7,
-        null=True,
-        blank=True,
-        validators=[MinValueValidator(-180), MaxValueValidator(180)],
-        verbose_name='Longitude GPS (evento)',
-    )
+    gps_lat = gps_lat_field('Latitude GPS (evento)')
+    gps_lng = gps_lng_field('Longitude GPS (evento)')
     gps_accuracy_m = models.PositiveIntegerField(
         null=True,
         blank=True,
@@ -2053,15 +2032,9 @@ class ChainOfCustody(models.Model):
                 }
             )
 
-        validate_gps_coherence(self.gps_lat, self.gps_lng)
-
-        # Quantização GPS a 7 casas (ADR-0013), ANTES do hash — garante
-        # valor em memória == valor na BD == valor recalculado pelo perito.
-        q = gps_quantum()
-        if self.gps_lat is not None:
-            self.gps_lat = self.gps_lat.quantize(q)
-        if self.gps_lng is not None:
-            self.gps_lng = self.gps_lng.quantize(q)
+        # Coerência + quantização GPS (ADR-0013) na operação compósita única,
+        # ANTES do hash — valor em memória == BD == recalculado pelo perito.
+        self.gps_lat, self.gps_lng = quantize_gps_pair(self.gps_lat, self.gps_lng)
 
     def compute_record_hash(self, previous_hash=None):
         """

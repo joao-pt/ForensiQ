@@ -6,7 +6,8 @@
  * pino, preenche lat/lng (+ precisão) e resolve a morada — tudo sobre o motor
  * já central `window.ForensiQGeo` (geo.js) e o `window.FQMap` (map-helpers.js).
  *
- * Estados: "A localizar…", sucesso com ±precisão (avisa se >50 m), ou erro/sem
+ * Estados: "A localizar…", sucesso com ±precisão (avisa se pior que o limiar
+ * data-acc-flag-m, def. ForensiQGeo.ACC_FLAG_M), ou erro/sem
  * permissão com a mensagem PT-PT do ForensiQGeo. Em qualquer caso o utilizador
  * pode clicar no mapa para colocar/mover o pino ou escrever as coordenadas —
  * e há um botão de recurso "Usar a minha localização".
@@ -55,6 +56,8 @@
         var locateBtn = el.querySelector('[data-geo-field-locate]');
 
         var Geo = window.ForensiQGeo;
+        var flagM = parseInt(el.getAttribute('data-acc-flag-m') || '', 10)
+            || (Geo && Geo.ACC_FLAG_M) || 50;
         var map = null, marker = null;
         var addrTouched = false;  // o utilizador editou a morada → não atropelar
 
@@ -129,7 +132,7 @@
                     lockCoords(true);
                     var m = Math.round(pos.coords.accuracy);
                     if (accEl) accEl.value = m;
-                    if (m > 50) {
+                    if (m > flagM) {
                         setStatus('Localização obtida (±' + m + ' m — pouco precisa; ajuste no mapa se necessário).', 'flag');
                     } else {
                         setStatus('Localização obtida (±' + m + ' m). Ajuste no mapa se o facto ocorreu noutro ponto.', 'ok');

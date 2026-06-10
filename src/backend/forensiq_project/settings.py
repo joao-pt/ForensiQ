@@ -250,6 +250,10 @@ IMEIDB_TIMEOUT_SECONDS = int(os.environ.get('IMEIDB_TIMEOUT_SECONDS', '10'))
 # ÚNICA — antes duplicado em Institution.clean e ChainOfCustody.clean. NÃO
 # alterar em sistemas com prova já registada (muda os hashes futuros).
 GPS_DECIMAL_PLACES = int(os.environ.get('GPS_DECIMAL_PLACES', 7))
+# Limiar de sinalização da precisão GPS (metros): pior que isto é assinalado na
+# UI de captura e na timeline. Fonte ÚNICA — o frontend recebe-o por
+# data-attribute (data-acc-flag-m) e o backend anota acc_flagged nos eventos.
+GPS_ACCURACY_FLAG_M = int(os.environ.get('GPS_ACCURACY_FLAG_M', 50))
 # Prazo legal de validação da apreensão (CPP Art. 178.º/6). Só assinala a flag
 # validation_overdue (nunca bloqueia). Externalizado para revisão de compliance.
 VALIDATION_DEADLINE_HOURS = int(os.environ.get('VALIDATION_DEADLINE_HOURS', 72))

@@ -148,7 +148,8 @@
             <span class="subhead" id="r-geo-label">Geolocalização do evento</span>
             <div class="form-inline">
               <button type="button" class="btn-ghost" data-geo-capture
-                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-acc-target="#r-acc" data-decimals="4">
+                      data-lat-target="#r-lat" data-lng-target="#r-lng" data-acc-target="#r-acc"
+                      data-decimals="4" data-acc-flag-m="{{ gps_acc_flag_m }}">
                 {% include 'partials/icons/_gps.html' %}
                 Capturar GPS
               </button>

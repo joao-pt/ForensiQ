@@ -12,6 +12,7 @@
      data-lat-target="#f-lat" data-lng-target="#f-lng"
      {% if reverse %}data-addr-target="#f-addr" data-reverse="true"{% endif %}
      data-decimals="{{ decimals|default:3 }}"
+     data-acc-flag-m="{{ gps_acc_flag_m }}"
      data-autolocate="{% if autolocate %}true{% else %}false{% endif %}">
 
   <h3 class="subhead geo-field__title">{{ title|default:"Localização" }}</h3>

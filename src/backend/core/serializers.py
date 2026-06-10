@@ -6,6 +6,7 @@ Campos sensíveis (hashes, timestamps automáticos) são read-only.
 Validações de ownership bloqueiam IDOR a nível de payload (Wave 2c).
 """
 
+from django.conf import settings
 from django.contrib.auth import get_user_model, password_validation
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
@@ -663,11 +664,14 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
     storage_location = serializers.CharField(
         required=False, allow_blank=True, default='', max_length=120
     )
+    # Precisão GPS da fonte única (a mesma constante de gps_quantum/modelos).
     gps_lat = serializers.DecimalField(
-        max_digits=10, decimal_places=7, required=False, allow_null=True, default=None
+        max_digits=10, decimal_places=settings.GPS_DECIMAL_PLACES,
+        required=False, allow_null=True, default=None,
     )
     gps_lng = serializers.DecimalField(
-        max_digits=10, decimal_places=7, required=False, allow_null=True, default=None
+        max_digits=10, decimal_places=settings.GPS_DECIMAL_PLACES,
+        required=False, allow_null=True, default=None,
     )
     gps_accuracy_m = serializers.IntegerField(
         required=False, allow_null=True, default=None, min_value=0

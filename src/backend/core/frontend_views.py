@@ -14,6 +14,7 @@ import json
 import logging
 from functools import wraps
 
+from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Count
@@ -1381,12 +1382,16 @@ def evidences_new_view(request):
 
 def _decorate_events(events):
     """Anota cada evento do ledger com rótulos PT e hash curto (apresentação)."""
+    flag_m = settings.GPS_ACCURACY_FLAG_M
     for r in events:
         r.event_label = r.get_event_type_display()
         r.custodian_label = r.get_custodian_type_display() if r.custodian_type else '—'
         r.agent_label = get_user_display_name(r.agent)
         r.hash_short = (r.record_hash or '')[:16]
         r.aria_code = r.code or r.event_label   # rótulo da linha (fallback evento)
+        # Precisão pior que o limiar único (settings.GPS_ACCURACY_FLAG_M) é
+        # assinalada; o template testa só a flag (sem literais de limiar).
+        r.acc_flagged = bool(r.gps_accuracy_m and r.gps_accuracy_m > flag_m)
 
 
 def _chain_points(events):

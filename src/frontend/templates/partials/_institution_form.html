@@ -64,11 +64,13 @@
       <div class="form-field form-field--full" role="group" aria-labelledby="f-i-geo-label">
         <span class="subhead" id="f-i-geo-label">Localização (ponto de controlo) *</span>
         <div class="map-picker" data-map-picker
-             data-lat-target="#f-i-lat" data-lng-target="#f-i-lng"></div>
+             data-lat-target="#f-i-lat" data-lng-target="#f-i-lng"
+             data-decimals="{{ gps_decimals }}"></div>
         <p class="map-picker__hint">Clique no mapa para fixar o pino, ou capture o GPS do dispositivo.</p>
         <div class="form-inline">
           <button type="button" class="btn-ghost" data-geo-capture
-                  data-lat-target="#f-i-lat" data-lng-target="#f-i-lng" data-decimals="7">
+                  data-lat-target="#f-i-lat" data-lng-target="#f-i-lng"
+                  data-decimals="{{ gps_decimals }}" data-acc-flag-m="{{ gps_acc_flag_m }}">
             {% include 'partials/icons/_gps.html' %}
             Capturar GPS
           </button>

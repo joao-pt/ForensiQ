@@ -18,7 +18,7 @@
     {% if r.location_name %}<span>Local: {{ r.location_name }}</span>{% endif %}
     {% if r.storage_location %}<span>Armazenamento: {{ r.storage_location }}</span>{% endif %}
     {% if r.gps_lat is not None %}<span class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}</span>{% endif %}
-    {% if r.gps_accuracy_m %}<span class="mono {% if r.gps_accuracy_m > 50 %}timeline__acc--flag{% endif %}">±{{ r.gps_accuracy_m }}m</span>{% endif %}
+    {% if r.gps_accuracy_m %}<span class="mono {% if r.acc_flagged %}timeline__acc--flag{% endif %}">±{{ r.gps_accuracy_m }}m</span>{% endif %}
   </div>
   <div class="timeline__meta">
     <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…

@@ -11,15 +11,15 @@
  *   <div data-map-picker
  *        data-lat-target="#f-lat" data-lng-target="#f-lng"
  *        data-lat="38.72" data-lng="-9.14"   (opcional: posição inicial)
+ *        data-decimals="7"                   (injetado de settings.GPS_DECIMAL_PLACES)
  *        data-zoom="7"></div>
- * Os inputs-alvo recebem a precisão de 7 casas (igual ao ledger/instituição,
+ * Os inputs-alvo recebem a precisão de data-decimals (igual ao ledger/instituição,
  * porque a coordenada da instituição é copiada para o evento na receção).
  */
 (function () {
     'use strict';
 
     var DEFAULT = { lat: 39.5, lng: -8.0, zoom: 6 };  // Portugal continental
-    var DECIMALS = 7;
     var pickers = [];  // estado dos seletores ativos (p/ sincronizar com GPS)
 
     function initOne(el) {
@@ -27,6 +27,9 @@
         if (typeof L === 'undefined' || !window.FQMap) return;  // Leaflet é por-página
         el._fqPickerReady = true;
 
+        // Precisão vem do atributo (fonte: settings.GPS_DECIMAL_PLACES); o 7 é
+        // só o default degradado quando o atributo falta.
+        var decimals = parseInt(el.getAttribute('data-decimals') || '', 10) || 7;
         var latInput = document.querySelector(el.getAttribute('data-lat-target'));
         var lngInput = document.querySelector(el.getAttribute('data-lng-target'));
 
@@ -43,8 +46,8 @@
         function place(lat, lng) {
             if (marker) marker.setLatLng([lat, lng]);
             else marker = L.marker([lat, lng]).addTo(map);
-            if (latInput) latInput.value = lat.toFixed(DECIMALS);
-            if (lngInput) lngInput.value = lng.toFixed(DECIMALS);
+            if (latInput) latInput.value = lat.toFixed(decimals);
+            if (lngInput) lngInput.value = lng.toFixed(decimals);
         }
         function syncFromInputs() {
             var la = parseFloat(latInput && latInput.value);

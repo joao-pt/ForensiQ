@@ -5,8 +5,10 @@
  *   data-lat-target / data-lng-target : seletores dos inputs a preencher
  *   data-acc-target                   : (opcional) input para a precisão em metros
  *   data-decimals                     : casas decimais (AGENTE 3 ~110m / PERITO 4 ~11m)
+ *   data-acc-flag-m                   : limiar de sinalização da precisão (m),
+ *                                       injetado de settings.GPS_ACCURACY_FLAG_M
  *   data-high-accuracy="false"        : (opcional) força arranque em baixa precisão
- * Mostra a precisão num elemento [data-geo-acc] e sinaliza ±>50m (lab).
+ * Mostra a precisão num elemento [data-geo-acc] e sinaliza pior que o limiar.
  *
  * Delega em window.ForensiQGeo.getPosition (módulo geo.js), que trata os
  * códigos de erro de forma distinta e recai para baixa precisão no desktop.
@@ -32,6 +34,7 @@
         var accTargetSel = btn.getAttribute('data-acc-target');
         var accEl = accTargetSel ? document.querySelector(accTargetSel) : null;
         var dec = parseInt(btn.getAttribute('data-decimals') || '5', 10);
+        var flagM = parseInt(btn.getAttribute('data-acc-flag-m') || '', 10) || Geo.ACC_FLAG_M;
 
         btn.disabled = true;
         if (acc) { acc.textContent = 'A localizar…'; acc.classList.remove('geo-acc--flag', 'geo-acc--error'); }
@@ -46,7 +49,7 @@
                 if (accEl) accEl.value = m;
                 if (acc) {
                     acc.textContent = '±' + m + ' m';
-                    acc.classList.toggle('geo-acc--flag', m > 50);
+                    acc.classList.toggle('geo-acc--flag', m > flagM);
                 }
                 // Sinaliza a captura para componentes dependentes (ex.: POIs próximos),
                 // que só funcionam depois de haver coordenadas.

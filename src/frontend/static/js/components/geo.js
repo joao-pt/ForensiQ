@@ -31,6 +31,10 @@
 
     var Geo = {};
 
+    // Limiar de sinalização da precisão (m) — FALLBACK único do lado JS; o
+    // valor canónico vem de settings.GPS_ACCURACY_FLAG_M via data-acc-flag-m.
+    Geo.ACC_FLAG_M = 50;
+
     /** Mensagem PT-PT para um GeolocationPositionError (ou Error genérico). */
     function errorMessage(err) {
         if (!err) return 'Falha ao obter a localização.';

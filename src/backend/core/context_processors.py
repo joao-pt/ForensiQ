@@ -37,8 +37,19 @@ def _build_info():
 
 
 def app_metadata(request):
-    """Injecta metadata de build no contexto de cada template."""
-    return _build_info()
+    """Injecta metadata de build + parâmetros forenses partilhados com o JS.
+
+    ``gps_decimals``/``gps_acc_flag_m`` (ADR-0013) chegam ao frontend por
+    data-attribute (``data-decimals``/``data-acc-flag-m``) — o literal vive só
+    em ``settings`` e o cliente nunca diverge da quantização do servidor.
+    """
+    from django.conf import settings
+
+    return {
+        **_build_info(),
+        'gps_decimals': settings.GPS_DECIMAL_PLACES,
+        'gps_acc_flag_m': settings.GPS_ACCURACY_FLAG_M,
+    }
 
 
 def lens_nav(request):
