@@ -4,7 +4,6 @@
 {% block title %}Verificações — ForensiQ{% endblock %}
 
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
 {% block breadcrumb %}<span class="breadcrumb-current">Verificações</span>{% endblock %}
@@ -75,6 +74,6 @@
 {% endblock %}
 
 {% block extra_js %}
-  <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
-  <script src="{% static 'js/components/forensic-list.js' %}"></script>
+  {# Runtime de lista/mapa na fonte única (auditoria D57/D101). #}
+  {% include 'partials/_grid_scripts.html' %}
 {% endblock %}

@@ -33,7 +33,7 @@
         <select id="f-enc-bearer" name="bearer" required>
           <option value="">— selecionar —</option>
           {% for p in portadores %}
-          <option value="{{ p.id }}" {% if data.bearer == p.id|stringformat:'s' %}selected{% endif %}>{{ p.apelido }}, {{ p.nome }} · {{ p.matricula }} ({{ p.posto }})</option>
+          <option value="{{ p.id }}" {% if data.bearer == p.id|stringformat:'s' %}selected{% endif %}>{{ p.option_label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -42,7 +42,7 @@
         <select id="f-enc-dest" name="custodian_institution" required>
           <option value="">— selecionar —</option>
           {% for inst in destinos %}
-          <option value="{{ inst.id }}" {% if data.custodian_institution == inst.id|stringformat:'s' %}selected{% endif %}>{{ inst.name }} ({{ inst.get_type_display }})</option>
+          <option value="{{ inst.id }}" {% if data.custodian_institution == inst.id|stringformat:'s' %}selected{% endif %}>{{ inst.option_label }}</option>
           {% endfor %}
         </select>
       </div>

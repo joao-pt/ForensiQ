@@ -4,13 +4,16 @@
   origem (`cancel_url`). Parâmetros do include:
     • cancel_url   — destino do Cancelar em modo página (ignorado em modal);
     • submit_label — texto do botão de submissão;
-    • sticky       — fixa o rodapé em página (só quando NÃO é modal).
+    • sticky       — fixa o rodapé em página (só quando NÃO é modal);
+    • no_cancel    — omite o Cancelar (formulários inline, ex.: registo de evento).
 {% endcomment %}
 <div class="form-actions{% if sticky and not modal %} form-actions--sticky{% endif %}">
+  {% if not no_cancel %}
   {% if modal %}
   <button type="button" class="btn-ghost" data-modal-close>Cancelar</button>
   {% else %}
   <a class="btn-ghost" href="{{ cancel_url }}">Cancelar</a>
+  {% endif %}
   {% endif %}
   <button type="submit" class="btn-accent">{{ submit_label }}</button>
 </div>

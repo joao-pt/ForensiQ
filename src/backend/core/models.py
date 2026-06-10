@@ -413,6 +413,12 @@ class Institution(models.Model):
     def __str__(self):
         return f'{self.sigla or self.name} ({self.get_type_display()})'
 
+    @property
+    def option_label(self):
+        """Rótulo canónico dos ``<option>`` de instituição nos selects de
+        destino/custódia — fonte única do formato (auditoria D65)."""
+        return str(self)
+
     def clean(self):
         super().clean()
         # Coerência + quantização (ADR-0013) na operação compósita única — a
@@ -504,6 +510,13 @@ class Portador(models.Model):
     def __str__(self):
         nome = f'{self.nome} {self.apelido}'.strip()
         return f'{nome} ({self.matricula})' if self.matricula else nome
+
+    @property
+    def option_label(self):
+        """Rótulo canónico dos ``<option>`` de portador (auditoria D65):
+        apelido-primeiro (casa com a ordenação) + matrícula + posto."""
+        out = f'{self.apelido}, {self.nome} · {self.matricula}'
+        return f'{out} · {self.posto}' if self.posto else out
 
 
 # ---------------------------------------------------------------------------

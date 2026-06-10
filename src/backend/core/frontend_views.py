@@ -2045,6 +2045,7 @@ def occurrence_intake_view(request, occurrence_id):
             'rows': rows,
             'evidence_count': len(rows),
             'intake_errors': intake_errors,
+            'cancel_url': f'/occurrences/{occurrence.id}/',
             # Intake = fase 2 do handoff (ADR-0016 v2): registar a RECEÇÃO dos
             # itens em trânsito. O destino/coordenada vêm do encaminhamento.
             'intake_action_label': 'Receção de prova encaminhada',

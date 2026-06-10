@@ -7,7 +7,6 @@
 {% block lens_bar %}{% endblock %}
 
 {% block extra_css %}
-  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
 {% endblock %}
 
 {% block breadcrumb %}
@@ -115,10 +114,7 @@
           </div>
         </div>
 
-        <div class="form-actions form-actions--sticky">
-          <a class="btn-ghost" href="/occurrences/{{ occurrence.id }}/">Cancelar</a>
-          <button type="submit" class="btn-accent">Registar receção</button>
-        </div>
+        {% include 'partials/_form_actions.html' with cancel_url=cancel_url submit_label='Registar receção' sticky=True %}
       </form>
     </div>
   </section>
