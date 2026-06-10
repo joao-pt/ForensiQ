@@ -36,6 +36,7 @@ from core.models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 from core.tests_base import login_client
 from core.tests_factories import (
     TEST_PASSWORD,
+    VALID_IMEI,
     ChainOfCustodyFactory,
     CrimeTipoFactory,
     EvidenceMobileFactory,
@@ -53,7 +54,7 @@ class IMEILookupNoTokenTest(TestCase):
         from core.services.imei_lookup import LookupError, lookup_imei
 
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('não está configurado', str(ctx.exception))
 
 
@@ -74,7 +75,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
         mock_client_cls.return_value = mock_client
 
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('Tempo esgotado', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -91,7 +92,7 @@ class IMEILookupNetworkErrorsTest(TestCase):
         mock_client_cls.return_value = mock_client
 
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('Erro de rede', str(ctx.exception))
 
 
@@ -119,7 +120,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(401))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('Token', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -129,7 +130,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(402))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('Saldo', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -139,7 +140,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(429))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('Limite', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -149,7 +150,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(404))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('não encontrado', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -159,7 +160,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(460))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('não encontrado', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -169,7 +170,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(500))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('indisponível', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -179,7 +180,7 @@ class IMEILookupHTTPErrorsTest(TestCase):
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(418))
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('418', str(ctx.exception))
 
 
@@ -217,7 +218,7 @@ class IMEILookupSuccessTest(TestCase):
             },
         }
         self._setup_client_mock(mock_client_cls, self._make_success_response(payload))
-        result = lookup_imei('490154203237518')
+        result = lookup_imei(VALID_IMEI)
 
         self.assertEqual(result['brand'], 'Apple')
         self.assertEqual(result['model'], 'A2161')
@@ -236,7 +237,7 @@ class IMEILookupSuccessTest(TestCase):
         self._setup_client_mock(mock_client_cls, self._make_success_response(payload))
 
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('Saldo', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -250,7 +251,7 @@ class IMEILookupSuccessTest(TestCase):
         self._setup_client_mock(mock_client_cls, resp)
 
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('JSON', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -264,7 +265,7 @@ class IMEILookupSuccessTest(TestCase):
         self._setup_client_mock(mock_client_cls, resp)
 
         with self.assertRaises(LookupError) as ctx:
-            lookup_imei('490154203237518')
+            lookup_imei(VALID_IMEI)
         self.assertIn('formato inesperado', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
@@ -281,7 +282,7 @@ class IMEILookupSuccessTest(TestCase):
             'name': 'Samsung Galaxy S8',
         }
         self._setup_client_mock(mock_client_cls, self._make_success_response(payload))
-        result = lookup_imei('490154203237518')
+        result = lookup_imei(VALID_IMEI)
 
         self.assertEqual(result['brand'], 'Samsung')
         self.assertEqual(result['model'], 'SM-G950F')
@@ -301,7 +302,7 @@ class IMEILookupSuccessTest(TestCase):
             },
         }
         self._setup_client_mock(mock_client_cls, self._make_success_response(payload))
-        result = lookup_imei('490154203237518')
+        result = lookup_imei(VALID_IMEI)
 
         self.assertNotIn('device_image', result['raw'])
 
@@ -315,7 +316,7 @@ class IMEILookupSuccessTest(TestCase):
             'data': {'tac': '12345678'},  # sem brand nem model
         }
         self._setup_client_mock(mock_client_cls, self._make_success_response(payload))
-        result = lookup_imei('490154203237518')
+        result = lookup_imei(VALID_IMEI)
 
         self.assertFalse(result['normalised_complete'])
 

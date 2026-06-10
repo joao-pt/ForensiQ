@@ -27,7 +27,7 @@ from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
 
 from core.models import Evidence
-from core.tests_factories import EvidenceMobileFactory
+from core.tests_factories import VALID_IMEI, EvidenceMobileFactory
 
 # Instante fixo: o hash inclui ``timestamp_seizure.isoformat()``; fixá-lo
 # garante que duas instâncias só diferem no campo que queremos isolar.
@@ -50,7 +50,7 @@ def _evidence_in_memory(type_value):
         gps_lng=None,
         timestamp_seizure=_FIXED_DT,
         serial_number='SN-0001',
-        type_specific_data={'imei': '490154203237518'},
+        type_specific_data={'imei': VALID_IMEI},
     )
 
 

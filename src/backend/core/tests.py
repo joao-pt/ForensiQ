@@ -26,7 +26,7 @@ from django.db import DatabaseError, connection
 from django.test import TestCase
 from django.utils import timezone
 
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import LISBOA_GPS, CrimeTipoFactory
 
 from .models import (
     ChainOfCustody,
@@ -83,8 +83,8 @@ class OccurrenceModelTest(TestCase):
             number='NUIPC-2026-001',
             description='Furto de telemóvel na via pública.',
             agent=self.agent,
-            gps_lat=Decimal('38.7223340'),
-            gps_lng=Decimal('-9.1393366'),
+            gps_lat=LISBOA_GPS[0],
+            gps_lng=LISBOA_GPS[1],
         )
         # __str__ combina NUIPC + código interno gerado (OCC-YYYY-NNNNN).
         self.assertTrue(str(occ).startswith('Ocorrência NUIPC-2026-001'))
@@ -544,8 +544,8 @@ class CustodyHashFormulaTest(TestCase):
             custodian_type=CustodianType.LAB_PUBLICO,
             location_name='Bomba BP, Av. da Liberdade | Lisboa',
             storage_location='Armário B-12, Sala 3',
-            gps_lat=Decimal('38.7223340'),
-            gps_lng=Decimal('-9.1393366'),
+            gps_lat=LISBOA_GPS[0],
+            gps_lng=LISBOA_GPS[1],
             gps_accuracy_m=8,
             observations='obs reg',
         )
@@ -574,7 +574,7 @@ class CustodyHashFormulaTest(TestCase):
         self.assertEqual(rec.compute_record_hash(previous_hash=prev), esperado_hash)
 
     def test_hash_difere_com_e_sem_gps(self):
-        com = self._build(gps_lat=Decimal('38.7223340'), gps_lng=Decimal('-9.1393366'))
+        com = self._build(gps_lat=LISBOA_GPS[0], gps_lng=LISBOA_GPS[1])
         sem = self._build()
         self.assertNotEqual(
             com.compute_record_hash(previous_hash='0' * 64),
@@ -591,8 +591,8 @@ class CustodyHashFormulaTest(TestCase):
         )
 
     def test_hash_ordem_lat_lng_nao_comutavel(self):
-        a = self._build(gps_lat=Decimal('38.7223340'), gps_lng=Decimal('-9.1393366'))
-        b = self._build(gps_lat=Decimal('-9.1393366'), gps_lng=Decimal('38.7223340'))
+        a = self._build(gps_lat=LISBOA_GPS[0], gps_lng=LISBOA_GPS[1])
+        b = self._build(gps_lat=LISBOA_GPS[1], gps_lng=LISBOA_GPS[0])
         self.assertNotEqual(
             a.compute_record_hash(previous_hash='0' * 64),
             b.compute_record_hash(previous_hash='0' * 64),

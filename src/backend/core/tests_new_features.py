@@ -35,6 +35,7 @@ from .tests_api import BaseAPITestCase
 User = get_user_model()
 
 
+from core.tests_base import throttle_rate
 from core.tests_factories import CrimeTipoFactory
 
 
@@ -552,9 +553,9 @@ class NearbyPOIsViewTest(BaseAPITestCase):
 
         cache.clear()
         self.authenticate_as(self.agent)
-        rates = {'reverse_geocode': '1/minute'}
+
         with (
-            mock.patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates),
+            throttle_rate('reverse_geocode', '1/minute'),
             mock.patch('core.views.httpx.post', return_value=_Resp()),
         ):
             first = self.client.get(self.URL, {'lat': '38.7', 'lon': '-9.1'})

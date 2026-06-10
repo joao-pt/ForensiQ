@@ -23,9 +23,10 @@ from core.services.imei_lookup import (
     LookupError,
     lookup_imei,
 )
+from core.tests_factories import VALID_IMEI
 
 # IMEI Luhn-válido usado em todos os testes (sample Apple iPhone 11 Pro Max TAC)
-_VALID_IMEI = '490154203237518'
+_VALID_IMEI = VALID_IMEI
 
 
 def _mock_httpx_response(status_code, json_body=None):

@@ -33,6 +33,7 @@ from rest_framework.throttling import SimpleRateThrottle
 from core.middleware import CorrelationIDMiddleware
 from core.models import ChainOfCustody, CustodianType, EventType, Evidence, Occurrence
 from core.qr_verify import short_hash_for
+from core.tests_base import throttle_rate
 from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
 
 User = get_user_model()
@@ -71,9 +72,9 @@ class PublicVerifyThrottleTest(TestCase):
 
     def test_429_apos_limite(self):
         """Ao exceder `verify_public` a vista devolve 429."""
-        rates = {'verify_public': '2/minute'}
+
         url = f'/v/{self.short_hash}/'
-        with mock.patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
+        with throttle_rate('verify_public', '2/minute'):
             r1 = self.client.get(url)
             r2 = self.client.get(url)
             r3 = self.client.get(url)
@@ -83,8 +84,7 @@ class PublicVerifyThrottleTest(TestCase):
 
     def test_throttle_trava_hash_invalido(self):
         """O throttle aplica-se ANTES de resolver — trava enumeração."""
-        rates = {'verify_public': '1/minute'}
-        with mock.patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
+        with throttle_rate('verify_public', '1/minute'):
             r1 = self.client.get('/v/000000000000/')
             r2 = self.client.get('/v/111111111111/')
         # Primeiro: 404 (hash inválido, mas dentro do limite).
@@ -111,8 +111,7 @@ class SchemaThrottleTest(TestCase):
         self.assertEqual(ThrottledSchemaView.throttle_scope, 'schema')
 
     def test_429_apos_limite(self):
-        rates = {'schema': '1/minute'}
-        with mock.patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
+        with throttle_rate('schema', '1/minute'):
             r1 = self.client.get('/api/schema/')
             r2 = self.client.get('/api/schema/')
         self.assertEqual(r1.status_code, status.HTTP_200_OK)

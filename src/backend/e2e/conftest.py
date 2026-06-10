@@ -37,9 +37,11 @@ from urllib.parse import urlparse  # noqa: E402
 import pytest  # noqa: E402
 
 from core.auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME  # noqa: E402
+from core.tests_factories import LISBOA_GPS  # noqa: E402
 
-# Lisboa — Marquês de Pombal (coincide com OccurrenceFactory / EvidenceFactory).
-E2E_GEO = {"latitude": 38.7223340, "longitude": -9.1393366, "accuracy": 12.0}
+# Lisboa — Marquês de Pombal, da fonte única (auditoria D121): é POR
+# CONSTRUÇÃO a mesma coordenada das factories.
+E2E_GEO = {"latitude": float(LISBOA_GPS[0]), "longitude": float(LISBOA_GPS[1]), "accuracy": 12.0}
 
 # Origens externas permitidas no browser de teste: NENHUMA. O IBM Plex passou a
 # self-hosted (css/fonts.css), por isso os testes correm totalmente offline.

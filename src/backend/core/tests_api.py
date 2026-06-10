@@ -22,7 +22,7 @@ from rest_framework.test import APIClient
 # BaseAPITestCase vive em core.tests_base (auditoria D112) — re-importada aqui
 # para as suites (e tests_new_features/tests_dashboard) continuarem a funcionar.
 from core.tests_base import BaseAPITestCase as BaseAPITestCase
-from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
+from core.tests_factories import LISBOA_GPS, LISBOA_GPS_STR, TEST_PASSWORD, CrimeTipoFactory
 
 from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import (
@@ -164,8 +164,8 @@ class OccurrenceAPITest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-API-001',
                 'description': 'Teste de ocorrência via API.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -657,8 +657,8 @@ class EndToEndFlowTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-E2E-001',
                 'description': 'Ocorrência end-to-end: roubo com dispositivo digital.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(occurrence_response.status_code, status.HTTP_201_CREATED)
@@ -790,7 +790,7 @@ class InputValidationTest(BaseAPITestCase):
                 'number': 'NUIPC-2026-GPS-LAT-HIGH',
                 'description': 'Teste de latitude inválida.',
                 'gps_lat': '200.0000000',  # Fora do intervalo [-90, 90]
-                'gps_lng': '-9.1393366',
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -806,7 +806,7 @@ class InputValidationTest(BaseAPITestCase):
                 'number': 'NUIPC-2026-GPS-LAT-LOW',
                 'description': 'Teste de latitude inválida.',
                 'gps_lat': '-150.0000000',  # Fora do intervalo [-90, 90]
-                'gps_lng': '-9.1393366',
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -821,7 +821,7 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-GPS-LON-HIGH',
                 'description': 'Teste de longitude inválida.',
-                'gps_lat': '38.7223340',
+                'gps_lat': LISBOA_GPS_STR[0],
                 'gps_lng': '200.0000000',  # Fora do intervalo [-180, 180]
             },
         )
@@ -837,7 +837,7 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-GPS-LON-LOW',
                 'description': 'Teste de longitude inválida.',
-                'gps_lat': '38.7223340',
+                'gps_lat': LISBOA_GPS_STR[0],
                 'gps_lng': '-200.0000000',  # Fora do intervalo [-180, 180]
             },
         )
@@ -908,8 +908,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-DUP-001',
                 'description': 'Primeira ocorrência.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
@@ -921,8 +921,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-DUP-001',  # Número duplicado
                 'description': 'Segunda ocorrência com número duplicado.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response2.status_code, status.HTTP_400_BAD_REQUEST)
@@ -941,8 +941,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-LONG-DESC',
                 'description': long_description,
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -971,8 +971,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-UNICODE',
                 'description': unicode_description,
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -1001,8 +1001,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-XSS-TEST',
                 'description': injection_payload,
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         # Deve ser aceito (não rejeitar injeção, apenas escapar na saída)
@@ -1026,8 +1026,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-NULL-BYTE',
                 'description': description_with_null,
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         # Deve ser rejeitado ou o null byte deve ser removido
@@ -1051,8 +1051,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': long_number,
                 'description': 'Ocorrência com número muito longo.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -1068,8 +1068,8 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': '',
                 'description': 'Ocorrência sem número.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -1084,8 +1084,8 @@ class InputValidationTest(BaseAPITestCase):
             url,
             {
                 'description': 'Ocorrência sem número.',
-                'gps_lat': '38.7223340',
-                'gps_lng': '-9.1393366',
+                'gps_lat': LISBOA_GPS_STR[0],
+                'gps_lng': LISBOA_GPS_STR[1],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -1105,7 +1105,7 @@ class InputValidationTest(BaseAPITestCase):
                 'crime_type': CrimeTipoFactory().id,
                 'number': 'NUIPC-2026-GPS-PARTIAL-1',
                 'description': 'Ocorrência com apenas latitude.',
-                'gps_lat': '38.7223340',
+                'gps_lat': LISBOA_GPS_STR[0],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

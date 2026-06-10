@@ -29,9 +29,10 @@ from core.permissions import IsAgent, IsAgentOrExpert, IsExpert, IsOwnerOrReadOn
 # =========================================================================
 # 1. VALIDADORES - testes unitarios puros (sem BD)
 # =========================================================================
-from core.tests_base import login_client
+from core.tests_base import login_client, throttle_rate
 from core.tests_factories import (
     TEST_PASSWORD,
+    VALID_IMEI,
     ChainOfCustodyFactory,
     CrimeTipoFactory,
     EvidenceMobileFactory,
@@ -53,7 +54,7 @@ class ValidateIMEITest(TestCase):
     """Cobertura de ``core.validators.validate_imei``."""
 
     def test_valid_imei_passes(self):
-        validate_imei('490154203237518')
+        validate_imei(VALID_IMEI)
 
     def test_imei_too_short_raises(self):
         with self.assertRaises(DjangoValidationError):
@@ -553,11 +554,8 @@ class HealthcheckThrottleTest(APITestCase):
     def test_429_apos_limite(self):
         from unittest.mock import patch
 
-        from rest_framework.throttling import SimpleRateThrottle
-
-        # Forçar 2/min só neste teste (ver nota em ImeiLookupThrottleTest).
-        rates = {'healthcheck': '2/minute'}
-        with patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates):
+        # Throttle de UM scope na fonte unica (tests_base.throttle_rate - D115).
+        with throttle_rate('healthcheck', '2/minute'):
             r1 = self.client.get('/api/health/')
             r2 = self.client.get('/api/health/')
             r3 = self.client.get('/api/health/')
@@ -903,15 +901,8 @@ class ImeiLookupThrottleTest(APITestCase):
     def test_429_apos_limite(self):
         from unittest.mock import patch
 
-        from rest_framework.throttling import SimpleRateThrottle
 
-        # Nota: `override_settings(REST_FRAMEWORK={...})` reseta
-        # `api_settings` mas NÃO o atributo de classe
-        # `SimpleRateThrottle.THROTTLE_RATES`, que é capturado uma vez
-        # ao importar o módulo. Para forçar 2/min só neste teste,
-        # patcheamos directamente o atributo de classe.
-        rates = {'imei_lookup': '2/minute'}
-        imei = '490154203237518'  # Luhn-válido (sample TAC Apple)
+        imei = VALID_IMEI  # Luhn-válido (sample TAC Apple)
         fake_payload = {
             'brand': 'Apple',
             'model': 'A2161',
@@ -928,8 +919,9 @@ class ImeiLookupThrottleTest(APITestCase):
         }
         url = f'/api/evidences/lookup/imei/{imei}/'
 
+        # Throttle de UM scope na fonte unica (tests_base.throttle_rate - D115).
         with (
-            patch.object(SimpleRateThrottle, 'THROTTLE_RATES', rates),
+            throttle_rate('imei_lookup', '2/minute'),
             patch('core.views.lookup_imei', return_value=fake_payload),
         ):
             r1 = self.client.get(url)
