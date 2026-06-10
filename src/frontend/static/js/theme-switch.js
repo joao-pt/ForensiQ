@@ -13,8 +13,9 @@
     var btn = document.getElementById('theme-toggle');
     if (!btn) return;
 
-    var KEY = 'fq-theme';
-    var META_COLORS = { dark: '#0F1115', light: '#FAFAF9' };
+    // Chave + cores na fonte única window.FQTheme (theme-constants.js — D92).
+    var KEY = window.FQTheme.KEY;
+    var META_COLORS = window.FQTheme.META;
     var metaTheme   = document.getElementById('meta-theme-color');
     var announcer   = document.getElementById('theme-announce');
     var iconSun     = btn.querySelector('.icon-sun');

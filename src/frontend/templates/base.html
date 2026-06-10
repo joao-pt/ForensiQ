@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
-    <meta name="theme-color" content="#0F1115" id="meta-theme-color">
+    {% include 'partials/_head_meta.html' %}
     <meta name="description" content="ForensiQ — Gestão de Prova Digital para First Responders">
     <title>{% block title %}ForensiQ{% endblock %}</title>
 
@@ -25,6 +25,7 @@
     <link rel="manifest" href="/manifest.webmanifest">
 
     <!-- Tema — aplica antes do primeiro paint para evitar flash (FOUC) -->
+    <script src="{% static 'js/theme-constants.js' %}"></script>
     <script src="{% static 'js/theme-init.js' %}"></script>
 
     <!-- Tipografia forense self-hosted: IBM Plex Sans (UI) + IBM Plex Mono
@@ -64,19 +65,7 @@
         </button>
 
         <a href="/dashboard/" class="app-top__brand" aria-label="ForensiQ — Início">
-            <svg class="app-top__brand-mark" viewBox="0 0 56 48" aria-hidden="true">
-                <defs>
-                    <mask id="app-top-interlock" maskUnits="userSpaceOnUse">
-                        <rect x="0" y="0" width="56" height="48" fill="white"/>
-                        <rect x="24" y="28.5" width="8" height="7" fill="black"/>
-                    </mask>
-                </defs>
-                <circle cx="22" cy="24" r="10" fill="none"
-                        stroke="var(--accent)" stroke-width="2.5"/>
-                <circle cx="34" cy="24" r="10" fill="none"
-                        stroke="currentColor" stroke-width="2.5"
-                        mask="url(#app-top-interlock)"/>
-            </svg>
+            {% include 'partials/_brand.html' with css_class='app-top__brand-mark' mask_id='app-top-interlock' %}
             <span class="app-top__brand-name">ForensiQ</span>
         </a>
 

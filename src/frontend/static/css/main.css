@@ -157,23 +157,14 @@
     --info:            #60A5FA;
     --info-tint:       rgba(96, 165, 250, 0.14);
 
-    /* ---- Estados forenses (cadeia de custódia) ---------------
-       Cores identitárias dos 7 estados. Usadas em timeline, badges,
-       listas e detail — garantem mapeamento mental consistente. */
-    --state-apreendida:           #60A5FA;  /* azul — entrou no sistema */
-    --state-em-transporte:        #F59E0B;  /* âmbar — em movimento, risco */
-    --state-recebida-laboratorio: #2DD4BF;  /* teal — chegou ao lab */
-    --state-em-pericia:           #14B8A6;  /* teal escuro — em análise */
-    --state-concluida:            #34D399;  /* verde — perícia concluída */
-    --state-devolvida:            #9AA0A6;  /* neutro — ciclo encerrado */
-    --state-destruida:            #F87171;  /* vermelho — destruída */
-    --state-apreendida-tint:           rgba(96, 165, 250, 0.14);
-    --state-em-transporte-tint:        rgba(245, 158, 11, 0.14);
-    --state-recebida-laboratorio-tint: rgba(45, 212, 191, 0.14);
-    --state-em-pericia-tint:           rgba(20, 184, 166, 0.14);
-    --state-concluida-tint:            rgba(52, 211, 153, 0.14);
-    --state-devolvida-tint:            rgba(154, 160, 166, 0.14);
-    --state-destruida-tint:            rgba(248, 113, 113, 0.14);
+    /* ---- Prioridade processual (P1 lei / P2 manual / normal) ----------
+       Fonte ÚNICA da cor de prioridade (auditoria D91): .pri/.urgency-dot,
+       as legendas dos mapas e o JS (priColors via token()) leem daqui. Os 28
+       tokens --state-*/-tint do FSM antigo foram removidos — o mapa
+       estado→cor canónico do ledger vive em core/labels.py → .state--*. */
+    --pri-p1:     var(--danger);   /* vermelho — prioritária por lei */
+    --pri-p2:     var(--warning);  /* âmbar — prioritária manual */
+    --pri-normal: var(--info);     /* azul — normal (pontos de mapa) */
 
     --focus-ring:      rgba(246, 173, 85, 0.40);
     --selection-bg:    rgba(246, 173, 85, 0.28);
@@ -239,7 +230,7 @@
     --accent-on-tint:  #92400E;
 
     /* Warning destacado do accent (amber-600 #D97706) para que P2/aviso não
-       colida com botões/marca (--accent #B45309) nem com --state-em-transporte. */
+       colida com botões/marca (--accent #B45309) nem com --pri-p2. */
     --warning:         #D97706;
     --warning-strong:  #B45309;
     --warning-tint:    rgba(217, 119, 6, 0.12);
@@ -255,21 +246,9 @@
     --info:            #1D4ED8;
     --info-tint:       rgba(29, 78, 216, 0.08);
 
-    /* ---- Estados forenses — variante clara (WCAG AA sobre #FAFAF9) ---- */
-    --state-apreendida:           #1D4ED8;
-    --state-em-transporte:        #B45309;
-    --state-recebida-laboratorio: #0F766E;
-    --state-em-pericia:           #115E59;
-    --state-concluida:            #047857;
-    --state-devolvida:            #6E6D6A;
-    --state-destruida:            #B91C1C;
-    --state-apreendida-tint:           rgba(29, 78, 216, 0.10);
-    --state-em-transporte-tint:        rgba(180, 83, 9, 0.10);
-    --state-recebida-laboratorio-tint: rgba(15, 118, 110, 0.10);
-    --state-em-pericia-tint:           rgba(17, 94, 89, 0.10);
-    --state-concluida-tint:            rgba(4, 120, 87, 0.10);
-    --state-devolvida-tint:            rgba(110, 109, 106, 0.12);
-    --state-destruida-tint:            rgba(185, 28, 28, 0.08);
+    /* Prioridade — variante clara: P2 usa o amber-700 (--warning-strong) para
+       manter o valor WCAG AA que o token antigo tinha sobre #FAFAF9. */
+    --pri-p2:     var(--warning-strong);
 
     --focus-ring:      rgba(180, 83, 9, 0.28);
     --selection-bg:    rgba(180, 83, 9, 0.18);

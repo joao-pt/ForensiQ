@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0F1115">
+  {% include 'partials/_head_meta.html' %}
   <meta name="robots" content="noindex">
   <title>Não encontrado — ForensiQ</title>
   <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
@@ -14,10 +14,8 @@
 <body>
   <main class="pubdoc">
     <div class="pubdoc__brand">
-      <svg viewBox="0 0 56 48" aria-hidden="true">
-        <circle cx="22" cy="24" r="10" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
-        <circle cx="34" cy="24" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/>
-      </svg>
+      {# Marca na fonte única (D102) — recupera o entrelaçamento que esta versão tinha perdido. #}
+      {% include 'partials/_brand.html' with mask_id='pub-interlock' %}
       ForensiQ
     </div>
     <h1 class="pubdoc__title">Referência não encontrada</h1>

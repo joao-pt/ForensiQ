@@ -24,7 +24,8 @@
             var h = new Date().getHours();
             theme = (h >= 7 && h < 19) ? 'light' : 'dark';
         } else {
-            var saved = localStorage.getItem('fq-theme');
+            // Chave única em window.FQTheme (theme-constants.js — auditoria D92).
+            var saved = localStorage.getItem(window.FQTheme.KEY);
             if (saved === 'light' || saved === 'dark') {
                 theme = saved;
             } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
@@ -37,11 +38,10 @@
         document.documentElement.setAttribute('data-theme', theme);
 
         // Alinhar a chrome do browser (barra de endereço mobile, splash iOS)
-        // com o tema resolvido, ainda antes do primeiro paint, para não ficar
-        // a cor dark fixa do <meta> enquanto o resto do <head> não termina.
-        // As cores espelham theme-switch.js (META_COLORS).
+        // com o tema resolvido, ainda antes do primeiro paint. As cores vêm da
+        // fonte única window.FQTheme.META (theme-constants.js — auditoria D92).
         var meta = document.getElementById('meta-theme-color');
-        if (meta) meta.content = theme === 'light' ? '#FAFAF9' : '#0F1115';
+        if (meta) meta.content = window.FQTheme.META[theme];
     } catch (err) {
         document.documentElement.setAttribute('data-theme', 'dark');
     }

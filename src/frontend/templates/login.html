@@ -21,19 +21,7 @@
 
         <div class="lp-chain-caption">
             <div class="lp-brand-row">
-                <svg class="lp-mark" viewBox="0 0 56 48" aria-hidden="true" role="img">
-                    <defs>
-                        <mask id="lp-interlock-lg" maskUnits="userSpaceOnUse">
-                            <rect x="0" y="0" width="56" height="48" fill="white"/>
-                            <rect x="24" y="28.5" width="8" height="7" fill="black"/>
-                        </mask>
-                    </defs>
-                    <circle cx="22" cy="24" r="10" fill="none"
-                            stroke="#F6AD55" stroke-width="2.5"/>
-                    <circle cx="34" cy="24" r="10" fill="none"
-                            stroke="currentColor" stroke-width="2.5"
-                            mask="url(#lp-interlock-lg)"/>
-                </svg>
+                {% include 'partials/_brand.html' with css_class='lp-mark' mask_id='lp-interlock-lg' %}
                 <div class="lp-brand-text">
                     <h2>ForensiQ</h2>
                     <p>Cadeia de custódia digital</p>
@@ -77,20 +65,7 @@
         <div class="lp-form-card">
 
             <div class="lp-mobile-brand">
-                <svg class="lp-mark lp-mark-sm" viewBox="0 0 56 48"
-                     aria-hidden="true" role="img">
-                    <defs>
-                        <mask id="lp-interlock-sm" maskUnits="userSpaceOnUse">
-                            <rect x="0" y="0" width="56" height="48" fill="white"/>
-                            <rect x="24" y="28.5" width="8" height="7" fill="black"/>
-                        </mask>
-                    </defs>
-                    <circle cx="22" cy="24" r="10" fill="none"
-                            stroke="#F6AD55" stroke-width="2.5"/>
-                    <circle cx="34" cy="24" r="10" fill="none"
-                            stroke="currentColor" stroke-width="2.5"
-                            mask="url(#lp-interlock-sm)"/>
-                </svg>
+                {% include 'partials/_brand.html' with css_class='lp-mark lp-mark-sm' mask_id='lp-interlock-sm' %}
                 <div>
                     <h2>ForensiQ</h2>
                     <p>Gestão de prova digital</p>

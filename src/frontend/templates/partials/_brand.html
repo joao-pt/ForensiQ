@@ -1,0 +1,19 @@
+{% comment %}
+  Marca ForensiQ — aros entrelaçados (fonte ÚNICA do SVG, auditoria D102).
+  Parâmetros do include:
+    • css_class — classe(s) do <svg> (dimensionamento por contexto);
+    • mask_id   — id ÚNICO por instância na página (as máscaras SVG colidem
+                  por id; o login tem duas instâncias).
+  O aro esquerdo usa var(--accent) — com variante de tema clara, ao contrário
+  do hex #F6AD55 que estava hardcoded no login.
+{% endcomment %}
+<svg{% if css_class %} class="{{ css_class }}"{% endif %} viewBox="0 0 56 48" aria-hidden="true">
+  <defs>
+    <mask id="{{ mask_id }}" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="56" height="48" fill="white"/>
+      <rect x="24" y="28.5" width="8" height="7" fill="black"/>
+    </mask>
+  </defs>
+  <circle cx="22" cy="24" r="10" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+  <circle cx="34" cy="24" r="10" fill="none" stroke="currentColor" stroke-width="2.5" mask="url(#{{ mask_id }})"/>
+</svg>

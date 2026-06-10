@@ -16,7 +16,7 @@
     var drawerMap = null;
     var lastTrigger = null;   // linha que abriu o drawer (para restaurar foco)
 
-    // Lê um token de cor do tema (--accent / --state-*) via getComputedStyle,
+    // Lê um token de cor do tema (--accent / --pri-*) via getComputedStyle,
     // para os marcadores Leaflet acompanharem dia/noite em vez de hex fixo.
     // O fallback cobre o caso de o CSS ainda não ter resolvido a variável.
     function token(name, fallback) {
@@ -244,9 +244,9 @@
     //   normal → azul (apreendida).
     function priColors() {
         return {
-            1: token('--state-destruida', '#F87171'),
-            2: token('--state-em-transporte', '#F59E0B'),
-            0: token('--state-apreendida', '#60A5FA'),
+            1: token('--pri-p1', '#F87171'),
+            2: token('--pri-p2', '#F59E0B'),
+            0: token('--pri-normal', '#60A5FA'),
         };
     }
     function drawPoints(map, raw) {
