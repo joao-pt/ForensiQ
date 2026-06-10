@@ -24,7 +24,7 @@ from core.models import (
     Portador,
     User,
 )
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import CrimeTipoFactory, InstitutionFactory
 
 
 class IntegrityBase(TestCase):
@@ -33,10 +33,7 @@ class IntegrityBase(TestCase):
         cls.agent = User.objects.create_user(
             username='int_agent', password='x12345678', profile=User.Profile.FIRST_RESPONDER
         )
-        cls.lab = Institution.objects.create(
-            name='LPC int', type=InstitutionType.LAB_PUBLICO, sigla='LPC-INT',
-            gps_lat=Decimal('38.7256000'), gps_lng=Decimal('-9.1430000'),
-        )
+        cls.lab = InstitutionFactory(name='LPC int', sigla='LPC-INT')
         cls.portador = Portador.objects.create(
             matricula='INT-1', nome='Rui', apelido='Marques', posto='Agente'
         )

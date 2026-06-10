@@ -6,20 +6,18 @@ em curso: o ledger é semeado até EM TRÂNSITO (apreensão → validação → 
 encaminhamento via portador) antes de submeter a receção no laboratório.
 """
 
-from decimal import Decimal
 
 import pytest
 
 from core.models import (
     ChainOfCustody,
-    Institution,
-    InstitutionType,
     Portador,
 )
 from core.tests_factories import (
     ChainOfCustodyFactory,
     EvidenceMobileFactory,
     ExpertFactory,
+    InstitutionFactory,
     OccurrenceFactory,
     UserFactory,
 )
@@ -32,13 +30,7 @@ def test_intake_recebe_prova_encaminhada(page, auth_as, live_server):
     expert = ExpertFactory.create(username="pe.intk", password="Ee123456!")
     occ = OccurrenceFactory.create(agent=agent)
     ev = EvidenceMobileFactory.create(occurrence=occ, agent=agent)
-    lab = Institution.objects.create(
-        name="Lab E2E",
-        type=InstitutionType.LAB_PUBLICO,
-        sigla="LAB-E2E",
-        gps_lat=Decimal("38.7256000"),
-        gps_lng=Decimal("-9.1430000"),
-    )
+    lab = InstitutionFactory(name="Lab E2E", sigla="LAB-E2E")
     portador = Portador.objects.create(
         matricula="E2E-INTK-1", nome="Ana", apelido="Costa", posto="Agente"
     )

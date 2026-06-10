@@ -40,7 +40,7 @@ from core.models import (
 User = get_user_model()
 
 
-from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
+from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory, InstitutionFactory
 
 
 def _make_user(username, profile='FIRST_RESPONDER', is_staff=False, is_superuser=False):
@@ -146,13 +146,8 @@ class OccurrenceIntakeRenderTest(TestCase):
         cls.ev_in_transit = _make_evidence(cls.occurrence, cls.agent, 'SN-TRA-1')
         cls.ev_received = _make_evidence(cls.occurrence, cls.agent, 'SN-RCV-1')
         # Destino do encaminhamento + portador (ADR-0016 v2 — handoff em 2 tempos).
-        cls.lab = Institution.objects.create(
-            name='Lab Intake',
-            type=InstitutionType.LAB_PUBLICO,
-            sigla='LAB-INT',
-            address='Rua do Laboratório 1, Lisboa',
-            gps_lat=Decimal('38.7256000'),
-            gps_lng=Decimal('-9.1430000'),
+        cls.lab = InstitutionFactory(
+            name='Lab Intake', sigla='LAB-INT', address='Rua do Laboratório 1, Lisboa'
         )
         cls.portador = Portador.objects.create(
             matricula='INT-0001', nome='Ana', apelido='Costa', posto='Agente'

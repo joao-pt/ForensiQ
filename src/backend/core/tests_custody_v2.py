@@ -29,7 +29,7 @@ from core.models import (
     User,
     derive_legal_state,
 )
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import CrimeTipoFactory, InstitutionFactory
 
 
 def _user(username, profile=User.Profile.FIRST_RESPONDER, clearance=None):
@@ -44,13 +44,7 @@ class CustodyV2Base(TestCase):
     def setUpTestData(cls):
         cls.agent = _user('cv2_agent')
         cls.expert = _user('cv2_expert', User.Profile.FORENSIC_EXPERT)
-        cls.lab = Institution.objects.create(
-            name='LPC v2',
-            type=InstitutionType.LAB_PUBLICO,
-            sigla='LPC-V2',
-            gps_lat=Decimal('38.7256000'),
-            gps_lng=Decimal('-9.1430000'),
-        )
+        cls.lab = InstitutionFactory(name='LPC v2', sigla='LPC-V2')
         cls.portador = Portador.objects.create(
             matricula='PSP-V2-001', nome='Rui', apelido='Marques', posto='Agente Principal'
         )

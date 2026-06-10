@@ -27,7 +27,7 @@ from core.models import (
     ProvaEmTransito,
     User,
 )
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import CrimeTipoFactory, InstitutionFactory
 
 
 class ResolveWindowTest(TestCase):
@@ -134,10 +134,7 @@ class LedgerAnalyticsTest(TestCase):
         cls.agent = User.objects.create_user(
             username='an_agent', password='x12345678', profile=User.Profile.FIRST_RESPONDER
         )
-        cls.lab = Institution.objects.create(
-            name='LPC analytics', type=InstitutionType.LAB_PUBLICO, sigla='LPC-AN',
-            gps_lat=Decimal('38.7256000'), gps_lng=Decimal('-9.1430000'),
-        )
+        cls.lab = InstitutionFactory(name='LPC analytics', sigla='LPC-AN')
 
     def _occ(self, n, when):
         return Occurrence.objects.create(
