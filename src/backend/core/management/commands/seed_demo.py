@@ -90,7 +90,7 @@ from core.models import (
     Portador,
     ProvaEmTransito,
 )
-from core.policy.event_states import LEGAL_STATES, derive_legal_state
+from core.policy.event_states import LEGAL_STATES
 from core.validators import luhn_check_digit
 
 User = get_user_model()
@@ -303,39 +303,50 @@ class Command(BaseCommand):
         portadores = self._seed_portadores(users)
         self._build_world(users, institutions, portadores)
         self._seed_audit_logs(users)
-        self._verify()
-        self._summary(users, institutions, cases=True, password=password)
+        # Counter de estados derivados calculado UMA vez (auditoria D37) e
+        # partilhado pela verificação e pelo sumário.
+        states = self._derived_state_counts()
+        self._verify(states)
+        self._summary(users, institutions, cases=True, password=password, states=states)
 
     # ----------------------------------------------------------------- reset
     @transaction.atomic
     def _reset_database(self, *, wipe_media):
         self.stdout.write(self.style.WARNING('A apagar dados existentes...'))
+        # Lista ÚNICA dos modelos a limpar, por ordem segura de dependências
+        # (auditoria D38): o TRUNCATE deriva os nomes de tabela daqui
+        # (m._meta.db_table) e o fallback ORM itera os MESMOS modelos — um
+        # modelo novo entra num só sítio. raw=True usa _raw_delete (modelos
+        # imutáveis com delete() bloqueado e sem cascatas a recolher); a
+        # ProvaEmTransito sai antes do ledger (FK encaminhamento_event que o
+        # _raw_delete não cascataria).
+        wipe_models = (
+            (ProvaEmTransito, False),
+            (ChainOfCustody, True),
+            (Evidence, True),
+            (Occurrence, False),
+            (AuditLog, True),
+            (Portador, False),
+            (InstitutionMembership, False),
+            (User, False),
+            (Institution, False),
+        )
         if connection.vendor == 'postgresql':
             # TRUNCATE não dispara os triggers BEFORE DELETE (migration 0002/0008)
             # que protegem a imutabilidade — é o caminho documentado para fixtures.
+            tables = ', '.join(m._meta.db_table for m, _ in wipe_models)
             with connection.cursor() as cursor:
-                cursor.execute("""
-                    TRUNCATE TABLE
-                        core_provaemtransito,
-                        core_chainofcustody,
-                        core_evidence,
-                        core_occurrence,
-                        core_auditlog,
-                        core_portador,
-                        core_institutionmembership,
-                        core_institution,
-                        core_user
-                    RESTART IDENTITY CASCADE
-                """)
+                # Nomes de tabela vêm de _meta (não de input) — sem injecção.
+                cursor.execute(
+                    f'TRUNCATE TABLE {tables} RESTART IDENTITY CASCADE'  # noqa: S608
+                )
         else:
-            ChainOfCustody.objects.all()._raw_delete(ChainOfCustody.objects.db)
-            ProvaEmTransito.objects.all().delete()
-            Evidence.objects.all()._raw_delete(Evidence.objects.db)
-            Occurrence.objects.all().delete()
-            AuditLog.objects.all()._raw_delete(AuditLog.objects.db)
-            Portador.objects.all().delete()
-            User.objects.all().delete()
-            Institution.objects.all().delete()
+            for model, raw in wipe_models:
+                qs = model.objects.all()
+                if raw:
+                    qs._raw_delete(qs.db)
+                else:
+                    qs.delete()
 
         if wipe_media:
             evidencias = Path(settings.MEDIA_ROOT) / 'evidencias'
@@ -1558,7 +1569,20 @@ class Command(BaseCommand):
         self.stdout.write(f'   AuditLog: {n} registos de atividade.')
 
     # ----------------------------------------------------------------- verificação
-    def _verify(self):
+    def _derived_state_counts(self):
+        """``Counter`` de estados legais derivados de TODOS os itens — um só
+        varrimento (auditoria D37), partilhado por ``_verify`` e ``_summary``.
+        O agrupamento ledger→estado vem da fonte única
+        (``analytics.legal_states_by_evidence``)."""
+        from collections import Counter
+
+        from core import analytics
+
+        return Counter(
+            analytics.legal_states_by_evidence(ChainOfCustody.objects.all()).values()
+        )
+
+    def _verify(self, state_counts):
         """Assertivas read-only: garante que toda a variação ficou de facto semeada."""
         problems = []
 
@@ -1583,12 +1607,7 @@ class Command(BaseCommand):
         if missing_cust:
             problems.append(f'Tipos de custódio em falta: {sorted(missing_cust)}')
 
-        # Estados legais derivados (9, ≥2 cada)
-        from collections import Counter
-        state_counts = Counter()
-        for ev in Evidence.objects.all():
-            eventos = list(ev.custody_chain.order_by('sequence'))
-            state_counts[derive_legal_state(eventos)] += 1
+        # Estados legais derivados (9, ≥2 cada) — Counter partilhado (D37).
         missing_states = LEGAL_STATES - set(state_counts)
         if missing_states:
             problems.append(f'Estados legais em falta: {sorted(missing_states)}')
@@ -1657,15 +1676,14 @@ class Command(BaseCommand):
                 'sem nomes DEMO.'))
 
     # ----------------------------------------------------------------- resumo
-    def _summary(self, users, institutions, *, cases, password):
+    def _summary(self, users, institutions, *, cases, password, states=None):
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('=' * 64))
         self.stdout.write(self.style.SUCCESS('SEED COMPLETO'))
         self.stdout.write(self.style.SUCCESS('=' * 64))
         if cases:
-            from collections import Counter
-            states = Counter(derive_legal_state(list(ev.custody_chain.order_by('sequence')))
-                             for ev in Evidence.objects.all())
+            # Counter partilhado com _verify (calculado uma vez — D37).
+            states = states if states is not None else self._derived_state_counts()
             self.stdout.write(
                 f'Ocorrências: {Occurrence.objects.count()} · Itens: {Evidence.objects.count()} · '
                 f'Movimentos: {ChainOfCustody.objects.count()} · '

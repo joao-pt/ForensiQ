@@ -21,13 +21,12 @@ Utilização:
 import tempfile as _tempfile
 from pathlib import Path as _Path
 
-from .settings import BASE_DIR  # noqa: F401
+from .settings import STATICFILES_DIRS as _PROD_STATICFILES_DIRS
 from .test_settings import *  # noqa: F401,F403
 
-# 1) Estáticos do frontend — REPOSTOS (test_settings esvazia-os).
-STATICFILES_DIRS = [
-    BASE_DIR.parent / 'frontend' / 'static',  # src/frontend/static/
-]
+# 1) Estáticos do frontend — REPOSTOS (test_settings esvazia-os) a partir da
+#    declaração de produção (auditoria D116), em vez de re-escrever o caminho.
+STATICFILES_DIRS = _PROD_STATICFILES_DIRS
 
 # 2) Base de dados em ficheiro, partilhada entre a thread de teste e a do
 #    servidor live. O :memory: do test_settings não é fiável com o live_server.

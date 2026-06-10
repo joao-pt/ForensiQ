@@ -134,38 +134,39 @@ class PrioridadeCrimeTipoAdmin(admin.ModelAdmin):
     raw_id_fields = ('crime_tipo',)
 
 
+class ImmutableAdminMixin:
+    """Política ÚNICA de read-only dos registos imutáveis no admin (ISO/IEC
+    27037 — auditoria D49): sem edição nem eliminação; ``allow_add = False``
+    desliga também a criação (AuditLog, que só nasce da instrumentação)."""
+
+    allow_add = True
+
+    def has_add_permission(self, request):
+        return self.allow_add and super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Evidence)
-class EvidenceAdmin(admin.ModelAdmin):
+class EvidenceAdmin(ImmutableAdminMixin, admin.ModelAdmin):
     list_display = ('pk', 'type', 'occurrence', 'agent', 'timestamp_seizure', 'integrity_hash')
     list_filter = ('type', 'timestamp_seizure')
     search_fields = ('description', 'serial_number')
     raw_id_fields = ('occurrence', 'agent')
     readonly_fields = ('integrity_hash', 'created_at', 'updated_at')
 
-    def has_change_permission(self, request, obj=None):
-        """Evidências são imutáveis após registo (ISO/IEC 27037) — sem edição."""
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        """Evidências são imutáveis — sem eliminação."""
-        return False
-
 
 @admin.register(ChainOfCustody)
-class ChainOfCustodyAdmin(admin.ModelAdmin):
+class ChainOfCustodyAdmin(ImmutableAdminMixin, admin.ModelAdmin):
     list_display = ('pk', 'evidence', 'event_type', 'custodian_type', 'agent', 'timestamp')
     list_filter = ('event_type', 'custodian_type')
     search_fields = ('observations', 'location_name', 'storage_location')
     raw_id_fields = ('evidence', 'agent')
     readonly_fields = ('record_hash',)
-
-    def has_change_permission(self, request, obj=None):
-        """Registos de custódia são imutáveis — sem edição."""
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        """Registos de custódia são imutáveis — sem eliminação."""
-        return False
 
 
 @admin.register(Portador)
@@ -242,20 +243,14 @@ class EvidenceTypeRefAdmin(admin.ModelAdmin):
 
 
 @admin.register(AuditLog)
-class AuditLogAdmin(admin.ModelAdmin):
-    """Registo de auditoria — read-only para todos os perfis."""
+class AuditLogAdmin(ImmutableAdminMixin, admin.ModelAdmin):
+    """Registo de auditoria — read-only para todos os perfis (só nasce da
+    instrumentação: ``allow_add = False`` desliga também a criação)."""
+
+    allow_add = False
 
     list_display = ('timestamp', 'user', 'action', 'resource_type', 'resource_id', 'ip_address')
     list_filter = ('action', 'resource_type', 'timestamp')
     search_fields = ('user__username', 'ip_address', 'correlation_id')
     readonly_fields = [f.name for f in AuditLog._meta.fields]
     ordering = ('-timestamp',)
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False

@@ -10,6 +10,22 @@ Para activar, registar em ``settings.TEMPLATES[0]['OPTIONS']['context_processors
 import os
 from functools import lru_cache
 
+# Assets da CASCA (caminhos relativos a {% static %}) — fonte ÚNICA (auditoria
+# D118): o base.html emite os <link>/<script> destes ficheiros e o service
+# worker (sw.js) pré-cacheia EXATAMENTE os mesmos para a casca funcionar
+# offline; um teste de higiene garante que o base.html não deriva da lista.
+SHELL_ASSETS = (
+    'css/fonts.css',
+    'css/main.css',
+    'css/components/app-shell.css',
+    'css/components/forensic.css',
+    'css/print.css',
+    'js/theme-constants.js',
+    'js/theme-init.js',
+    'js/app-shell.js',
+    'img/favicon.svg',
+)
+
 
 @lru_cache(maxsize=1)
 def _build_info():
@@ -49,6 +65,8 @@ def app_metadata(request):
         **_build_info(),
         'gps_decimals': settings.GPS_DECIMAL_PLACES,
         'gps_acc_flag_m': settings.GPS_ACCURACY_FLAG_M,
+        # Lista única de assets da casca (D118) — consumida pelo sw.js.
+        'shell_assets': SHELL_ASSETS,
     }
 
 

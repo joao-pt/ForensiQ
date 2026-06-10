@@ -33,41 +33,37 @@ def _to_dict(field) -> dict:
     return d
 
 
-def transversal_fields() -> list[dict]:
-    """Campos comuns a todos os tipos (``evidence_type`` vazio)."""
+def _active_qs(evidence_type=None, *, exclude_transversal=False, ordered=False):
+    """Queryset BASE dos campos ativos com ``options`` pré-carregadas — fonte
+    única do recorte (auditoria D51); as funções públicas só parametrizam."""
     from core.models import EvidenceFieldDef
 
-    qs = (
-        EvidenceFieldDef.objects.filter(evidence_type='', is_active=True)
-        .prefetch_related('options')
-    )
-    return [_to_dict(f) for f in qs]
+    qs = EvidenceFieldDef.objects.filter(is_active=True).prefetch_related('options')
+    if evidence_type is not None:
+        qs = qs.filter(evidence_type=evidence_type)
+    if exclude_transversal:
+        qs = qs.exclude(evidence_type='')
+    if ordered:
+        qs = qs.order_by('evidence_type', 'order', 'key')
+    return qs
+
+
+def transversal_fields() -> list[dict]:
+    """Campos comuns a todos os tipos (``evidence_type`` vazio)."""
+    return [_to_dict(f) for f in _active_qs('')]
 
 
 def fields_for(evidence_type: str) -> list[dict]:
     """Campos específicos de um ``EvidenceType`` (lista vazia se não houver)."""
-    from core.models import EvidenceFieldDef
-
     if not evidence_type:
         return []
-    qs = (
-        EvidenceFieldDef.objects.filter(evidence_type=evidence_type, is_active=True)
-        .prefetch_related('options')
-    )
-    return [_to_dict(f) for f in qs]
+    return [_to_dict(f) for f in _active_qs(evidence_type)]
 
 
 def type_fields_flat() -> list[dict]:
     """TODOS os campos por-tipo, planos, cada um marcado com ``type`` (o JS
     mostra/esconde por tipo). Substitui a antiga iteração de ``EVIDENCE_TYPE_FIELDS``."""
-    from core.models import EvidenceFieldDef
-
-    qs = (
-        EvidenceFieldDef.objects.exclude(evidence_type='')
-        .filter(is_active=True)
-        .prefetch_related('options')
-        .order_by('evidence_type', 'order', 'key')
-    )
+    qs = _active_qs(exclude_transversal=True, ordered=True)
     return [{**_to_dict(f), 'type': f.evidence_type} for f in qs]
 
 

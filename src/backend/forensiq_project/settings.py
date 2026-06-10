@@ -171,17 +171,10 @@ REST_FRAMEWORK = {
 # @override_settings.
 if TESTING:
     REST_FRAMEWORK['DEFAULT_THROTTLE_CLASSES'] = []
+    # Rates de teste DERIVADOS do dict de produção (auditoria D116): os MESMOS
+    # scopes com orçamento alto — um scope novo entra num único sítio.
     REST_FRAMEWORK['DEFAULT_THROTTLE_RATES'] = {
-        'anon': '10000/minute',
-        'user': '10000/minute',
-        'auth': '10000/minute',
-        'evidence_upload': '10000/minute',
-        'pdf_export': '10000/minute',
-        'schema': '10000/minute',
-        'reverse_geocode': '10000/minute',
-        'imei_lookup': '10000/minute',
-        'verify_public': '10000/minute',
-        'healthcheck': '10000/minute',
+        scope: '10000/minute' for scope in REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']
     }
 
 # --- SimpleJWT ---

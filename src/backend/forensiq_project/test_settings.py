@@ -51,38 +51,9 @@ CSRF_COOKIE_SECURE = False
 STATICFILES_DIRS = []
 STATIC_ROOT = str(_Path(_tempfile.gettempdir()) / 'forensiq_static_test')
 
-# Autenticação e throttling alinhados com produção (ADR-0009).
-# Mantemos JWTCookieAuthentication como default — os testes usam
-# `force_authenticate` em APIClient, que ignora a classe de autenticação,
-# mas o alinhamento assegura que testes que *não* forcem auth (p.ex.
-# IDOR / CSRF) reflectem o comportamento real.
+# Autenticação e throttling alinhados com produção (ADR-0009): o REST_FRAMEWORK
+# HERDA de settings.py — o bloco TESTING de lá já esvazia as classes de throttle
+# e deriva os rates altos dos MESMOS scopes (auditoria D116); re-declarar aqui o
+# dict completo era uma cópia byte-igual que tinha de ser mantida à mão. Testes
+# dedicados ao throttling reactivam-no com @override_settings.
 REST_FRAMEWORK_THROTTLE_OVERRIDE = True
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': ('core.auth.JWTCookieAuthentication',),
-    'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
-    'DEFAULT_PAGINATION_CLASS': 'core.pagination.BoundedPageNumberPagination',
-    'PAGE_SIZE': 50,
-    'DEFAULT_FILTER_BACKENDS': [
-        'django_filters.rest_framework.DjangoFilterBackend',
-        'rest_framework.filters.SearchFilter',
-        'rest_framework.filters.OrderingFilter',
-    ],
-    # Throttling desactivado em testes — 429 em sequências rápidas é
-    # artefacto do runner, não comportamento que queiramos validar aqui.
-    # Testes dedicados ao throttling reactivam-no com @override_settings.
-    'DEFAULT_THROTTLE_CLASSES': [],
-    'DEFAULT_THROTTLE_RATES': {
-        'anon': '10000/minute',
-        'user': '10000/minute',
-        'auth': '10000/minute',
-        'evidence_upload': '10000/minute',
-        'pdf_export': '10000/minute',
-        'schema': '10000/minute',
-        'reverse_geocode': '10000/minute',
-        'imei_lookup': '10000/minute',
-        'verify_public': '10000/minute',
-        'healthcheck': '10000/minute',
-    },
-    'EXCEPTION_HANDLER': 'core.exceptions.forensiq_exception_handler',
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-}

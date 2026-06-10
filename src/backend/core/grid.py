@@ -77,11 +77,11 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
     qs = apply_col_filters(queryset, request, field_spec)
 
     # 2) Filtros DERIVADOS (estado legal, is_active) — única extensão ao
-    #    list_filters; valida-se o valor contra as opções da coluna, como o select.
+    #    list_filters; whitelist no predicado único (ColFilter.accepts — D48).
     for param, fn in computed_filters.items():
         col = next(c for c in columns if c.filter and c.filter.param == param)
         value = (request.GET.get(param) or '').strip()
-        if value and value in {str(x[0]) for x in col.filter.choices}:
+        if col.filter.accepts(value):
             qs = fn(qs, request, value)
 
     # 3) Busca transversal (OR icontains sobre vários campos) — o que permite

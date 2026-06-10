@@ -9,15 +9,13 @@
 // via correções "não aplicadas" mesmo após Ctrl+F5). Network-first garante
 // frescura quando há rede e mantém a app utilizável offline pelo cache.
 // Bump da versão expurga o cache anterior no activate.
-const CACHE = 'forensiq-shell-v2';
+// v3: o PRECACHE passa a derivar da lista ÚNICA de assets da casca
+// (core.context_processors.SHELL_ASSETS — auditoria D118); fonts.css entra
+// (a casca offline ficava sem a tipografia) e theme-constants.js também.
+const CACHE = 'forensiq-shell-v3';
 const PRECACHE = [
-  '{% static "css/main.css" %}',
-  '{% static "css/components/app-shell.css" %}',
-  '{% static "css/components/forensic.css" %}',
-  '{% static "js/theme-init.js" %}',
-  '{% static "js/app-shell.js" %}',
-  '{% static "img/favicon.svg" %}'
-];
+{% for a in shell_assets %}  '{% static a %}'{% if not forloop.last %},{% endif %}
+{% endfor %}];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

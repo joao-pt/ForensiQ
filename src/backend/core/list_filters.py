@@ -32,6 +32,12 @@ class ColFilter:
     placeholder: str = ''
     css: str = ''                    # classe extra na célula (ex.: alinhar col-hide-sm)
 
+    def accepts(self, value):
+        """O ``value`` é uma opção válida deste select? Predicado ÚNICO da
+        whitelist (auditoria D48) — usado aqui e nos filtros derivados do
+        grid; evita lookups inválidos (ex.: ?cat=abc) num só sítio."""
+        return bool(value) and value in {str(c[0]) for c in self.choices}
+
 
 def _text_q(f, value):
     targets = f.fields or ((f.field,) if f.field else ())
@@ -53,9 +59,8 @@ def apply_col_filters(qs, request, spec):
                 qs = qs.filter(**{f'{f.field}__date__lte': db})
         elif f.kind == 'select':
             v = (request.GET.get(f.param) or '').strip()
-            # Só aplica valores que existam nas opções → evita lookups inválidos
-            # (ex.: ?cat=abc) e mantém o filtro previsível.
-            if v and v in {str(c[0]) for c in f.choices}:
+            # Whitelist única das opções (ColFilter.accepts — auditoria D48).
+            if f.accepts(v):
                 qs = qs.filter(**{f.field: v})
         else:  # text
             v = (request.GET.get(f.param) or '').strip()
