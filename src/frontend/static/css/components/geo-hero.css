@@ -356,11 +356,18 @@
     pointer-events: none;
 }
 
-/* Estado a zero: esbatido (o olho vai ao que mexe), mas recupera contraste
-   total em hover/foco — o inventário completo continua disponível. */
-.cs-tile--zero { opacity: 0.6; }
-.cs-tile--zero:hover,
-.cs-tile--zero:focus-visible { opacity: 1; }
+/* Estado a zero: o NÚMERO perde a ênfase (cor muted, peso normal) — o olho
+   vai ao que mexe SEM baixar o contraste do rótulo abaixo de AA (opacity
+   esbatia o texto para ~3.2:1; o axe dos e2e reprova). Hover/foco repõem. */
+.cs-tile--zero .cs-tile__num {
+    color: var(--text-muted);
+    font-weight: var(--fw-normal);
+}
+.cs-tile--zero:hover .cs-tile__num,
+.cs-tile--zero:focus-visible .cs-tile__num {
+    color: var(--text-emphasis);
+    font-weight: var(--fw-semi);
+}
 
 /* =====================================================================
    Prazos & atenção (coluna 3) — fluxo do ledger, não só stock
