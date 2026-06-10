@@ -461,10 +461,14 @@
             var m = main._fqMap;
             if (!m || !b) return;
             var llb = L.latLngBounds(b);
+            // Zoom alvo calculado DETERMINISTICAMENTE: durante um fitBounds
+            // animado o getZoom() ainda devolve o zoom antigo, e o minZoom
+            // ficava preso no nível errado (zoom-out bloqueado após focar).
+            var z = m.getBoundsZoom(llb, false, L.point(12, 12));
             m.setMinZoom(0);
             m.setMaxBounds(llb.pad(0.25));
             m.fitBounds(llb, { padding: [12, 12] });
-            m.setMinZoom(m.getZoom());
+            m.setMinZoom(z);
         }
         function ensureReset() {
             if (reset) return reset;

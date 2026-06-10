@@ -762,7 +762,9 @@ def dashboard_view(request):
         }
 
     recent = list(
-        occ_qs.annotate(n_items=Count('evidences')).order_by('-date_time')[:8]
+        # distinct=True: a lente institucional filtra por evidences__custody_chain__…,
+        # e o join multi-valor multiplicava a contagem (1 por EVENTO de custódia).
+        occ_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:8]
     )
     _decorate_occurrences(recent)
     for o in recent:
@@ -798,20 +800,24 @@ def dashboard_view(request):
             'sla': sla,
             'dwell': dwell,
             'moves_24h': moves_24h,
-            'points_continental': json.dumps(regions['continental']),
+            # O mapa principal leva TODOS os pontos geolocalizados: o foco
+            # regional (insets) re-enquadra ESTE mapa nos arquipélagos, e sem
+            # os pontos das ilhas a Madeira focada lia-se como "zero
+            # ocorrências". No enquadramento continental os pontos insulares
+            # ficam fora do viewport — sem efeito visual.
+            'points_main': json.dumps(pts),
             'points_madeira': json.dumps(regions['madeira']),
             'points_acores': json.dumps(regions['acores']),
             'bounds_continental': json.dumps(_HERO_BOUNDS['continental']),
             'bounds_madeira': json.dumps(_HERO_BOUNDS['madeira']),
             'bounds_acores': json.dumps(_HERO_BOUNDS['acores']),
             # Contagens que batem certo com os pontos DESENHADOS em cada mapa
-            # (occ_total inclui sem-GPS e ilhas — não serve para o cabeçalho
-            # do mapa continental).
-            'n_continental': len(regions['continental']),
+            # (occ_total inclui sem-GPS — não serve para o cabeçalho do mapa).
+            'n_geo': len(pts),
             'n_madeira': len(regions['madeira']),
             'n_acores': len(regions['acores']),
             'n_fora_mapa': n_fora_mapa,
-            'pri_continental': _pri_counts(regions['continental']),
+            'pri_points': _pri_counts(pts),
         },
     )
 
@@ -1936,7 +1942,9 @@ def reports_view(request):
     a coluna Guia descarrega o PDF; filtros por coluna iguais às ocorrências."""
     user = request.user
     lens = access.active_console_mode(request, user)
-    qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences'))
+    # distinct=True: o join multi-valor da lente institucional multiplicava a
+    # contagem por evento de custódia (mesmo defeito corrigido no painel).
+    qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences', distinct=True))
 
     cat_choices = _crime_cat_choices()
 

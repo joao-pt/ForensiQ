@@ -457,6 +457,13 @@
     white-space: nowrap;
 }
 .grid__th--pri { width: 52px; text-align: center; }
+/* Sem linha de filtros no DOM (painéis com hide_filter_row), a linha de nomes
+   é a última do thead e recupera a borda forte que por contrato vivia na
+   linha de filtros (ver o bloco .grid__head-row mais acima). */
+.grid thead tr.grid__head-row:last-child > th {
+    border-bottom: 1px solid var(--border-strong);
+    padding-bottom: var(--sp-2);
+}
 .grid tbody tr {
     border-bottom: 1px solid var(--divider);
     border-left: 2px solid transparent;
@@ -761,9 +768,10 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    Texto muted + fundo subtil sinalizam "bloqueado" SEM opacity (que derrubava o
    contraste abaixo de AA — axe). --text-muted cumpre AA nos dois temas. */
 .geo-field input[readonly] { color: var(--text-muted); background: var(--bg-subtle); cursor: default; }
-/* Atribuição do Leaflet no tema escuro: o azul default (~3:1 sobre o fundo claro
-   do controlo) escurece para cumprir AA (4.5:1). */
-[data-theme="dark"] .leaflet-control-attribution a { color: #08436a; }
+/* A atribuição do Leaflet é agora estilizada na fonte única map-theme.css
+   (tokens com variante por tema); a antiga regra dark daqui (#08436a, escrita
+   para o fundo BRANCO default) vencia por especificidade e ficava ilegível
+   (~1.7:1) sobre o novo fundo --surface escuro. */
 
 /* Foto da prova — hero no detalhe do item (object-fit: contain p/ não recortar prova) */
 .photo-hero { margin: 0 0 var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; background: var(--bg-inset); }
@@ -779,6 +787,10 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 
 /* Dashboard — linha de regie + faixa de métricas */
 .dash { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-5); }
+/* Cabeçalho h1+subtítulo ainda usado por /stats/ e /audit/ (o painel migrou
+   para .dash__regie; estas regras ficam até essas páginas migrarem também). */
+.dash__greet h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-bold); letter-spacing: var(--tracking-tight); color: var(--text-emphasis); }
+.dash__greet p { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
 /* Linha de regie: título + carimbo de âmbito/momento numa só banda mono densa
    (substitui o h1 de 28px que repetia a sidebar e o breadcrumb sem acrescentar
    nada). O h1 mantém-se para a estrutura do documento, em tamanho de carimbo. */
@@ -1087,7 +1099,15 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .feed__action--info { color: var(--info); }
 .feed__action--danger { color: var(--danger); }
 .feed__what { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.feed__target { color: inherit; }
+/* Link do alvo: sublinhado discreto em repouso — no mesmo feed coexistem
+   alvos com e sem link, e "clicável" é informação (WCAG 1.4.1). */
+.feed__target {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--text-placeholder);
+    text-underline-offset: 2px;
+}
+.feed__target:hover { text-decoration-color: var(--accent); }
 .feed__who { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
 /* Em mobile reorganiza em duas linhas em vez de ocultar: o timestamp e o tipo
    de evento são probatórios (AuditLog append-only) e não podem desaparecer.

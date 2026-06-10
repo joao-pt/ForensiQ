@@ -28,13 +28,17 @@
 /* Atribuição © OpenStreetMap (obrigação ODbL — reposta na auditoria do painel):
    re-estilizada para o idioma da app (mono micro, meio-transparente) em vez do
    branco sólido do Leaflet. O prefixo "Leaflet" é removido no FQMap. */
-.leaflet-control-attribution {
+/* Prefixo .leaflet-container para EMPATAR a especificidade do próprio Leaflet
+   (.leaflet-container .leaflet-control-attribution, 0,2,0) — sem ele o fundo
+   branco default vencia e o crédito ficava a 2.5:1 no tema escuro (axe). Fundo
+   SÓLIDO: com translucidez o contraste dependia dos tiles por baixo. */
+.leaflet-container .leaflet-control-attribution {
     font-family: var(--font-mono);
     font-size: var(--fs-2xs);
     color: var(--text-muted);
-    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    background: var(--surface);
 }
-.leaflet-control-attribution a {
+.leaflet-container .leaflet-control-attribution a {
     color: var(--text-muted);
     text-decoration: underline;
 }
