@@ -31,6 +31,19 @@ ACTION_CSS = {
     'SYSTEM_ALERT': 'danger',
 }
 
+# Rótulo CURTO da ação no feed — uma linha por evento, em ritmo de diário de
+# bordo (os rótulos completos do enum partiam a coluna em 3-4 linhas). O rótulo
+# completo continua disponível (title/detalhe). Ações fora do mapa caem no
+# rótulo completo do próprio enum.
+ACTION_SHORT = {
+    'VIEW': 'Visualização',
+    'CREATE': 'Criação',
+    'EXPORT_PDF': 'Export. PDF',
+    'EXPORT_CSV': 'Export. CSV',
+    'AUDIT_PURGE': 'Expurgo RGPD',
+    'SYSTEM_ALERT': 'Alerta',
+}
+
 # Variante semântica do ponto do badge .state (a cor classifica o estado).
 LEGAL_STATE_CSS = {
     'a_guarda_opc': 'info',

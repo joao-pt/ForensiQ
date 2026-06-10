@@ -36,7 +36,7 @@ from core import access, analytics, evidence_field_config, evidence_type_config,
 from core.audit import get_client_ip, log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response
-from core.labels import ACTION_CSS, LEGAL_STATE_CSS, LEGAL_STATE_LABELS
+from core.labels import ACTION_CSS, ACTION_SHORT, LEGAL_STATE_CSS, LEGAL_STATE_LABELS
 from core.list_filters import ColFilter
 from core.models import (
     STATES_AT_OR_PAST_LAB,
@@ -532,21 +532,65 @@ def _activity_feed(user, limit=20):
     partilhada com :class:`core.views.ActivityFeedView`). É a fonte de verdade do
     "que aconteceu": criação de prova (com hash), eventos de custódia,
     exportações de PDF, alertas.
+
+    A EXIBIÇÃO ordena por momento do evento (timestamp, com a sequência como
+    desempate): por ``-sequence`` puro o feed mostrava timestamps baralhados
+    quando a ordem de inserção divergia do tempo (registos diferidos) — num
+    registo probatório, datas fora de ordem leem-se como corrupção. A ordem de
+    append continua VISÍVEL (nº de sequência em cada linha) e auditável.
     """
-    qs = access.scope_audit_logs(user).select_related('user').order_by('-sequence')
+    qs = access.scope_audit_logs(user).select_related('user').order_by('-timestamp', '-sequence')
     logs = list(qs[:limit])
+
+    # Código real e rota de cada alvo, em lote por tipo — "Evidência #7" não
+    # identifica nada; o código hierárquico identifica e o link deixa agir.
+    # (Os destinos impõem as suas próprias permissões; o link não alarga nada.)
+    RT = AuditLog.ResourceType
+    ids_by_type = {}
+    for r in logs:
+        ids_by_type.setdefault(r.resource_type, set()).add(r.resource_id)
+    target = {}
+    if RT.OCCURRENCE in ids_by_type:
+        for o in Occurrence.objects.filter(id__in=ids_by_type[RT.OCCURRENCE]).only(
+            'id', 'code', 'number'
+        ):
+            target[(RT.OCCURRENCE, o.id)] = (o.code or o.number, f'/occurrences/{o.id}/')
+    if RT.EVIDENCE in ids_by_type:
+        for e in Evidence.objects.filter(id__in=ids_by_type[RT.EVIDENCE]).only('id', 'code'):
+            target[(RT.EVIDENCE, e.id)] = (e.code, f'/evidences/{e.id}/')
+    if RT.CUSTODY in ids_by_type:
+        for c in ChainOfCustody.objects.filter(id__in=ids_by_type[RT.CUSTODY]).only(
+            'id', 'code', 'evidence_id'
+        ):
+            target[(RT.CUSTODY, c.id)] = (c.code, f'/evidences/{c.evidence_id}/custody/')
+
     for r in logs:
         r.action_label = r.get_action_display()
-        # Tom semântico da ação numa fonte única (labels.ACTION_CSS — D97);
-        # o template emite a variante, o CSS não conhece o enum.
+        # Rótulo curto + tom semântico numa fonte única (labels — D97); o
+        # template emite a variante, o CSS não conhece o enum.
+        r.action_short = ACTION_SHORT.get(r.action, r.action_label)
         r.action_css = ACTION_CSS.get(r.action, '')
         r.resource_label = r.get_resource_type_display()
         r.user_label = get_user_display_name(r.user)
+        code, url = target.get((r.resource_type, r.resource_id), (None, None))
+        if r.resource_type == RT.SYSTEM:
+            # Meta-auditoria: o id numérico não identifica nada navegável.
+            r.target_label, r.target_url = r.resource_label, None
+        elif code:
+            r.target_label, r.target_url = f'{r.resource_label} {code}', url
+        else:
+            # Alvo sem código ou já não existente — honesto, sem link.
+            r.target_label, r.target_url = f'{r.resource_label} #{r.resource_id}', None
         d = r.details or {}
-        if r.resource_type == AuditLog.ResourceType.EVIDENCE and d.get('hash'):
+        if r.resource_type == RT.EVIDENCE and d.get('hash'):
             r.extra = d['hash'][:16] + '…'
-        elif r.resource_type == AuditLog.ResourceType.CUSTODY and d.get('event_type'):
-            r.extra = d['event_type']
+        elif r.resource_type == RT.CUSTODY and d.get('event_type'):
+            # Label PT do enum (fonte única em policy); valor cru só se o
+            # código já não existir no enum.
+            try:
+                r.extra = EventType(d['event_type']).label
+            except ValueError:
+                r.extra = d['event_type']
         else:
             r.extra = ''
     return logs
@@ -718,6 +762,8 @@ def dashboard_view(request):
         {
             'u': user,
             'occ_total': occ_total,
+            # Carimbo de âmbito da linha de regie (fonte única do rótulo da zona).
+            'lens_zone_label': access.lens_label(user, lens),
             'recent': recent,
             'logs': _activity_feed(user, limit=20),
             'feed_is_national': access.has_national_read(user),

@@ -382,6 +382,12 @@ def mine_label(user):
     return 'Todas as ocorrências' if has_full_read(user) else 'As minhas ocorrências'
 
 
+def lens_label(user, lens):
+    """Rótulo PT de uma zona da consola (fonte única — casca, chips e carimbos
+    de página concordam sempre no nome da zona)."""
+    return 'Instituição' if lens == Lens.INSTITUTION else mine_label(user)
+
+
 def resolve_lens(user, requested):
     """Resolve a zona pedida pelo cliente (query param ou memória de sessão)
     contra o que o utilizador pode usar. Valor inválido/proibido/ausente →

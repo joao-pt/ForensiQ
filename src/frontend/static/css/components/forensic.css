@@ -756,10 +756,33 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .pubdoc__sub { color: var(--text-muted); margin: 0 0 var(--sp-6); font-size: var(--fs-sm); }
 .pubdoc__note { font-size: var(--fs-xs); color: var(--text-subtle); margin-top: var(--sp-4); line-height: var(--lh-base); }
 
-/* Dashboard — saudação + faixa de métricas */
+/* Dashboard — linha de regie + faixa de métricas */
 .dash { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-5); }
-.dash__greet h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-bold); letter-spacing: var(--tracking-tight); color: var(--text-emphasis); }
-.dash__greet p { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
+/* Linha de regie: título + carimbo de âmbito/momento numa só banda mono densa
+   (substitui o h1 de 28px que repetia a sidebar e o breadcrumb sem acrescentar
+   nada). O h1 mantém-se para a estrutura do documento, em tamanho de carimbo. */
+.dash__regie {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--sp-2) var(--sp-3);
+}
+.dash__regie-title {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-emphasis);
+}
+.dash__regie-meta {
+    font-family: var(--font-mono);
+    font-size: var(--fs-micro);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-muted);
+}
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); }
 .stat { border: 1px solid var(--border); border-radius: var(--r-3); padding: var(--sp-3) var(--sp-4); background: var(--bg-subtle); }
 .stat__num { font-family: var(--font-mono); font-size: var(--fs-2xl); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: var(--ffs-forensic); }
@@ -1011,9 +1034,16 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 
 /* Registo de atividade (feed do AuditLog) */
 .feed { list-style: none; margin: 0; padding: 0; }
+/* Uma linha por evento, em ritmo de log: seq + tempo + ação curta (nowrap, a
+   coluna de 104px partia rótulos em 3-4 linhas) + alvo limitado a ~56ch para o
+   autor ficar COLADO ao evento (a 1920 o 1fr empurrava-o ~1400px para a direita). */
 .feed__item {
     display: grid;
-    grid-template-columns: 132px 104px 1fr auto;
+    /* Larguras FIXAS nas 3 primeiras colunas: cada item é a sua própria grid,
+       e colunas auto desalinhavam o log entre linhas. 112px cabe o rótulo
+       curto mais longo (VISUALIZAÇÃO) a --fs-micro mono. */
+    grid-template-columns: 56px 132px 112px minmax(0, 56ch) max-content;
+    justify-content: start;
     gap: var(--sp-3);
     align-items: baseline;
     padding: var(--sp-2) var(--sp-3);
@@ -1022,9 +1052,12 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 .feed__item:last-child { border-bottom: 0; }
 .feed__item:hover { background: var(--surface-hover); }
+/* Nº de sequência do AuditLog: o append-only tornado visível — a prova de que
+   nada foi removido é estética E probatória. Esbatido, não compete. */
+.feed__seq { font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
 .feed__time { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
 .feed__action {
-    font-family: var(--font-mono); font-size: var(--fs-micro);
+    font-family: var(--font-mono); font-size: var(--fs-micro); white-space: nowrap;
     text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-muted);
 }
 /* Cor por TOM semântico (auditoria D97): a tradução ação→tom vive em
@@ -1033,15 +1066,18 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .feed__action--info { color: var(--info); }
 .feed__action--danger { color: var(--danger); }
 .feed__what { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed__target { color: inherit; }
 .feed__who { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); white-space: nowrap; }
 /* Em mobile reorganiza em duas linhas em vez de ocultar: o timestamp e o tipo
    de evento são probatórios (AuditLog append-only) e não podem desaparecer.
-   Linha 1: timestamp + ação. Linha 2: o-quê + quem. */
+   Linha 1: timestamp + ação. Linha 2: o-quê + quem. (O nº de sequência é
+   redundante com o timestamp+desempate; cede o espaço em ecrã estreito.) */
 @media (max-width: 767px) {
     .feed__item {
         grid-template-columns: auto 1fr;
         row-gap: 2px;
     }
+    .feed__seq { display: none; }
     .feed__time { grid-column: 1; }
     .feed__action { grid-column: 2; justify-self: end; }
     .feed__what { grid-column: 1 / -1; }

@@ -91,10 +91,6 @@ def lens_nav(request):
         return {}
     options = access.available_lenses(user)
     active = access.console_mode(request, user)
-    labels = {
-        access.Lens.MINE: access.mine_label(user),
-        access.Lens.INSTITUTION: 'Instituição',
-    }
     return {
         'lens': active,
         # ``console_mode`` é o eixo da banda/cor da casca (CSS [data-console-mode]).
@@ -103,7 +99,10 @@ def lens_nav(request):
         # (ex.: href="/evidences/{{ lens_qs }}").
         'lens_qs': f'?lens={active}',
         'lens_options': (
-            [{'key': k, 'label': labels[k], 'is_active': k == active} for k in options]
+            [
+                {'key': k, 'label': access.lens_label(user, k), 'is_active': k == active}
+                for k in options
+            ]
             if len(options) >= 2
             else []
         ),

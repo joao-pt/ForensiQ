@@ -13,9 +13,11 @@
 {% block content %}
 <div class="dash fullbleed">
 
-  <div class="dash__greet">
-    <h1>Painel</h1>
-  </div>
+  {# Linha de regie: âmbito + contagens + carimbo temporal — quem audita sabe SEMPRE o que está a ver. #}
+  <header class="dash__regie">
+    <h1 class="dash__regie-title">Painel</h1>
+    <span class="dash__regie-meta">{{ lens_zone_label }} · {{ occ_total }} ocorrência{{ occ_total|pluralize }} · {{ custody_total }} ite{{ custody_total|pluralize:"m,ns" }} · dados a {% now 'Y-m-d H:i' %}</span>
+  </header>
 
   <!-- Geo Hero — server-rendered (Fase 3): tiles do estado legal do ledger +
        mapa panorâmico + insets, tudo a partir do ORM (sem drift). -->
