@@ -132,3 +132,23 @@ def log_access(
     )
 
     return audit_log
+
+
+def log_custody_create(request: HttpRequest, record, **extra) -> AuditLog:
+    """AuditLog canónico da CRIAÇÃO de um evento de custódia (auditoria D20):
+    detalhes base ``evidence_id``/``event_type``/``custodian_type`` numa fonte
+    única, com contexto adicional por chamador via ``**extra`` (ex.:
+    ``cascade=True``, ``location_name=...``)."""
+    details = {
+        'evidence_id': record.evidence_id,
+        'event_type': record.event_type,
+        'custodian_type': record.custodian_type,
+    }
+    details.update(extra)
+    return log_access(
+        request=request,
+        action=AuditLog.Action.CREATE,
+        resource_type=AuditLog.ResourceType.CUSTODY,
+        resource_id=record.pk,
+        details=details,
+    )

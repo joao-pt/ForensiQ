@@ -18,32 +18,32 @@ utilizador — nunca confiar apenas em IsAuthenticated. O controlo de acesso
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 
-class IsAgent(BasePermission):
-    """
-    Permite escrita apenas a utilizadores com perfil FIRST_RESPONDER.
-    Leitura (GET, HEAD, OPTIONS) é permitida a qualquer utilizador autenticado.
-    """
+class ProfileWritePermission(BasePermission):
+    """Base parametrizada dos gates por perfil (auditoria D19): escrita restrita
+    aos perfis em ``required_profiles``; leitura (GET, HEAD, OPTIONS) permitida a
+    qualquer utilizador autenticado. Um perfil novo declara-se numa subclasse de
+    2 linhas em vez de clonar o ``has_permission``."""
+
+    required_profiles: tuple = ()
 
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
         if request.method in SAFE_METHODS:
             return True
-        return request.user.profile == 'FIRST_RESPONDER'
+        return request.user.profile in self.required_profiles
 
 
-class IsExpert(BasePermission):
-    """
-    Permite escrita apenas a utilizadores com perfil FORENSIC_EXPERT.
-    Leitura (GET, HEAD, OPTIONS) é permitida a qualquer utilizador autenticado.
-    """
+class IsAgent(ProfileWritePermission):
+    """Escrita apenas para FIRST_RESPONDER; leitura para autenticados."""
 
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.method in SAFE_METHODS:
-            return True
-        return request.user.profile == 'FORENSIC_EXPERT'
+    required_profiles = ('FIRST_RESPONDER',)
+
+
+class IsExpert(ProfileWritePermission):
+    """Escrita apenas para FORENSIC_EXPERT; leitura para autenticados."""
+
+    required_profiles = ('FORENSIC_EXPERT',)
 
 
 class IsAgentOrExpert(BasePermission):

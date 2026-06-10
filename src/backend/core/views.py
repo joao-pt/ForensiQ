@@ -54,7 +54,8 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from . import access, analytics
-from .audit import log_access
+from .audit import log_access, log_custody_create
+from .exceptions import as_drf_payload
 from .filters import CustodyFilter, EvidenceFilter, OccurrenceFilter
 from .models import (
     LEGAL_STATES,
@@ -100,11 +101,6 @@ log = logging.getLogger(__name__)
 _LOOKUP_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 
 
-def _user_can_access_occurrence(user, occurrence) -> bool:
-    """Acesso à OCORRÊNCIA (need-to-know — ADR-0017; fonte única em core.access)."""
-    return access.can_access_occurrence(user, occurrence)
-
-
 def _user_can_lookup(user) -> bool:
     """Só FIRST_RESPONDER / FORENSIC_EXPERT (ou staff) consultam APIs externas
     (portões de papel numa fonte única — core.access)."""
@@ -125,6 +121,41 @@ def _evidence_ids_in_legal_state(custody_qs, state):
         for ev_id, st in analytics.legal_states_by_evidence(custody_qs).items()
         if st == state
     ]
+
+
+def _evidence_ids_for_state_param(user, state):
+    """Resolve o query param ``?state=`` (auditoria D15): valida contra
+    ``LEGAL_STATES`` com a mensagem de erro canónica e devolve os IDs das
+    evidências nesse estado derivado, no âmbito *need-to-know* do utilizador.
+    Partilhado pelos ``get_queryset`` de ocorrências e evidências."""
+    if state not in LEGAL_STATES:
+        raise drf_serializers.ValidationError(
+            {
+                'state': (
+                    f'Estado inválido. Valores aceites: '
+                    f'{", ".join(sorted(LEGAL_STATES))}.'
+                )
+            }
+        )
+    return _evidence_ids_in_legal_state(access.scope_custody(user), state)
+
+
+def _lookup_gate_or_error(request, validator, value, invalid_msg):
+    """Par gate-403 + validador-400 partilhado pelos lookups externos
+    (IMEI/VIN — auditoria D18). ``None`` = pode prosseguir."""
+    if not _user_can_lookup(request.user):
+        return Response(
+            {'detail': 'Perfil sem permissão para consultar APIs externas.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    try:
+        validator(value)
+    except DjangoValidationError as exc:
+        return Response(
+            {'detail': exc.messages[0] if exc.messages else invalid_msg},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -166,7 +197,68 @@ class UserViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 
 
-class OccurrenceViewSet(viewsets.ModelViewSet):
+class PdfExportMixin:
+    """Ação ``GET <recurso>/<id>/pdf/`` partilhada pelos ViewSets exportáveis
+    (auditoria D16): throttle de scope ``pdf_export``, queryset com ownership
+    (anti-IDOR: filtra ``get_queryset()`` e otimiza por cima — fix 2026-04-19),
+    auditoria ``EXPORT_PDF`` e resposta com headers canónicos. Cada ViewSet
+    declara só o gerador, o tipo de recurso, o prefixo do ficheiro e os hooks
+    de prefetch/detalhes."""
+
+    pdf_resource_type = None      # AuditLog.ResourceType.*
+    pdf_filename_prefix = 'ForensiQ'
+
+    def get_throttles(self):
+        if self.action == 'export_pdf':
+            self.throttle_scope = 'pdf_export'
+            return [ScopedRateThrottle()]
+        return super().get_throttles()
+
+    def _pdf_optimized_qs(self, base_qs):
+        """Hook por recurso: prefetch alinhado com o que o gerador itera
+        (Audit 2026-05-18 §3 N12)."""
+        return base_qs
+
+    def _pdf_audit_details(self, obj):
+        """Hook por recurso: detalhes extra do AuditLog (ex.: hash)."""
+        return None
+
+    def _generate_pdf(self, obj):
+        """Hook por recurso: chama o gerador (resolvido em runtime, para os
+        testes poderem fazer patch a ``core.views.generate_*_pdf``)."""
+        raise NotImplementedError
+
+    @action(detail=True, methods=['get'], url_path='pdf')
+    def export_pdf(self, request, pk=None):
+        """Gera e devolve o PDF do recurso (ver docstring da classe)."""
+        self.queryset = self._pdf_optimized_qs(self.get_queryset().filter(pk=pk))
+        obj = self.get_object()
+
+        log_access(
+            request=request,
+            action=AuditLog.Action.EXPORT_PDF,
+            resource_type=self.pdf_resource_type,
+            resource_id=obj.pk,
+            details=self._pdf_audit_details(obj),
+        )
+
+        try:
+            pdf_bytes = self._generate_pdf(obj)
+        except Exception as exc:  # noqa: BLE001 — erro claro no cliente
+            return Response(
+                # Chave `detail` — contrato de erro canónico (handler global).
+                {'detail': f'Erro ao gerar PDF: {exc}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        filename = f'{self.pdf_filename_prefix}_{obj.pk:04d}.pdf'
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = len(pdf_bytes)
+        return response
+
+
+class OccurrenceViewSet(PdfExportMixin, viewsets.ModelViewSet):
     """
     API de ocorrências.
 
@@ -201,17 +293,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         # outros endpoints e o dashboard.
         state = self.request.query_params.get('state')
         if state:
-            if state not in LEGAL_STATES:
-                raise drf_serializers.ValidationError(
-                    {
-                        'state': (
-                            f'Estado inválido. Valores aceites: '
-                            f'{", ".join(sorted(LEGAL_STATES))}.'
-                        )
-                    }
-                )
-            custody_qs = access.scope_custody(user)
-            ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
+            ev_ids = _evidence_ids_for_state_param(user, state)
             occ_ids = (
                 Evidence.objects.filter(id__in=ev_ids)
                 .values_list('occurrence_id', flat=True)
@@ -240,61 +322,28 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             resource_id=occurrence.pk,
         )
 
-    def get_throttles(self):
-        if self.action == 'export_pdf':
-            self.throttle_scope = 'pdf_export'
-            return [ScopedRateThrottle()]
-        return super().get_throttles()
+    # GET /api/occurrences/<id>/pdf/ — resumo consolidado do caso (descrição,
+    # inventário raiz+sub-componentes, estado de custódia). Ação no PdfExportMixin.
+    pdf_resource_type = AuditLog.ResourceType.OCCURRENCE
+    pdf_filename_prefix = 'ForensiQ_Caso'
 
-    @action(detail=True, methods=['get'], url_path='pdf')
-    def export_pdf(self, request, pk=None):
-        """GET /api/occurrences/<id>/pdf/ — resumo consolidado do caso.
+    def _generate_pdf(self, obj):
+        return generate_occurrence_pdf(obj)
 
-        Contém descrição da ocorrência, inventário de itens de prova
-        (raiz + sub-componentes) e estado actual de custódia. Serve o
-        agente responsável para um overview único do processo.
-        """
-        # ownership: get_queryset já filtra AGENT para ocorrências próprias
-        # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
-        # `pdf_export.generate_occurrence_pdf` itera: para cada
-        # evidência: custody_chain (ordenada por -sequence para
-        # `_current_custody_state` apanhar o último); para cada
-        # sub-componente: também o seu custody_chain.
+    def _pdf_optimized_qs(self, base_qs):
+        # Prefetch alinhado com generate_occurrence_pdf: para cada evidência o
+        # custody_chain (ordenado por -sequence para _current_custody_state
+        # apanhar o último) e o dos sub-componentes.
         from django.db.models import Prefetch
 
         custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
-        base_qs = self.get_queryset().filter(pk=pk)
-        optimized_qs = base_qs.select_related('agent').prefetch_related(
+        return base_qs.select_related('agent').prefetch_related(
             'evidences__agent',
             'evidences__parent_evidence',
             'evidences__sub_components',
             Prefetch('evidences__custody_chain', queryset=custody_qs),
             Prefetch('evidences__sub_components__custody_chain', queryset=custody_qs),
         )
-        self.queryset = optimized_qs
-        occurrence = self.get_object()
-
-        log_access(
-            request=request,
-            action=AuditLog.Action.EXPORT_PDF,
-            resource_type=AuditLog.ResourceType.OCCURRENCE,
-            resource_id=occurrence.pk,
-        )
-
-        try:
-            pdf_bytes = generate_occurrence_pdf(occurrence)
-        except Exception as exc:  # noqa: BLE001 — erro claro no cliente
-            return Response(
-                # Chave `detail` — contrato de erro canónico (handler global).
-                {'detail': f'Erro ao gerar PDF: {exc}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        filename = f'ForensiQ_Caso_{occurrence.pk:04d}.pdf'
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response['Content-Length'] = len(pdf_bytes)
-        return response
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +351,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 
 
-class EvidenceViewSet(viewsets.ModelViewSet):
+class EvidenceViewSet(PdfExportMixin, viewsets.ModelViewSet):
     """
     API de evidências.
 
@@ -335,14 +384,34 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['timestamp_seizure', 'created_at', 'code', 'type']
     ordering = ['-timestamp_seizure']
 
+    # GET /api/evidences/<id>/pdf/ — relatório forense do item (ISO/IEC 27037:
+    # hash SHA-256, timestamp UTC, cadeia completa). Ação no PdfExportMixin.
+    pdf_resource_type = AuditLog.ResourceType.EVIDENCE
+    pdf_filename_prefix = 'ForensiQ_Evidencia'
+
+    def _generate_pdf(self, obj):
+        return generate_evidence_pdf(obj)
+
     def get_throttles(self):
         if self.action == 'create':
             self.throttle_scope = 'evidence_upload'
             return [ScopedRateThrottle()]
-        if self.action == 'export_pdf':
-            self.throttle_scope = 'pdf_export'
-            return [ScopedRateThrottle()]
-        return super().get_throttles()
+        return super().get_throttles()  # o mixin trata o ramo export_pdf
+
+    def _pdf_optimized_qs(self, base_qs):
+        # Prefetch alinhado com generate_evidence_pdf: sub_components (+ os seus
+        # custody_chain) e o próprio custody_chain ordenado por -sequence.
+        from django.db.models import Prefetch
+
+        custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
+        return base_qs.select_related('occurrence__agent', 'agent').prefetch_related(
+            'sub_components',
+            Prefetch('custody_chain', queryset=custody_qs),
+            Prefetch('sub_components__custody_chain', queryset=custody_qs),
+        )
+
+    def _pdf_audit_details(self, obj):
+        return {'hash': obj.integrity_hash}
 
     def get_queryset(self):
         """Aplica sempre o filtro de ownership antes do filtro por query param.
@@ -363,20 +432,9 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(parent_evidence_id=parent_id)
         state = self.request.query_params.get('state')
         if state:
-            if state not in LEGAL_STATES:
-                raise drf_serializers.ValidationError(
-                    {
-                        'state': (
-                            f'Estado inválido. Valores aceites: '
-                            f'{", ".join(sorted(LEGAL_STATES))}.'
-                        )
-                    }
-                )
             # Estado legal derivado (ADR-0015) — não é coluna; computa-se sobre
             # a sequência de eventos. Universo de custódia segue o need-to-know.
-            custody_qs = access.scope_custody(user)
-            ev_ids = _evidence_ids_in_legal_state(custody_qs, state)
-            qs = qs.filter(id__in=ev_ids)
+            qs = qs.filter(id__in=_evidence_ids_for_state_param(user, state))
         return qs
 
     def retrieve(self, request, *args, **kwargs):
@@ -400,63 +458,6 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             resource_id=evidence.pk,
             details={'hash': evidence.integrity_hash},
         )
-
-    @action(detail=True, methods=['get'], url_path='pdf')
-    def export_pdf(self, request, pk=None):
-        """
-        Gera e devolve o relatório forense da evidência em formato PDF.
-
-        GET /api/evidences/<id>/pdf/
-
-        Conformidade: ISO/IEC 27037 — inclui hash SHA-256, timestamp UTC,
-        cadeia de custódia completa e declaração de integridade.
-        """
-        # IDOR fix (2026-04-19): em vez de substituir ``self.queryset`` —
-        # o que atalhava o filtro por ownership de ``get_queryset()`` —
-        # aplicamos ``.filter(pk=pk)`` sobre o queryset filtrado e depois
-        # optimizamos com select_related/prefetch_related. Se o utilizador
-        # não for dono da ocorrência, get_object() devolve 404 (não 200).
-        # Audit 2026-05-18 §3 N12 — prefetch alinhado com o que
-        # `pdf_export.generate_evidence_pdf` itera: sub_components
-        # (+ os seus custody_chain) e o próprio custody_chain ordenado.
-        from django.db.models import Prefetch
-
-        custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
-        base_qs = self.get_queryset().filter(pk=pk)
-        optimized_qs = base_qs.select_related(
-            'occurrence__agent',
-            'agent',
-        ).prefetch_related(
-            'sub_components',
-            Prefetch('custody_chain', queryset=custody_qs),
-            Prefetch('sub_components__custody_chain', queryset=custody_qs),
-        )
-        self.queryset = optimized_qs
-        evidence = self.get_object()
-
-        # Auditoria: exportação PDF
-        log_access(
-            request=request,
-            action=AuditLog.Action.EXPORT_PDF,
-            resource_type=AuditLog.ResourceType.EVIDENCE,
-            resource_id=evidence.pk,
-            details={'hash': evidence.integrity_hash},
-        )
-
-        try:
-            pdf_bytes = generate_evidence_pdf(evidence)
-        except Exception as exc:
-            return Response(
-                # Chave `detail` — contrato de erro canónico (handler global).
-                {'detail': f'Erro ao gerar PDF: {exc}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-        filename = f'ForensiQ_Evidencia_{evidence.pk:04d}.pdf'
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response['Content-Length'] = len(pdf_bytes)
-        return response
-
 
 # ---------------------------------------------------------------------------
 # ChainOfCustody
@@ -511,32 +512,14 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        # Gate de ESCRITA (ADR-0017 §5): só quem detém o item (ou pode assumi-lo),
-        # o perito (override) ou a autoridade do caso (atos de despacho) regista.
-        evidence = serializer.validated_data.get('evidence')
-        event_type = serializer.validated_data.get('event_type')
-        if evidence is not None and not access.can_append_custody(
-            self.request.user, evidence, event_type
-        ):
-            raise drf_serializers.ValidationError(
-                {'detail': 'Sem permissão para registar eventos de custódia neste item (ADR-0017).'}
-            )
-        try:
-            custody_record = serializer.save(agent=self.request.user)
-            log_access(
-                request=self.request,
-                action=AuditLog.Action.CREATE,
-                resource_type=AuditLog.ResourceType.CUSTODY,
-                resource_id=custody_record.pk,
-                details={
-                    'evidence_id': custody_record.evidence_id,
-                    'event_type': custody_record.event_type,
-                    'custodian_type': custody_record.custodian_type,
-                },
-            )
-        except DjangoValidationError as exc:
-            # Converter ValidationError do Django para DRF (retorna 400)
-            raise drf_serializers.ValidationError(exc.message_dict)
+        # Gate de ESCRITA (ADR-0017 §5) na fonte única: o próprio
+        # ChainOfCustodySerializer.validate (fail-closed) já aplicou
+        # access.can_append_custody — o re-check que existia aqui era a 2.ª
+        # camada da mesma regra (auditoria D20). Uma DjangoValidationError do
+        # save() propaga para o handler global (mesmo 400, sem try/except que
+        # rebentava com erros sem message_dict — auditoria D22).
+        custody_record = serializer.save(agent=self.request.user)
+        log_custody_create(self.request, custody_record)
 
     @action(detail=False, methods=['get'], url_path='evidence/(?P<evidence_id>[0-9]+)/timeline')
     def timeline(self, request, evidence_id=None):
@@ -612,38 +595,36 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN,
                 )
 
+        # Caminho de ESCRITA canónico (auditoria D20): em vez de construir o
+        # modelo à mão (que contornava o serializer e exigia validação GPS e
+        # normalização de erros próprias), instancia-se o ChainOfCustodySerializer
+        # por evidência dentro da transação — exatamente como o intake — com as
+        # mesmas guardas, ownership fail-closed e hash encadeado.
+        base_payload = {
+            'event_type': event_type,
+            'custodian_type': custodian_type,
+            'location_name': location_name,
+            'storage_location': storage_location,
+            'gps_lat': gps_lat,
+            'gps_lng': gps_lng,
+            'gps_accuracy_m': gps_accuracy_m,
+            'observations': observations,
+        }
         created_records = []
         try:
             with transaction.atomic():
                 for ev in evidences:
-                    record = ChainOfCustody(
-                        evidence=ev,
-                        event_type=event_type,
-                        custodian_type=custodian_type,
-                        location_name=location_name,
-                        storage_location=storage_location,
-                        gps_lat=gps_lat,
-                        gps_lng=gps_lng,
-                        gps_accuracy_m=gps_accuracy_m,
-                        observations=observations,
-                        agent=request.user,
+                    item = ChainOfCustodySerializer(
+                        data=dict(base_payload, evidence=ev.pk),
+                        context={'request': request},
                     )
-                    record.save()
+                    item.is_valid(raise_exception=True)
+                    record = item.save(agent=request.user)
                     created_records.append(record)
-                    log_access(
-                        request=request,
-                        action=AuditLog.Action.CREATE,
-                        resource_type=AuditLog.ResourceType.CUSTODY,
-                        resource_id=record.pk,
-                        details={
-                            'evidence_id': ev.pk,
-                            'event_type': event_type,
-                            'custodian_type': custodian_type,
-                            'location_name': location_name,
-                            'cascade': True,
-                        },
+                    log_custody_create(
+                        request, record, location_name=location_name, cascade=True
                     )
-        except DjangoValidationError as exc:
+        except (drf_serializers.ValidationError, DjangoValidationError) as exc:
             # Identifica a evidência que falhou — útil para o frontend
             # mostrar mensagem específica (ex: "filho já está em estado
             # terminal e não pode regredir").
@@ -654,11 +635,14 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                 {
                     'evidence_id': failed_ev.pk if failed_ev else None,
                     'evidence_code': failed_ev.code if failed_ev else None,
-                    # Chave canónica `detail` — alinhada com o handler global
-                    # (`core.exceptions.forensiq_exception_handler`). Os campos
-                    # `evidence_id`/`evidence_code` são contexto adicional para
-                    # o frontend identificar qual evidência rejeitou o evento.
-                    'detail': exc.message_dict if hasattr(exc, 'message_dict') else exc.messages,
+                    # Chave canónica `detail` — alinhada com o handler global;
+                    # a normalização Django→payload vem da fonte única
+                    # (exceptions.as_drf_payload — auditoria D22).
+                    'detail': (
+                        exc.detail
+                        if isinstance(exc, drf_serializers.ValidationError)
+                        else as_drf_payload(exc)
+                    ),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -692,19 +676,9 @@ class EvidenceIMEILookupView(APIView):
     throttle_scope = 'imei_lookup'
 
     def get(self, request, imei: str):
-        if not _user_can_lookup(request.user):
-            return Response(
-                {'detail': 'Perfil sem permissão para consultar APIs externas.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        try:
-            validate_imei(imei)
-        except DjangoValidationError as exc:
-            return Response(
-                {'detail': exc.messages[0] if exc.messages else 'IMEI inválido.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        err = _lookup_gate_or_error(request, validate_imei, imei, 'IMEI inválido.')
+        if err is not None:
+            return err
 
         cache_key = f'lookup:imei:{imei}'
         cached = cache.get(cache_key)
@@ -770,19 +744,9 @@ class EvidenceVINLookupView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, vin: str):
-        if not _user_can_lookup(request.user):
-            return Response(
-                {'detail': 'Perfil sem permissão para consultar APIs externas.'},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-        try:
-            validate_vin(vin)
-        except DjangoValidationError as exc:
-            return Response(
-                {'detail': exc.messages[0] if exc.messages else 'VIN inválido.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        err = _lookup_gate_or_error(request, validate_vin, vin, 'VIN inválido.')
+        if err is not None:
+            return err
 
         normalised_vin = vin.strip().upper()
         url = build_vindecoder_url(normalised_vin)
@@ -801,14 +765,12 @@ class EvidenceVINLookupView(APIView):
 # ---------------------------------------------------------------------------
 
 
-class ReverseGeocodeView(APIView):
-    """GET /api/reverse-geocode/?lat=XX&lon=YY — geocodificação inversa.
-
-    Proxy server-side para o Nominatim (OpenStreetMap) de modo a que as
-    coordenadas GPS nunca saiam para terceiros a partir do browser do agente
-    (requisito GDPR — dados de localização de ocorrências policiais).
-
-    Throttle: 10 req/min por utilizador (scope ``reverse_geocode``).
+class GeoProxyAPIView(APIView):
+    """Base dos proxies geo server-side (auditoria D17): as coordenadas GPS do
+    agente nunca saem para terceiros a partir do browser (minimização RGPD).
+    Centraliza permissões/throttle, as constantes de upstream, a validação
+    lat/lon com as mensagens canónicas e a conversão de falhas de rede httpx
+    em 502 — as subclasses ficam só com a lógica própria (Nominatim/Overpass).
     """
 
     permission_classes = [IsAuthenticated, IsAgentOrExpert]
@@ -817,37 +779,57 @@ class ReverseGeocodeView(APIView):
 
     _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
     _TIMEOUT_SECONDS = 5
+    upstream_name = 'upstream'
+    unavailable_detail = 'Serviço indisponível.'
 
-    def get(self, request):
-        # --- validação dos parâmetros ---
+    @staticmethod
+    def _bad_request(detail):
+        return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _unavailable(self):
+        return Response(
+            {'detail': self.unavailable_detail}, status=status.HTTP_502_BAD_GATEWAY
+        )
+
+    def parse_latlon(self, request):
+        """``(lat, lon, None)`` ou ``(None, None, Response 400 canónica)``."""
         lat_raw = request.query_params.get('lat')
         lon_raw = request.query_params.get('lon')
-
         if not lat_raw or not lon_raw:
-            return Response(
-                {'detail': 'Parâmetros "lat" e "lon" são obrigatórios.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+            return None, None, self._bad_request('Parâmetros "lat" e "lon" são obrigatórios.')
         try:
             lat = float(lat_raw)
             lon = float(lon_raw)
         except (ValueError, TypeError):
-            return Response(
-                {'detail': '"lat" e "lon" devem ser números válidos.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
+            return None, None, self._bad_request('"lat" e "lon" devem ser números válidos.')
         if not (-90 <= lat <= 90):
-            return Response(
-                {'detail': '"lat" deve estar entre -90 e 90.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return None, None, self._bad_request('"lat" deve estar entre -90 e 90.')
         if not (-180 <= lon <= 180):
-            return Response(
-                {'detail': '"lon" deve estar entre -180 e 180.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return None, None, self._bad_request('"lon" deve estar entre -180 e 180.')
+        return lat, lon, None
+
+    def fetch_upstream(self, do_request):
+        """Corre o pedido httpx; falha de rede/HTTP → ``(None, Response 502)``."""
+        try:
+            resp = do_request()
+            resp.raise_for_status()
+            return resp, None
+        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as exc:
+            log.warning('%s unreachable: %s', self.upstream_name, exc)
+            return None, self._unavailable()
+
+
+class ReverseGeocodeView(GeoProxyAPIView):
+    """GET /api/reverse-geocode/?lat=XX&lon=YY — geocodificação inversa via
+    Nominatim (OpenStreetMap). Throttle: 10 req/min (scope ``reverse_geocode``)."""
+
+    upstream_name = 'Nominatim'
+    unavailable_detail = 'Serviço de geocodificação indisponível.'
+
+    def get(self, request):
+        lat, lon, err = self.parse_latlon(request)
+        if err is not None:
+            return err
 
         # Sem URL de geocodificação configurada (e2e/offline): resposta vazia, sem
         # chamada externa — mantém os testes de browser determinísticos e offline.
@@ -855,24 +837,17 @@ class ReverseGeocodeView(APIView):
             return Response({'display_name': '', 'address': {
                 'road': '', 'house_number': '', 'city': '', 'country': ''}})
 
-        # --- chamada ao Nominatim (server-side) ---
-        try:
-            resp = httpx.get(
-                settings.NOMINATIM_REVERSE_URL,
-                params={'lat': lat, 'lon': lon, 'format': 'json'},
-                headers={
-                    'User-Agent': self._USER_AGENT,
-                    'Accept-Language': 'pt',
-                },
-                timeout=self._TIMEOUT_SECONDS,
-            )
-            resp.raise_for_status()
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as exc:
-            log.warning('Nominatim unreachable: %s', exc)
-            return Response(
-                {'detail': 'Serviço de geocodificação indisponível.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        resp, err = self.fetch_upstream(lambda: httpx.get(
+            settings.NOMINATIM_REVERSE_URL,
+            params={'lat': lat, 'lon': lon, 'format': 'json'},
+            headers={
+                'User-Agent': self._USER_AGENT,
+                'Accept-Language': 'pt',
+            },
+            timeout=self._TIMEOUT_SECONDS,
+        ))
+        if err is not None:
+            return err
 
         data = resp.json()
         address = data.get('address', {})
@@ -899,29 +874,23 @@ class ReverseGeocodeView(APIView):
 # ---------------------------------------------------------------------------
 
 
-class NearbyPOIsView(APIView):
-    """GET /api/nearby-pois/?lat=&lon=&radius= — POIs OSM próximos.
-
-    Proxy server-side para a Overpass API (OpenStreetMap), à imagem da
-    :class:`ReverseGeocodeView`: as coordenadas GPS do agente nunca saem
-    para terceiros a partir do browser (minimização RGPD). Como o proxy é
-    server-side, a CSP ``connect-src`` NÃO precisa de autorizar Overpass.
+class NearbyPOIsView(GeoProxyAPIView):
+    """GET /api/nearby-pois/?lat=&lon=&radius= — POIs OSM próximos via
+    Overpass API.
 
     Devolve candidatos úteis para nomear o local de um evento de custódia
     (esquadra, tribunal, laboratório/hospital, bombeiros, banco, posto de
     combustível) — o agente selecciona um e o ``location_name`` fica gravado
     no ledger. Degradação graciosa: em indisponibilidade do Overpass devolve
-    502 e o agente preenche o ``location_name`` manualmente.
+    502 e o agente preenche o ``location_name`` manualmente. Como o proxy é
+    server-side, a CSP ``connect-src`` NÃO precisa de autorizar Overpass.
 
     Throttle: scope partilhado ``reverse_geocode`` (10 req/min em produção).
     """
 
-    permission_classes = [IsAuthenticated, IsAgentOrExpert]
-    throttle_classes = [ScopedRateThrottle]
-    throttle_scope = 'reverse_geocode'
+    upstream_name = 'Overpass'
+    unavailable_detail = 'Serviço de POIs indisponível.'
 
-    _USER_AGENT = 'ForensiQ/1.0 (forensiq.pt)'
-    _TIMEOUT_SECONDS = 5
     _DEFAULT_RADIUS_M = 500
     _MAX_RADIUS_M = 2000
     _MAX_RESULTS = 30
@@ -939,34 +908,9 @@ class NearbyPOIsView(APIView):
     }
 
     def get(self, request):
-        lat_raw = request.query_params.get('lat')
-        lon_raw = request.query_params.get('lon')
-
-        if not lat_raw or not lon_raw:
-            return Response(
-                {'detail': 'Parâmetros "lat" e "lon" são obrigatórios.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            lat = float(lat_raw)
-            lon = float(lon_raw)
-        except (ValueError, TypeError):
-            return Response(
-                {'detail': '"lat" e "lon" devem ser números válidos.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if not (-90 <= lat <= 90):
-            return Response(
-                {'detail': '"lat" deve estar entre -90 e 90.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not (-180 <= lon <= 180):
-            return Response(
-                {'detail': '"lon" deve estar entre -180 e 180.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        lat, lon, err = self.parse_latlon(request)
+        if err is not None:
+            return err
 
         radius = self._DEFAULT_RADIUS_M
         radius_raw = request.query_params.get('radius')
@@ -974,10 +918,7 @@ class NearbyPOIsView(APIView):
             try:
                 radius = int(float(radius_raw))
             except (ValueError, TypeError):
-                return Response(
-                    {'detail': '"radius" deve ser um número válido (metros).'},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                return self._bad_request('"radius" deve ser um número válido (metros).')
             radius = max(1, min(radius, self._MAX_RADIUS_M))
 
         amenity_regex = '|'.join(sorted(self._USEFUL_AMENITIES))
@@ -989,29 +930,20 @@ class NearbyPOIsView(APIView):
             f');out center {self._MAX_RESULTS};'
         )
 
-        try:
-            resp = httpx.post(
-                settings.OVERPASS_API_URL,
-                data={'data': query},
-                headers={'User-Agent': self._USER_AGENT},
-                timeout=self._TIMEOUT_SECONDS,
-            )
-            resp.raise_for_status()
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as exc:
-            log.warning('Overpass unreachable: %s', exc)
-            return Response(
-                {'detail': 'Serviço de POIs indisponível.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        resp, err = self.fetch_upstream(lambda: httpx.post(
+            settings.OVERPASS_API_URL,
+            data={'data': query},
+            headers={'User-Agent': self._USER_AGENT},
+            timeout=self._TIMEOUT_SECONDS,
+        ))
+        if err is not None:
+            return err
 
         try:
             elements = resp.json().get('elements', [])
         except ValueError:
             log.warning('Overpass devolveu JSON inválido')
-            return Response(
-                {'detail': 'Serviço de POIs indisponível.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+            return self._unavailable()
 
         pois = []
         for el in elements:
@@ -1440,7 +1372,7 @@ class MediaServeView(APIView):
             )
             if occurrence is None:
                 raise Http404('Ocorrência não encontrada.')
-            if not _user_can_access_occurrence(request.user, occurrence):
+            if not access.can_access_occurrence(request.user, occurrence):
                 return Response(
                     {'detail': 'Sem permissão para aceder a esta foto.'},
                     status=status.HTTP_403_FORBIDDEN,

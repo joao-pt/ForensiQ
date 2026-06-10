@@ -21,16 +21,22 @@ from rest_framework.views import exception_handler as drf_exception_handler
 logger = logging.getLogger('forensiq.api')
 
 
+def as_drf_payload(exc):
+    """Normalização canónica de uma ``DjangoValidationError`` para payload 400 —
+    a MESMA que o handler global aplica. Exposta para respostas que precisam de
+    juntar contexto próprio (ex.: o cascade junta ``evidence_id``/``evidence_code``)
+    sem re-implementar a normalização (auditoria D22)."""
+    if hasattr(exc, 'message_dict'):
+        return exc.message_dict
+    if hasattr(exc, 'messages'):
+        return {'detail': exc.messages}
+    return {'detail': [str(exc)]}
+
+
 def forensiq_exception_handler(exc, context):
     # --- Django ValidationError -> 400 ---
     if isinstance(exc, DjangoValidationError):
-        if hasattr(exc, 'message_dict'):
-            data = exc.message_dict
-        elif hasattr(exc, 'messages'):
-            data = {'detail': exc.messages}
-        else:
-            data = {'detail': [str(exc)]}
-        return Response(data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(as_drf_payload(exc), status=status.HTTP_400_BAD_REQUEST)
 
     response = drf_exception_handler(exc, context)
 

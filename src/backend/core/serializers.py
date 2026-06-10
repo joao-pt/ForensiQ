@@ -35,13 +35,13 @@ User = get_user_model()
 # ---------------------------------------------------------------------------
 
 
-def _user_can_access_occurrence(user, occurrence) -> bool:
-    """Acesso à OCORRÊNCIA para operar sobre o dossier (IDOR a nível de payload).
-
-    Need-to-know derivado do ledger (ADR-0017) — fonte única em
-    :mod:`core.access`: titular, credencial nacional, ou autoridade do caso.
-    """
-    return access.can_access_occurrence(user, occurrence)
+def _validate_gps_or_drf_error(lat, lng):
+    """Coerência GPS traduzida para erro DRF — o par try/except único dos
+    ``validate()`` com coordenadas (auditoria D22)."""
+    try:
+        validate_gps_coherence(lat, lng)
+    except DjangoValidationError as exc:
+        raise serializers.ValidationError(exc.messages[0]) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +452,7 @@ class EvidenceSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request is None or not request.user.is_authenticated:
             return occurrence
-        if not _user_can_access_occurrence(request.user, occurrence):
+        if not access.can_access_occurrence(request.user, occurrence):
             raise serializers.ValidationError(
                 'Não pode criar evidências em ocorrências de outros agentes.'
             )
@@ -590,12 +590,7 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         """Coerência GPS + gate de ESCRITA item-level (ADR-0017 §5)."""
-        lat = attrs.get('gps_lat')
-        lng = attrs.get('gps_lng')
-        try:
-            validate_gps_coherence(lat, lng)
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.messages[0]) from exc
+        _validate_gps_or_drf_error(attrs.get('gps_lat'), attrs.get('gps_lng'))
         # Gate de ESCRITA — FALHA FECHADA: se o serializer for instanciado sem
         # request/utilizador autenticado não conseguimos autorizar, logo NEGA-SE
         # (antes ignorava-se a verificação quando faltava o contexto — fail-open).
@@ -679,10 +674,7 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """Coerência GPS: latitude e longitude ambas presentes ou ambas ausentes."""
-        try:
-            validate_gps_coherence(attrs.get('gps_lat'), attrs.get('gps_lng'))
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.messages[0]) from exc
+        _validate_gps_or_drf_error(attrs.get('gps_lat'), attrs.get('gps_lng'))
         return attrs
 
 

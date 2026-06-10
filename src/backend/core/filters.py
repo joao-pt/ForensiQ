@@ -20,24 +20,26 @@ from .models import (
 )
 
 
+def _filter_has_gps(queryset, name, value):
+    # `gps_lat` e `gps_lng` são preenchidos em par (validado em clean()) — corpo
+    # único do filtro ?has_gps= de ocorrências e evidências (auditoria D24).
+    return (
+        queryset.exclude(gps_lat__isnull=True)
+        if value
+        else queryset.filter(gps_lat__isnull=True)
+    )
+
+
 class OccurrenceFilter(filters.FilterSet):
     """Filtros para ``/api/occurrences/``."""
 
     date_after = filters.DateFilter(field_name='date_time', lookup_expr='gte')
     date_before = filters.DateFilter(field_name='date_time', lookup_expr='lte')
-    has_gps = filters.BooleanFilter(method='filter_has_gps')
+    has_gps = filters.BooleanFilter(method=_filter_has_gps)
 
     class Meta:
         model = Occurrence
         fields = ['date_after', 'date_before', 'has_gps']
-
-    def filter_has_gps(self, queryset, name, value):
-        # `gps_lat` e `gps_lng` são preenchidos em par (validado em clean()).
-        return (
-            queryset.exclude(gps_lat__isnull=True)
-            if value
-            else queryset.filter(gps_lat__isnull=True)
-        )
 
 
 class EvidenceFilter(filters.FilterSet):
@@ -60,18 +62,11 @@ class EvidenceFilter(filters.FilterSet):
     date_before = filters.DateFilter(
         field_name='timestamp_seizure', lookup_expr='lte',
     )
-    has_gps = filters.BooleanFilter(method='filter_has_gps')
+    has_gps = filters.BooleanFilter(method=_filter_has_gps)
 
     class Meta:
         model = Evidence
         fields = ['type', 'date_after', 'date_before', 'has_gps']
-
-    def filter_has_gps(self, queryset, name, value):
-        return (
-            queryset.exclude(gps_lat__isnull=True)
-            if value
-            else queryset.filter(gps_lat__isnull=True)
-        )
 
 
 class CustodyFilter(filters.FilterSet):
