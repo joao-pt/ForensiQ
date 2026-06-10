@@ -33,7 +33,7 @@
       <ul class="geo-hero__custody-list">
         {% for t in tiles %}
         <li>
-          <a class="cs-tile" href="/evidences/?state={{ t.key }}"
+          <a class="cs-tile{% if t.n == 0 %} cs-tile--zero{% endif %}" href="/evidences/?state={{ t.key }}"
              title="Ver itens no estado: {{ t.label }}">
             <span class="cs-tile__num">{{ t.n }}</span>
             <span class="cs-tile__label">{{ t.label }}</span>
@@ -78,8 +78,8 @@
       </div>
     </article>
 
-    <!-- Coluna 3 — Insets das regiões autónomas -->
-    <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas">
+    <!-- Coluna 3 — Insets das regiões autónomas + prazos (fluxo, não só stock) -->
+    <article class="geo-hero__col geo-hero__insets" aria-label="Regiões autónomas e prazos">
       <div class="geo-hero__inset-row">
         <div class="geo-hero__inset" data-static-map data-fixed
              data-points="{{ points_madeira }}" data-bounds="{{ bounds_madeira }}"
@@ -90,6 +90,29 @@
              data-points="{{ points_acores }}" data-bounds="{{ bounds_acores }}"
              role="img" aria-label="Mapa dos Açores">
           <span class="geo-hero__inset-label">Açores · {{ n_acores }}</span>
+        </div>
+      </div>
+      {# Prazos & atenção — aging_sla/custody_dwell de core/analytics (a MESMA fonte de /stats/): responde a "o que está em risco hoje?". #}
+      <div class="geo-hero__attn" role="group" aria-label="Prazos e atenção">
+        <h3 class="geo-hero__attn-title">Prazos &amp; atenção</h3>
+        <a class="attn-row{% if sla.validations_overdue %} attn-row--hot{% endif %}"
+           href="/evidences/?state=a_guarda_opc"
+           title="Itens à guarda do OPC com validação ({{ sla.deadline_hours }}h) em atraso">
+          <span class="attn-row__num">{{ sla.validations_overdue }}</span>
+          <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
+        </a>
+        <a class="attn-row{% if sla.in_transit %} attn-row--warn{% endif %}"
+           href="/inbound/" title="Prova encaminhada ainda por receber">
+          <span class="attn-row__num">{{ sla.in_transit }}</span>
+          <span class="attn-row__label">em trânsito por receber{% if sla.in_transit %} · {{ sla.oldest_transit_hours }}h{% endif %}</span>
+        </a>
+        <div class="attn-row">
+          <span class="attn-row__num">{{ dwell.longest_open_hours }}h</span>
+          <span class="attn-row__label">paragem atual mais longa</span>
+        </div>
+        <div class="attn-row" title="Movimentos de custódia nas últimas 24 horas">
+          <span class="attn-row__num">{{ moves_24h }}</span>
+          <span class="attn-row__label">movimentos nas últimas 24h</span>
         </div>
       </div>
     </article>

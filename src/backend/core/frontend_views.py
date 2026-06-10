@@ -12,6 +12,7 @@ sensíveis só sejam carregados via API.
 
 import json
 import logging
+from datetime import timedelta
 from functools import wraps
 
 from django.conf import settings
@@ -27,6 +28,7 @@ from django.http import (
 )
 from django.shortcuts import render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 from rest_framework.exceptions import AuthenticationFailed, ValidationError as DRFValidationError
 from rest_framework.throttling import ScopedRateThrottle
@@ -723,12 +725,18 @@ def dashboard_view(request):
 
     # Tiles do estado da cadeia — contagem por estado legal DERIVADO (ledger),
     # agrupamento e contagem na fonte única (core.analytics).
-    tile_counts = analytics.state_counts(
-        analytics.legal_states_by_evidence(_lens_custody(user, lens))
-    )
+    cus_qs = _lens_custody(user, lens)
+    tile_counts = analytics.state_counts(analytics.legal_states_by_evidence(cus_qs))
     tiles = [
         {'key': k, 'label': LEGAL_STATE_LABELS[k], 'n': tile_counts[k]} for k in LEGAL_STATE_LABELS
     ]
+
+    # Métricas de FLUXO (não só stock) — mesma fonte única que alimenta /stats/:
+    # prazos a estourar (CPP 178.º/6), trânsito por receber e paragem mais longa
+    # respondem a "o que está em risco HOJE?"; mov/24h dá pulso aos tiles.
+    sla = analytics.aging_sla(_lens_evidences(user, lens), cus_qs)
+    dwell = analytics.custody_dwell(cus_qs)
+    moves_24h = cus_qs.filter(timestamp__gte=timezone.now() - timedelta(hours=24)).count()
 
     # Pontos georreferenciados por região (mapa do hero). O `id` permite o
     # drill-down (popup com link) no mapa interativo.
@@ -787,6 +795,9 @@ def dashboard_view(request):
             # Total de itens COM custódia (inclui terminais) — era 'total_active',
             # nome enganador (auditoria D45); o template mostra "N itens".
             'custody_total': sum(tile_counts.values()),
+            'sla': sla,
+            'dwell': dwell,
+            'moves_24h': moves_24h,
             'points_continental': json.dumps(regions['continental']),
             'points_madeira': json.dumps(regions['madeira']),
             'points_acores': json.dumps(regions['acores']),

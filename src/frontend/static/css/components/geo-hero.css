@@ -314,6 +314,71 @@
     pointer-events: none;
 }
 
+/* Estado a zero: esbatido (o olho vai ao que mexe), mas recupera contraste
+   total em hover/foco — o inventário completo continua disponível. */
+.cs-tile--zero { opacity: 0.6; }
+.cs-tile--zero:hover,
+.cs-tile--zero:focus-visible { opacity: 1; }
+
+/* =====================================================================
+   Prazos & atenção (coluna 3) — fluxo do ledger, não só stock
+   ===================================================================== */
+
+.geo-hero__attn {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: var(--sp-2);
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--border);
+}
+.geo-hero__attn-title {
+    margin: 0 0 2px;
+    padding: 0 var(--sp-2);
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    font-weight: var(--fw-semi);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-muted);
+}
+.attn-row {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--sp-2);
+    align-items: baseline;
+    padding: var(--sp-1) var(--sp-2);
+    border-radius: var(--r-1);
+    text-decoration: none;
+    color: inherit;
+    border: 1px solid transparent;
+}
+a.attn-row:hover {
+    background: var(--surface-hover);
+    border-color: var(--border);
+}
+.attn-row__num {
+    font-family: var(--font-mono);
+    font-feature-settings: var(--ffs-forensic);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semi);
+    color: var(--text-emphasis);
+    line-height: 1;
+    min-width: 28px;
+}
+.attn-row__label {
+    font-family: var(--font-mono);
+    font-size: var(--fs-2xs);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-wide);
+    color: var(--text-muted);
+    line-height: 1.25;
+}
+/* Cor SÓ quando classifica: número vermelho/âmbar apenas com risco real (>0). */
+.attn-row--hot .attn-row__num { color: var(--danger); }
+.attn-row--warn .attn-row__num { color: var(--warning-strong); }
+
 /* Faixa intermédia (768-1279): os insets vivem numa banda larga e baixa. */
 @media (min-width: 768px) and (max-width: 1279.98px) {
     .geo-hero__inset { min-height: 150px; }
