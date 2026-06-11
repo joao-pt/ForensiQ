@@ -332,6 +332,14 @@ class DespachoBadgeTest(TestCase):
         body = self._get(f'/occurrences/{self.occ.id}/despachar/?modal=1').content.decode()
         self.assertIn('Com despacho judicial', body)
 
+    def test_modal_despachar_nao_preseleciona_item_ja_despachado(self):
+        """O item já despachado é elegível (2.ª perícia — Art. 158.º) mas entra
+        DESMARCADO (precheck do spec): o 2.º despacho marca-se de propósito,
+        nunca por omissão. Os restantes mantêm a pré-seleção."""
+        body = self._get(f'/occurrences/{self.occ.id}/despachar/?modal=1').content.decode()
+        self.assertIn(f'value="{self.ev_desp.id}" >', body)
+        self.assertIn(f'value="{self.ev_val.id}" checked>', body)
+
 
 class DespachoAPITest(BaseAPITestCase):
     """A fronteira de escrita externa é a MESMA da validação: o ``clean()`` do

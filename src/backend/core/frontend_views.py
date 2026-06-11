@@ -1353,6 +1353,10 @@ _CERTIFIED_ACT_SPECS = {
             'O despacho inclui a validação da apreensão — regista-se a '
             'VALIDACAO_APREENSAO imediatamente antes, pela mesma autoridade e data.'
         ),
+        # Um item JÁ despachado continua elegível (2.ª perícia — Art. 158.º)
+        # mas entra DESMARCADO: o 2.º despacho marca-se de propósito, nunca
+        # por omissão (o badge «Com despacho judicial» assinala-o na lista).
+        'precheck': lambda ev: not has_despacho(ev),
         'legend': 'Itens abrangidos pelo despacho',
         'nome_label': 'Autoridade — nome *',
         'nome_placeholder': 'Quem ordenou a perícia — ex.: Maria Carvalho',
@@ -1482,9 +1486,11 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
 
     Um evento por item selecionado; os itens elegíveis (o ato é próximo evento
     válido segundo as guardas da policy) vêm pré-selecionados e são
-    desmarcáveis (a autoridade pode abranger só alguns). Em sucesso no modal
-    devolve 204 + HX-Redirect. O ``act`` (spec em ``_CERTIFIED_ACT_SPECS``)
-    traz o vocabulário, a elegibilidade e os campos do ato."""
+    desmarcáveis (a autoridade pode abranger só alguns) — salvo os que o
+    ``precheck`` do spec excluir (ex.: item já despachado entra desmarcado).
+    Em sucesso no modal devolve 204 + HX-Redirect. O ``act`` (spec em
+    ``_CERTIFIED_ACT_SPECS``) traz o vocabulário, a elegibilidade e os campos
+    do ato."""
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
@@ -1499,9 +1505,14 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
     )
 
     submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
+    precheck = act.get('precheck')
     for ev in itens:
-        # GET: tudo selecionado; re-render por erro: mantém a escolha do utilizador.
-        ev.checked = submitted is None or str(ev.id) in submitted
+        # GET: pré-seleciona (o spec pode excluir via precheck — ex.: item já
+        # despachado); re-render por erro: mantém a escolha do utilizador.
+        ev.checked = (
+            (precheck is None or precheck(ev)) if submitted is None
+            else str(ev.id) in submitted
+        )
 
     def _ctx(errors, data):
         return {
