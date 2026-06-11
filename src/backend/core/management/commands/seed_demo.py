@@ -63,6 +63,7 @@ from datetime import timedelta
 from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from django.conf import settings
@@ -663,28 +664,55 @@ class Command(BaseCommand):
 
     # ----------------------------------------------------------------- world
     def _build_world(self, users, institutions, portadores):
-        """Constrói ocorrências, itens e cadeias cobrindo todas as variações."""
+        """Constrói ocorrências, itens e cadeias cobrindo todas as variações.
+
+        Cada caso da demonstração vive no seu método ``_caso_NN`` (mesmo
+        conteúdo e ordem de sempre); ``w`` transporta o contexto partilhado
+        (relógio, instituições, utilizadores, portadores e geradores de IDs
+        válidos para os validadores de formato)."""
         self.stdout.write('A criar ocorrências, itens e cadeias de custódia...')
         self._occurrences = []
-        now = timezone.now()
         inst = institutions
-        u = users
-        port = portadores['PSP-114520']
-        port_gnr = portadores['GNR-220815']
+        w = SimpleNamespace(
+            now=timezone.now(), inst=inst, u=users, portadores=portadores,
+            port=portadores['PSP-114520'], port_gnr=portadores['GNR-220815'],
+            # IDs válidos (validadores de formato): 14 díg → IMEI 15; prefixo → ICCID.
+            imei=_luhn_complete, iccid=_luhn_complete,
+            VIN_AUDI='WAUZZZ8K9KA902451',   # 17, sem I/O/Q
+            ipt=lambda sigla: (inst[sigla].gps_lat, inst[sigla].gps_lng),
+        )
+        for caso in (
+            self._caso_01,
+            self._caso_02,
+            self._caso_03,
+            self._caso_04,
+            self._caso_05,
+            self._caso_06,
+            self._caso_07,
+            self._caso_08,
+            self._caso_09,
+            self._caso_10,
+            self._caso_11,
+            self._caso_12,
+            self._caso_13,
+            self._caso_14,
+            self._caso_15,
+            self._caso_16,
+            self._caso_17,
+            self._caso_18,
+        ):
+            caso(w)
 
-        def ipt(sigla):
-            i = inst[sigla]
-            return (i.gps_lat, i.gps_lng)
+        self.stdout.write(
+            f'   {len(self._occurrences)} ocorrências, '
+            f'{Evidence.objects.count()} itens, '
+            f'{ChainOfCustody.objects.count()} movimentos de custódia.')
 
-        # ---- IDs válidos (validadores de formato) ----
-        imei = _luhn_complete             # 14 díg → IMEI 15
-        iccid = _luhn_complete            # prefixo → ICCID + Luhn
-        VIN_AUDI = 'WAUZZZ8K9KA902451'   # 17, sem I/O/Q
 
-        # =====================================================================
-        # CASO 1 — Lisboa · Roubo na via pública (40, prioritário por LEI)
-        #   Telemóvel + SIM (sub) → em perícia no LPC. Aquisição live (não verif.).
-        # =====================================================================
+    def _caso_01(self, w):
+        """CASO 1 — Lisboa · Roubo na via pública (40, prioritário por LEI) Telemóvel + SIM (sub) → em perícia no LPC. Aquisição live (não verif.)."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port, imei, iccid = w.port, w.imei, w.iccid
         c1 = self._occ(number='812/26.4PALSB', crime=40, agent=u['agente.lsb1'],
                        when=now - timedelta(days=12, hours=4), gps=LISBOA_LIBERDADE,
                        address='Avenida da Liberdade 250, Lisboa',
@@ -745,11 +773,10 @@ class Command(BaseCommand):
                     obs='SIM autonomizado do telemóvel no laboratório.'),
         ])
 
-        # =====================================================================
-        # CASO 2 — Lisboa · Burla informática (241, NORMAL → MANUAL = prioritário)
-        #   Computador → Disco interno → Ficheiro digital (3 níveis). Lab privado.
-        #   Validação TARDIA (> 72h, assinala overdue). Perícia concluída.
-        # =====================================================================
+    def _caso_02(self, w):
+        """CASO 2 — Lisboa · Burla informática (241, NORMAL → MANUAL = prioritário) Computador → Disco interno → Ficheiro digital (3 níveis). Lab privado. Validação TARDIA (> 72h, assinala overdue). Perícia concluída."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port = w.port
         c2 = self._occ(number='345/26.1PFLSB', crime=241, agent=u['agente.lsb2'],
                        when=now - timedelta(days=20, hours=2), gps=LISBOA_ALVALADE,
                        address='Rua de Entrecampos 28, Lisboa', manual_priority=True,
@@ -813,11 +840,10 @@ class Command(BaseCommand):
                     acc=20, loc='Foren — Estação de aquisição', custodian_user=u['perito.priv1'],
                     obs='Imagem forense E01 adquirida a partir do disco.')])
 
-        # =====================================================================
-        # CASO 3 — Lisboa · Tráfico de estupefacientes (111, prioritário)
-        #   SSD externo → perícia → depositário (GRA) → PERDA A FAVOR DO ESTADO.
-        #   Selo VIOLADO na apreensão; re-selagem na receção.
-        # =====================================================================
+    def _caso_03(self, w):
+        """CASO 3 — Lisboa · Tráfico de estupefacientes (111, prioritário) SSD externo → perícia → depositário (GRA) → PERDA A FAVOR DO ESTADO. Selo VIOLADO na apreensão; re-selagem na receção."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port_gnr, portadores = w.port_gnr, w.portadores
         c3 = self._occ(number='1102/25.7JELSB', crime=111, agent=u['inspetor.pj.lsb'],
                        when=now - timedelta(days=60, hours=6), gps=LISBOA_BELEM,
                        address='Doca de Belém, Lisboa',
@@ -870,10 +896,10 @@ class Command(BaseCommand):
                     custodian_user=None, obs='Declarada a perda a favor do Estado.'),
         ])
 
-        # =====================================================================
-        # CASO 4 — Lisboa · Corrupção (106, prioritário)
-        #   Equipamento de rede → tribunal (ENCAMINHADA). Cartão RFID (folha) validado.
-        # =====================================================================
+    def _caso_04(self, w):
+        """CASO 4 — Lisboa · Corrupção (106, prioritário) Equipamento de rede → tribunal (ENCAMINHADA). Cartão RFID (folha) validado."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port, portadores = w.port, w.portadores
         c4 = self._occ(number='77/26.9TELSB', crime=106, agent=u['inspetor.pj.lsb'],
                        when=now - timedelta(days=33, hours=3), gps=LISBOA_ORIENTE,
                        address='Parque das Nações, Lisboa',
@@ -932,9 +958,10 @@ class Command(BaseCommand):
                     custodian_user=u['inspetor.pj.lsb']),
         ])
 
-        # =====================================================================
-        # CASO 5 — Porto · Ameaça e coação (16, NORMAL) — telemóvel + SIM, validada.
-        # =====================================================================
+    def _caso_05(self, w):
+        """CASO 5 — Porto · Ameaça e coação (16, NORMAL) — telemóvel + SIM, validada."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        imei, iccid = w.imei, w.iccid
         c5 = self._occ(number='489/26.3PAPRT', crime=16, agent=u['agente.prt1'],
                        when=now - timedelta(days=6, hours=2), gps=PORTO_S_CATARINA,
                        address='Rua de Santa Catarina 215, Porto',
@@ -967,10 +994,10 @@ class Command(BaseCommand):
                     acc=11, store='Cofre de prova — Porto', custodian_user=u['agente.prt1'],
                     obs='SIM autonomizado do telemóvel.')])
 
-        # =====================================================================
-        # CASO 6 — Porto · Furto de veículo motorizado (31, NORMAL)
-        #   Viatura (raiz) → infotainment + GPS tracker + SIM(do tracker). Restituída.
-        # =====================================================================
+    def _caso_06(self, w):
+        """CASO 6 — Porto · Furto de veículo motorizado (31, NORMAL) Viatura (raiz) → infotainment + GPS tracker + SIM(do tracker). Restituída."""
+        now, inst, u, imei = w.now, w.inst, w.u, w.imei
+        iccid, VIN_AUDI = w.iccid, w.VIN_AUDI
         c6 = self._occ(number='1789/26.0GBPRT', crime=31, agent=u['agente.prt2'],
                        when=now - timedelta(days=40), gps=PORTO_BOAVISTA,
                        address='Rotunda da Boavista, Porto',
@@ -1024,10 +1051,10 @@ class Command(BaseCommand):
                     receiver_nome='Manuel Augusto Ferreira Pinto',
                     receiver_doc_tipo='CC', receiver_doc_numero='11483920 4 ZX1')])
 
-        # =====================================================================
-        # CASO 7 — Porto · Sabotagem informática (160, prioritário) — servidor em perícia.
-        #   + Cartão SD (folha) destruído (estado terminal DESTRUIDA #1 via item próprio).
-        # =====================================================================
+    def _caso_07(self, w):
+        """CASO 7 — Porto · Sabotagem informática (160, prioritário) — servidor em perícia. + Cartão SD (folha) destruído (estado terminal DESTRUIDA #1 via item próprio)."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port_gnr = w.port_gnr
         c7 = self._occ(number='902/26.6JAPRT', crime=160, agent=u['inspetor.pj.prt'],
                        when=now - timedelta(days=15, hours=5), gps=PORTO_BOAVISTA,
                        address='Avenida da Boavista 1200, Porto',
@@ -1076,10 +1103,9 @@ class Command(BaseCommand):
                     obs='Cópia de trabalho destruída após extração (terminal).'),
         ])
 
-        # =====================================================================
-        # CASO 8 — Coimbra · Falsidade informática (159, prioritário)
-        #   APREENSÃO DE DADOS (DIGITAL_FILE raiz) → EM TRÂNSITO ao INMLCF-C (inbox).
-        # =====================================================================
+    def _caso_08(self, w):
+        """CASO 8 — Coimbra · Falsidade informática (159, prioritário) APREENSÃO DE DADOS (DIGITAL_FILE raiz) → EM TRÂNSITO ao INMLCF-C (inbox)."""
+        now, inst, u, port_gnr = w.now, w.inst, w.u, w.port_gnr
         c8 = self._occ(number='233/26.2PBCBR', crime=159, agent=u['agente.gnr1'],
                        when=now - timedelta(days=5, hours=8), gps=COIMBRA_BAIXA,
                        address='Praça 8 de Maio, Coimbra',
@@ -1108,11 +1134,10 @@ class Command(BaseCommand):
                     obs='Encaminhado ao INMLCF-C — aguarda receção (em trânsito).'),
         ])
 
-        # =====================================================================
-        # CASO 9 — Braga (GNR) · Terrorismo (115, prioritário)
-        #   Drone (selo PARTIDO) → perícia → DESTRUIÇÃO. Cartão SD (folha) → destruído.
-        #   Ambos os itens terminais → ocorrência ARQUIVADA.
-        # =====================================================================
+    def _caso_09(self, w):
+        """CASO 9 — Braga (GNR) · Terrorismo (115, prioritário) Drone (selo PARTIDO) → perícia → DESTRUIÇÃO. Cartão SD (folha) → destruído. Ambos os itens terminais → ocorrência ARQUIVADA."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port_gnr = w.port_gnr
         c9 = self._occ(number='205/26.5GCBRG', crime=115, agent=u['agente.gnr1'],
                        when=now - timedelta(days=50, hours=1), gps=BRAGA_QG,
                        address='Quartel-General de Braga',
@@ -1165,10 +1190,10 @@ class Command(BaseCommand):
                     u['mp.braga1'], BRAGA_QG, cl.advance(days=8), acc=8, custodian_user=None,
                     obs='Aeronave destruída por decisão judicial (terminal).')])
 
-        # =====================================================================
-        # CASO 10 — Faro (GNR) · Furto de veículo (31, NORMAL)
-        #   SMART_TAG → perícia → RESTITUIÇÃO. Item único terminal → ARQUIVADA.
-        # =====================================================================
+    def _caso_10(self, w):
+        """CASO 10 — Faro (GNR) · Furto de veículo (31, NORMAL) SMART_TAG → perícia → RESTITUIÇÃO. Item único terminal → ARQUIVADA."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port_gnr = w.port_gnr
         c10 = self._occ(number='654/26.8GTFAR', crime=31, agent=u['agente.gnr1'],
                         when=now - timedelta(days=35, hours=2), gps=FARO_MARINA,
                         address='Marina de Faro',
@@ -1206,10 +1231,10 @@ class Command(BaseCommand):
                     receiver_doc_tipo='CC', receiver_doc_numero='09238471 2 ZY8'),
         ])
 
-        # =====================================================================
-        # CASO 11 — Lisboa · Lenocínio/pornografia de menores (199, prioritário)
-        #   CCTV/DVR → perícia concluída. + microSD destruído (DESTRUIDA #2).
-        # =====================================================================
+    def _caso_11(self, w):
+        """CASO 11 — Lisboa · Lenocínio/pornografia de menores (199, prioritário) CCTV/DVR → perícia concluída. + microSD destruído (DESTRUIDA #2)."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port = w.port
         c11 = self._occ(number='318/26.1JDLSB', crime=199, agent=u['agente.lsb1'],
                         when=now - timedelta(days=25, hours=4), gps=LISBOA_ALVALADE,
                         address='Avenida de Roma 90, Lisboa',
@@ -1255,10 +1280,10 @@ class Command(BaseCommand):
                     obs='Suporte com cópia de trabalho destruído (terminal).'),
         ])
 
-        # =====================================================================
-        # CASO 12 — Porto · Branqueamento (102, prioritário)
-        #   IoT (em trânsito) + Consola → perícia → PERDA A FAVOR DO ESTADO (#2).
-        # =====================================================================
+    def _caso_12(self, w):
+        """CASO 12 — Porto · Branqueamento (102, prioritário) IoT (em trânsito) + Consola → perícia → PERDA A FAVOR DO ESTADO (#2)."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        port_gnr = w.port_gnr
         c12 = self._occ(number='540/26.3TAPRT', crime=102, agent=u['agente.prt1'],
                         when=now - timedelta(days=18, hours=3), gps=PORTO_S_CATARINA,
                         address='Rua de Cedofeita 300, Porto',
@@ -1313,9 +1338,9 @@ class Command(BaseCommand):
                     obs='Consola perdida a favor do Estado.'),
         ])
 
-        # =====================================================================
-        # CASO 13 — Sintra (GNR) · Incêndio florestal (74, prioritário) — OTHER_DIGITAL, validada.
-        # =====================================================================
+    def _caso_13(self, w):
+        """CASO 13 — Sintra (GNR) · Incêndio florestal (74, prioritário) — OTHER_DIGITAL, validada."""
+        now, inst, u = w.now, w.inst, w.u
         c13 = self._occ(number='91/26.4GFSNT', crime=74, agent=u['agente.gnr1'],
                         when=now - timedelta(days=8, hours=6), gps=SINTRA_SERRA,
                         address='Serra de Sintra',
@@ -1338,9 +1363,10 @@ class Command(BaseCommand):
                     SINTRA_SERRA, cl.advance(hours=20), acc=7, custodian_user=u['agente.gnr1']),
         ])
 
-        # =====================================================================
-        # CASO 14 — Funchal (Madeira) · Violência doméstica (194, prioritário) — telemóvel, validada.
-        # =====================================================================
+    def _caso_14(self, w):
+        """CASO 14 — Funchal (Madeira) · Violência doméstica (194, prioritário) — telemóvel, validada."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        imei = w.imei
         c14 = self._occ(number='142/26.6PAFNC', crime=194, agent=u['agente.fnc'],
                         when=now - timedelta(days=9, hours=3), gps=FUNCHAL_SE,
                         address='Rua da Carreira, Funchal',
@@ -1362,9 +1388,9 @@ class Command(BaseCommand):
                     custodian_user=u['agente.fnc']),
         ])
 
-        # =====================================================================
-        # CASO 15 — Funchal (Madeira) · Furto em residência (33, NORMAL) — à guarda do OPC.
-        # =====================================================================
+    def _caso_15(self, w):
+        """CASO 15 — Funchal (Madeira) · Furto em residência (33, NORMAL) — à guarda do OPC."""
+        now, inst, u = w.now, w.inst, w.u
         c15 = self._occ(number='160/26.1GBFNC', crime=33, agent=u['agente.fnc'],
                         when=now - timedelta(days=3, hours=5), gps=FUNCHAL_LIDO,
                         address='Estrada Monumental, Funchal',
@@ -1380,9 +1406,10 @@ class Command(BaseCommand):
                     acc=10, store='Cofre — CR Madeira', sealed=True, custodian_user=u['agente.fnc'],
                     obs='À guarda do OPC, a aguardar validação.')])
 
-        # =====================================================================
-        # CASO 16 — Ponta Delgada (Açores) · Discriminação e ódio (63, NORMAL) — telemóvel, validada.
-        # =====================================================================
+    def _caso_16(self, w):
+        """CASO 16 — Ponta Delgada (Açores) · Discriminação e ódio (63, NORMAL) — telemóvel, validada."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        imei = w.imei
         c16 = self._occ(number='88/26.9PAPDL', crime=63, agent=u['agente.pdl'],
                         when=now - timedelta(days=7, hours=2), gps=PONTA_DELGADA,
                         address='Avenida Infante D. Henrique, Ponta Delgada',
@@ -1403,10 +1430,9 @@ class Command(BaseCommand):
                     custodian_user=u['agente.pdl']),
         ])
 
-        # =====================================================================
-        # CASO 17 — Ponta Delgada (Açores) · Tráfico (111, prioritário)
-        #   APREENSÃO DE DADOS (DIGITAL_FILE) → em trânsito ao INMLCF-S (inbox #3).
-        # =====================================================================
+    def _caso_17(self, w):
+        """CASO 17 — Ponta Delgada (Açores) · Tráfico (111, prioritário) APREENSÃO DE DADOS (DIGITAL_FILE) → em trânsito ao INMLCF-S (inbox #3)."""
+        now, inst, u, port = w.now, w.inst, w.u, w.port
         c17 = self._occ(number='120/26.5JEPDL', crime=111, agent=u['agente.pdl'],
                         when=now - timedelta(days=4, hours=6), gps=PONTA_DELGADA_PORTAS,
                         address='Portas do Mar, Ponta Delgada',
@@ -1433,10 +1459,10 @@ class Command(BaseCommand):
                     obs='Encaminhado ao INMLCF-S — aguarda receção (em trânsito).'),
         ])
 
-        # =====================================================================
-        # CASO 18 — Lisboa · Acesso ilegítimo (157, prioritário) — SEM GPS (caso-limite)
-        #   Ocorrência sem georreferência; item → depositário (ENCAMINHADA #2).
-        # =====================================================================
+    def _caso_18(self, w):
+        """CASO 18 — Lisboa · Acesso ilegítimo (157, prioritário) — SEM GPS (caso-limite) Ocorrência sem georreferência; item → depositário (ENCAMINHADA #2)."""
+        now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
+        portadores = w.portadores
         c18 = self._occ(number='401/26.7TELSB', crime=157, agent=u['agente.lsb2'],
                         when=now - timedelta(days=14, hours=2), gps=None,
                         address='Morada reservada (sem georreferência registada)',
@@ -1464,11 +1490,6 @@ class Command(BaseCommand):
                     sealed=True, seal_cond=SC.INTACTO, custodian_user=None,
                     obs='À guarda institucional do depositário (encaminhada).'),
         ])
-
-        self.stdout.write(
-            f'   {len(self._occurrences)} ocorrências, '
-            f'{Evidence.objects.count()} itens, '
-            f'{ChainOfCustody.objects.count()} movimentos de custódia.')
 
     # ----------------------------------------------------------------- helpers de criação
     def _occ(self, *, number, crime, agent, when, gps, address, desc, manual_priority=False):
