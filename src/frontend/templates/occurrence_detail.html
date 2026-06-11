@@ -38,6 +38,14 @@
         Validar apreensão
       </a>
       {% endif %}
+      {% if can_despachar %}
+      {# Ação in-place: despacho para perícia em lote (CPP 154.º) — ato certificado, sem GPS. #}
+      <a class="btn-ghost" href="/occurrences/{{ occ.id }}/despachar/"
+         data-modal-open data-modal-title="Despacho para perícia">
+        {% include 'partials/icons/_file.html' %}
+        Despacho p/ perícia
+      </a>
+      {% endif %}
       {% if can_handoff %}
       {# Ação in-place: encaminhar a prova em lote (portador + destino) num modal. #}
       {# Contrato modal (hx-get ?modal=1 → #app-modal-body) derivado em modal-action.js (D61). #}

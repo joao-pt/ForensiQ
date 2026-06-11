@@ -124,6 +124,16 @@ GENESIS_EVENTS = {
 # vez). A derivação de item (DERIVACAO_ITEM) não é uma apreensão autónoma.
 SEIZURE_GENESIS_EVENTS = {EventType.APREENSAO_OBJETO, EventType.APREENSAO_DADOS}
 
+# ATOS de autoridade CERTIFICADOS (CPP art. 178.º/6 e 154.º): a validação da
+# apreensão e o despacho para perícia são atos jurídicos, não deslocações — o
+# evento tem de identificar QUEM os proferiu (texto certificado em
+# ``observations``, que entra na fórmula do hash). A fronteira de escrita
+# externa (serializer) recusa o evento "nu"; o modal único da ocorrência
+# constrói o texto a partir dos campos obrigatórios. Fonte única do conjunto.
+CERTIFIED_ACT_EVENTS = frozenset(
+    {EventType.VALIDACAO_APREENSAO, EventType.DESPACHO_PERICIA}
+)
+
 # Custódios de laboratório. Gate (CPP Art. 154.º): um laboratório não admite
 # prova — nem que seja para arquivo — sem um DESPACHO_PERICIA prévio no ledger.
 LAB_CUSTODIANS = frozenset({CustodianType.LAB_PUBLICO, CustodianType.LAB_PRIVADO})

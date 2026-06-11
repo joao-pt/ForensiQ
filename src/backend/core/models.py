@@ -25,6 +25,7 @@ from django.utils import timezone
 
 from core.policy import custody_transitions
 from core.policy.event_states import (
+    CERTIFIED_ACT_EVENTS as CERTIFIED_ACT_EVENTS,
     GENESIS_EVENTS,
     HANDOFF_EVENTS as HANDOFF_EVENTS,
     LEGAL_STATES as LEGAL_STATES,

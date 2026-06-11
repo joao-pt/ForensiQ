@@ -50,6 +50,7 @@ from core.frontend_views import (
     institution_new_view,
     institutions_view,
     login_view,
+    occurrence_despachar_view,
     occurrence_detail_singular_redirect,
     occurrence_detail_view,
     occurrence_encaminhar_view,
@@ -142,6 +143,12 @@ urlpatterns = [
         'occurrences/<int:occurrence_id>/validar/',
         occurrence_validar_view,
         name='occurrence_validar',
+    ),
+    # Despacho para perícia em lote (CPP art. 154.º) — ação in-place (modal)
+    path(
+        'occurrences/<int:occurrence_id>/despachar/',
+        occurrence_despachar_view,
+        name='occurrence_despachar',
     ),
     # Restituir prova em lote (CPP art. 186.º — termo de entrega) — ação in-place (modal)
     path(

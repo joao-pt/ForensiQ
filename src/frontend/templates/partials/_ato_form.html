@@ -1,0 +1,62 @@
+{% comment %}
+  ATO de autoridade certificado em lote — formulário ÚNICO dos dois atos
+  (validar apreensão / despacho para perícia), partilhado pela página completa
+  (occurrence_ato.html) e pelo fragmento modal (ação in-place). Um ato jurídico
+  não é uma deslocação: regista quem o proferiu, quando e a justificação — sem
+  GPS, morada ou mudança de custódio. O vocabulário vem do spec `act`
+  (_CERTIFIED_ACT_SPECS, frontend_views).
+{% endcomment %}
+<div data-modal-title="{{ act.titulo }}">
+
+  {% include 'partials/_form_errors.html' %}
+
+  {% if itens %}
+  {% include 'partials/_modal_form_open.html' %}
+
+    <p class="form-hint">{{ act.hint }}</p>
+
+    <fieldset class="form-field form-field--full">
+      <legend class="subhead">{{ act.legend }}</legend>
+      {% for e in itens %}
+      <label class="form-check">
+        <input type="checkbox" name="evidence_ids" value="{{ e.id }}" {% if e.checked %}checked{% endif %}>
+        <span class="mono">{{ e.code }}</span> · {{ e.type_label }}
+        {% if act.badge == 'validation' %}
+        {% if e.validation_badge %}<span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}
+        {% else %}
+        <span class="state state--{{ e.state_css }}">{{ e.state_label }}</span>
+        {% endif %}
+      </label>
+      {% endfor %}
+    </fieldset>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="f-ato-by">{{ act.who_label }}</label>
+        <input id="f-ato-by" name="validated_by" type="text" required
+               placeholder="{{ act.who_placeholder }}"
+               value="{{ data.validated_by|default:'' }}">
+      </div>
+      <div class="form-field">
+        <label for="f-ato-at">{{ act.when_label }}</label>
+        <input id="f-ato-at" name="validated_at" type="datetime-local" required
+               value="{{ data.validated_at|default:'' }}">
+      </div>
+      <div class="form-field form-field--full">
+        <label for="f-ato-just">Justificação</label>
+        <textarea id="f-ato-just" name="justification" placeholder="{{ act.just_placeholder }}">{{ data.justification|default:'' }}</textarea>
+      </div>
+    </div>
+
+    {% include 'partials/_form_actions.html' with cancel_url=cancel_url submit_label=act.submit %}
+  </form>
+  {% else %}
+  <div class="empty">
+    <p class="empty__title">{{ act.empty_title }}</p>
+    <p class="empty__hint">{{ act.empty_hint }}</p>
+    {% if modal %}
+    <div class="form-actions"><button type="button" class="btn-ghost" data-modal-close>Fechar</button></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>

@@ -1529,14 +1529,21 @@ class Command(BaseCommand):
            receiver_nome='', receiver_doc_tipo='', receiver_doc_numero=''):
         """Empacota os parâmetros de UM evento de custódia (aplicado por :meth:`_chain`)."""
         lat, lng = (gps if gps else (None, None))
-        # Ato de VALIDAÇÃO: texto certificado (quem validou + data do despacho),
-        # como o modal produz — a demo mostra a prática real e o texto entra na
-        # fórmula do hash. O ``agent`` destes eventos no seed é o magistrado.
-        if event_type == ChainOfCustody.EventType.VALIDACAO_APREENSAO:
-            quando = timezone.localtime(when).strftime('%d/%m/%Y %H:%M')
-            certificado = (
-                f'Apreensão validada por {agent.get_full_name() or agent.username} '
-                f'em {quando}.'
+        # Atos CERTIFICADOS (validação da apreensão / despacho para perícia —
+        # CERTIFIED_ACT_EVENTS na policy): texto certificado (quem + data do
+        # despacho), como o modal único produz — a demo mostra a prática real
+        # e o texto entra na fórmula do hash. O ``agent`` destes eventos no
+        # seed é o magistrado.
+        certificados = {
+            ChainOfCustody.EventType.VALIDACAO_APREENSAO:
+                'Apreensão validada por {quem} em {quando}.',
+            ChainOfCustody.EventType.DESPACHO_PERICIA:
+                'Perícia ordenada por {quem} em {quando}.',
+        }
+        if event_type in certificados:
+            certificado = certificados[event_type].format(
+                quem=agent.get_full_name() or agent.username,
+                quando=timezone.localtime(when).strftime('%d/%m/%Y %H:%M'),
             )
             obs = f'{certificado} {obs}'.strip()
         return {

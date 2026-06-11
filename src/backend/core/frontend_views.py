@@ -49,6 +49,7 @@ from core.labels import (
 )
 from core.list_filters import ColFilter
 from core.models import (
+    GENESIS_EVENTS,
     SEIZURE_GENESIS_EVENTS,
     STATES_AT_OR_PAST_LAB,
     TERMINAL_LEGAL_STATES,
@@ -1053,15 +1054,19 @@ def occurrence_detail_view(request, occurrence_id):
     can_validate = can_handoff and any(
         e.validation_status in VALIDATION_PENDING_STATUSES for e in evidences
     )
-    # Restituir: aparece havendo itens que as guardas aceitam restituir JÁ
-    # (génese feita, ledger aberto, não em trânsito) — mesma fonte única do
-    # modal (policy.next_events; _restituiveis faz a seleção real no POST).
-    can_restitute = can_handoff and any(
-        EventType.RESTITUICAO.value in {
-            v
-            for v, _ in _valid_next_events(sort_custody_chain(e.custody_chain.all()), e)
-        }
+    # Despachar/restituir: aparecem havendo itens que as guardas aceitam JÁ
+    # (génese feita, ledger aberto, não em trânsito) — mesma fonte única dos
+    # modais (policy.next_events; a seleção real refaz-se no POST). Uma só
+    # passagem pelos ledgers já prefetched.
+    next_sets = [
+        {v for v, _ in _valid_next_events(sort_custody_chain(e.custody_chain.all()), e)}
         for e in evidences
+    ]
+    can_despachar = can_handoff and any(
+        EventType.DESPACHO_PERICIA.value in s for s in next_sets
+    )
+    can_restitute = can_handoff and any(
+        EventType.RESTITUICAO.value in s for s in next_sets
     )
     return render(
         request,
@@ -1071,6 +1076,7 @@ def occurrence_detail_view(request, occurrence_id):
             'evidences': evidences,
             'can_handoff': can_handoff,
             'can_validate': can_validate,
+            'can_despachar': can_despachar,
             'can_restitute': can_restitute,
         },
     )
@@ -1096,13 +1102,6 @@ def _encaminhaveis(user, occ):
     não terminais nem já em trânsito (ENCAMINHAMENTO é próximo evento válido).
     Anota-se ``ev.checked`` na view (omissão: todos — encaminha-se a prova junta)."""
     return _itens_com_proximo_evento(user, occ, EventType.ENCAMINHAMENTO_CUSTODIA)
-
-
-def _validaveis(user, occ):
-    """Itens da ocorrência com apreensão POR VALIDAR (dentro ou fora do prazo):
-    VALIDACAO_APREENSAO é próximo evento válido segundo as guardas (há génese de
-    apreensão, ainda não validada, ledger aberto, não em trânsito)."""
-    return _itens_com_proximo_evento(user, occ, EventType.VALIDACAO_APREENSAO)
 
 
 def _restituiveis(user, occ):
@@ -1252,17 +1251,105 @@ def occurrence_encaminhar_view(request, occurrence_id):
     return render(request, template, _ctx({}, {}))
 
 
-def _register_validation(request, evidences, autoridade, justificacao, ts):
-    """Regista VALIDACAO_APREENSAO em cada item (ato jurídico — CPP art. 178.º/6):
-    sem GPS nem local (a prova não se desloca) e custódio HERDADO do último
-    evento do ledger (a validação não muda quem detém a prova).
+# ---------------------------------------------------------------------------
+# Atos de autoridade CERTIFICADOS — modal ÚNICO em lote (validar / despachar).
+# A validação da apreensão (CPP 178.º/6) e o despacho para perícia (CPP 154.º)
+# são ATOS jurídicos, não deslocações: registam QUEM os proferiu, QUANDO e a
+# referência/justificação num texto certificado em ``observations`` (entra na
+# fórmula do hash), sem GPS/morada e com custódio HERDADO do último evento.
+# A maquinaria (vista + formulário + registo) é UMA só; cada ato declara aqui
+# o seu vocabulário — o conjunto legal vive na policy (CERTIFIED_ACT_EVENTS).
+# ---------------------------------------------------------------------------
+_CERTIFIED_ACT_SPECS = {
+    'validar': {
+        'slug': 'validar',
+        'event_type': EventType.VALIDACAO_APREENSAO,
+        'certify': 'Apreensão validada por {quem} em {quando}.',
+        'audit_key': 'validated_by',
+        'success': 'Apreensão validada: {n} item(ns).',
+        'err_sel': 'Selecione pelo menos um item para validar.',
+        'err_quem': 'Indique quem validou a apreensão (autoridade judiciária).',
+        'err_quando': 'Indique a data e hora da validação.',
+        'err_futuro': 'A data da validação não pode estar no futuro.',
+        # A validação nunca antecede a APREENSÃO que valida.
+        'ref_events': SEIZURE_GENESIS_EVENTS,
+        'err_antecede': 'A validação de {code} não pode anteceder a apreensão ({quando}).',
+        # Apresentação (form/página únicos: _ato_form.html / occurrence_ato.html).
+        'titulo': 'Validar apreensão',
+        'submit': 'Validar apreensão',
+        'hint': (
+            'A validação certifica a apreensão (prazo legal de 72h) e fica selada '
+            'na cadeia de custódia. Não muda quem detém a prova nem onde está. A '
+            'autoridade pode validar só alguns itens: desmarque os que ficam de fora.'
+        ),
+        'legend': 'Itens com apreensão por validar',
+        'who_label': 'Quem validou *',
+        'who_placeholder': 'Autoridade judiciária — ex.: Procurador(a) …',
+        'when_label': 'Data e hora do despacho *',
+        'just_placeholder': 'Referência do despacho ou justificação (opcional)',
+        'badge': 'validation',
+        'empty_title': 'Sem apreensões por validar',
+        'empty_hint': (
+            'Todos os itens desta ocorrência já estão validados, não têm apreensão '
+            'própria, estão em trânsito ou concluídos — ou não tem permissão de '
+            'escrita no ledger.'
+        ),
+        'page_sub': (
+            'quem validou, quando e justificação (CPP art. 178.º; sem GPS, a prova '
+            'não se move)'
+        ),
+    },
+    'despachar': {
+        'slug': 'despachar',
+        'event_type': EventType.DESPACHO_PERICIA,
+        'certify': 'Perícia ordenada por {quem} em {quando}.',
+        'audit_key': 'ordered_by',
+        'success': 'Despacho registado: {n} item(ns).',
+        'err_sel': 'Selecione pelo menos um item para despachar.',
+        'err_quem': 'Indique quem ordenou a perícia (autoridade).',
+        'err_quando': 'Indique a data e hora do despacho.',
+        'err_futuro': 'A data do despacho não pode estar no futuro.',
+        # O despacho nunca antecede a GÉNESE do item (apreensão/derivação).
+        'ref_events': GENESIS_EVENTS,
+        'err_antecede': 'O despacho de {code} não pode anteceder a génese do item ({quando}).',
+        'titulo': 'Despacho para perícia',
+        'submit': 'Registar despacho',
+        'hint': (
+            'O despacho ordena a perícia (CPP art. 154.º) — é o que abre as portas '
+            'do laboratório — e fica selado na cadeia de custódia. Não muda quem '
+            'detém a prova nem onde está. Desmarque os itens que ficam de fora.'
+        ),
+        'legend': 'Itens abrangidos pelo despacho',
+        'who_label': 'Quem ordenou a perícia *',
+        'who_placeholder': 'Autoridade — ex.: Procurador(a) / Juiz(a) …',
+        'when_label': 'Data e hora do despacho *',
+        'just_placeholder': 'Referência do despacho ou âmbito da perícia (opcional)',
+        'badge': 'state',
+        'empty_title': 'Sem itens para despacho',
+        'empty_hint': (
+            'Os itens desta ocorrência estão em trânsito, concluídos ou sem génese '
+            'registada — ou não tem permissão de escrita no ledger.'
+        ),
+        'page_sub': (
+            'quem ordenou a perícia, quando e a referência (CPP art. 154.º; sem '
+            'GPS, a prova não se move)'
+        ),
+    },
+}
+
+
+def _register_certified_act(request, evidences, act, autoridade, justificacao, ts):
+    """Regista o ATO certificado em cada item: sem GPS nem local (a prova não
+    se desloca) e custódio HERDADO do último evento do ledger (um ato de
+    autoridade não muda quem detém a prova).
 
     O ``timestamp`` do evento é SEMPRE o do servidor (invariante anti-adulteração
-    do ledger): a data/hora do DESPACHO declarada pela autoridade entra no texto
-    de ``observations`` — que faz parte da fórmula do hash, ficando selada na
-    cadeia. Devolve lista de erros (vazia = sucesso); qualquer falha reverte tudo."""
+    do ledger): a data/hora do despacho declarada pela autoridade entra no texto
+    CERTIFICADO de ``observations`` — que faz parte da fórmula do hash, ficando
+    selada na cadeia. Devolve lista de erros (vazia = sucesso); qualquer falha
+    reverte tudo."""
     quando = timezone.localtime(ts).strftime('%d/%m/%Y %H:%M')
-    obs = f'Apreensão validada por {autoridade} em {quando}.'
+    obs = act['certify'].format(quem=autoridade, quando=quando)
     if justificacao:
         obs = f'{obs} {justificacao}'
 
@@ -1270,7 +1357,7 @@ def _register_validation(request, evidences, autoridade, justificacao, ts):
         last = sort_custody_chain(ev.custody_chain.all())[-1]
         p = {
             'evidence': ev.id,
-            'event_type': EventType.VALIDACAO_APREENSAO.value,
+            'event_type': act['event_type'].value,
             'observations': obs,
         }
         if last.custodian_type:
@@ -1283,29 +1370,26 @@ def _register_validation(request, evidences, autoridade, justificacao, ts):
 
     return _append_custody_events(
         request, _payload, evidences,
-        extra_details={'validated_by': autoridade},
+        extra_details={act['audit_key']: autoridade},
     )
 
 
-@jwt_cookie_user
-def occurrence_validar_view(request, occurrence_id):
-    """Validar a apreensão em LOTE (CPP art. 178.º/6) — ação in-place (modal).
+def _occurrence_certified_act_view(request, occurrence_id, act):
+    """Vista ÚNICA dos atos certificados em LOTE — ação in-place (modal).
 
-    A validação é um ATO JURÍDICO, não uma deslocação: regista QUEM validou,
-    QUANDO e a justificação — sem GPS, morada ou mudança de custódio (eixo
-    ortogonal ao estado de custódia; ver ``validation_status`` na policy). Um
-    evento VALIDACAO_APREENSAO por item selecionado; todos os itens por validar
-    vêm pré-selecionados e são desmarcáveis (a autoridade pode validar só
-    alguns). Em sucesso no modal devolve 204 + HX-Redirect.
-    """
+    Um evento por item selecionado; os itens elegíveis (o ato é próximo evento
+    válido segundo as guardas da policy) vêm pré-selecionados e são
+    desmarcáveis (a autoridade pode abranger só alguns). Em sucesso no modal
+    devolve 204 + HX-Redirect. O ``act`` (spec em ``_CERTIFIED_ACT_SPECS``)
+    traz o vocabulário, a elegibilidade e o texto certificado."""
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
         return HttpResponseNotFound('Ocorrência não encontrada.')
 
     modal = _wants_modal(request)
-    template = _modal_template(modal, 'partials/_validar_form.html', 'occurrence_validar.html')
-    itens = _validaveis(user, occ)
+    template = _modal_template(modal, 'partials/_ato_form.html', 'occurrence_ato.html')
+    itens = _itens_com_proximo_evento(user, occ, act['event_type'])
 
     submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
     for ev in itens:
@@ -1316,12 +1400,13 @@ def occurrence_validar_view(request, occurrence_id):
         return {
             'occ': occ,
             'itens': itens,
+            'act': act,
             'errors': errors,
             'data': data if data is not None else {
                 'validated_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             },
             'modal': modal,
-            'action': f'/occurrences/{occ.id}/validar/',
+            'action': f'/occurrences/{occ.id}/{act["slug"]}/',
             'cancel_url': f'/occurrences/{occ.id}/',
         }
 
@@ -1335,36 +1420,53 @@ def occurrence_validar_view(request, occurrence_id):
             ts = timezone.make_aware(ts)
         errs = []
         if not sel:
-            errs.append('Selecione pelo menos um item para validar.')
+            errs.append(act['err_sel'])
         if not autoridade:
-            errs.append('Indique quem validou a apreensão (autoridade judiciária).')
+            errs.append(act['err_quem'])
         if ts is None:
-            errs.append('Indique a data e hora da validação.')
+            errs.append(act['err_quando'])
         elif ts > timezone.now():
-            errs.append('A data da validação não pode estar no futuro.')
+            errs.append(act['err_futuro'])
         else:
-            # A validação nunca antecede a apreensão que valida. O input só tem
-            # granularidade de MINUTO: arredonda-se a apreensão ao minuto para
-            # não recusar um despacho no próprio minuto da apreensão.
+            # O ato nunca antecede o evento de referência (apreensão/génese). O
+            # input só tem granularidade de MINUTO: arredonda-se a referência ao
+            # minuto para não recusar um despacho no próprio minuto do evento.
             for ev in sel:
-                seizure = next(
+                ref = next(
                     (r for r in sort_custody_chain(ev.custody_chain.all())
-                     if r.event_type in SEIZURE_GENESIS_EVENTS), None,
+                     if r.event_type in act['ref_events']), None,
                 )
-                if seizure and ts < seizure.timestamp.replace(second=0, microsecond=0):
-                    local = timezone.localtime(seizure.timestamp)
-                    errs.append(
-                        f'A validação de {ev.code} não pode anteceder a apreensão '
-                        f'({local:%d/%m/%Y %H:%M}).'
-                    )
+                if ref and ts < ref.timestamp.replace(second=0, microsecond=0):
+                    local = timezone.localtime(ref.timestamp)
+                    errs.append(act['err_antecede'].format(
+                        code=ev.code, quando=f'{local:%d/%m/%Y %H:%M}',
+                    ))
         if not errs:
-            errs = _register_validation(request, sel, autoridade, justificacao, ts)
+            errs = _register_certified_act(request, sel, act, autoridade, justificacao, ts)
         if not errs:
-            messages.success(request, f'Apreensão validada: {len(sel)} item(ns).')
+            messages.success(request, act['success'].format(n=len(sel)))
             return _form_success_response(modal, f'/occurrences/{occ.id}/')
         return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
 
     return render(request, template, _ctx({}, None))
+
+
+@jwt_cookie_user
+def occurrence_validar_view(request, occurrence_id):
+    """Validar a apreensão em LOTE (CPP art. 178.º/6) — spec ``validar`` do
+    modal único dos atos certificados."""
+    return _occurrence_certified_act_view(
+        request, occurrence_id, _CERTIFIED_ACT_SPECS['validar']
+    )
+
+
+@jwt_cookie_user
+def occurrence_despachar_view(request, occurrence_id):
+    """Despacho para perícia em LOTE (CPP art. 154.º) — spec ``despachar`` do
+    modal único dos atos certificados."""
+    return _occurrence_certified_act_view(
+        request, occurrence_id, _CERTIFIED_ACT_SPECS['despachar']
+    )
 
 
 def _register_restituicao(request, evidences, receiver_fields, fundamento):
@@ -1930,9 +2032,13 @@ def evidence_detail_view(request, evidence_id):
             # fechado ⇒ não se oferece «Registar evento» (auditoria D96).
             'ledger_closed': not valid_next,
             # Atos com modal dedicado na ocorrência (formulário único do ato),
-            # aceitáveis já (não em trânsito/terminal): validação e restituição.
+            # aceitáveis já (não em trânsito/terminal): validação, despacho e
+            # restituição.
             'can_validate': any(
                 v == EventType.VALIDACAO_APREENSAO.value for v, _ in valid_next
+            ),
+            'can_despachar': any(
+                v == EventType.DESPACHO_PERICIA.value for v, _ in valid_next
             ),
             'can_restitute': any(
                 v == EventType.RESTITUICAO.value for v, _ in valid_next
@@ -2181,15 +2287,21 @@ def custody_timeline_view(request, evidence_id):
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     valid_events = _valid_next_events(events, ev)
-    # Atos com formulário PRÓPRIO (modal da ocorrência): a VALIDAÇÃO certifica
-    # quem validou/data do despacho/justificação (CPP 178.º/6) e a RESTITUIÇÃO
-    # exige a identidade de quem recebeu (CPP 186.º — termo de entrega). Saem
-    # do select genérico para não existir um 2.º caminho sem esses campos. As
-    # guardas do modelo não mudam; cada flag liga o botão dedicado.
-    dedicated = {EventType.VALIDACAO_APREENSAO.value, EventType.RESTITUICAO.value}
+    # Atos com formulário PRÓPRIO (modal da ocorrência): a VALIDAÇÃO e o
+    # DESPACHO são atos certificados (quem/quando/justificação — CPP 178.º/6 e
+    # 154.º) e a RESTITUIÇÃO exige a identidade de quem recebeu (CPP 186.º —
+    # termo de entrega). Saem do select genérico para não existir um 2.º
+    # caminho sem esses campos. As guardas do modelo não mudam; cada flag liga
+    # o botão dedicado.
+    dedicated = {
+        EventType.VALIDACAO_APREENSAO.value,
+        EventType.DESPACHO_PERICIA.value,
+        EventType.RESTITUICAO.value,
+    }
     register_events = [(v, label) for v, label in valid_events if v not in dedicated]
     valid_values = {v for v, _ in valid_events}
     can_validate = EventType.VALIDACAO_APREENSAO.value in valid_values
+    can_despachar = EventType.DESPACHO_PERICIA.value in valid_values
     can_restitute = EventType.RESTITUICAO.value in valid_values
     return render(
         request,
@@ -2200,6 +2312,7 @@ def custody_timeline_view(request, evidence_id):
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             'valid_events': register_events,
             'can_validate': can_validate,
+            'can_despachar': can_despachar,
             'can_restitute': can_restitute,
             'custodian_types': CustodianType.choices,
             'institutions': _active_institutions(),

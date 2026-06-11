@@ -1,0 +1,21 @@
+{% extends 'form_page.html' %}
+
+{% block title %}{{ act.titulo }} — ForensiQ{% endblock %}
+
+{# Sem mapa nesta página (um ato jurídico não tem GPS — a prova não se move). #}
+{% block extra_css %}{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/occurrences/">Ocorrências</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a href="/occurrences/{{ occ.id }}/" class="mono">{{ occ.code|default:occ.number }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">{{ act.titulo }}</span>
+{% endblock %}
+
+{% block form_title %}{{ act.titulo }}{% endblock %}
+{% block form_subtitle %}
+      <p class="detail__sub">{{ occ.code|default:occ.number }} — {{ act.page_sub }}</p>
+{% endblock %}
+
+{% block form_body %}{% include 'partials/_ato_form.html' %}{% endblock %}

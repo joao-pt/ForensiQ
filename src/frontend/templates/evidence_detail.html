@@ -30,6 +30,14 @@
         Validar apreensão
       </a>
       {% endif %}
+      {% if can_despachar %}
+      {# Idem: o despacho é ato certificado (quem/quando — CPP 154.º). #}
+      <a class="btn-ghost" href="/occurrences/{{ ev.occurrence_id }}/despachar/"
+         data-modal-open data-modal-title="Despacho para perícia">
+        {% include 'partials/icons/_file.html' %}
+        Despacho p/ perícia
+      </a>
+      {% endif %}
       {% if can_restitute %}
       {# Idem: a restituição exige a identidade do recetor (CPP 186.º — termo de entrega). #}
       <a class="btn-ghost" href="/occurrences/{{ ev.occurrence_id }}/restituir/"

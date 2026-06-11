@@ -13,6 +13,7 @@ from rest_framework import serializers
 
 from . import access, evidence_type_config
 from .models import (
+    CERTIFIED_ACT_EVENTS,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -513,6 +514,19 @@ class EvidenceSerializer(serializers.ModelSerializer):
 # ChainOfCustody
 # ---------------------------------------------------------------------------
 
+# Mensagem de recusa por ato certificado em falta (eixo do evento — o conjunto
+# vive na policy, CERTIFIED_ACT_EVENTS): cada ato identifica QUEM o proferiu.
+_CERTIFIED_ACT_REQUIRED = {
+    EventType.VALIDACAO_APREENSAO: (
+        'A validação da apreensão exige a identificação de quem a '
+        'proferiu (autoridade judiciária) nas observações.'
+    ),
+    EventType.DESPACHO_PERICIA: (
+        'O despacho para perícia exige a identificação de quem o '
+        'proferiu (autoridade) nas observações.'
+    ),
+}
+
 
 class ChainOfCustodySerializer(serializers.ModelSerializer):
     """
@@ -625,21 +639,17 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
                     '(ADR-0017): só o custódio atual, um membro da instituição que o '
                     'detém, o perito ou a autoridade do caso.'
                 )
-        # Certificação do ato de validação (CPP art. 178.º/6): o evento tem de
-        # identificar quem validou (texto em observations, que entra na fórmula
-        # do hash). Fecha na FRONTEIRA de escrita externa (UI + API usam este
-        # serializer) o caminho do evento "nu" — o modal constrói o texto a
-        # partir dos campos obrigatórios.
-        if attrs.get('event_type') == EventType.VALIDACAO_APREENSAO and not (
+        # Certificação dos ATOS de autoridade (validação da apreensão + despacho
+        # para perícia — conjunto único na policy, CERTIFIED_ACT_EVENTS): o
+        # evento tem de identificar quem o proferiu (texto em observations, que
+        # entra na fórmula do hash). Fecha na FRONTEIRA de escrita externa
+        # (UI + API usam este serializer) o caminho do evento "nu" — o modal
+        # constrói o texto a partir dos campos obrigatórios.
+        if attrs.get('event_type') in CERTIFIED_ACT_EVENTS and not (
             attrs.get('observations') or ''
         ).strip():
             raise serializers.ValidationError(
-                {
-                    'observations': (
-                        'A validação da apreensão exige a identificação de quem a '
-                        'proferiu (autoridade judiciária) nas observações.'
-                    )
-                }
+                {'observations': _CERTIFIED_ACT_REQUIRED[attrs['event_type']]}
             )
         return attrs
 
