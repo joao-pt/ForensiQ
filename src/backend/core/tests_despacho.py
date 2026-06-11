@@ -11,6 +11,7 @@ o despacho é repetível (2.ª perícia — Art. 158.º).
 """
 
 from datetime import timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -339,6 +340,102 @@ class DespachoBadgeTest(TestCase):
         body = self._get(f'/occurrences/{self.occ.id}/despachar/?modal=1').content.decode()
         self.assertIn(f'value="{self.ev_desp.id}" >', body)
         self.assertIn(f'value="{self.ev_val.id}" checked>', body)
+
+
+class PericiaPrazoTest(TestCase):
+    """Prazo da perícia (data-limite DERIVADA do despacho: data declarada +
+    prazo em dias, hv4 — nunca guardada): badge junto ao «Com despacho
+    judicial» no detalhe/timeline/tabela de itens, data-limite na linha do
+    evento, marcadores por linha nas grelhas e alertas re-deriváveis no
+    painel (?attn=pericia / ?attn=pericia_due — padrão dos prazos de 72h)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(name='PSP Prz', type=InstitutionType.OPC, sigla='PSP-PZ')
+        cls.agent = _user('prz_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+
+        def _despachado(occ):
+            ev = _evidence(occ, cls.agent)
+            _event(ev, cls.agent, inst=cls.opc)
+            _event(ev, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+            _event(ev, cls.agent, event_type=EventType.DESPACHO_PERICIA, inst=cls.opc)
+            return ev
+
+        # Despacho RECENTE (prazo canónico 30d) → em prazo (sem alerta).
+        cls.occ_ok = _occ(cls.agent, 'PRZ-OK')
+        cls.ev_ok = _despachado(cls.occ_ok)
+        # Despacho há 40 dias (prazo 30) → VENCIDA. Retrodatar = freeze-time
+        # (os triggers PG de imutabilidade impedem retrodatar por UPDATE).
+        cls.occ_late = _occ(cls.agent, 'PRZ-LT')
+        with mock.patch(
+            'core.models.timezone.now',
+            return_value=timezone.now() - timedelta(days=40),
+        ):
+            cls.ev_late = _despachado(cls.occ_late)
+        # Despacho há 26 dias (prazo 30) → data-limite daqui a ~4d: A VENCER.
+        cls.occ_due = _occ(cls.agent, 'PRZ-DU')
+        with mock.patch(
+            'core.models.timezone.now',
+            return_value=timezone.now() - timedelta(days=26),
+        ):
+            cls.ev_due = _despachado(cls.occ_due)
+
+    def _get(self, url):
+        auth_cookie(self.client, self.agent)
+        return self.client.get(url)
+
+    def test_detalhe_em_prazo_mostra_data_limite(self):
+        body = self._get(f'/evidences/{self.ev_ok.id}/').content.decode()
+        self.assertIn('Com despacho judicial', body)
+        self.assertIn('Perícia até', body)
+
+    def test_detalhe_prazo_vencido(self):
+        body = self._get(f'/evidences/{self.ev_late.id}/').content.decode()
+        self.assertIn('Prazo da perícia vencido', body)
+
+    def test_detalhe_a_vencer_indica_urgencia(self):
+        body = self._get(f'/evidences/{self.ev_due.id}/').content.decode()
+        self.assertIn('Perícia até', body)
+        self.assertIn('— vence', body)      # sufixo próprio do estatuto a_vencer
+
+    def test_timeline_mostra_badge_e_data_limite_no_evento(self):
+        body = self._get(f'/evidences/{self.ev_ok.id}/custody/').content.decode()
+        self.assertIn('Perícia até', body)                  # badge no subtítulo
+        self.assertIn('— até ', body)                       # linha do evento (prazo: N dias — até …)
+
+    def test_tabela_de_itens_mostra_o_prazo(self):
+        body = self._get(f'/occurrences/{self.occ_late.id}/').content.decode()
+        self.assertIn('Prazo da perícia vencido', body)
+
+    def test_dashboard_alerta_prazos_vencidos_e_a_vencer(self):
+        body = self._get('/dashboard/').content.decode()
+        self.assertIn('prazos de perícia vencidos', body)
+        self.assertIn('href="?attn=pericia"', body)
+        self.assertIn('href="?attn=pericia_due"', body)
+
+    def test_attn_pericia_filtra_tabela_local(self):
+        body = self._get('/dashboard/?attn=pericia').content.decode()
+        self.assertIn(self.occ_late.number, body)
+        self.assertNotIn(self.occ_ok.number, body)
+        self.assertNotIn(self.occ_due.number, body)
+
+    def test_attn_pericia_due_filtra_tabela_local(self):
+        body = self._get('/dashboard/?attn=pericia_due').content.decode()
+        self.assertIn(self.occ_due.number, body)
+        self.assertNotIn(self.occ_late.number, body)
+
+    def test_grelha_ocorrencias_marca_prazos_em_atencao(self):
+        """Marcador por linha SÓ nos processos com prazo vencido/a vencer (os
+        itens estão todos validados — sem pontos do eixo da validação)."""
+        body = self._get('/occurrences/').content.decode()
+        self.assertEqual(body.count('val-flag'), 2)         # occ_late + occ_due
+        self.assertIn('1 prazo(s) de perícia vencido(s)', body)
+        self.assertIn('1 prazo(s) de perícia a vencer', body)
+
+    def test_grelha_evidencias_marca_itens_em_atencao(self):
+        body = self._get('/evidences/').content.decode()
+        self.assertEqual(body.count('val-flag'), 2)         # ev_late + ev_due
 
 
 class DespachoAPITest(BaseAPITestCase):

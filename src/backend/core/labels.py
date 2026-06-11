@@ -74,3 +74,18 @@ VALIDATION_STATUS_CSS = {
 # perícia foi ordenada por autoridade judiciária, daí 'info' e não 'ok'/'warn'.
 DESPACHO_BADGE_LABEL = 'Com despacho judicial'
 DESPACHO_BADGE_CSS = 'info'
+
+# Rótulo + cor do PRAZO da perícia ordenada (data-limite derivada do despacho:
+# core.policy.event_states.pericia_deadline). ``{due}`` é a data-limite
+# (YYYY-MM-DD) e ``{rel}`` a urgência relativa («hoje»/«amanhã»/«em N dias») —
+# formatados em frontend_views._pericia_badge (fonte única do format).
+PERICIA_DEADLINE_LABELS = {
+    'em_prazo': 'Perícia até {due}',
+    'a_vencer': 'Perícia até {due} — vence {rel}',
+    'vencida': 'Prazo da perícia vencido ({due})',
+}
+PERICIA_DEADLINE_CSS = {
+    'em_prazo': 'info',     # informação: a perícia está ordenada e no prazo
+    'a_vencer': 'warn',     # atenção: a data-limite aproxima-se
+    'vencida': 'danger',
+}

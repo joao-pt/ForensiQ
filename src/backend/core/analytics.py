@@ -37,6 +37,7 @@ from .policy.event_states import (
     VALIDATION_DEADLINE,
     EventType,
     derive_legal_state,
+    pericia_deadline,
     validation_status,
 )
 
@@ -103,6 +104,28 @@ def validation_statuses_by_evidence(custody_qs, now=None):
     for rec in qs:
         eventos.setdefault(rec.evidence_id, []).append(rec)
     return {ev_id: validation_status(evs, now) for ev_id, evs in eventos.items()}
+
+
+def pericia_deadlines_by_evidence(custody_qs, now=None):
+    """Prazo da perícia ordenada por evidência (data-limite + estatuto, derivados
+    do último despacho — CPP art. 154.º; hv4), em LOTE: agrupa o ledger visível
+    por ``evidence_id`` numa só passagem e aplica a função pura
+    :func:`pericia_deadline` uma vez por item. Espelho de
+    :func:`validation_statuses_by_evidence` para o eixo do despacho — nenhuma
+    camada re-implementa o agrupamento. ``None`` = não aplicável."""
+    now = now or timezone.now()
+    qs = (
+        custody_qs.select_related(None)
+        .order_by('evidence_id', 'sequence')
+        .only(
+            'evidence_id', 'event_type', 'sequence', 'timestamp',
+            'act_declared_at', 'act_deadline_days',
+        )
+    )
+    eventos = {}
+    for rec in qs:
+        eventos.setdefault(rec.evidence_id, []).append(rec)
+    return {ev_id: pericia_deadline(evs, now) for ev_id, evs in eventos.items()}
 
 
 def state_counts(states_by_ev):
@@ -235,17 +258,21 @@ def custody_dwell(cus_qs, now=None):
 
 
 def aging_sla(evd_qs, cus_qs, now=None):
-    """Prazos & atenção: validações de apreensão em atraso e prova em trânsito.
+    """Prazos & atenção: validações em atraso, prova em trânsito e prazos de perícia.
 
     - **Validações em atraso**: itens com génese de APREENSÃO há mais de 72h
       (``VALIDATION_DEADLINE``, CPP art. 178.º/6) SEM evento de validação no ledger.
     - **Em trânsito por receber**: ``ProvaEmTransito`` (handoff em dois tempos) por
       confirmar, restringido ao universo de itens visível, e a paragem mais antiga.
+    - **Prazos de perícia**: itens com despacho cuja data-limite (data declarada
+      + prazo em dias, hv4 — :func:`pericia_deadlines_by_evidence`) já venceu
+      ou vence em ≤ ``PERICIA_DEADLINE_WARNING_DAYS`` dias sem CONCLUSAO_PERICIA.
 
     Devolve também os IDS de evidência de cada conjunto (``overdue_ids``/
-    ``transit_ids``): os números do painel têm de ser RE-DERIVÁVEIS — quem
-    clica num prazo vê exatamente os itens que o contam, não um conjunto
-    parecido (princípio de re-verificabilidade).
+    ``transit_ids``/``pericia_overdue_ids``/``pericia_due_ids``): os números do
+    painel têm de ser RE-DERIVÁVEIS — quem clica num prazo vê exatamente os
+    itens que o contam, não um conjunto parecido (princípio de
+    re-verificabilidade).
     """
     now = now or timezone.now()
     seized = set(
@@ -274,6 +301,16 @@ def aging_sla(evd_qs, cus_qs, now=None):
     transit_ids = set(in_transit.values_list('evidence_id', flat=True))
     oldest = in_transit.order_by('created_at').values_list('created_at', flat=True).first()
     oldest_h = round((now - oldest).total_seconds() / 3600, 1) if oldest else 0
+
+    # Prazo da perícia ordenada (despacho + dias, hv4) — mesma derivação em
+    # lote dos badges/marcadores, para o número do painel bater com as linhas.
+    deadlines = pericia_deadlines_by_evidence(cus_qs, now)
+    pericia_overdue_ids = {
+        ev for ev, d in deadlines.items() if d and d['status'] == 'vencida'
+    }
+    pericia_due_ids = {
+        ev for ev, d in deadlines.items() if d and d['status'] == 'a_vencer'
+    }
     return {
         'validations_overdue': len(overdue_ids),
         'overdue_ids': overdue_ids,
@@ -281,4 +318,9 @@ def aging_sla(evd_qs, cus_qs, now=None):
         'transit_ids': transit_ids,
         'oldest_transit_hours': oldest_h,
         'deadline_hours': settings.VALIDATION_DEADLINE_HOURS,
+        'pericias_overdue': len(pericia_overdue_ids),
+        'pericia_overdue_ids': pericia_overdue_ids,
+        'pericias_due': len(pericia_due_ids),
+        'pericia_due_ids': pericia_due_ids,
+        'pericia_warning_days': settings.PERICIA_DEADLINE_WARNING_DAYS,
     }

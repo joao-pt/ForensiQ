@@ -17,7 +17,7 @@ PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 
 import hashlib
 import unittest
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest import mock
 
@@ -42,8 +42,10 @@ from .models import (
     Occurrence,
     User,
     derive_legal_state,
+    pericia_due_date,
     validation_status,
 )
+from .policy.event_states import PERICIA_DEADLINE_WARNING_DAYS, pericia_deadline
 
 
 class UserModelTest(TestCase):
@@ -547,11 +549,15 @@ class DeriveLegalStateTest(TestCase):
 
 
 class _RegStub:
-    """Registo mínimo para testar funções PURAS da policy (event_type+timestamp)."""
+    """Registo mínimo para testar funções PURAS da policy (event_type+timestamp;
+    campos do ato certificado hv4 opcionais, para o eixo do prazo da perícia)."""
 
-    def __init__(self, event_type, timestamp=None):
+    def __init__(self, event_type, timestamp=None, act_declared_at=None,
+                 act_deadline_days=None):
         self.event_type = event_type
         self.timestamp = timestamp
+        self.act_declared_at = act_declared_at
+        self.act_deadline_days = act_deadline_days
 
 
 class ValidationStatusTest(TestCase):
@@ -606,6 +612,110 @@ class ValidationStatusTest(TestCase):
             _RegStub(EventType.RESTITUICAO, self.now - timedelta(days=1)),
         ]
         self.assertEqual(validation_status(eventos, self.now), 'validada')
+
+
+class PericiaDeadlineTest(TestCase):
+    """Prazo da perícia ordenada por despacho (CPP art. 154.º; hv4) — estatuto
+    DERIVADO do ledger, como a validação: vale o prazo do ÚLTIMO despacho sem
+    CONCLUSAO_PERICIA posterior; a disposição final extingue a exigência."""
+
+    def setUp(self):
+        # Instante FIXO (meio-dia, sem transição DST de Europe/Lisbon nas
+        # janelas usadas): a contagem é por dias de calendário no fuso ativo
+        # e um "agora" corrente tornava os testes dependentes da hora de execução.
+        self.now = datetime(2026, 6, 15, 12, 0, tzinfo=UTC)
+
+    def _despacho(self, declared_age, prazo_dias):
+        return _RegStub(
+            EventType.DESPACHO_PERICIA,
+            timestamp=self.now - declared_age,
+            act_declared_at=self.now - declared_age,
+            act_deadline_days=prazo_dias,
+        )
+
+    def test_sem_despacho_nao_aplicavel(self):
+        eventos = [_RegStub(EventType.APREENSAO_OBJETO, self.now)]
+        self.assertIsNone(pericia_deadline(eventos, self.now))
+        self.assertIsNone(pericia_deadline([], self.now))
+
+    def test_em_prazo(self):
+        eventos = [self._despacho(timedelta(days=1), 30)]
+        pd = pericia_deadline(eventos, self.now)
+        self.assertEqual(pd['status'], 'em_prazo')
+        self.assertEqual(pd['days_left'], 29)
+        self.assertEqual(pd['due'], eventos[0].act_declared_at + timedelta(days=30))
+
+    def test_a_vencer_dentro_da_antecedencia(self):
+        # Data-limite exatamente no fim da janela de aviso.
+        eventos = [self._despacho(timedelta(days=0), PERICIA_DEADLINE_WARNING_DAYS)]
+        pd = pericia_deadline(eventos, self.now)
+        self.assertEqual(pd['status'], 'a_vencer')
+        self.assertEqual(pd['days_left'], PERICIA_DEADLINE_WARNING_DAYS)
+
+    def test_vence_no_fim_do_dia_da_data_limite(self):
+        # O prazo conta-se em DIAS de calendário: no próprio dia da data-limite
+        # ainda está "a vencer" (vence HOJE), não vencido.
+        eventos = [self._despacho(timedelta(days=10), 10)]
+        pd = pericia_deadline(eventos, self.now)
+        self.assertEqual(pd['status'], 'a_vencer')
+        self.assertEqual(pd['days_left'], 0)
+
+    def test_vencida(self):
+        eventos = [self._despacho(timedelta(days=40), 30)]
+        pd = pericia_deadline(eventos, self.now)
+        self.assertEqual(pd['status'], 'vencida')
+        self.assertEqual(pd['days_left'], -10)
+
+    def test_conclusao_posterior_cumpre_o_despacho(self):
+        eventos = [
+            self._despacho(timedelta(days=40), 30),
+            _RegStub(EventType.INICIO_PERICIA, self.now - timedelta(days=35)),
+            _RegStub(EventType.CONCLUSAO_PERICIA, self.now - timedelta(days=33)),
+        ]
+        self.assertIsNone(pericia_deadline(eventos, self.now))
+
+    def test_segundo_despacho_reabre_o_prazo(self):
+        # Vários despachos (Art. 158.º): a conclusão cumpre o 1.º; o 2.º
+        # despacho abre prazo novo — vale o do ÚLTIMO.
+        eventos = [
+            self._despacho(timedelta(days=40), 30),
+            _RegStub(EventType.CONCLUSAO_PERICIA, self.now - timedelta(days=33)),
+            self._despacho(timedelta(days=2), 15),
+        ]
+        pd = pericia_deadline(eventos, self.now)
+        self.assertEqual(pd['status'], 'em_prazo')
+        self.assertEqual(pd['days_left'], 13)
+
+    def test_disposicao_final_extingue_exigencia(self):
+        eventos = [
+            self._despacho(timedelta(days=40), 30),
+            _RegStub(EventType.PERDA_FAVOR_ESTADO, self.now - timedelta(days=1)),
+        ]
+        self.assertIsNone(pericia_deadline(eventos, self.now))
+
+    def test_despacho_sem_prazo_estruturado_nao_deriva(self):
+        # Evento pré-hv4 (sem act_deadline_days): sem data-limite derivável.
+        eventos = [_RegStub(EventType.DESPACHO_PERICIA, self.now - timedelta(days=40))]
+        self.assertIsNone(pericia_deadline(eventos, self.now))
+
+    def test_due_date_usa_a_data_declarada_com_fallback_ao_timestamp(self):
+        # A data juridicamente relevante é a DECLARADA (hv4); o timestamp do
+        # servidor é o fallback (mesmo critério da flag validation_overdue).
+        declarado = self._despacho(timedelta(days=3), 10)
+        declarado.timestamp = self.now      # registo posterior ao ato
+        self.assertEqual(
+            pericia_due_date(declarado),
+            declarado.act_declared_at + timedelta(days=10),
+        )
+        sem_declarada = _RegStub(
+            EventType.DESPACHO_PERICIA,
+            timestamp=self.now - timedelta(days=3),
+            act_deadline_days=10,
+        )
+        self.assertEqual(
+            pericia_due_date(sem_declarada),
+            sem_declarada.timestamp + timedelta(days=10),
+        )
 
 
 class CustodyHashFormulaTest(TestCase):

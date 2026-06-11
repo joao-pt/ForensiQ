@@ -250,6 +250,10 @@ GPS_ACCURACY_FLAG_M = int(os.environ.get('GPS_ACCURACY_FLAG_M', 50))
 # Prazo legal de validação da apreensão (CPP Art. 178.º/6). Só assinala a flag
 # validation_overdue (nunca bloqueia). Externalizado para revisão de compliance.
 VALIDATION_DEADLINE_HOURS = int(os.environ.get('VALIDATION_DEADLINE_HOURS', 72))
+# Antecedência (dias) com que a data-limite da perícia (despacho + prazo, hv4)
+# passa a "a vencer" nos alertas. Parâmetro operacional, não regra legal — o
+# prazo em si é o fixado em cada despacho.
+PERICIA_DEADLINE_WARNING_DAYS = int(os.environ.get('PERICIA_DEADLINE_WARNING_DAYS', 7))
 # Limite de tamanho de upload de imagem (OWASP — proteção DoS). Externalizado
 # para afinação por operador sem alterar código (default 25 MB).
 MAX_IMAGE_UPLOAD_BYTES = int(os.environ.get('MAX_IMAGE_UPLOAD_BYTES', 25 * 1024 * 1024))

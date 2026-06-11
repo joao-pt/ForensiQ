@@ -22,6 +22,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 # Prazo legal de validação da apreensão (CPP art. 178.º/6; default 72h via
 # settings) — fonte ÚNICA da regra processual (auditoria D50): o ledger
@@ -304,3 +305,79 @@ VALIDATION_STATUSES = frozenset({'validada', 'em_atraso', 'por_validar'})
 # Estatutos que representam TRABALHO PENDENTE de validação — alimentam o tile
 # do painel, os marcadores por linha das grelhas e o botão da ocorrência.
 VALIDATION_PENDING_STATUSES = frozenset({'por_validar', 'em_atraso'})
+
+
+# Antecedência (dias) com que a data-limite da perícia passa a "a vencer" —
+# parâmetro operacional (settings, env override), não regra legal: o prazo em
+# si é o fixado em cada despacho (``act_deadline_days``, hv4).
+PERICIA_DEADLINE_WARNING_DAYS = settings.PERICIA_DEADLINE_WARNING_DAYS
+
+
+def pericia_due_date(despacho):
+    """Data-limite da perícia derivada de UM evento de despacho (hv4).
+
+    Fonte única da fórmula «data declarada do ato + prazo em dias» — a
+    data juridicamente relevante é a DECLARADA pela autoridade
+    (``act_declared_at``); o timestamp do servidor fica como fallback
+    (mesmo critério da flag ``validation_overdue``). ``None`` sem prazo
+    estruturado (eventos pré-hv4)."""
+    if not despacho.act_deadline_days:
+        return None
+    base = despacho.act_declared_at or despacho.timestamp
+    if base is None:
+        return None
+    return base + timedelta(days=despacho.act_deadline_days)
+
+
+def pericia_deadline(eventos_ordenados, now):
+    """Prazo da perícia ordenada por despacho — eixo derivado do ledger.
+
+    O despacho fixa um prazo em dias para a CONCLUSÃO da perícia (CPP art.
+    154.º; ``act_deadline_days``, hv4). Como a validação, é um estatuto
+    derivado, nunca guardado: recebe os registos ``ChainOfCustody`` ordenados
+    por sequence e o instante de referência ``now`` (função pura) e devolve
+    ``None`` ou ``{'due': datetime, 'status': str, 'days_left': int}``.
+
+    - ``None`` — não aplicável: sem despacho, prazo já CUMPRIDO (existe
+      CONCLUSAO_PERICIA posterior ao último despacho — vários despachos são
+      possíveis, Art. 158.º: vale o prazo do ÚLTIMO), exigência extinta por
+      disposição final (``DISPOSAL_EVENTS``), ou despacho sem prazo
+      estruturado (pré-hv4);
+    - ``status`` — ``'vencida'`` (a data-limite já passou), ``'a_vencer'``
+      (faltam ≤ ``PERICIA_DEADLINE_WARNING_DAYS`` dias) ou ``'em_prazo'``.
+
+    O prazo conta-se em DIAS de calendário no fuso ativo: vence no FIM do dia
+    da data-limite (comparação por data, não por instante), coerente com a
+    contagem processual de prazos em dias e com a data mostrada nos badges.
+    ``days_left`` é a diferença em dias (negativa quando vencida).
+    """
+    despacho = None
+    fulfilled = False
+    for r in eventos_ordenados:
+        if r.event_type == EventType.DESPACHO_PERICIA:
+            despacho, fulfilled = r, False
+        elif r.event_type == EventType.CONCLUSAO_PERICIA:
+            fulfilled = True
+        elif r.event_type in DISPOSAL_EVENTS:
+            return None
+    if despacho is None or fulfilled:
+        return None
+    due = pericia_due_date(despacho)
+    if due is None:
+        return None
+    days_left = (timezone.localtime(due).date() - timezone.localtime(now).date()).days
+    if days_left < 0:
+        status = 'vencida'
+    elif days_left <= PERICIA_DEADLINE_WARNING_DAYS:
+        status = 'a_vencer'
+    else:
+        status = 'em_prazo'
+    return {'due': due, 'status': status, 'days_left': days_left}
+
+
+# Conjunto canónico dos estatutos do prazo da perícia (sem o ``None``).
+PERICIA_DEADLINE_STATUSES = frozenset({'em_prazo', 'a_vencer', 'vencida'})
+
+# Estatutos que pedem ATENÇÃO do utilizador — alimentam os marcadores por
+# linha das grelhas e as linhas de "Prazos & atenção" (painel e /stats/).
+PERICIA_ATTENTION_STATUSES = frozenset({'a_vencer', 'vencida'})

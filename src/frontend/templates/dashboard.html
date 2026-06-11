@@ -45,6 +45,32 @@
               <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
             </div>
             {% endif %}
+            {% if sla.pericias_overdue %}
+            <a class="attn-row attn-row--hot{% if attn_filter.key == 'pericia' %} attn-row--active{% endif %}"
+               href="?attn=pericia" title="Filtrar a tabela pelas ocorrências com prazos de perícia vencidos"
+               {% if attn_filter.key == 'pericia' %}aria-current="true"{% endif %}>
+              <span class="attn-row__num">{{ sla.pericias_overdue }}</span>
+              <span class="attn-row__label">prazos de perícia vencidos</span>
+            </a>
+            {% else %}
+            <div class="attn-row">
+              <span class="attn-row__num">0</span>
+              <span class="attn-row__label">prazos de perícia vencidos</span>
+            </div>
+            {% endif %}
+            {% if sla.pericias_due %}
+            <a class="attn-row attn-row--warn{% if attn_filter.key == 'pericia_due' %} attn-row--active{% endif %}"
+               href="?attn=pericia_due" title="Filtrar a tabela pelas ocorrências com perícias a vencer"
+               {% if attn_filter.key == 'pericia_due' %}aria-current="true"{% endif %}>
+              <span class="attn-row__num">{{ sla.pericias_due }}</span>
+              <span class="attn-row__label">perícias a vencer em ≤{{ sla.pericia_warning_days }} dias</span>
+            </a>
+            {% else %}
+            <div class="attn-row">
+              <span class="attn-row__num">0</span>
+              <span class="attn-row__label">perícias a vencer em ≤{{ sla.pericia_warning_days }} dias</span>
+            </div>
+            {% endif %}
             {% if sla.in_transit %}
             <a class="attn-row attn-row--warn{% if attn_filter.key == 'transit' %} attn-row--active{% endif %}"
                href="?attn=transit" title="Filtrar a tabela pelas ocorrências com prova por receber"

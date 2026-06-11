@@ -46,12 +46,15 @@ from core.labels import (
     DESPACHO_BADGE_LABEL,
     LEGAL_STATE_CSS,
     LEGAL_STATE_LABELS,
+    PERICIA_DEADLINE_CSS,
+    PERICIA_DEADLINE_LABELS,
     VALIDATION_STATUS_CSS,
     VALIDATION_STATUS_LABELS,
 )
 from core.list_filters import ColFilter
 from core.models import (
     GENESIS_EVENTS,
+    PERICIA_ATTENTION_STATUSES,
     SEIZURE_GENESIS_EVENTS,
     STATES_AT_OR_PAST_LAB,
     TERMINAL_LEGAL_STATES,
@@ -68,12 +71,14 @@ from core.models import (
     Occurrence,
     Portador,
     ReceiverDocType,
+    pericia_due_date,
 )
 from core.policy import custody_transitions
 from core.utils import (
     get_user_display_name,
     has_despacho,
     legal_state_of,
+    pericia_deadline_of,
     sort_custody_chain,
     validation_status_of,
 )
@@ -203,18 +208,25 @@ URGENCY_LEGEND_EVIDENCE = (
 
 
 def _decorate_occurrences_validation(occurrences):
-    """Anota ``occ.val_dot`` quando a ocorrência tem itens com VALIDAÇÃO pendente
-    (síntese por processo do eixo de validação — CPP art. 178.º/6): âmbar =
-    por validar no prazo, vermelho = há item em atraso. Bulk (1 query do ledger
-    + 1 do mapa item→processo) via fonte única ``core.analytics``."""
+    """Anota ``occ.val_dot`` e ``occ.pericia_dot`` quando a ocorrência tem itens
+    com trabalho pendente nos eixos dos ATOS (síntese por processo):
+
+    - validação da apreensão (CPP art. 178.º/6) — âmbar = por validar no
+      prazo, vermelho = há item em atraso;
+    - prazo da perícia ordenada (despacho + dias, hv4) — âmbar = data-limite
+      a vencer, vermelho = há prazo vencido.
+
+    Bulk (2 passagens do ledger + 1 do mapa item→processo) via fonte única
+    ``core.analytics``."""
     ids = [o.id for o in occurrences]
     for o in occurrences:
         o.val_dot = None
+        o.pericia_dot = None
     if not ids:
         return
-    statuses = analytics.validation_statuses_by_evidence(
-        ChainOfCustody.objects.filter(evidence__occurrence_id__in=ids)
-    )
+    ledger = ChainOfCustody.objects.filter(evidence__occurrence_id__in=ids)
+    statuses = analytics.validation_statuses_by_evidence(ledger)
+    deadlines = analytics.pericia_deadlines_by_evidence(ledger)
     occ_by_ev = dict(
         Evidence.objects.filter(occurrence_id__in=ids).values_list('id', 'occurrence_id')
     )
@@ -224,6 +236,12 @@ def _decorate_occurrences_validation(occurrences):
             d = pend.setdefault(occ_by_ev.get(ev_id), {'n': 0, 'late': False})
             d['n'] += 1
             d['late'] = d['late'] or vs == 'em_atraso'
+    prazo = {}
+    for ev_id, pd in deadlines.items():
+        if pd and pd['status'] in PERICIA_ATTENTION_STATUSES:
+            d = prazo.setdefault(occ_by_ev.get(ev_id), {'n': 0, 'late': False})
+            d['n'] += 1
+            d['late'] = d['late'] or pd['status'] == 'vencida'
     for o in occurrences:
         d = pend.get(o.id)
         if d:
@@ -232,6 +250,15 @@ def _decorate_occurrences_validation(occurrences):
                 'title': (
                     f"{d['n']} item(ns) a aguardar validação"
                     + (' — em atraso' if d['late'] else '')
+                ),
+            }
+        d = prazo.get(o.id)
+        if d:
+            o.pericia_dot = {
+                'cls': 'danger' if d['late'] else 'warn',
+                'title': (
+                    f"{d['n']} prazo(s) de perícia "
+                    + ('vencido(s)' if d['late'] else 'a vencer')
                 ),
             }
 
@@ -383,6 +410,39 @@ def _evidence_state(evidence):
     return (LEGAL_STATE_LABELS.get(st, st), LEGAL_STATE_CSS.get(st, 'muted'))
 
 
+def _pericia_rel(days_left):
+    """Urgência relativa da data-limite («hoje»/«amanhã»/«em N dias») — preenche
+    o ``{rel}`` de PERICIA_DEADLINE_LABELS."""
+    if days_left <= 0:
+        return 'hoje'
+    if days_left == 1:
+        return 'amanhã'
+    return f'em {days_left} dias'
+
+
+def _pericia_badge(pd):
+    """Badge do prazo da perícia a partir da derivação da policy
+    (:func:`core.utils.pericia_deadline_of` / bulk de ``core.analytics``).
+    Fonte única do format dos rótulos PERICIA_DEADLINE_LABELS (data-limite no
+    fuso ativo + urgência relativa). ``None`` → sem badge."""
+    if not pd:
+        return None
+    status = pd['status']
+    label = PERICIA_DEADLINE_LABELS[status].format(
+        due=timezone.localtime(pd['due']).strftime('%Y-%m-%d'),
+        rel=_pericia_rel(pd['days_left']),
+    )
+    return {'css': PERICIA_DEADLINE_CSS[status], 'label': label, 'status': status}
+
+
+def _pericia_dot(badge):
+    """Marcador compacto por linha do prazo da perícia — SÓ quando o estatuto
+    pede atenção (a vencer/vencida), como os pontos de validação pendente."""
+    if not badge or badge['status'] not in PERICIA_ATTENTION_STATUSES:
+        return None
+    return {'cls': badge['css'], 'title': badge['label']}
+
+
 def _decorate_evidences(evidences):
     # labels() uma vez (evita N+1 com o choices-callable de Evidence.type — ADR-0018).
     type_labels = evidence_type_config.labels()
@@ -413,6 +473,10 @@ def _decorate_evidences(evidences):
             {'css': DESPACHO_BADGE_CSS, 'label': DESPACHO_BADGE_LABEL}
             if has_despacho(e) else None
         )
+        # Prazo da perícia ordenada (data-limite derivada do despacho, hv4):
+        # badge junto ao do despacho; marcador por linha SÓ quando pede atenção.
+        e.pericia_badge = _pericia_badge(pericia_deadline_of(e))
+        e.pericia_dot = _pericia_dot(e.pericia_badge)
         e.aria_code = e.code or 'item de prova'
         e.detail_url = f'/evidences/{e.id}/'     # destino da linha/célula-código
         # marca/modelo são campos transversais em type_specific_data (JSON, ADR-0018);
@@ -834,6 +898,8 @@ def _attn_scope(request, occ_qs, sla, pending_ids):
         'overdue': ('validações em atraso', sla['overdue_ids']),
         'transit': ('em trânsito por receber', sla['transit_ids']),
         'pending': ('a aguardar validação', pending_ids),
+        'pericia': ('prazos de perícia vencidos', sla['pericia_overdue_ids']),
+        'pericia_due': ('perícias a vencer', sla['pericia_due_ids']),
     }
     attn_key = (request.GET.get('attn') or '').strip()
     if attn_key not in attn:
@@ -2126,6 +2192,9 @@ def _decorate_events(events):
         r.authority_label = (
             f'{r.authority_nome} ({r.authority_cargo})' if r.authority_nome else ''
         )
+        # Data-limite da perícia derivada do prazo do despacho (fonte única da
+        # fórmula na policy); None nos eventos sem prazo estruturado.
+        r.act_due = pericia_due_date(r)
 
 
 def _chain_points(events):
@@ -2512,14 +2581,15 @@ def _custody_states_memo(user, lens):
 
 def _decorate_custody_rows(events, states):
     """Decoração das linhas da lista de custódias: rótulos base + estado legal
-    do item (badge/bolinha mobile), marcador de validação pendente (eixo
-    próprio, bulk só na página) e destino da navegação (timeline ancorada)."""
+    do item (badge/bolinha mobile), marcadores de pendência dos ATOS (validação
+    + prazo da perícia; bulk só na página) e destino da navegação (timeline
+    ancorada)."""
     _decorate_events(events)
-    val_statuses = analytics.validation_statuses_by_evidence(
-        ChainOfCustody.objects.filter(
-            evidence_id__in={r.evidence_id for r in events}
-        )
+    page_ledger = ChainOfCustody.objects.filter(
+        evidence_id__in={r.evidence_id for r in events}
     )
+    val_statuses = analytics.validation_statuses_by_evidence(page_ledger)
+    deadlines = analytics.pericia_deadlines_by_evidence(page_ledger)
     for r in events:
         st = states.get(r.evidence_id)
         label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
@@ -2531,6 +2601,7 @@ def _decorate_custody_rows(events, states):
             {'cls': VALIDATION_STATUS_CSS[vs], 'title': VALIDATION_STATUS_LABELS[vs]}
             if vs in VALIDATION_PENDING_STATUSES else None
         )
+        r.pericia_dot = _pericia_dot(_pericia_badge(deadlines.get(r.evidence_id)))
         inst = r.custodian_institution
         r.institution_label = (inst.sigla or inst.name) if inst else '—'
         r.detail_url = _custody_anchor_url(r)   # destino da linha/célula-código

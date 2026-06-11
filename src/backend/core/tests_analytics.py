@@ -223,3 +223,61 @@ class LedgerAnalyticsTest(TestCase):
         self.assertEqual(flow['opened'], 1)                    # 1 ocorrência na janela
         self.assertEqual(flow['registered'], 3)                # 3 itens apreendidos
         self.assertEqual(flow['concluded'], 0)                 # nenhum terminal ainda
+
+    def _despachado(self, occ, sn, *, despacho_age, prazo_dias=30):
+        """Item validado e despachado há ``despacho_age`` (prazo em dias, hv4)."""
+        ev = self._ev(occ, sn, timezone.now() - despacho_age - timedelta(days=2))
+        self._save_at(ev, EventType.APREENSAO_OBJETO,
+                      timezone.now() - despacho_age - timedelta(days=2),
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev, EventType.VALIDACAO_APREENSAO,
+                      timezone.now() - despacho_age - timedelta(days=1),
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev, EventType.DESPACHO_PERICIA, timezone.now() - despacho_age,
+                      custodian_type=CustodianType.OPC, act_deadline_days=prazo_dias)
+        return ev
+
+    def test_pericia_deadlines_em_lote_e_sla(self):
+        """O eixo do prazo da perícia: o lote espelha a derivação individual
+        (fonte única) e o aging_sla devolve contagens re-deriváveis (ids)."""
+        from core.utils import pericia_deadline_of
+
+        now = timezone.now()
+        occ = self._occ('PD', now - timedelta(days=50))
+
+        # Despacho recente (prazo 30d) → em prazo (não conta para alertas).
+        ev_ok = self._despachado(occ, 'SN-PD-1', despacho_age=timedelta(days=2))
+        # Data-limite daqui a ~4 dias → a vencer (dentro da antecedência de 7).
+        ev_due = self._despachado(occ, 'SN-PD-2', despacho_age=timedelta(days=26))
+        # Data-limite há ~10 dias → vencida.
+        ev_late = self._despachado(occ, 'SN-PD-3', despacho_age=timedelta(days=40))
+        # Perícia CONCLUÍDA depois do despacho → exigência cumprida (None).
+        ev_done = self._despachado(occ, 'SN-PD-4', despacho_age=timedelta(days=40))
+        self._save_at(ev_done, EventType.TRANSFERENCIA_CUSTODIA,
+                      now - timedelta(days=38), custodian_type=CustodianType.LAB_PUBLICO,
+                      custodian_institution=self.lab)
+        self._save_at(ev_done, EventType.INICIO_PERICIA, now - timedelta(days=37),
+                      custodian_type=CustodianType.LAB_PUBLICO,
+                      custodian_institution=self.lab)
+        self._save_at(ev_done, EventType.CONCLUSAO_PERICIA, now - timedelta(days=35),
+                      custodian_type=CustodianType.LAB_PUBLICO,
+                      custodian_institution=self.lab)
+
+        deadlines = analytics.pericia_deadlines_by_evidence(
+            ChainOfCustody.objects.all(), now=now
+        )
+        self.assertEqual(deadlines[ev_ok.id]['status'], 'em_prazo')
+        self.assertEqual(deadlines[ev_due.id]['status'], 'a_vencer')
+        self.assertEqual(deadlines[ev_late.id]['status'], 'vencida')
+        self.assertIsNone(deadlines[ev_done.id])
+        for ev in (ev_ok, ev_due, ev_late, ev_done):
+            self.assertEqual(deadlines[ev.id], pericia_deadline_of(ev, now=now))
+
+        sla = analytics.aging_sla(
+            Evidence.objects.all(), ChainOfCustody.objects.all(), now=now
+        )
+        self.assertEqual(sla['pericias_overdue'], 1)
+        self.assertEqual(sla['pericia_overdue_ids'], {ev_late.id})
+        self.assertEqual(sla['pericias_due'], 1)
+        self.assertEqual(sla['pericia_due_ids'], {ev_due.id})
+        self.assertEqual(sla['pericia_warning_days'], 7)

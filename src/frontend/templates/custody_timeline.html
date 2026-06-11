@@ -24,7 +24,7 @@
   <header class="detail__head">
     <div>
       <h1 class="detail__title" id="ct-title">Cadeia de custódia</h1>
-      <p class="detail__sub"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span>{% if ev.validation_badge %} · <span class="state state--{{ ev.validation_badge.css }}">{{ ev.validation_badge.label }}</span>{% endif %}{% if ev.despacho_badge %} · <span class="state state--{{ ev.despacho_badge.css }}">{{ ev.despacho_badge.label }}</span>{% endif %}</p>
+      <p class="detail__sub"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span>{% if ev.validation_badge %} · <span class="state state--{{ ev.validation_badge.css }}">{{ ev.validation_badge.label }}</span>{% endif %}{% if ev.despacho_badge %} · <span class="state state--{{ ev.despacho_badge.css }}">{{ ev.despacho_badge.label }}</span>{% endif %}{% if ev.pericia_badge %} · <span class="state state--{{ ev.pericia_badge.css }}">{{ ev.pericia_badge.label }}</span>{% endif %}</p>
     </div>
     <div class="detail__actions">
       {% if can_validate %}

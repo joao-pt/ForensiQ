@@ -83,8 +83,8 @@
           <div class="facts__row"><dt>Validação</dt><dd><span class="state state--{{ ev.validation_badge.css }}">{{ ev.validation_badge.label }}</span></dd></div>
           {% endif %}
           {% if ev.despacho_badge %}
-          {# Facto do ledger: a perícia foi ordenada por AJ (CPP 154.º/158.º). #}
-          <div class="facts__row"><dt>Despacho</dt><dd><span class="state state--{{ ev.despacho_badge.css }}">{{ ev.despacho_badge.label }}</span></dd></div>
+          {# Facto do ledger: a perícia foi ordenada por AJ (CPP 154.º/158.º) — com a data-limite derivada do prazo do despacho enquanto a perícia não conclui. #}
+          <div class="facts__row"><dt>Despacho</dt><dd><span class="state state--{{ ev.despacho_badge.css }}">{{ ev.despacho_badge.label }}</span>{% if ev.pericia_badge %} <span class="state state--{{ ev.pericia_badge.css }}">{{ ev.pericia_badge.label }}</span>{% endif %}</dd></div>
           {% endif %}
           <div class="facts__row"><dt>Ocorrência</dt><dd class="mono"><a class="dd__full" href="/occurrences/{{ ev.occurrence_id }}/">{{ ev.occ_label }}</a></dd></div>
           {% if ev.parent_evidence %}

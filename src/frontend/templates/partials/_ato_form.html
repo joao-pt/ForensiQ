@@ -29,6 +29,7 @@
         {% if e.needs_validation and e.validation_badge %}<span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}
         {# Já despachado: selecioná-lo regista um NOVO despacho (2.ª perícia — Art. 158.º). #}
         {% if e.despacho_badge %}<span class="state state--{{ e.despacho_badge.css }}">{{ e.despacho_badge.label }}</span>{% endif %}
+        {% if e.pericia_badge %}<span class="state state--{{ e.pericia_badge.css }}">{{ e.pericia_badge.label }}</span>{% endif %}
         {% endif %}
       </label>
       {% endfor %}

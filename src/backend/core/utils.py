@@ -11,7 +11,11 @@ from __future__ import annotations
 from django.utils import timezone
 
 from core.policy.custody_transitions import despacho_done
-from core.policy.event_states import derive_legal_state, validation_status
+from core.policy.event_states import (
+    derive_legal_state,
+    pericia_deadline,
+    validation_status,
+)
 
 
 def get_user_display_name(user, default: str = 'sistema') -> str:
@@ -74,3 +78,15 @@ def has_despacho(evidence):
     da ordem). Derivado do ledger, nunca guardado.
     """
     return despacho_done([e.event_type for e in evidence.custody_chain.all()])
+
+
+def pericia_deadline_of(evidence, now=None):
+    """Prazo da perícia ordenada de UMA evidência (data-limite + estatuto,
+    derivados do último despacho — :func:`core.policy.event_states.pericia_deadline`).
+
+    Mesmo micro-fluxo de :func:`legal_state_of` (materializar → ordenar →
+    derivar; reaproveita o prefetch quando existe). ``None`` = não aplicável
+    (sem despacho, perícia concluída, ou exigência extinta pela disposição final).
+    """
+    eventos = sort_custody_chain(evidence.custody_chain.all())
+    return pericia_deadline(eventos, now or timezone.now())
