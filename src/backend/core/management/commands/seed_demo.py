@@ -897,7 +897,7 @@ class Command(BaseCommand):
         ])
 
     def _caso_04(self, w):
-        """CASO 4 — Lisboa · Corrupção (106, prioritário) Equipamento de rede → tribunal (ENCAMINHADA). Cartão RFID (folha) validado."""
+        """CASO 4 — Lisboa · Corrupção (106, prioritário) Equipamento de rede → tribunal (ENCAMINHADA). Cartão RFID (folha) validado, despacho com prazo VENCIDO."""
         now, inst, u, ipt = w.now, w.inst, w.u, w.ipt
         port, portadores = w.port, w.portadores
         c4 = self._occ(number='77/26.9TELSB', crime=106, agent=u['inspetor.pj.lsb'],
@@ -956,6 +956,12 @@ class Command(BaseCommand):
             self._g(EventType.VALIDACAO_APREENSAO, CustodianType.OPC, inst['PJ-LSB'],
                     u['mp.lsb1'], ipt('PJ-LSB'), cl.advance(hours=24),
                     custodian_user=u['inspetor.pj.lsb']),
+            # Despacho ANTIGO (≈32 dias) com prazo de 20 e prova nunca
+            # encaminhada → data-limite VENCIDA em aberto: alimenta de forma
+            # estável o alerta "prazos de perícia vencidos" (roadmap §3).
+            self._g(EventType.DESPACHO_PERICIA, CustodianType.OPC, inst['PJ-LSB'],
+                    u['mp.lsb1'], ipt('PJ-LSB'), cl.advance(hours=6),
+                    custodian_user=u['inspetor.pj.lsb'], prazo_dias=20),
         ])
 
     def _caso_05(self, w):
@@ -1214,8 +1220,9 @@ class Command(BaseCommand):
                     FARO_MARINA, cl.advance(minutes=30), acc=9, sealed=True, custodian_user=u['agente.gnr1']),
             self._g(EventType.VALIDACAO_APREENSAO, CustodianType.OPC, inst['GNR'], u['mp.cbr1'],
                     FARO_MARINA, cl.advance(hours=20), acc=9, custodian_user=u['agente.gnr1']),
-            # Prazo curto sobre um caso antigo: alimenta o alerta de data-limite
-            # vencida quando a derivação do prazo (roadmap §3) existir.
+            # Prazo curto mas CUMPRIDO (a conclusão chega ao 4.º dia): a
+            # data-limite extingue-se com a perícia concluída — o alerta de
+            # prazo vencido vive no caso 4 (cartão RFID nunca encaminhado).
             self._g(EventType.DESPACHO_PERICIA, CustodianType.OPC, inst['GNR'], u['mp.cbr1'],
                     FARO_MARINA, cl.advance(hours=6),
                     custodian_user=u['agente.gnr1'], prazo_dias=10),
