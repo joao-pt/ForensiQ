@@ -1,4 +1,4 @@
-{% comment %}JS de lista (fonte ÚNICA, CSP-safe, tudo estático): Leaflet + htmx + abrir linha/teclado e mapa do drawer (forensic-list) + resize de colunas + popover de data. O Leaflet vem AQUI (antes do forensic-list, que o usa) para que QUALQUER grelha/drawer o tenha sempre — mata a falha silenciosa de mapa por include esquecido. Carrega só estáticos GDPR-safe.{% endcomment %}
+{% comment %}JS de lista (fonte ÚNICA, CSP-safe, tudo estático): Leaflet + htmx + navegação de linha/teclado e mapas estáticos (forensic-list) + resize de colunas + popover de data. O Leaflet vem AQUI (antes do forensic-list, que o usa) para que QUALQUER grelha/mapa o tenha sempre — mata a falha silenciosa de mapa por include esquecido. Carrega só estáticos GDPR-safe.{% endcomment %}
 {% load static %}
 {% include '_leaflet_js.html' %}
 <script src="{% static 'vendor/htmx/htmx.min.js' %}"></script>

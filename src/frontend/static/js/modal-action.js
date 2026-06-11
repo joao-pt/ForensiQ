@@ -3,8 +3,8 @@
  *
  * Modelo de interação "ação-in-place" (Fase 7): ações de propósito único
  * (criar instituição, encaminhar prova, …) abrem num <dialog> central SOBRE a
- * página atual, sem trocar de janela — para o utilizador não se perder. É
- * distinto do drawer lateral (que serve para DETALHE read-only).
+ * página atual, sem trocar de janela — para o utilizador não se perder. O
+ * DETALHE read-only não tem painel próprio: as linhas navegam para a página.
  *
  * Fluxo (progressive enhancement sobre o HTMX):
  *   1. Um gatilho [data-modal-open] tem hx-get="…?modal=1" e

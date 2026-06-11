@@ -249,6 +249,7 @@ def _decorate_occurrences(occurrences):
         occ.crime_label = f'{ct.codigo} — {ct.descritivo}' if ct else '—'
         occ.agent_label = get_user_display_name(occ.agent)
         occ.aria_code = occ.code or occ.number   # rótulo da linha (fallback NUIPC)
+        occ.detail_url = f'/occurrences/{occ.id}/'  # destino da linha/célula-código
 
 
 # Ordenações expostas na UI → expressão de ORM (lista branca: impede injeção
@@ -309,7 +310,7 @@ def _active_portadores():
 def _readable(base_qs, pk, *predicates):
     """Objeto por ``pk`` se ALGUM dos predicados autorizar a leitura; ``None`` se
     não existe ou está fora de acesso — esqueleto único das portas de
-    detalhe/drawer por recurso (auditoria D2)."""
+    detalhe por recurso (auditoria D2)."""
     try:
         obj = base_qs.get(pk=pk)
     except (base_qs.model.DoesNotExist, ValueError, TypeError):
@@ -317,21 +318,16 @@ def _readable(base_qs, pk, *predicates):
     return obj if any(p(obj) for p in predicates) else None
 
 
-def _drawer_response(request, user, drawer_id, *, fetch, decorate, template, ctx_key, not_found):
-    """Fragmento HTMX do painel direito (detalhe Local) — esqueleto único dos
-    drawers por recurso (auditoria D2)."""
-    obj = fetch(user, drawer_id)
-    if obj is None:
-        return HttpResponseNotFound(not_found)
-    decorate([obj])
-    return render(request, template, {ctx_key: obj})
-
-
-def _drawer_dispatch(request, user, drawer_view):
-    """Atalho comum das listas: com ``?drawer=<id>`` devolve o fragmento do
-    painel de detalhe; sem ele devolve ``None`` (a lista segue)."""
-    drawer_id = request.GET.get('drawer')
-    return drawer_view(request, user, drawer_id) if drawer_id else None
+def _drawer_redirect(request, resolve):
+    """Cortesia de migração: o painel lateral (``?drawer=<id>``) foi REMOVIDO —
+    as linhas das grelhas navegam diretamente para a página de detalhe. Um
+    pedido antigo com o parâmetro é redirecionado para o destino equivalente
+    (``resolve(id) -> url | None``); sem destino, a lista segue normalmente."""
+    drawer_id = (request.GET.get('drawer') or '').strip()
+    if not drawer_id.isdigit():
+        return None
+    url = resolve(int(drawer_id))
+    return HttpResponseRedirect(url) if url else None
 
 
 def _scope_occurrences(user):
@@ -342,7 +338,7 @@ def _scope_occurrences(user):
 
 def _readable_occurrence(user, pk):
     """Ocorrência por ``pk`` se o utilizador a pode LER na consola server-rendered;
-    ``None`` se não existe ou está fora de acesso. É a porta de DETALHE/drawer:
+    ``None`` se não existe ou está fora de acesso. É a porta de DETALHE:
     mais ampla que a LISTA pessoal (``scope_occurrences``) — abre por acesso global
     (titular / leitura total / autoridade do caso, :func:`can_access_occurrence`)
     OU por pertença institucional (a instituição é dona do processo, abre o
@@ -352,20 +348,6 @@ def _readable_occurrence(user, pk):
         _occurrence_base_qs(), pk,
         lambda occ: access.can_access_occurrence(user, occ),
         lambda occ: access.is_occurrence_institutional(user, occ),
-    )
-
-
-def _occurrence_drawer(request, user, drawer_id):
-    """Fragmento HTMX do painel direito (detalhe Local) de uma ocorrência."""
-    def deco(objs):
-        _decorate_occurrences(objs)
-        objs[0].evidence_count = objs[0].evidences.count()
-
-    return _drawer_response(
-        request, user, drawer_id,
-        fetch=_readable_occurrence, decorate=deco,
-        template='partials/_occurrence_drawer.html', ctx_key='occ',
-        not_found='Ocorrência não encontrada.',
     )
 
 
@@ -421,8 +403,9 @@ def _decorate_evidences(evidences):
             if vs in VALIDATION_PENDING_STATUSES else None
         )
         e.aria_code = e.code or 'item de prova'
+        e.detail_url = f'/evidences/{e.id}/'     # destino da linha/célula-código
         # marca/modelo são campos transversais em type_specific_data (JSON, ADR-0018);
-        # expostos aqui (1 fonte) para a grelha e o drawer os mostrarem.
+        # expostos aqui (1 fonte) para a grelha os mostrar.
         tsd = e.type_specific_data or {}
         e.marca = tsd.get('marca', '')
         e.modelo = tsd.get('modelo', '')
@@ -440,16 +423,6 @@ def _readable_evidence(user, pk):
         _evidence_base_qs(), pk,
         lambda ev: access.can_view_evidence(user, ev),
         lambda ev: access.is_occurrence_institutional(user, ev.occurrence),
-    )
-
-
-def _evidence_drawer(request, user, drawer_id):
-    """Fragmento HTMX do painel direito (detalhe Local) de uma evidência."""
-    return _drawer_response(
-        request, user, drawer_id,
-        fetch=_readable_evidence, decorate=_decorate_evidences,
-        template='partials/_evidence_drawer.html', ctx_key='ev',
-        not_found='Evidência não encontrada.',
     )
 
 
@@ -874,9 +847,7 @@ def dashboard_view(request):
         # 30 linhas: a lista do painel tem altura fixa com scroll interno.
         recent_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:30]
     )
-    _decorate_occurrences_page(recent)
-    for o in recent:
-        o.detail_url = f'/occurrences/{o.id}/'
+    _decorate_occurrences_page(recent)   # detail_url incluído (fonte única)
 
     # Colunas da grelha "Últimas ocorrências" — gerador único (core.grid), como
     # todas as listas; um painel read-only só dispensa filtros/paginação.
@@ -937,14 +908,13 @@ def _occurrences_list_response(request, archived=False):
     """Corpo PARTILHADO das listas de ocorrências ativas (``/occurrences/``) e do
     Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, colunas, filtros,
     ordenação e paginação — só diferem na divisão arquivado/ativo e no template.
-    O drawer (``?drawer=``) é comum (o detalhe de um processo é o mesmo). Toda a
-    plumbing (filtros por coluna, busca, paginação, vista mobile) vem do gerador
-    único :func:`core.grid.grid_list_response`; aqui declara-se só a spec."""
+    Toda a plumbing (filtros por coluna, busca, paginação, vista mobile) vem do
+    gerador único :func:`core.grid.grid_list_response`; aqui declara-se só a spec."""
     user = request.user
 
-    drawer = _drawer_dispatch(request, user, _occurrence_drawer)
-    if drawer is not None:
-        return drawer
+    legacy = _drawer_redirect(request, lambda i: f'/occurrences/{i}/')
+    if legacy is not None:
+        return legacy
 
     lens = access.active_console_mode(request, user)
     qs = _lens_occurrences(user, lens)
@@ -957,6 +927,7 @@ def _occurrences_list_response(request, archived=False):
                                     choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
                                              (Occurrence.Priority.NORMAL, 'Normais')))),
         GridColumn('code', 'Código', cell='code', width=13, dot=True, val_flag=True,
+                   link_key='detail_url',
                    filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
         GridColumn('number', 'NUIPC', css='mono', width=16,
                    filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
@@ -1025,8 +996,7 @@ def occurrences_view(request):
 
     Lê o ORM com o working-set da zona de consola ativa. Os processos CONCLUÍDOS
     (todos os itens em estado terminal) saem para o Arquivo (:func:`arquivo_view`).
-    Em pedidos HTMX devolve só o fragmento da grelha; com ``?drawer=<id>`` o
-    painel de detalhe.
+    Em pedidos HTMX devolve só o fragmento da grelha.
     """
     return _occurrences_list_response(request, archived=False)
 
@@ -1712,9 +1682,9 @@ def evidences_view(request):
     """
     user = request.user
 
-    drawer = _drawer_dispatch(request, user, _evidence_drawer)
-    if drawer is not None:
-        return drawer
+    legacy = _drawer_redirect(request, lambda i: f'/evidences/{i}/')
+    if legacy is not None:
+        return legacy
 
     lens = access.active_console_mode(request, user)
     qs = _lens_evidences(user, lens)
@@ -1727,6 +1697,7 @@ def evidences_view(request):
         GridColumn('occ_label', 'Ocorrência', css='mono', width=15,
                    filter=ColFilter('occ', 'Ocorrência', kind='text', field='occurrence__number', placeholder='NUIPC')),
         GridColumn('code', 'Código', cell='code', width=14, dot=True,
+                   link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
         GridColumn('timestamp_seizure', 'Data e Hora', cell='date', time=True, width=15,
                    filter=ColFilter('date', 'Data e Hora', kind='date_range', field='timestamp_seizure')),
@@ -2239,14 +2210,11 @@ def _readable_custody(user, pk):
     )
 
 
-def _custody_drawer(request, user, drawer_id):
-    """Fragmento HTMX do painel direito (detalhe Local) de um evento de custódia."""
-    return _drawer_response(
-        request, user, drawer_id,
-        fetch=_readable_custody, decorate=_decorate_events,
-        template='partials/_custody_drawer.html', ctx_key='r',
-        not_found='Registo de custódia não encontrado.',
-    )
+def _custody_anchor_url(rec):
+    """URL canónica de um EVENTO de custódia: a timeline do seu item, ancorada e
+    realçada no próprio evento (``#evt-<seq>`` + ``:target`` no CSS) — o nível
+    "evento" preserva-se sem página própria nem painel lateral."""
+    return f'/evidences/{rec.evidence_id}/custody/#evt-{rec.sequence}'
 
 
 @jwt_cookie_user
@@ -2258,9 +2226,13 @@ def custody_list_view(request):
     estado legal no telemóvel (mesma fonte das evidências)."""
     user = request.user
 
-    drawer = _drawer_dispatch(request, user, _custody_drawer)
-    if drawer is not None:
-        return drawer
+    def _legacy_target(pk):
+        rec = _readable_custody(user, pk)
+        return _custody_anchor_url(rec) if rec else None
+
+    legacy = _drawer_redirect(request, _legacy_target)
+    if legacy is not None:
+        return legacy
 
     lens = access.active_console_mode(request, user)
     # evidence já vem de _lens_custody; redeclara-se aqui (com a instituição) para
@@ -2303,9 +2275,11 @@ def custody_list_view(request):
             )
             inst = r.custodian_institution
             r.institution_label = (inst.sigla or inst.name) if inst else '—'
+            r.detail_url = _custody_anchor_url(r)   # destino da linha/célula-código
 
     columns = [
         GridColumn('code', 'Código', cell='code', width=11, dot=True,
+                   link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
         GridColumn('evidence.code', 'Item', css='mono', width=11,
                    filter=ColFilter('item', 'Item', kind='text', field='evidence__code', placeholder='Item')),

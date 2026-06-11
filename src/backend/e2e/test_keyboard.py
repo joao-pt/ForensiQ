@@ -2,7 +2,7 @@
 E2E — navegação e operação por TECLADO (a11y de interação, que o axe não cobre).
 
 Cobre os caminhos que um utilizador só-teclado precisa: o skip link, submeter o
-login sem rato, e abrir o detalhe (drawer) a partir de uma linha da grelha com
+login sem rato, e abrir o detalhe a partir de uma linha da grelha com
 Enter (forensic-list.js liga ↑/↓/Enter/Espaço às linhas).
 """
 
@@ -36,12 +36,13 @@ def test_login_submits_with_keyboard(page, make_user):
     assert "/dashboard/" in page.url
 
 
-def test_grid_row_opens_drawer_with_enter(page, auth_as, live_server):
-    """Focar uma linha e premir Enter abre o drawer de detalhe (a11y da grelha)."""
+def test_grid_row_opens_detail_with_enter(page, auth_as, live_server):
+    """Focar uma linha e premir Enter navega para o detalhe (a11y da grelha)."""
     agent = UserFactory.create(username="kb.row", password="Kb123456!")
     occ = OccurrenceFactory.create(number="NUIPC.KB/2026.LX", agent=agent)
     auth_as(agent)
     page.goto("/occurrences/", wait_until="load")
     page.locator(f"[data-row][data-id='{occ.id}']").focus()
     page.keyboard.press("Enter")
-    expect(page.locator("#app-drawer-body")).not_to_contain_text("Selecione uma ocorrência")
+    page.wait_for_url(f"**/occurrences/{occ.id}/", timeout=10000)
+    expect(page.locator("#occ-title")).to_be_visible()

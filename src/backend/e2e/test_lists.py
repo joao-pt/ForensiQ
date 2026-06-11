@@ -1,6 +1,6 @@
 """
 E2E — listas densas com HTMX (ocorrências): pesquisa e filtro atualizam a
-grelha sem recarregar a página, e clicar numa linha abre o drawer de detalhe.
+grelha sem recarregar a página, e clicar numa linha navega para o detalhe.
 
 Notas de implementação (ver docs/testing/):
   * usamos as asserções ``expect()`` do Playwright (baseadas no protocolo, com
@@ -54,14 +54,13 @@ def test_priority_select_filters_grid(page, auth_as, live_server):
     expect(page.locator("#occ-grid")).to_contain_text("Nenhum resultado")
 
 
-def test_row_click_opens_detail_drawer(page, auth_as, live_server):
-    """Clicar numa linha carrega o detalhe no drawer via HTMX (conteúdo muda)."""
+def test_row_click_navigates_to_detail(page, auth_as, live_server):
+    """Clicar numa linha NAVEGA para a página de detalhe da ocorrência."""
     agent = UserFactory.create(username="ag.draw", password="Aa123456!")
-    occ = OccurrenceFactory.create(number="NUIPC.DRAWER/2026.LX", agent=agent)
+    occ = OccurrenceFactory.create(number="NUIPC.NAVEGA/2026.LX", agent=agent)
     auth_as(agent)
 
     page.goto("/occurrences/", wait_until="load")
-    drawer = page.locator("#app-drawer-body")
-    expect(drawer).to_contain_text("Selecione uma ocorrência")
     page.locator(f"[data-row][data-id='{occ.id}']").dispatch_event("click")
-    expect(drawer).not_to_contain_text("Selecione uma ocorrência")
+    page.wait_for_url(f"**/occurrences/{occ.id}/", timeout=10000)
+    expect(page.locator("#occ-title")).to_be_visible()

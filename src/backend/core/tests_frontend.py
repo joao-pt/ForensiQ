@@ -182,19 +182,21 @@ class OccurrencesPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('id="occ-grid"', content)
 
     def test_occurrences_page_contains_grid_rows(self):
-        """A grelha de ocorrências deve usar linhas clicáveis HTMX.
+        """A grelha de ocorrências deve usar linhas clicáveis que NAVEGAM.
 
-        Fase 3: a lista é server-rendered numa ``table.grid--clickable`` com
-        linhas ``data-row`` que abrem o drawer via ``hx-get``. Substitui a
-        antiga aba/contentor de mapa Leaflet (``tab-map``/``map-container``),
-        removida do ecrã de listagem (o mapa vive na hero do painel).
+        A lista é server-rendered numa ``table.grid--clickable`` com linhas
+        ``data-row`` que navegam para a página de detalhe (``data-href``); a
+        célula do código é um link real (novo separador com Ctrl/middle-click).
+        O antigo painel lateral (drawer) foi removido.
         """
-        OccurrenceFactory(agent=self.test_user)
+        occ = OccurrenceFactory(agent=self.test_user)
         response = self.client.get(reverse('occurrences'))
         content = response.content.decode('utf-8')
         self.assertIn('grid--clickable', content)
         self.assertIn('data-row', content)
-        self.assertIn('hx-get="/occurrences/?drawer=', content)
+        self.assertIn(f'data-href="/occurrences/{occ.id}/"', content)
+        self.assertIn(f'href="/occurrences/{occ.id}/"', content)
+        self.assertNotIn('?drawer=', content)
 
 
 class OccurrencesFilterTest(AuthenticatedFrontendTestCase):
@@ -460,12 +462,13 @@ class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
         """A página de detalhe deve conter a tabela de itens de prova.
 
         Fase 3: secção "Itens de prova" com uma ``table.grid`` de linhas
-        ``data-row`` (HTMX → drawer); substitui ``id="evidence-container"``.
+        ``data-row`` que navegam para a página do item (``data-href``);
+        substitui ``id="evidence-container"``.
         """
         response = self.client.get(self._url())
         content = response.content.decode('utf-8')
         self.assertIn('Itens de prova', content)
-        self.assertIn('hx-get="/evidences/?drawer=', content)
+        self.assertIn(f'data-href="/evidences/{self.evidence.id}/"', content)
         self.assertIn(self.evidence.code, content)
 
     def test_occurrence_detail_contains_map(self):
@@ -483,8 +486,8 @@ class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
         """A página de detalhe deve oferecer a guia de transporte (PDF).
 
         Fase 3: o detalhe deixou de ter um bloco ``custody-summary`` dedicado
-        (o estado de custódia é mostrado por item, na própria tabela e no
-        drawer). A acção transversal do caso é a guia PDF, ligada ao endpoint
+        (o estado de custódia é mostrado por item, na própria tabela).
+        A acção transversal do caso é a guia PDF, ligada ao endpoint
         de exportação — é esse o substituto que se assere aqui.
         """
         response = self.client.get(self._url())

@@ -2,19 +2,15 @@
  * ForensiQ — Comportamento partilhado das páginas de lista forense
  * (server-rendered + HTMX). CSP-safe: ficheiro estático, sem eval/inline.
  *
- *  - Clicar/Enter numa linha [data-row] → HTMX carrega o detalhe em
- *    #app-drawer-body; aqui abrimos o drawer (FQAppShell), marcamos a linha
- *    activa e inicializamos o mini-mapa Leaflet (#drawer-map).
- *  - O mapa antigo é destruído ANTES do swap (htmx:beforeSwap) para evitar
- *    estado órfão do Leaflet (2.º mapa não aparecia).
- *  - Modo Cadeia: se #drawer-map tiver data-chain (JSON de pontos), desenha
- *    polyline tracejada amber + pins por evento (timeline de custódia).
+ *  - Clicar/Enter numa linha [data-row][data-href] → NAVEGA para a página de
+ *    detalhe (a célula do código é um <a> real — novo separador com
+ *    Ctrl/middle-click).
+ *  - Mapas estáticos [data-static-map]: pino único, modo Cadeia (polyline
+ *    tracejada amber + pins por evento) ou conjunto de pontos com máscara.
  *  - Navegação por teclado na grelha (↑/↓/Enter/Espaço) e botões de copiar.
  */
 (function () {
     'use strict';
-    var drawerMap = null;
-    var lastTrigger = null;   // linha que abriu o drawer (para restaurar foco)
 
     // Lê um token de cor do tema (--accent / --pri-*) via getComputedStyle,
     // para os marcadores Leaflet acompanharem dia/noite em vez de hex fixo.
@@ -28,164 +24,17 @@
         }
     }
 
-    document.body.addEventListener('htmx:beforeSwap', function (ev) {
-        if (ev.target && ev.target.id === 'app-drawer-body') destroyDrawerMap();
-    });
-    document.body.addEventListener('htmx:afterSwap', function (ev) {
-        if (!ev.target || ev.target.id !== 'app-drawer-body') return;
-        if (window.FQAppShell) window.FQAppShell.setDrawerState('open');
-        markSelected(ev.detail);
-        rememberTrigger(ev.detail);
-        clearGridBusy();
-        updateDrawerTitle(ev.target);
-        initDrawerMap();
-        focusDrawer();
-    });
-
-    // Indicador de carregamento: ao disparar um pedido HTMX a partir de uma
-    // linha da grelha, marca a grelha como ocupada (aria-busy + classe de
-    // estilo) até o swap chegar.
-    document.body.addEventListener('htmx:beforeRequest', function (ev) {
-        var row = ev.target;
-        if (!row || !row.matches || !row.matches('[data-row]')) return;
-        markGridBusy(true);
-    });
-    document.body.addEventListener('htmx:afterRequest', function (ev) {
-        var row = ev.target;
-        if (row && row.matches && row.matches('[data-row]')) markGridBusy(false);
-    });
-
-    // As três grelhas clicáveis (ocorrências, itens, custódia).
-    function busyGrids() {
-        return document.querySelectorAll('.grid--clickable');
-    }
-    function markGridBusy(on) {
-        busyGrids().forEach(function (g) {
-            if (on) { g.setAttribute('aria-busy', 'true'); g.classList.add('htmx-request'); }
-            else { g.removeAttribute('aria-busy'); g.classList.remove('htmx-request'); }
-        });
-    }
-    function clearGridBusy() { markGridBusy(false); }
-
-    // Reflecte o fragmento recém-trocado no título do drawer: usa o código
-    // (.dd__code), o identificador forense que rotula o painel. Não se recorre a
-    // cabeçalhos internos (ex.: "Descrição") para não rotular mal.
-    function updateDrawerTitle(body) {
-        var title = document.getElementById('app-drawer-title');
-        if (!title) return;
-        var code = body.querySelector('.dd__code');
-        if (code && code.textContent.trim()) title.textContent = code.textContent.trim();
-    }
-
-    // Acessibilidade do drawer: ao abrir, lembra a linha que o despoletou,
-    // move o foco para dentro do painel e prende-o (trap) até fechar; ao
-    // fechar, devolve o foco à linha de origem.
-    function drawerEl() { return document.getElementById('app-drawer'); }
-
-    // Guarda a linha que abriu o drawer (clique de rato ou teclado) para
-    // lhe devolver o foco ao fechar — detail.requestConfig.elt é fiável em
-    // ambos os casos, ao contrário de document.activeElement no clique.
-    function rememberTrigger(detail) {
-        var row = detail && detail.requestConfig && detail.requestConfig.elt;
-        if (row && row.matches && row.matches('[data-row]')) lastTrigger = row;
-    }
-
-    var FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]),' +
-        ' select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-    // Elementos focáveis e realmente visíveis, excluindo descendentes de
-    // contentores aria-hidden (ex.: o rail de ícones do drawer).
-    function focusables(root) {
-        return Array.prototype.slice.call(root.querySelectorAll(FOCUSABLE))
-            .filter(function (n) {
-                return n.offsetParent !== null && !n.closest('[aria-hidden="true"]');
-            });
-    }
-
-    function focusDrawer() {
-        var drawer = drawerEl();
-        if (!drawer) return;
-        // Padrão de diálogo: focar o cabeçalho do painel (anuncia o título via
-        // aria-labelledby) e só depois prender o Tab nos focáveis reais.
-        var head = drawer.querySelector('[data-drawer-head]');
-        if (head) {
-            head.focus();
-        } else {
-            var nodes = focusables(drawer);
-            if (nodes.length) nodes[0].focus();
-        }
-        document.addEventListener('keydown', trapFocus, true);
-    }
-
-    function trapFocus(ev) {
-        if (ev.key !== 'Tab') return;
-        var drawer = drawerEl();
-        if (!drawer || drawer.hidden) { document.removeEventListener('keydown', trapFocus, true); return; }
-        var nodes = focusables(drawer);
-        if (!nodes.length) return;
-        var first = nodes[0], last = nodes[nodes.length - 1];
-        if (ev.shiftKey && document.activeElement === first) {
-            ev.preventDefault(); last.focus();
-        } else if (!ev.shiftKey && document.activeElement === last) {
-            ev.preventDefault(); first.focus();
-        }
-    }
-
-    // Ao fechar o drawer (Esc / botão), liberta o trap e devolve o foco.
-    window.addEventListener('fq:drawer-state', function (ev) {
-        var state = ev.detail && ev.detail.state;
-        if (state === 'closed') {
-            document.removeEventListener('keydown', trapFocus, true);
-            if (lastTrigger && document.contains(lastTrigger)) {
-                lastTrigger.focus();
-                lastTrigger = null;
-            }
-        }
+    // Navegação direta: clicar numa linha [data-row][data-href] abre a página
+    // de detalhe. Cliques em controlos interiores (links reais, botões de
+    // copiar, inputs) seguem o seu próprio caminho — sem dupla navegação.
+    document.body.addEventListener('click', function (ev) {
+        var row = ev.target.closest ? ev.target.closest('[data-row]') : null;
+        if (!row || !row.dataset.href) return;
+        if (ev.target.closest('a, button, input, select, textarea, label')) return;
+        location.assign(row.dataset.href);
     });
 
     // refreshMapSize / init de mapa Leaflet: fonte única em FQMap (utils/map-helpers.js).
-
-    function destroyDrawerMap() {
-        if (!drawerMap) return;
-        FQMap.destroy(drawerMap, document.getElementById('drawer-map'));
-        drawerMap = null;
-    }
-
-    function markSelected(detail) {
-        var row = detail && detail.requestConfig && detail.requestConfig.elt;
-        document.querySelectorAll('[data-row][aria-selected="true"]').forEach(function (r) {
-            r.removeAttribute('aria-selected');
-        });
-        if (row && row.matches && row.matches('[data-row]')) row.setAttribute('aria-selected', 'true');
-    }
-
-    function initDrawerMap() {
-        var el = document.getElementById('drawer-map');
-        if (!el) return;
-        // Leaflet em falta: antes falhava em SILÊNCIO (aba sem mapa, sem pista).
-        // O runtime vem do _grid_scripts (fonte única), por isso isto só dispara
-        // se uma página contornar esse include — agora avisa e mostra estado honesto.
-        if (typeof L === 'undefined') {
-            el.classList.add('dd__map--unavailable');
-            el.textContent = 'Mapa indisponível.';
-            if (window.console && console.warn) {
-                console.warn('[ForensiQ] drawer-map: Leaflet (L) não carregado nesta página.');
-            }
-            return;
-        }
-        destroyDrawerMap();
-        drawerMap = FQMap.createMap(el, { zoomControl: true });
-
-        // Cadeia se houver trajeto; senão, pino único pela fonte única (D74).
-        if (!renderChain(el) && !FQMap.pinFromDataset(drawerMap, el)) {
-            destroyDrawerMap();
-            return;
-        }
-        FQMap.refreshSize(drawerMap, el);
-    }
-
-    // Modo Cadeia — desenha o trajeto a partir de #drawer-map[data-chain].
-    function renderChain(el) { return drawChainOn(drawerMap, el.dataset.chain); }
 
     // Desenha uma cadeia de custódia num mapa: o trajeto (linha âmbar tracejada
     // sobre um casing escuro, para contrastar em qualquer tile) e marcadores
@@ -519,10 +368,6 @@
     else openHashTarget();
     window.addEventListener('hashchange', openHashTarget);
 
-    window.addEventListener('fq:drawer-state', function () {
-        if (drawerMap) setTimeout(function () { if (drawerMap) drawerMap.invalidateSize(); }, 280);
-    });
-
     document.body.addEventListener('keydown', function (ev) {
         var cur = document.activeElement;
         if (!cur || !cur.matches || !cur.matches('[data-row]')) return;
@@ -557,7 +402,7 @@
     // Copiar para a área de transferência. NÃO usa FQDom.onClick (utils/dom-helpers):
     // este ficheiro corre também na página pública de verificação (public_verify.html),
     // que é autónoma e não carrega os helpers de base.html; e o handler precisa de
-    // stopPropagation para o clique no botão não abrir o drawer da linha.
+    // stopPropagation para o clique no botão não navegar a linha.
     document.body.addEventListener('click', function (ev) {
         var btn = ev.target.closest ? ev.target.closest('[data-copy]') : null;
         if (!btn) return;

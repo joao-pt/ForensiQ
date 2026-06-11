@@ -116,15 +116,19 @@ class ConsoleFrontendTest(TestCase):
 
     def test_membro_abre_item_irmao_que_a_instituicao_nunca_teve(self):
         # ev_b é item-irmão que o lab nunca custodiou. Como o membro lê o PROCESSO
-        # inteiro (a instituição é dona), o detalhe/drawer/timeline de ev_b abrem
+        # inteiro (a instituição é dona), o detalhe/timeline de ev_b abrem
         # (sem o clicável-para-404 que existiria com gate só item-level).
         self.assertEqual(self._get(self.member, f'/evidences/{self.ev_b.id}/').status_code, 200)
         self.assertEqual(
-            self._get(self.member, f'/evidences/?drawer={self.ev_b.id}').status_code, 200
-        )
-        self.assertEqual(
             self._get(self.member, f'/evidences/{self.ev_b.id}/custody/').status_code, 200
         )
+
+    def test_link_antigo_de_drawer_redireciona_para_o_detalhe(self):
+        # Cortesia de migração: o painel lateral foi removido; um link antigo
+        # ?drawer=<id> cai na página de detalhe equivalente.
+        r = self._get(self.member, f'/evidences/?drawer={self.ev_b.id}')
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r['Location'], f'/evidences/{self.ev_b.id}/')
 
     def test_estranho_nao_abre_item(self):
         # Deny-side intacto: um custódio sem pertença nem titularidade → 404.

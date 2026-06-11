@@ -25,7 +25,10 @@
   </thead>
   <tbody>
     {% for row in page_obj %}
-    <tr role="row"{% if row_clickable %} tabindex="0" data-row data-id="{{ row.id }}" aria-label="Abrir detalhe de {{ row.aria_code|default:row.id }}" aria-haspopup="dialog" hx-get="{{ endpoint }}?drawer={{ row.id }}" hx-target="#app-drawer-body" hx-swap="innerHTML"{% endif %}>
+    {# Linha clicável = NAVEGAÇÃO direta para a página de detalhe (data-href, #}
+    {# forensic-list.js); a célula do código é um <a> real (link_key) — abre #}
+    {# em novo separador com Ctrl/middle-click. #}
+    <tr role="row"{% if row_clickable %} tabindex="0" data-row data-id="{{ row.id }}" data-href="{{ row.detail_url }}" aria-label="Abrir {{ row.aria_code|default:row.id }}"{% endif %}>
       {% for col in columns %}{% include 'partials/_grid_cell.html' %}{% endfor %}
     </tr>
     {% empty %}

@@ -584,7 +584,7 @@ hr {
 }
 
 /* Foco próprio, alinhado com os restantes controlos da casca
-   (.app-top__nav-toggle, .app-drawer__btn): outline-offset negativo para o
+   (.app-top__nav-toggle): outline-offset negativo para o
    anel ficar contido dentro do strip sticky e não ser cortado. */
 .icon-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -624,10 +624,10 @@ hr {
 
 /* Alvo de toque mínimo (44px, HIG / uso com luvas) em apontadores grosseiros —
    alinha o theme-toggle e o trigger de utilizador com os irmãos da casca
-   (.app-top__nav-toggle, .app-drawer__btn) que já recebem este upgrade. */
+   (.app-top__nav-toggle) que já recebem este upgrade. */
 /* Alvo de toque ÚNICO dos botões-ícone (auditoria D78): min-* em vez de
    width/height para vencer as dimensões próprias de cada consumidor da casca
-   (nav-toggle 40, drawer-btn 28, …) independentemente da ordem das folhas. */
+   (nav-toggle 40, …) independentemente da ordem das folhas. */
 @media (pointer: coarse) {
     .icon-btn {
         min-width: var(--min-touch);

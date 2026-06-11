@@ -3,7 +3,7 @@
  *
  * O produto é orientado a papel: guias de transporte, fichas de prova e
  * relatórios saem impressos. Sem isto, o Ctrl+P de qualquer página imprime a
- * casca three-pane inteira (sidebar, cabeçalho, drawer, rodapé) por cima do
+ * casca inteira (sidebar, cabeçalho, rodapé) por cima do
  * conteúdo útil. Esta folha esconde a casca e deixa só o conteúdo principal,
  * a tinta preta sobre branco e quebras de página sensatas.
  */
@@ -11,7 +11,6 @@
     /* Esconder toda a cromática da casca e os controlos interativos. */
     .app-top,
     .app-sidebar,
-    .app-drawer,
     .app-bottom,
     #nav-toggle,
     #nav-backdrop,
@@ -24,7 +23,7 @@
         display: none !important;
     }
 
-    /* Desfazer a grelha three-pane: o conteúdo ocupa a folha toda. */
+    /* Desfazer a grelha da casca: o conteúdo ocupa a folha toda. */
     .app-grid { display: block !important; }
     .app-main {
         width: 100% !important;

@@ -94,8 +94,8 @@
 
     /**
      * Reparação robusta do tamanho de um mapa Leaflet. O bug clássico é o mapa
-     * arrancar num container ainda sem dimensões (drawer a abrir, swap HTMX,
-     * transição para overlay fixed em mobile, banda do hero sem altura) e ficar
+     * arrancar num container ainda sem dimensões (swap HTMX, transição para
+     * overlay fixed em mobile, banda do hero sem altura) e ficar
      * cinzento. Em vez de um único invalidateSize com timing frágil, dispara em
      * três momentos: já a seguir ao layout (duplo rAF), quando o mapa fica pronto
      * (whenReady) e sempre que o container muda de dimensões (ResizeObserver).

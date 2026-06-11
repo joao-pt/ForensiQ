@@ -124,9 +124,9 @@
     {% endblock %}
 
     <!-- =========================
-         Grid three-pane (sidebar | main | drawer)
+         Grid two-pane (sidebar | main)
          ========================= -->
-    <div class="app-grid" id="app-grid" data-drawer="closed">
+    <div class="app-grid" id="app-grid">
 
         {% block app_sidebar %}
         <!-- Fundo do off-canvas de navegação (só visível <1024px).
@@ -312,60 +312,6 @@
                 {% block content %}{% endblock %}
             </div>
         </main>
-        {% endblock %}
-
-        {% block app_drawer %}
-        <aside class="app-drawer" id="app-drawer" role="dialog" aria-modal="true"
-               aria-labelledby="app-drawer-title" hidden>
-            <div class="app-drawer__rail" aria-hidden="true">
-                <button type="button" class="icon-btn app-drawer__btn" data-drawer-action="expand"
-                        aria-label="Expandir painel" title="Expandir painel">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m15 18-6-6 6-6"/>
-                    </svg>
-                </button>
-                <button type="button" class="icon-btn app-drawer__btn" data-drawer-action="close"
-                        aria-label="Fechar painel" title="Fechar painel">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M18 6 6 18M6 6l12 12"/>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="app-drawer__panel">
-                <header class="app-drawer__header">
-                    <h2 class="app-drawer__title" id="app-drawer-title">
-                        {% block drawer_title %}Painel{% endblock %}
-                    </h2>
-                    <div class="app-drawer__actions">
-                        <button type="button" class="icon-btn app-drawer__btn"
-                                data-drawer-action="minimize"
-                                aria-label="Minimizar painel" title="Minimizar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M5 12h14"/>
-                            </svg>
-                        </button>
-                        <button type="button" class="icon-btn app-drawer__btn"
-                                data-drawer-action="close"
-                                aria-label="Fechar painel" title="Fechar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M18 6 6 18M6 6l12 12"/>
-                            </svg>
-                        </button>
-                    </div>
-                </header>
-
-                <div class="app-drawer__body" id="app-drawer-body">
-                    {% block drawer_content %}
-                    <p class="app-drawer__placeholder">Sem item seleccionado.</p>
-                    {% endblock %}
-                </div>
-            </div>
-        </aside>
         {% endblock %}
 
     </div>

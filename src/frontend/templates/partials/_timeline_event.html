@@ -5,7 +5,8 @@
   páginas. Espera a variável `r` (evento decorado por _decorate_events).
 {% endcomment %}
 {% load l10n %}
-<li class="timeline__item">
+{# id ancorável: a lista de custódias liga a #evt-<seq> (realce via :target). #}
+<li class="timeline__item" id="evt-{{ r.sequence }}">
   <span class="timeline__dot"></span>
   <div class="timeline__head">
     <span class="timeline__seq mono">#{{ r.sequence }}</span>

@@ -4,15 +4,10 @@
  * Geração de comportamento da casca da aplicação:
  *
  *   1. Relógio RT no header (pisca o `:` em modo respiratório).
- *   2. Máquina de estados do drawer lateral direito
- *      (closed / minimized / open), persistido em localStorage.
- *      Eventos: dispatch de `fq:drawer-state` para que componentes
- *      (mapas Leaflet, etc) possam refrescar layout.
- *   3. Destaque automático do link activo da sidebar via prefixo de URL.
- *   4. ESC fecha drawer aberto.
- *   5. Navegação móvel (<1024px): off-canvas da sidebar via hamburger,
+ *   2. Destaque automático do link activo da sidebar via prefixo de URL.
+ *   3. Navegação móvel (<1024px): off-canvas da sidebar via hamburger,
  *      com fundo, foco preso, fecho por Esc / fundo / navegação.
- *   6. Encaminhamento das mensagens server-side para o toast.
+ *   4. Encaminhamento das mensagens server-side para o toast.
  *
  * Sem dependências externas, vanilla. CSP-safe (sem inline handlers).
  */
@@ -67,72 +62,7 @@
     }
 
     // -------------------------------------------------------------------
-    // 2. Drawer state machine
-    // -------------------------------------------------------------------
-    const DRAWER_KEY = 'fq-drawer-state';
-    const VALID_STATES = ['closed', 'minimized', 'open'];
-
-    function getDrawerState() {
-        const stored = localStorage.getItem(DRAWER_KEY);
-        return VALID_STATES.includes(stored) ? stored : 'closed';
-    }
-
-    function setDrawerState(state) {
-        if (!VALID_STATES.includes(state)) return;
-        const grid = document.getElementById('app-grid');
-        const drawer = document.getElementById('app-drawer');
-        if (!grid) return;
-
-        grid.dataset.drawer = state;
-
-        if (drawer) {
-            if (state === 'closed') {
-                drawer.hidden = true;
-            } else {
-                drawer.hidden = false;
-            }
-        }
-
-        try { localStorage.setItem(DRAWER_KEY, state); } catch (_) { /* QuotaExceeded */ }
-
-        window.dispatchEvent(new CustomEvent('fq:drawer-state', {
-            detail: { state }
-        }));
-    }
-
-    function bindDrawerActions() {
-        document.addEventListener('click', function (ev) {
-            const trigger = ev.target.closest('[data-drawer-action]');
-            if (!trigger) return;
-
-            const action = trigger.dataset.drawerAction;
-            switch (action) {
-                case 'open':      setDrawerState('open'); break;
-                case 'expand':    setDrawerState('open'); break;
-                case 'minimize':  setDrawerState('minimized'); break;
-                case 'close':     setDrawerState('closed'); break;
-                case 'toggle':    {
-                    const cur = getDrawerState();
-                    setDrawerState(cur === 'open' ? 'closed' : 'open');
-                    break;
-                }
-                default: break;
-            }
-        });
-
-        document.addEventListener('keydown', function (ev) {
-            if (ev.key === 'Escape' && getDrawerState() === 'open') {
-                // Não fecha se o foco está num input/textarea/select
-                const ae = document.activeElement;
-                if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
-                setDrawerState('closed');
-                ev.stopPropagation();
-            }
-        });
-    }
-
-    // -------------------------------------------------------------------
-    // 3. Sidebar — destaque do link activo
+    // 2. Sidebar — destaque do link activo
     // -------------------------------------------------------------------
     function highlightSidebar() {
         const links = document.querySelectorAll('[data-sidebar-link]');
@@ -158,7 +88,7 @@
     }
 
     // -------------------------------------------------------------------
-    // 4. Navegação móvel — off-canvas da sidebar (<1024px)
+    // 3. Navegação móvel — off-canvas da sidebar (<1024px)
     // -------------------------------------------------------------------
     const FOCUSABLE =
         'a[href], button:not([disabled]), input:not([disabled]), ' +
@@ -234,7 +164,7 @@
     }
 
     // -------------------------------------------------------------------
-    // 6. Mensagens server-side -> toast
+    // 4. Mensagens server-side -> toast
     // -------------------------------------------------------------------
     function flushServerMessages() {
         const node = document.getElementById('server-messages');
@@ -252,17 +182,11 @@
     // Boot
     // -------------------------------------------------------------------
     function init() {
-        // Aplica estado inicial do drawer (vindo do localStorage).
-        const grid = document.getElementById('app-grid');
-        if (grid) {
-            const initial = getDrawerState();
-            grid.dataset.drawer = initial;
-            const drawer = document.getElementById('app-drawer');
-            if (drawer) drawer.hidden = initial === 'closed';
-        }
+        // Migração: o painel lateral (drawer) foi removido — limpa o estado
+        // persistido órfão de sessões antigas.
+        try { localStorage.removeItem('fq-drawer-state'); } catch (_) { /* indisponível */ }
 
         startClock();
-        bindDrawerActions();
         bindNavOffcanvas();
         highlightSidebar();
         flushServerMessages();
@@ -273,11 +197,4 @@
     } else {
         init();
     }
-
-    // Expor API mínima para outros scripts (ex.: dashboard que abre drawer
-    // ao clicar numa ocorrência).
-    window.FQAppShell = {
-        getDrawerState: getDrawerState,
-        setDrawerState: setDrawerState
-    };
 })();

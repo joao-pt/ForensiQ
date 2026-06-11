@@ -2,7 +2,7 @@
  *
  * Primitivas reutilizadas por TODAS as páginas internas: cabeçalho de página,
  * barra de ferramentas/filtros, grelha densa (role=grid), badges de prioridade
- * e estado, paginação, painel de detalhe (drawer + página), mini-mapa.
+ * e estado, paginação, páginas de detalhe, mini-mapa.
  *
  * Estética: consola forense densa (Bloomberg/Cellebrite). Cor é SÓ semântica.
  * Identificadores/hashes/timestamps/coordenadas em IBM Plex Mono.
@@ -50,7 +50,7 @@
 
 /* Moldura ÚNICA dos contentores de mapa Leaflet (auditoria D85): cada
    componente define só a altura via --map-h (e o overflow no picker). */
-.map-box, .geo-field__map, .dd__map, .map-picker {
+.map-box, .geo-field__map, .map-picker {
     height: var(--map-h, 240px);
     border: 1px solid var(--border);
     border-radius: var(--r-2);
@@ -473,9 +473,6 @@
     transition: background var(--t-fast) var(--ease);
 }
 .grid--clickable tbody tr { cursor: pointer; }
-/* Indicador de carregamento ao abrir o drawer (aria-busy emitido por
-   forensic-list.js durante o htmx:beforeRequest da linha). */
-.grid--clickable[aria-busy="true"] { opacity: 0.55; pointer-events: none; cursor: progress; }
 /* Ligação dentro de uma célula de grelha (ex.: código → detalhe nas Guias de transporte; _grid_cell.html via link_key). */
 .grid__link { color: var(--accent); text-decoration: none; }
 .grid__link:hover { text-decoration: underline; }
@@ -503,10 +500,6 @@ meter.bar::-webkit-meter-optimum-value { background: var(--accent); border-radiu
 meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1); }
 .grid tbody tr:hover { background: var(--surface-hover); }
 .grid tbody tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.grid tbody tr[aria-selected="true"] {
-    background: var(--accent-tint);
-    border-left-color: var(--accent);
-}
 .grid td {
     padding: var(--sp-2) var(--sp-3);
     color: var(--text);
@@ -635,7 +628,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 
 /* ============================================================
-   Factos (lista de pares chave/valor) — drawer e páginas de detalhe
+   Factos (lista de pares chave/valor) — páginas de detalhe
    ============================================================ */
 .facts { margin: 0; }
 .facts__row {
@@ -893,20 +886,8 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 
 /* ============================================================
-   Painel de detalhe do drawer
+   Detalhe — utilitários partilhados (fichas, hashes, sem-geo)
    ============================================================ */
-.dd { display: flex; flex-direction: column; gap: var(--sp-4); }
-.dd__top { display: flex; align-items: center; gap: var(--sp-2); }
-.dd__code { font-size: var(--fs-md); font-weight: var(--fw-semi); color: var(--text-emphasis); letter-spacing: 0.01em; flex: 1; min-width: 0; word-break: break-all; }
-.dd__desc p { margin: 0; font-size: var(--fs-sm); color: var(--text-muted); line-height: var(--lh-base); }
-
-/* Mapa do drawer (Local) — moldura única .map-* (auditoria D85). */
-.dd__map { --map-h: 220px; }
-/* Estado honesto quando o Leaflet não está disponível (em vez de aba sem mapa). */
-.dd__map--unavailable {
-    display: flex; align-items: center; justify-content: center;
-    font-size: var(--fs-xs); color: var(--text-subtle); font-family: var(--font-mono);
-}
 .dd__nogeo {
     font-size: var(--fs-xs); color: var(--text-subtle); font-family: var(--font-mono);
     padding: var(--sp-3); border: 1px dashed var(--border); border-radius: var(--r-2); text-align: center;
@@ -914,7 +895,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .dd__full { align-self: flex-start; font-size: var(--fs-sm); color: var(--accent); text-decoration: none; font-weight: var(--fw-medium); }
 .dd__full:hover { text-decoration: underline; }
 .dd__hash { word-break: break-all; font-size: var(--fs-xs); color: var(--text-muted); }
-.dd__links { display: flex; flex-direction: column; gap: var(--sp-2); }
 
 /* ============================================================
    Timeline do ledger de custódia (vertical)
@@ -938,6 +918,13 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .timeline__time { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-muted); margin-left: auto; }
 .timeline__meta { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-1); font-size: var(--fs-xs); color: var(--text-muted); }
 .timeline__acc--flag { color: var(--danger); }
+/* Evento ancorado (#evt-<seq>, vindo da lista de custódias): realce âmbar
+   discreto no marcador e fundo — a cor CLASSIFICA o evento visado; o
+   scroll-margin desencosta a âncora do cabeçalho sticky. */
+.timeline__item { scroll-margin-top: calc(var(--app-top-h, 52px) + var(--sp-4)); }
+.timeline__item:target { background: var(--accent-tint, rgba(245, 158, 11, 0.08)); border-radius: var(--r-1); }
+.timeline__item:target > .timeline__dot { background: var(--accent); }
+.timeline__item:target > .timeline__head .timeline__event { color: var(--accent); }
 
 /* ============================================================
    Form (fichas densas) — para os formulários server-rendered

@@ -13,11 +13,6 @@
   <span class="breadcrumb-current mono">{{ occ.code|default:occ.number }}</span>
 {% endblock %}
 
-{% block drawer_title %}Item de prova{% endblock %}
-{% block drawer_content %}
-  <p class="app-drawer__placeholder">Selecione um item de prova para ver a ficha (estado, hash, localização).</p>
-{% endblock %}
-
 {% block content %}
 <article class="detail fullbleed" aria-labelledby="occ-title">
 
@@ -118,6 +113,6 @@
 {% endblock %}
 
 {% block extra_js %}
-  {# Drawer (tabelas internas ?drawer) — runtime único: Leaflet + htmx + forensic-list. #}
+  {# Tabela interna navegável + mapas estáticos — runtime único: Leaflet + htmx + forensic-list. #}
   {% include 'partials/_grid_scripts.html' %}
 {% endblock %}

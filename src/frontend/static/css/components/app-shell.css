@@ -1,22 +1,18 @@
 /**
  * ForensiQ — App Shell (refactor v2 — art direction)
  *
- * Layout three-pane inspirado em IDE / Linear / Cellebrite. Substitui
+ * Layout two-pane inspirado em IDE / Linear / Cellebrite. Substitui
  * a navbar simples + container central da v1.
  *
  * Estrutura:
  *   .app-top      — header sticky (brand · chips contexto · clock · user)
- *   .app-grid     — grelha 3 colunas (sidebar | main | drawer)
+ *   .app-grid     — grelha 2 colunas (sidebar | main)
  *   .app-sidebar  — 240px, navegação principal por grupos
  *   .app-main     — conteúdo da página (wrapper .container interno)
- *   .app-drawer   — coluna push lateral, 3 estados (closed/minimized/open)
  *   .app-bottom   — footer técnico (versão · commit · região · CSP)
  *
- * O estado do drawer vive em `.app-grid[data-drawer="..."]` e é gerido
- * por `app-shell.js` (persiste em localStorage entre páginas).
- *
  * Em <1024px: sidebar em off-canvas (aberta pelo hamburger do header,
- * com fundo e foco preso); drawer torna-se overlay fullscreen quando aberto.
+ * com fundo e foco preso).
  *
  * Ver a especificação de art direction §Layout.
  */
@@ -29,8 +25,6 @@
     --app-top-h:      52px;
     --app-bottom-h:   28px;
     --app-sidebar-w:  240px;
-    --app-drawer-w-open:      360px;
-    --app-drawer-w-minimized: 44px;
 }
 
 body.app-body {
@@ -196,7 +190,7 @@ body.app-body {
 }
 
 /* =====================================================================
-   app-grid — grelha three-pane
+   app-grid — grelha two-pane
    ===================================================================== */
 
 .app-grid {
@@ -209,14 +203,6 @@ body.app-body {
 @media (min-width: 1024px) {
     .app-grid {
         grid-template-columns: var(--app-sidebar-w) 1fr;
-    }
-    .app-grid[data-drawer="open"] {
-        grid-template-columns:
-            var(--app-sidebar-w) 1fr var(--app-drawer-w-open);
-    }
-    .app-grid[data-drawer="minimized"] {
-        grid-template-columns:
-            var(--app-sidebar-w) 1fr var(--app-drawer-w-minimized);
     }
 }
 
@@ -419,52 +405,17 @@ body.app-body {
     display: none;
 }
 
-/* =====================================================================
-   app-drawer — push column 3-state
-   ===================================================================== */
-
-.app-drawer {
-    background: var(--bg-subtle);
-    border-left: 1px solid var(--border);
-    isolation: isolate;  /* contém stacking de mapas Leaflet internos */
-    overflow: hidden;
-    display: flex;
-    min-height: 0;
-}
-
-.app-grid[data-drawer="closed"] .app-drawer { display: none; }
-.app-grid[data-drawer="minimized"] .app-drawer__rail { display: flex; }
-.app-grid[data-drawer="minimized"] .app-drawer__panel { display: none; }
-.app-grid[data-drawer="open"] .app-drawer__rail { display: none; }
-.app-grid[data-drawer="open"] .app-drawer__panel { display: flex; }
-
-.app-drawer__rail {
-    width: var(--app-drawer-w-minimized);
-    display: none;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--sp-2) 0;
-    gap: var(--sp-2);
-}
-
-.app-drawer__panel {
-    flex: 1;
-    display: none;
-    flex-direction: column;
-    min-width: 0;
-}
-
 /* Cromado de painel ÚNICO (auditoria D79): cabeçalho, título e superfície
-   dos painéis flutuantes (drawer, modal de ação, confirmação). A sombra vem
+   dos painéis flutuantes (modal de ação, confirmação). A sombra vem
    dos tokens --shadow-* — adapta ao tema claro, que o literal antigo não fazia. */
-.app-drawer__header, .app-modal__head {
+.app-modal__head {
     display: flex;
     align-items: center;
     gap: var(--sp-2);
     border-bottom: 1px solid var(--border);
     background: var(--bg-subtle);
 }
-.app-drawer__title, .app-modal__title {
+.app-modal__title {
     flex: 1;
     margin: 0;
     font-size: var(--fs-sm);
@@ -481,61 +432,6 @@ body.app-body {
     border: 1px solid var(--border);
     border-radius: var(--r-2, 10px);
     box-shadow: var(--shadow-lg);
-}
-
-.app-drawer__header {
-    padding: var(--sp-3) var(--sp-3);
-    position: sticky;
-    top: 0;
-    z-index: 1;
-}
-
-.app-drawer__actions {
-    display: flex;
-    gap: 2px;
-}
-
-/* Receita base em .icon-btn (main.css, auditoria D78) — deltas: compacto + r-1. */
-.app-drawer__btn {
-    width: 28px;
-    height: 28px;
-    border-radius: var(--r-1);
-}
-.app-drawer__btn svg {
-    width: 14px;
-    height: 14px;
-}
-
-.app-drawer__body {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--sp-3);
-}
-
-.app-drawer__placeholder {
-    color: var(--text-subtle);
-    font-size: var(--fs-sm);
-    text-align: center;
-    padding: var(--sp-6) var(--sp-3);
-    margin: 0;
-}
-
-/* Em < 1024px: drawer aberto torna-se overlay fullscreen */
-@media (max-width: 1023px) {
-    .app-grid[data-drawer="open"] .app-drawer,
-    .app-grid[data-drawer="minimized"] .app-drawer {
-        position: fixed;
-        inset: var(--app-top-h) 0 var(--app-bottom-h) 0;
-        z-index: 60;
-        display: flex;
-    }
-    .app-grid[data-drawer="open"] .app-drawer {
-        width: 100vw;
-    }
-    .app-grid[data-drawer="minimized"] .app-drawer {
-        /* No mobile não faz sentido minimizado lateral: força closed */
-        display: none;
-    }
 }
 
 /* =====================================================================
@@ -671,9 +567,9 @@ body.app-body {
    app-modal — modal de AÇÃO (<dialog> nativo, top-layer)
 
    Modelo "ação-in-place" (Fase 7): formulários de ação de propósito único
-   abertos SOBRE a página atual, sem trocar de janela. Distinto do drawer
-   (que é para detalhe read-only). A abertura é via showModal() em
-   modal-action.js; aqui é só apresentação. CSP-safe (sem estilo inline).
+   abertos SOBRE a página atual, sem trocar de janela. A abertura é via
+   showModal() em modal-action.js; aqui é só apresentação. CSP-safe (sem
+   estilo inline).
    ===================================================================== */
 /* Base partilhada dos <dialog> centrais (ação + confirmação): centragem, fundo
    e backdrop numa só fonte (DRY). position:fixed + inset:0 + margin:auto centra

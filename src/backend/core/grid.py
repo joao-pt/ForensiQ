@@ -170,7 +170,6 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
         'empty_title': empty_title,
         'empty_hint': empty_hint,
         'empty_filtered': empty_filtered,
-        'selected_id': request.GET.get('selected') or '',
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
     if extra_ctx:
