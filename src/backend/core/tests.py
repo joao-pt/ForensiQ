@@ -17,7 +17,7 @@ PHOTO          → DIGITAL_FILE  (captura / fotografia digital)
 
 import hashlib
 import unittest
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from unittest import mock
 
@@ -643,7 +643,10 @@ class PericiaDeadlineTest(TestCase):
         pd = pericia_deadline(eventos, self.now)
         self.assertEqual(pd['status'], 'em_prazo')
         self.assertEqual(pd['days_left'], 29)
-        self.assertEqual(pd['due'], eventos[0].act_declared_at + timedelta(days=30))
+        self.assertEqual(
+            pd['due'],
+            timezone.localtime(eventos[0].act_declared_at).date() + timedelta(days=30),
+        )
 
     def test_a_vencer_dentro_da_antecedencia(self):
         # Data-limite exatamente no fim da janela de aviso.
@@ -693,6 +696,19 @@ class PericiaDeadlineTest(TestCase):
         ]
         self.assertIsNone(pericia_deadline(eventos, self.now))
 
+    def test_despacho_apos_perda_reabre_o_prazo(self):
+        # A extinção pela disposição é POSICIONAL: a PERDA_FAVOR_ESTADO não
+        # fecha o ledger e a policy continua a oferecer o despacho — o prazo
+        # de um despacho POSTERIOR à perda não pode vencer em silêncio.
+        eventos = [
+            _RegStub(EventType.APREENSAO_OBJETO, self.now - timedelta(days=10)),
+            _RegStub(EventType.PERDA_FAVOR_ESTADO, self.now - timedelta(days=5)),
+            self._despacho(timedelta(days=2), 15),
+        ]
+        pd = pericia_deadline(eventos, self.now)
+        self.assertEqual(pd['status'], 'em_prazo')
+        self.assertEqual(pd['days_left'], 13)
+
     def test_despacho_sem_prazo_estruturado_nao_deriva(self):
         # Evento pré-hv4 (sem act_deadline_days): sem data-limite derivável.
         eventos = [_RegStub(EventType.DESPACHO_PERICIA, self.now - timedelta(days=40))]
@@ -705,7 +721,7 @@ class PericiaDeadlineTest(TestCase):
         declarado.timestamp = self.now      # registo posterior ao ato
         self.assertEqual(
             pericia_due_date(declarado),
-            declarado.act_declared_at + timedelta(days=10),
+            timezone.localtime(declarado.act_declared_at).date() + timedelta(days=10),
         )
         sem_declarada = _RegStub(
             EventType.DESPACHO_PERICIA,
@@ -714,8 +730,28 @@ class PericiaDeadlineTest(TestCase):
         )
         self.assertEqual(
             pericia_due_date(sem_declarada),
-            sem_declarada.timestamp + timedelta(days=10),
+            timezone.localtime(sem_declarada.timestamp).date() + timedelta(days=10),
         )
+
+    def test_data_limite_conta_calendario_atraves_de_dst(self):
+        # Aritmética de DATAS, não de instantes: um prazo que atravessa a
+        # mudança de hora legal (Europe/Lisbon: última madrugada de outubro/
+        # março) nunca desvia a data-limite — dois despachos com a MESMA data
+        # declarada e o MESMO prazo derivam SEMPRE a mesma data, seja qual
+        # for a hora do dia. (Com instantes, 20/10 00:30 + 10d caía em 29/10.)
+        from zoneinfo import ZoneInfo
+
+        lisboa = ZoneInfo('Europe/Lisbon')
+        madrugada = self._despacho(timedelta(days=0), 10)
+        madrugada.act_declared_at = datetime(2026, 10, 20, 0, 30, tzinfo=lisboa)
+        manha = self._despacho(timedelta(days=0), 10)
+        manha.act_declared_at = datetime(2026, 10, 20, 10, 0, tzinfo=lisboa)
+        self.assertEqual(pericia_due_date(madrugada), date(2026, 10, 30))
+        self.assertEqual(pericia_due_date(madrugada), pericia_due_date(manha))
+        # Primavera (28/03 23:30 + 5d): com instantes caía em 03/04.
+        primavera = self._despacho(timedelta(days=0), 5)
+        primavera.act_declared_at = datetime(2026, 3, 28, 23, 30, tzinfo=lisboa)
+        self.assertEqual(pericia_due_date(primavera), date(2026, 4, 2))
 
 
 class CustodyHashFormulaTest(TestCase):

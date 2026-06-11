@@ -239,14 +239,13 @@ def _decorate_occurrences_validation(occurrences):
     prazo = {}
     for ev_id, pd in deadlines.items():
         if pd and pd['status'] in PERICIA_ATTENTION_STATUSES:
-            d = prazo.setdefault(occ_by_ev.get(ev_id), {'n': 0, 'late': False})
-            d['n'] += 1
-            d['late'] = d['late'] or pd['status'] == 'vencida'
+            d = prazo.setdefault(occ_by_ev.get(ev_id), {'late': 0, 'due': 0})
+            d['late' if pd['status'] == 'vencida' else 'due'] += 1
     for o in occurrences:
         d = pend.get(o.id)
         if d:
             o.val_dot = {
-                'cls': 'danger' if d['late'] else 'warn',
+                'cls': VALIDATION_STATUS_CSS['em_atraso' if d['late'] else 'por_validar'],
                 'title': (
                     f"{d['n']} item(ns) a aguardar validação"
                     + (' — em atraso' if d['late'] else '')
@@ -254,12 +253,19 @@ def _decorate_occurrences_validation(occurrences):
             }
         d = prazo.get(o.id)
         if d:
+            # Contagens SEPARADAS (re-verificabilidade): «vencido» só conta o
+            # que venceu — nunca rotula os «a vencer» do mesmo processo.
+            parts = []
+            if d['late']:
+                parts.append(f"{d['late']} prazo(s) de perícia vencido(s)")
+            if d['due']:
+                parts.append(
+                    f"{d['due']} a vencer" if d['late']
+                    else f"{d['due']} prazo(s) de perícia a vencer"
+                )
             o.pericia_dot = {
-                'cls': 'danger' if d['late'] else 'warn',
-                'title': (
-                    f"{d['n']} prazo(s) de perícia "
-                    + ('vencido(s)' if d['late'] else 'a vencer')
-                ),
+                'cls': PERICIA_DEADLINE_CSS['vencida' if d['late'] else 'a_vencer'],
+                'title': ' · '.join(parts),
             }
 
 
@@ -423,13 +429,14 @@ def _pericia_rel(days_left):
 def _pericia_badge(pd):
     """Badge do prazo da perícia a partir da derivação da policy
     (:func:`core.utils.pericia_deadline_of` / bulk de ``core.analytics``).
-    Fonte única do format dos rótulos PERICIA_DEADLINE_LABELS (data-limite no
-    fuso ativo + urgência relativa). ``None`` → sem badge."""
+    Fonte única do format dos rótulos PERICIA_DEADLINE_LABELS (data-limite,
+    já uma data de calendário no fuso ativo, + urgência relativa).
+    ``None`` → sem badge."""
     if not pd:
         return None
     status = pd['status']
     label = PERICIA_DEADLINE_LABELS[status].format(
-        due=timezone.localtime(pd['due']).strftime('%Y-%m-%d'),
+        due=pd['due'].isoformat(),
         rel=_pericia_rel(pd['days_left']),
     )
     return {'css': PERICIA_DEADLINE_CSS[status], 'label': label, 'status': status}
@@ -2224,7 +2231,13 @@ def evidence_detail_view(request, evidence_id):
     _decorate_evidences([ev])
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
-    sub_components = list(ev.sub_components.select_related('agent').order_by('id'))
+    # Espelho de _evidence_base_qs: a decoração deriva 4 eixos do ledger por
+    # item — sem o prefetch, cada sub-componente custava 4 queries do ledger
+    # (+1 do FK occurrence).
+    sub_components = list(
+        ev.sub_components.select_related('agent', 'occurrence')
+        .prefetch_related('custody_chain').order_by('id')
+    )
     _decorate_evidences(sub_components)
     valid_next = _valid_next_events(events, ev)
     return render(

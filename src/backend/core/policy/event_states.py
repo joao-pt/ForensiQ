@@ -314,10 +314,14 @@ PERICIA_DEADLINE_WARNING_DAYS = settings.PERICIA_DEADLINE_WARNING_DAYS
 
 
 def pericia_due_date(despacho):
-    """Data-limite da perícia derivada de UM evento de despacho (hv4).
+    """Data-limite da perícia derivada de UM evento de despacho (hv4) — uma
+    DATA de calendário (``datetime.date``) no fuso ativo.
 
-    Fonte única da fórmula «data declarada do ato + prazo em dias» — a
-    data juridicamente relevante é a DECLARADA pela autoridade
+    Fonte única da fórmula «data declarada do ato + prazo em dias». O prazo
+    legal conta-se em DIAS, não em instantes: a aritmética faz-se sobre a
+    DATA local da declaração (somar ``timedelta`` ao instante desviava ±1 dia
+    quando o intervalo atravessava uma transição de hora legal). A data
+    juridicamente relevante é a DECLARADA pela autoridade
     (``act_declared_at``); o timestamp do servidor fica como fallback
     (mesmo critério da flag ``validation_overdue``). ``None`` sem prazo
     estruturado (eventos pré-hv4)."""
@@ -326,7 +330,7 @@ def pericia_due_date(despacho):
     base = despacho.act_declared_at or despacho.timestamp
     if base is None:
         return None
-    return base + timedelta(days=despacho.act_deadline_days)
+    return timezone.localtime(base).date() + timedelta(days=despacho.act_deadline_days)
 
 
 def pericia_deadline(eventos_ordenados, now):
@@ -336,15 +340,21 @@ def pericia_deadline(eventos_ordenados, now):
     154.º; ``act_deadline_days``, hv4). Como a validação, é um estatuto
     derivado, nunca guardado: recebe os registos ``ChainOfCustody`` ordenados
     por sequence e o instante de referência ``now`` (função pura) e devolve
-    ``None`` ou ``{'due': datetime, 'status': str, 'days_left': int}``.
+    ``None`` ou ``{'due': date, 'status': str, 'days_left': int}``.
 
     - ``None`` — não aplicável: sem despacho, prazo já CUMPRIDO (existe
       CONCLUSAO_PERICIA posterior ao último despacho — vários despachos são
       possíveis, Art. 158.º: vale o prazo do ÚLTIMO), exigência extinta por
-      disposição final (``DISPOSAL_EVENTS``), ou despacho sem prazo
+      disposição final POSTERIOR ao despacho, ou despacho sem prazo
       estruturado (pré-hv4);
     - ``status`` — ``'vencida'`` (a data-limite já passou), ``'a_vencer'``
       (faltam ≤ ``PERICIA_DEADLINE_WARNING_DAYS`` dias) ou ``'em_prazo'``.
+
+    Tal como o cumprimento, a EXTINÇÃO pela disposição é POSICIONAL: a
+    disposição apaga o prazo do despacho anterior, mas um despacho registado
+    DEPOIS dela reabre o eixo (a PERDA_FAVOR_ESTADO não fecha o ledger e a
+    policy continua a oferecer o despacho — o prazo desse despacho não pode
+    vencer em silêncio).
 
     O prazo conta-se em DIAS de calendário no fuso ativo: vence no FIM do dia
     da data-limite (comparação por data, não por instante), coerente com a
@@ -359,13 +369,13 @@ def pericia_deadline(eventos_ordenados, now):
         elif r.event_type == EventType.CONCLUSAO_PERICIA:
             fulfilled = True
         elif r.event_type in DISPOSAL_EVENTS:
-            return None
+            despacho = None
     if despacho is None or fulfilled:
         return None
     due = pericia_due_date(despacho)
     if due is None:
         return None
-    days_left = (timezone.localtime(due).date() - timezone.localtime(now).date()).days
+    days_left = (due - timezone.localtime(now).date()).days
     if days_left < 0:
         status = 'vencida'
     elif days_left <= PERICIA_DEADLINE_WARNING_DAYS:
