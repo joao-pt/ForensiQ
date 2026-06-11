@@ -760,6 +760,97 @@ def _archived_occurrence_ids(user, occ_qs):
     }
 
 
+def _dashboard_tiles(cus_qs):
+    """Tiles do estado da cadeia (contagem por estado legal DERIVADO do ledger,
+    fonte única core.analytics) + tile de ATENÇÃO "A aguardar validação" — EIXO
+    próprio (a validação é ato jurídico, não um estado de custódia); o clique
+    filtra a própria tabela (?attn=pending), como os prazos — o número é
+    re-derivável. Devolve ``(tiles, tile_counts, pending_ids)``."""
+    tile_counts = analytics.state_counts(analytics.legal_states_by_evidence(cus_qs))
+    tiles = [
+        {'key': k, 'label': LEGAL_STATE_LABELS[k], 'n': tile_counts[k]} for k in LEGAL_STATE_LABELS
+    ]
+    val_statuses = analytics.validation_statuses_by_evidence(cus_qs)
+    pending_ids = {
+        ev for ev, vs in val_statuses.items() if vs in VALIDATION_PENDING_STATUSES
+    }
+    tiles.append({
+        'key': 'val_pendente', 'label': 'A aguardar validação',
+        'n': len(pending_ids), 'href': '?attn=pending', 'attn': True,
+    })
+    return tiles, tile_counts, pending_ids
+
+
+def _hero_within(b, p):
+    """O ponto ``p`` cai dentro da caixa ``b`` ([[lat,lng],[lat,lng]])?"""
+    return b[0][0] <= p['lat'] <= b[1][0] and b[0][1] <= p['lng'] <= b[1][1]
+
+
+def _hero_points(occ_qs):
+    """Pontos georreferenciados do hero, agrupados por região (_HERO_BOUNDS).
+
+    O ``id`` permite o drill-down (popup com link) no mapa interativo. Pontos
+    fora das 3 caixas NUNCA desaparecem em silêncio (princípio de
+    re-verificabilidade): contam-se e o template expõe-os na legenda.
+    Devolve ``(pts, regions, n_fora_mapa)``."""
+    pts = [
+        {'id': o.id, 'lat': float(o.gps_lat), 'lng': float(o.gps_lng),
+         'label': o.code or o.number, 'pri': _occ_pri_code(o)}
+        for o in occ_qs.exclude(gps_lat=None).exclude(gps_lng=None)
+    ]
+    regions = {name: [p for p in pts if _hero_within(b, p)] for name, b in _HERO_BOUNDS.items()}
+    n_fora_mapa = sum(
+        1 for p in pts if not any(_hero_within(b, p) for b in _HERO_BOUNDS.values())
+    )
+    return pts, regions, n_fora_mapa
+
+
+def _pri_counts(points):
+    """Distribuição de prioridade dos pontos desenhados (legenda do hero)."""
+    return {
+        'p1': sum(1 for p in points if p['pri'] == 1),
+        'p2': sum(1 for p in points if p['pri'] == 2),
+        'normal': sum(1 for p in points if p['pri'] == 0),
+    }
+
+
+def _attn_scope(request, occ_qs, sla, pending_ids):
+    """Filtro local "Prazos & atenção" (?attn=): clicar num prazo mostra na
+    PRÓPRIA tabela as ocorrências cujos itens o contam — o número do painel é
+    re-derivável no clique (antes ligava a uma lista mais lata, N≠número).
+    Devolve ``(recent_qs, attn_filter)``."""
+    attn = {
+        'overdue': ('validações em atraso', sla['overdue_ids']),
+        'transit': ('em trânsito por receber', sla['transit_ids']),
+        'pending': ('a aguardar validação', pending_ids),
+    }
+    attn_key = (request.GET.get('attn') or '').strip()
+    if attn_key not in attn:
+        return occ_qs, None
+    label, ev_ids = attn[attn_key]
+    recent_qs = occ_qs.filter(evidences__id__in=ev_ids).distinct()
+    return recent_qs, {
+        'key': attn_key,
+        'label': label,
+        'n_items': len(ev_ids),
+        'n_occ': recent_qs.count(),
+    }
+
+
+# Colunas da grelha "Últimas ocorrências" do Painel — gerador único (core.grid),
+# como todas as listas; um painel read-only só dispensa filtros/paginação.
+# Larguras dimensionadas para a coluna ESQUERDA da dash-grid (~700px a 1440):
+# código e data nunca truncam; o tipo de crime é o que cede.
+_DASH_RECENT_COLUMNS = [
+    GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=8),
+    GridColumn('code', 'Código', cell='code', width=18, link_key='detail_url', val_flag=True),
+    GridColumn('number', 'NUIPC', css='mono', width=18),
+    GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=24),
+    GridColumn('n_items', 'Itens', cell='num', css='col-hide-sm', width=8),
+    GridColumn('date_time', 'Data / hora', cell='date', time=True, width=24),
+]
+
+
 @jwt_cookie_user
 def dashboard_view(request):
     """Painel — hero geo + últimas ocorrências + registo de atividade, TUDO
@@ -771,24 +862,8 @@ def dashboard_view(request):
     occ_qs = _lens_occurrences(user, lens)
     occ_total = occ_qs.count()
 
-    # Tiles do estado da cadeia — contagem por estado legal DERIVADO (ledger),
-    # agrupamento e contagem na fonte única (core.analytics).
     cus_qs = _lens_custody(user, lens)
-    tile_counts = analytics.state_counts(analytics.legal_states_by_evidence(cus_qs))
-    tiles = [
-        {'key': k, 'label': LEGAL_STATE_LABELS[k], 'n': tile_counts[k]} for k in LEGAL_STATE_LABELS
-    ]
-    # "A aguardar validação" — EIXO próprio (a validação é ato jurídico, não um
-    # estado de custódia): tile de ATENÇÃO à parte; o clique filtra a própria
-    # tabela (?attn=pending), como os prazos — o número é re-derivável.
-    val_statuses = analytics.validation_statuses_by_evidence(cus_qs)
-    pending_ids = {
-        ev for ev, vs in val_statuses.items() if vs in VALIDATION_PENDING_STATUSES
-    }
-    tiles.append({
-        'key': 'val_pendente', 'label': 'A aguardar validação',
-        'n': len(pending_ids), 'href': '?attn=pending', 'attn': True,
-    })
+    tiles, tile_counts, pending_ids = _dashboard_tiles(cus_qs)
 
     # Métricas de FLUXO (não só stock) — mesma fonte única que alimenta /stats/:
     # prazos a estourar (CPP 178.º/6), trânsito por receber e paragem mais longa
@@ -797,49 +872,8 @@ def dashboard_view(request):
     dwell = analytics.custody_dwell(cus_qs)
     moves_24h = cus_qs.filter(timestamp__gte=timezone.now() - timedelta(hours=24)).count()
 
-    # Pontos georreferenciados por região (mapa do hero). O `id` permite o
-    # drill-down (popup com link) no mapa interativo.
-    pts = [
-        {'id': o.id, 'lat': float(o.gps_lat), 'lng': float(o.gps_lng),
-         'label': o.code or o.number, 'pri': _occ_pri_code(o)}
-        for o in occ_qs.exclude(gps_lat=None).exclude(gps_lng=None)
-    ]
-
-    def _within(b, p):
-        return b[0][0] <= p['lat'] <= b[1][0] and b[0][1] <= p['lng'] <= b[1][1]
-
-    regions = {name: [p for p in pts if _within(b, p)] for name, b in _HERO_BOUNDS.items()}
-    # Pontos fora das 3 caixas NUNCA desaparecem em silêncio (princípio de
-    # re-verificabilidade): contam-se e o template expõe-os na legenda.
-    n_fora_mapa = sum(1 for p in pts if not any(_within(b, p) for b in _HERO_BOUNDS.values()))
-
-    def _pri_counts(points):
-        return {
-            'p1': sum(1 for p in points if p['pri'] == 1),
-            'p2': sum(1 for p in points if p['pri'] == 2),
-            'normal': sum(1 for p in points if p['pri'] == 0),
-        }
-
-    # Filtro local "Prazos & atenção" (?attn=): clicar num prazo mostra na
-    # PRÓPRIA tabela as ocorrências cujos itens o contam — o número do painel
-    # é re-derivável no clique (antes ligava a uma lista mais lata, N≠número).
-    _ATTN = {
-        'overdue': ('validações em atraso', sla['overdue_ids']),
-        'transit': ('em trânsito por receber', sla['transit_ids']),
-        'pending': ('a aguardar validação', pending_ids),
-    }
-    attn_key = (request.GET.get('attn') or '').strip()
-    attn_filter = None
-    recent_qs = occ_qs
-    if attn_key in _ATTN:
-        label, ev_ids = _ATTN[attn_key]
-        recent_qs = occ_qs.filter(evidences__id__in=ev_ids).distinct()
-        attn_filter = {
-            'key': attn_key,
-            'label': label,
-            'n_items': len(ev_ids),
-            'n_occ': recent_qs.count(),
-        }
+    pts, regions, n_fora_mapa = _hero_points(occ_qs)
+    recent_qs, attn_filter = _attn_scope(request, occ_qs, sla, pending_ids)
 
     recent = list(
         # distinct=True: a lente institucional filtra por evidences__custody_chain__…,
@@ -848,19 +882,7 @@ def dashboard_view(request):
         recent_qs.annotate(n_items=Count('evidences', distinct=True)).order_by('-date_time')[:30]
     )
     _decorate_occurrences_page(recent)   # detail_url incluído (fonte única)
-
-    # Colunas da grelha "Últimas ocorrências" — gerador único (core.grid), como
-    # todas as listas; um painel read-only só dispensa filtros/paginação.
-    # Larguras dimensionadas para a coluna ESQUERDA da dash-grid (~700px a
-    # 1440): código e data nunca truncam; o tipo de crime é o que cede.
-    recent_columns = serialize_columns([
-        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=8),
-        GridColumn('code', 'Código', cell='code', width=18, link_key='detail_url', val_flag=True),
-        GridColumn('number', 'NUIPC', css='mono', width=18),
-        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=24),
-        GridColumn('n_items', 'Itens', cell='num', css='col-hide-sm', width=8),
-        GridColumn('date_time', 'Data / hora', cell='date', time=True, width=24),
-    ])
+    recent_columns = serialize_columns(_DASH_RECENT_COLUMNS)
 
     return render(
         request,
@@ -2217,6 +2239,46 @@ def _custody_anchor_url(rec):
     return f'/evidences/{rec.evidence_id}/custody/#evt-{rec.sequence}'
 
 
+def _custody_states_memo(user, lens):
+    """Estados legais derivados da lente, calculados UMA vez por request e
+    partilhados entre o filtro computado e a decoração (auditoria D9) —
+    devolve uma função sem argumentos com memoização."""
+    memo = {}
+
+    def states():
+        if 'v' not in memo:
+            memo['v'] = analytics.legal_states_by_evidence(_lens_custody(user, lens))
+        return memo['v']
+
+    return states
+
+
+def _decorate_custody_rows(events, states):
+    """Decoração das linhas da lista de custódias: rótulos base + estado legal
+    do item (badge/bolinha mobile), marcador de validação pendente (eixo
+    próprio, bulk só na página) e destino da navegação (timeline ancorada)."""
+    _decorate_events(events)
+    val_statuses = analytics.validation_statuses_by_evidence(
+        ChainOfCustody.objects.filter(
+            evidence_id__in={r.evidence_id for r in events}
+        )
+    )
+    for r in events:
+        st = states.get(r.evidence_id)
+        label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
+        css = LEGAL_STATE_CSS.get(st, 'muted')
+        r.state_badge = {'css': css, 'label': label}
+        r.dot = {'cls': css, 'title': label}          # bolinha mobile = estado legal
+        vs = val_statuses.get(r.evidence_id)
+        r.val_dot = (
+            {'cls': VALIDATION_STATUS_CSS[vs], 'title': VALIDATION_STATUS_LABELS[vs]}
+            if vs in VALIDATION_PENDING_STATUSES else None
+        )
+        inst = r.custodian_institution
+        r.institution_label = (inst.sigla or inst.name) if inst else '—'
+        r.detail_url = _custody_anchor_url(r)   # destino da linha/célula-código
+
+
 @jwt_cookie_user
 def custody_list_view(request):
     """Lista do ledger de custódia — server-rendered (Fase 3) via gerador único.
@@ -2242,40 +2304,10 @@ def custody_list_view(request):
     institutions = _active_institutions()
     inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
 
-    # Estados legais derivados da lente, calculados UMA vez por request e
-    # partilhados entre o filtro computado e a decoração (auditoria D9).
-    _states_memo = {}
-
-    def _lens_states():
-        if 'v' not in _states_memo:
-            _states_memo['v'] = analytics.legal_states_by_evidence(
-                _lens_custody(user, lens)
-            )
-        return _states_memo['v']
+    _lens_states = _custody_states_memo(user, lens)
 
     def decorate_custody(events):
-        _decorate_events(events)
-        states = _lens_states()
-        # Eixo da validação (marcador pendente por linha) — bulk, só na página.
-        val_statuses = analytics.validation_statuses_by_evidence(
-            ChainOfCustody.objects.filter(
-                evidence_id__in={r.evidence_id for r in events}
-            )
-        )
-        for r in events:
-            st = states.get(r.evidence_id)
-            label = LEGAL_STATE_LABELS.get(st, 'Sem custódia')
-            css = LEGAL_STATE_CSS.get(st, 'muted')
-            r.state_badge = {'css': css, 'label': label}
-            r.dot = {'cls': css, 'title': label}          # bolinha mobile = estado legal
-            vs = val_statuses.get(r.evidence_id)
-            r.val_dot = (
-                {'cls': VALIDATION_STATUS_CSS[vs], 'title': VALIDATION_STATUS_LABELS[vs]}
-                if vs in VALIDATION_PENDING_STATUSES else None
-            )
-            inst = r.custodian_institution
-            r.institution_label = (inst.sigla or inst.name) if inst else '—'
-            r.detail_url = _custody_anchor_url(r)   # destino da linha/célula-código
+        _decorate_custody_rows(events, _lens_states())
 
     columns = [
         GridColumn('code', 'Código', cell='code', width=11, dot=True,
@@ -2455,100 +2487,16 @@ def occurrence_intake_view(request, occurrence_id):
     if occurrence is None:
         return render(request, '404.html', status=404)
 
-    # Para cada evidência: estado legal DERIVADO (ADR-0015) da sequência de
-    # eventos. "Já recebida" = já encaminhada para laboratório ou além.
-    from core.models import ChainOfCustody, EventType, Evidence
+    evidences, state_by_evidence, eventos_por_ev = _intake_world(occurrence)
 
-    evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
-    # Agrupamento ledger→estado na fonte única (uma só query para TODOS os
-    # eventos da ocorrência); with_events devolve também os registos agrupados,
-    # de onde se lê o destino do último encaminhamento de cada item.
-    states, eventos_por_ev = analytics.legal_states_by_evidence(
-        ChainOfCustody.objects.filter(evidence__occurrence=occurrence),
-        with_events=True,
-        related=('custodian_institution',),
-    )
-    state_by_evidence = {ev.id: states.get(ev.id, '') for ev in evidences}
-
-    # Instituição(ões) de DESTINO onde a prova é recebida — derivada do último
-    # encaminhamento de cada item em trânsito. Em trânsito ⇒ o último evento É o
-    # ENCAMINHAMENTO_CUSTODIA (derive_legal_state), logo o seu `custodian_institution`
-    # é o destino. A coordenada e o local da receção vêm DESTE registo (não se pedem
-    # ao operador): a instituição é fixa e já tem GPS/morada na ficha. Pré-selecionar
-    # o destino aqui torna a receção um gesto de confirmação, não de captura.
-    reception_institutions = []
-    _seen_inst = set()
-    for ev in evidences:
-        if state_by_evidence[ev.id] != 'em_transito':
-            continue
-        destino = eventos_por_ev[ev.id][-1].custodian_institution
-        if destino is not None and destino.id not in _seen_inst:
-            _seen_inst.add(destino.id)
-            reception_institutions.append(destino)
-
-    # POST — registar a RECEÇÃO (fase 2 do handoff, ADR-0016 v2) dos itens em
-    # trânsito marcados, em lote atómico, reusando o ChainOfCustodySerializer. O
-    # destino/custódio e (em instituição fixa) a coordenada são herdados do
-    # encaminhamento no clean() do modelo; aqui passa-se só o item + metadados.
     intake_errors = []
     if request.method == 'POST':
-        selected = set(request.POST.getlist('evidence_ids'))
-        storage = (request.POST.get('storage_location') or '').strip()
-        observations = (request.POST.get('observations') or '').strip()
-        # GPS e local NÃO se pedem na receção: a instituição de destino é fixa e o seu
-        # registo (coordenada + morada) é a fonte. O clean() do modelo copia o GPS da
-        # instituição herdada do encaminhamento; aqui só se deriva o `location_name`
-        # (rótulo legível no ledger) do mesmo destino. Pedir captura de GPS num
-        # laboratório com coordenada já conhecida seria ruído (ADR-0016 v2 — GPS só no
-        # terreno).
-        to_receive = [
-            ev
-            for ev in evidences
-            if str(ev.id) in selected and state_by_evidence[ev.id] == 'em_transito'
-        ]
-        if not to_receive:
-            intake_errors.append(
-                'Selecione pelo menos um item em trânsito (encaminhado, ainda por receber).'
-            )
-        else:
-            def _payload(ev):
-                # Rótulo de local = nome da instituição de destino (herdado do
-                # encaminhamento). O FK custodian_institution identifica o
-                # destino com precisão; location_name é só a etiqueta legível.
-                p = {'evidence': ev.id, 'event_type': EventType.RECEPCAO_CUSTODIA}
-                destino = eventos_por_ev[ev.id][-1].custodian_institution
-                if destino is not None:
-                    p['location_name'] = destino.name
-                if storage:
-                    p['storage_location'] = storage
-                if observations:
-                    p['observations'] = observations
-                return p
-
-            try:
-                # Esqueleto único do registo em lote (auditoria D1): loop atómico
-                # + serializer + auditoria; os erros de validação (guardas do
-                # ledger, GPS, permissão) voltam achatados — accionáveis e
-                # seguros de mostrar ao operador.
-                intake_errors = _append_custody_events(
-                    request, _payload, to_receive,
-                    extra_details=lambda r: {'custodian_type': r.custodian_type},
-                )
-            except Exception:  # noqa: BLE001 — falha inesperada → rollback (atomic) + msg genérica
-                # NÃO interpolar a excepção crua na página (fuga de detalhe interno
-                # + mascarava o erro real). Regista-se o stack trace e mostra-se
-                # uma mensagem genérica.
-                logger.exception('Falha inesperada no intake da ocorrência %s', occurrence.id)
-                intake_errors.append(
-                    'Falha no registo. A operação foi revertida; tente novamente '
-                    'ou contacte o suporte se persistir.'
-                )
-            if not intake_errors:
-                messages.success(
-                    request,
-                    f'Receção registada: {len(to_receive)} item(ns).',
-                )
-                return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
+        intake_errors, received = _register_intake(
+            request, evidences, state_by_evidence, eventos_por_ev, occurrence
+        )
+        if not intake_errors:
+            messages.success(request, f'Receção registada: {received} item(ns).')
+            return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
 
     rows = [
         {
@@ -2580,9 +2528,107 @@ def occurrence_intake_view(request, occurrence_id):
             'intake_action_label': 'Receção de prova encaminhada',
             'target_state': EventType.RECEPCAO_CUSTODIA,
             # Destino(s) de receção — coordenada/morada herdadas da ficha (read-only).
-            'reception_institutions': reception_institutions,
+            'reception_institutions': _reception_institutions(
+                evidences, state_by_evidence, eventos_por_ev
+            ),
         },
     )
+
+
+def _intake_world(occurrence):
+    """Itens da ocorrência + estado legal DERIVADO (ADR-0015) + eventos agrupados.
+
+    Agrupamento ledger→estado na fonte única (uma só query para TODOS os
+    eventos da ocorrência); ``with_events`` devolve também os registos
+    agrupados, de onde se lê o destino do último encaminhamento de cada item.
+    """
+    evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
+    states, eventos_por_ev = analytics.legal_states_by_evidence(
+        ChainOfCustody.objects.filter(evidence__occurrence=occurrence),
+        with_events=True,
+        related=('custodian_institution',),
+    )
+    return evidences, {ev.id: states.get(ev.id, '') for ev in evidences}, eventos_por_ev
+
+
+def _reception_institutions(evidences, state_by_evidence, eventos_por_ev):
+    """Instituição(ões) de DESTINO onde a prova é recebida — derivadas do último
+    encaminhamento de cada item em trânsito. Em trânsito ⇒ o último evento É o
+    ENCAMINHAMENTO_CUSTODIA (derive_legal_state), logo o seu
+    ``custodian_institution`` é o destino. A coordenada e o local da receção vêm
+    DESTE registo (não se pedem ao operador): a instituição é fixa e já tem
+    GPS/morada na ficha. Pré-selecionar o destino torna a receção um gesto de
+    confirmação, não de captura."""
+    out, seen = [], set()
+    for ev in evidences:
+        if state_by_evidence[ev.id] != 'em_transito':
+            continue
+        destino = eventos_por_ev[ev.id][-1].custodian_institution
+        if destino is not None and destino.id not in seen:
+            seen.add(destino.id)
+            out.append(destino)
+    return out
+
+
+def _register_intake(request, evidences, state_by_evidence, eventos_por_ev, occurrence):
+    """Regista a RECEÇÃO (fase 2 do handoff, ADR-0016 v2) dos itens em trânsito
+    marcados no POST, em lote atómico, reusando o ChainOfCustodySerializer. O
+    destino/custódio e (em instituição fixa) a coordenada são herdados do
+    encaminhamento no clean() do modelo; aqui passa-se só o item + metadados.
+
+    GPS e local NÃO se pedem na receção: a instituição de destino é fixa e o seu
+    registo (coordenada + morada) é a fonte — só se deriva o ``location_name``
+    (rótulo legível no ledger) do mesmo destino. Pedir captura de GPS num
+    laboratório com coordenada já conhecida seria ruído (GPS só no terreno).
+
+    Devolve ``(erros, n_recebidos)``; qualquer falha reverte tudo."""
+    selected = set(request.POST.getlist('evidence_ids'))
+    storage = (request.POST.get('storage_location') or '').strip()
+    observations = (request.POST.get('observations') or '').strip()
+    to_receive = [
+        ev
+        for ev in evidences
+        if str(ev.id) in selected and state_by_evidence[ev.id] == 'em_transito'
+    ]
+    if not to_receive:
+        return (
+            ['Selecione pelo menos um item em trânsito (encaminhado, ainda por receber).'],
+            0,
+        )
+
+    def _payload(ev):
+        # Rótulo de local = nome da instituição de destino (herdado do
+        # encaminhamento). O FK custodian_institution identifica o
+        # destino com precisão; location_name é só a etiqueta legível.
+        p = {'evidence': ev.id, 'event_type': EventType.RECEPCAO_CUSTODIA}
+        destino = eventos_por_ev[ev.id][-1].custodian_institution
+        if destino is not None:
+            p['location_name'] = destino.name
+        if storage:
+            p['storage_location'] = storage
+        if observations:
+            p['observations'] = observations
+        return p
+
+    try:
+        # Esqueleto único do registo em lote (auditoria D1): loop atómico
+        # + serializer + auditoria; os erros de validação (guardas do
+        # ledger, GPS, permissão) voltam achatados — accionáveis e
+        # seguros de mostrar ao operador.
+        errors = _append_custody_events(
+            request, _payload, to_receive,
+            extra_details=lambda r: {'custodian_type': r.custodian_type},
+        )
+    except Exception:  # noqa: BLE001 — falha inesperada → rollback (atomic) + msg genérica
+        # NÃO interpolar a excepção crua na página (fuga de detalhe interno
+        # + mascarava o erro real). Regista-se o stack trace e mostra-se
+        # uma mensagem genérica.
+        logger.exception('Falha inesperada no intake da ocorrência %s', occurrence.id)
+        errors = [
+            'Falha no registo. A operação foi revertida; tente novamente '
+            'ou contacte o suporte se persistir.'
+        ]
+    return errors, len(to_receive)
 
 
 @jwt_cookie_user
