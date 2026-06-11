@@ -28,7 +28,12 @@ from rest_framework.test import APIClient
 # ---------------------------------------------------------------------------
 # Fixtures reutilizáveis
 # ---------------------------------------------------------------------------
-from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
+from core.tests_factories import (
+    AUTHORITY_KWARGS,
+    AUTHORITY_PRAZO_DIAS,
+    TEST_PASSWORD,
+    CrimeTipoFactory,
+)
 
 from .models import (
     ChainOfCustody,
@@ -368,12 +373,17 @@ class PdfNoNPlusOneTest(TestCase):
                 event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
                 custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
+                act_declared_at=timezone.now(),
+                **AUTHORITY_KWARGS,
             )
             ChainOfCustody.objects.create(
                 evidence=ev,
                 event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
                 custodian_type=ChainOfCustody.CustodianType.OPC,
                 agent=cls.agent,
+                act_declared_at=timezone.now(),
+                act_deadline_days=AUTHORITY_PRAZO_DIAS,
+                **AUTHORITY_KWARGS,
             )
             ChainOfCustody.objects.create(
                 evidence=ev,

@@ -16,13 +16,21 @@ DOCUMENT → OTHER_DIGITAL; PHOTO → DIGITAL_FILE.
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 # BaseAPITestCase vive em core.tests_base (auditoria D112) — re-importada aqui
 # para as suites (e tests_new_features/tests_dashboard) continuarem a funcionar.
 from core.tests_base import BaseAPITestCase as BaseAPITestCase, make_image_bytes
-from core.tests_factories import LISBOA_GPS, LISBOA_GPS_STR, TEST_PASSWORD, CrimeTipoFactory
+from core.tests_factories import (
+    AUTHORITY_KWARGS,
+    AUTHORITY_PRAZO_DIAS,
+    LISBOA_GPS,
+    LISBOA_GPS_STR,
+    TEST_PASSWORD,
+    CrimeTipoFactory,
+)
 
 from .auth import ACCESS_COOKIE_NAME, REFRESH_COOKIE_NAME
 from .models import (
@@ -311,11 +319,16 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
             event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
+            act_declared_at=timezone.now(),
+            **AUTHORITY_KWARGS,
         ).save()
         ChainOfCustody(
             evidence=self.evidence,
             event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
             agent=self.agent,
+            act_declared_at=timezone.now(),
+            act_deadline_days=AUTHORITY_PRAZO_DIAS,
+            **AUTHORITY_KWARGS,
         ).save()
 
         # Perito inicia a perícia no laboratório.
@@ -382,9 +395,9 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_validacao_sem_identificacao_da_autoridade_e_rejeitada(self):
-        """VALIDACAO_APREENSAO 'nua' (sem observations) → 400: o ato exige a
-        identificação de quem validou — o caminho único vale também na API
-        (a UI constrói o texto certificado a partir dos campos do modal)."""
+        """VALIDACAO_APREENSAO 'nua' (sem a autoridade estruturada — hv4) →
+        400: o ato exige nome, cargo e data declarada de quem validou — a
+        guarda do clean() vale também na API (caminho único)."""
         ChainOfCustody(
             evidence=self.evidence,
             event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
@@ -397,7 +410,7 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
             {'evidence': self.evidence.pk, 'event_type': 'VALIDACAO_APREENSAO'},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('observations', response.data)
+        self.assertIn('authority_nome', response.data)
 
     def test_validation_status_exposto_na_api_de_evidencias(self):
         """O eixo de validação é visível aos consumidores da API (PWA):
@@ -427,6 +440,8 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
             event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
+            act_declared_at=timezone.now(),
+            **AUTHORITY_KWARGS,
         ).save()
 
         self.authenticate_as(self.agent)
@@ -737,14 +752,16 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(len(custody_response_1.data['record_hash']), 64)
         self.assertRegex(custody_response_1.data['record_hash'], r'^[a-f0-9]{64}$')
 
-        # --- STEP 5: Registar evento VALIDACAO_APREENSAO ---
+        # --- STEP 5: Registar evento VALIDACAO_APREENSAO (autoridade hv4) ---
         custody_response_2 = self.client.post(
             custody_url,
             {
                 'evidence': evidence_id,
                 'event_type': 'VALIDACAO_APREENSAO',
                 'custodian_type': 'OPC',
-                'observations': 'Apreensão validada pela autoridade judiciária.',
+                'act_declared_at': timezone.now().isoformat(),
+                'observations': 'Validação registada no fluxo completo.',
+                **AUTHORITY_KWARGS,
             },
         )
         self.assertEqual(custody_response_2.status_code, status.HTTP_201_CREATED)
@@ -760,7 +777,10 @@ class EndToEndFlowTest(BaseAPITestCase):
             {
                 'evidence': evidence_id,
                 'event_type': 'DESPACHO_PERICIA',
+                'act_declared_at': timezone.now().isoformat(),
+                'act_deadline_days': AUTHORITY_PRAZO_DIAS,
                 'observations': 'Despacho que ordena a perícia (Art. 154.º).',
+                **AUTHORITY_KWARGS,
             },
         )
         self.assertEqual(custody_response_3a.status_code, status.HTTP_201_CREATED)

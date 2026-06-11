@@ -91,7 +91,7 @@ from core.models import (
     Portador,
     ProvaEmTransito,
 )
-from core.policy.event_states import LEGAL_STATES
+from core.policy.event_states import CERTIFIED_ACT_EVENTS, LEGAL_STATES
 from core.validators import luhn_check_digit
 
 User = get_user_model()
@@ -869,7 +869,7 @@ class Command(BaseCommand):
                     custodian_user=u['inspetor.pj.lsb']),
             self._g(EventType.DESPACHO_PERICIA, CustodianType.OPC, inst['PJ-LSB'],
                     u['mp.lsb1'], ipt('PJ-LSB'), cl.advance(hours=8),
-                    custodian_user=u['inspetor.pj.lsb']),
+                    custodian_user=u['inspetor.pj.lsb'], prazo_dias=60),
             self._g(EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO, inst['LPC'],
                     u['inspetor.pj.lsb'], None, cl.advance(hours=3), bearer=port_gnr),
             self._g(EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PUBLICO, inst['LPC'],
@@ -1081,7 +1081,8 @@ class Command(BaseCommand):
             self._g(EventType.VALIDACAO_APREENSAO, CustodianType.OPC, inst['PJ-PRT'],
                     u['mp.prt1'], ipt('PJ-PRT'), cl.advance(hours=20), custodian_user=u['inspetor.pj.prt']),
             self._g(EventType.DESPACHO_PERICIA, CustodianType.OPC, inst['PJ-PRT'],
-                    u['mp.prt1'], ipt('PJ-PRT'), cl.advance(hours=6), custodian_user=u['inspetor.pj.prt']),
+                    u['mp.prt1'], ipt('PJ-PRT'), cl.advance(hours=6),
+                    custodian_user=u['inspetor.pj.prt'], prazo_dias=45),
             self._g(EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PRIVADO, inst['NCFORENSES'],
                     u['inspetor.pj.prt'], None, cl.advance(hours=4), bearer=port_gnr),
             self._g(EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PRIVADO, inst['NCFORENSES'],
@@ -1128,7 +1129,8 @@ class Command(BaseCommand):
                     u['mp.cbr1'], COIMBRA_BAIXA, cl.advance(hours=18), acc=10,
                     custodian_user=u['agente.gnr1']),
             self._g(EventType.DESPACHO_PERICIA, CustodianType.OPC, inst['GNR'],
-                    u['mp.cbr1'], COIMBRA_BAIXA, cl.advance(hours=6), custodian_user=u['agente.gnr1']),
+                    u['mp.cbr1'], COIMBRA_BAIXA, cl.advance(hours=6),
+                    custodian_user=u['agente.gnr1'], prazo_dias=15),
             self._g(EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO, inst['INMLCF-C'],
                     u['agente.gnr1'], None, cl.advance(hours=3), bearer=port_gnr,
                     obs='Encaminhado ao INMLCF-C — aguarda receção (em trânsito).'),
@@ -1212,8 +1214,11 @@ class Command(BaseCommand):
                     FARO_MARINA, cl.advance(minutes=30), acc=9, sealed=True, custodian_user=u['agente.gnr1']),
             self._g(EventType.VALIDACAO_APREENSAO, CustodianType.OPC, inst['GNR'], u['mp.cbr1'],
                     FARO_MARINA, cl.advance(hours=20), acc=9, custodian_user=u['agente.gnr1']),
+            # Prazo curto sobre um caso antigo: alimenta o alerta de data-limite
+            # vencida quando a derivação do prazo (roadmap §3) existir.
             self._g(EventType.DESPACHO_PERICIA, CustodianType.OPC, inst['GNR'], u['mp.cbr1'],
-                    FARO_MARINA, cl.advance(hours=6), custodian_user=u['agente.gnr1']),
+                    FARO_MARINA, cl.advance(hours=6),
+                    custodian_user=u['agente.gnr1'], prazo_dias=10),
             self._g(EventType.ENCAMINHAMENTO_CUSTODIA, CustodianType.LAB_PUBLICO, inst['LPC'],
                     u['agente.gnr1'], None, cl.advance(hours=4), bearer=port_gnr),
             self._g(EventType.RECEPCAO_CUSTODIA, CustodianType.LAB_PUBLICO, inst['LPC'],
@@ -1526,26 +1531,22 @@ class Command(BaseCommand):
     def _g(self, event_type, custodian_type, institution, agent, gps, when, *, acc=None,
            loc='', store='', sealed=False, seal_cond='', new_seal='', relinquished_by=None,
            bearer=None, custodian_user=None, obs='',
-           receiver_nome='', receiver_doc_tipo='', receiver_doc_numero=''):
+           receiver_nome='', receiver_doc_tipo='', receiver_doc_numero='',
+           cargo='Procurador(a) da República', prazo_dias=30):
         """Empacota os parâmetros de UM evento de custódia (aplicado por :meth:`_chain`)."""
         lat, lng = (gps if gps else (None, None))
         # Atos CERTIFICADOS (validação da apreensão / despacho para perícia —
-        # CERTIFIED_ACT_EVENTS na policy): texto certificado (quem + data do
-        # despacho), como o modal único produz — a demo mostra a prática real
-        # e o texto entra na fórmula do hash. O ``agent`` destes eventos no
-        # seed é o magistrado.
-        certificados = {
-            ChainOfCustody.EventType.VALIDACAO_APREENSAO:
-                'Apreensão validada por {quem} em {quando}.',
-            ChainOfCustody.EventType.DESPACHO_PERICIA:
-                'Perícia ordenada por {quem} em {quando}.',
-        }
-        if event_type in certificados:
-            certificado = certificados[event_type].format(
-                quem=agent.get_full_name() or agent.username,
-                quando=timezone.localtime(when).strftime('%d/%m/%Y %H:%M'),
-            )
-            obs = f'{certificado} {obs}'.strip()
+        # CERTIFIED_ACT_EVENTS na policy): identidade ESTRUTURADA da autoridade
+        # + data declarada do ato (hv4), como o modal único produz; no despacho
+        # entra ainda o prazo da perícia. O ``agent`` destes eventos no seed é
+        # o magistrado (todos MP — cargo default; ``prazo_dias`` afinável por
+        # caso para alimentar os alertas de data-limite).
+        authority_nome, act_declared_at, deadline_days = '', None, None
+        if event_type in CERTIFIED_ACT_EVENTS:
+            authority_nome = agent.get_full_name() or agent.username
+            act_declared_at = when
+            if event_type == ChainOfCustody.EventType.DESPACHO_PERICIA:
+                deadline_days = prazo_dias
         return {
             'event_type': event_type, 'custodian_type': custodian_type,
             'custodian_institution': institution, 'custodian_user': custodian_user,
@@ -1555,6 +1556,9 @@ class Command(BaseCommand):
             'relinquished_by': relinquished_by, 'bearer': bearer, 'observations': obs,
             'receiver_nome': receiver_nome, 'receiver_doc_tipo': receiver_doc_tipo,
             'receiver_doc_numero': receiver_doc_numero,
+            'authority_nome': authority_nome,
+            'authority_cargo': cargo if authority_nome else '',
+            'act_declared_at': act_declared_at, 'act_deadline_days': deadline_days,
             'when': when,
         }
 

@@ -36,7 +36,7 @@ User = get_user_model()
 
 
 from core.tests_base import image_upload, throttle_rate
-from core.tests_factories import RECEIVER_KWARGS, CrimeTipoFactory
+from core.tests_factories import RECEIVER_KWARGS, CrimeTipoFactory, _fill_authority
 
 
 def _png_upload(name='photo.png', size=(2, 2)):
@@ -140,11 +140,13 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
             (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
             (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
         ]:
+            # Atos certificados exigem a autoridade estruturada (clean(), hv4).
             ChainOfCustody.objects.create(
                 evidence=self.ev_in_analysis,
                 event_type=event_type,
                 custodian_type=custodian_type,
                 agent=self.agent,
+                **_fill_authority(event_type, {}),
             )
         ChainOfCustody.objects.create(
             evidence=self.ev_apreendida,

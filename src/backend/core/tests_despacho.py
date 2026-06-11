@@ -1,23 +1,26 @@
 """ForensiQ — Testes: despacho para perícia em LOTE a partir da ocorrência.
 
 Modelo de domínio (CPP art. 154.º): o despacho é um ATO de autoridade, não uma
-deslocação — regista QUEM ordenou a perícia, QUANDO (data do despacho,
-declarada) e a referência, sem GPS nem mudança de custódio (herdado do último
-evento). O ``timestamp`` do evento é sempre o do servidor; a data do despacho
-entra no texto CERTIFICADO de ``observations``, que faz parte da fórmula do
-hash. A maquinaria é a MESMA da validação (modal único dos atos certificados,
-``_CERTIFIED_ACT_SPECS``); o despacho é repetível (2.ª perícia — Art. 158.º).
+deslocação — regista a AUTORIDADE que ordenou a perícia (nome/cargo), a data
+declarada do despacho e o PRAZO fixado para a perícia (dias) em campos
+ESTRUTURADOS (hv4, entram na fórmula do hash), sem GPS nem mudança de custódio
+(herdado do último evento). O ``timestamp`` do evento é sempre o do servidor;
+``observations`` leva só a referência/justificação livre. A maquinaria é a
+MESMA da validação (modal único dos atos certificados, ``_CERTIFIED_ACT_SPECS``);
+o despacho é repetível (2.ª perícia — Art. 158.º).
 """
 
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 
 from core.models import (
+    ChainOfCustody,
     CustodianType,
     EventType,
     Institution,
@@ -83,8 +86,10 @@ class DespacharLoteTest(TestCase):
         data = {
             'modal': '1',
             'evidence_ids': ids,
-            'validated_by': 'Procurador João Macedo',
-            'validated_at': _dtl(timezone.now()),
+            'authority_nome': 'João Macedo',
+            'authority_cargo': 'Procurador da República',
+            'act_declared_at': _dtl(timezone.now()),
+            'act_deadline_days': '30',
         }
         data.update(extra)
         return data
@@ -103,8 +108,10 @@ class DespacharLoteTest(TestCase):
         self.assertIn('name="include_validation"', body)
         self.assertIn('POR VALIDAR', body)
         self.assertNotIn(f'value="{self.ev_transit.id}"', body)  # em trânsito
-        self.assertIn('name="validated_by"', body)
-        self.assertIn('name="validated_at"', body)
+        self.assertIn('name="authority_nome"', body)
+        self.assertIn('name="authority_cargo"', body)
+        self.assertIn('name="act_declared_at"', body)
+        self.assertIn('name="act_deadline_days"', body)
         self.assertIn('name="justification"', body)
         self.assertIn('Quem ordenou a perícia', body)
         # Ato jurídico: o modal não pede GPS nem local.
@@ -122,10 +129,14 @@ class DespacharLoteTest(TestCase):
         for ev in (self.ev1, self.ev2):
             ult = self._last(ev)
             self.assertEqual(ult.event_type, EventType.DESPACHO_PERICIA)
-            # Quem ordenou + data do despacho + referência: texto CERTIFICADO
-            # (observations entra na fórmula do hash).
-            self.assertIn('Perícia ordenada por Procurador João Macedo', ult.observations)
-            self.assertIn('Despacho 77/26 — exame pericial.', ult.observations)
+            # Autoridade + data declarada + PRAZO da perícia ESTRUTURADOS (hv4
+            # — entram na fórmula do hash); observations leva só a referência.
+            self.assertEqual(ult.authority_nome, 'João Macedo')
+            self.assertEqual(ult.authority_cargo, 'Procurador da República')
+            self.assertIsNotNone(ult.act_declared_at)
+            self.assertEqual(ult.act_deadline_days, 30)
+            self.assertEqual(ult.observations, 'Despacho 77/26 — exame pericial.')
+            self.assertEqual(ult.hash_version, 'hv4')
             # Ato sem deslocação: sem GPS; custódio herdado do último evento.
             self.assertIsNone(ult.gps_lat)
             self.assertEqual(ult.custodian_institution_id, self.opc.id)
@@ -185,9 +196,15 @@ class DespacharLoteTest(TestCase):
              EventType.DESPACHO_PERICIA],
         )
         eventos = sort_custody_chain(self.ev_pend.custody_chain.all())
-        self.assertIn('Apreensão validada por Procurador João Macedo', eventos[1].observations)
+        # A validação incluída leva a MESMA autoridade estruturada E a MESMA
+        # data declarada do despacho (sem prazo — o prazo é próprio do despacho).
+        self.assertEqual(eventos[1].authority_nome, 'João Macedo')
+        self.assertEqual(eventos[1].authority_cargo, 'Procurador da República')
         self.assertIn('Validação incluída no despacho', eventos[1].observations)
-        self.assertIn('Perícia ordenada por Procurador João Macedo', eventos[2].observations)
+        self.assertIsNone(eventos[1].act_deadline_days)
+        self.assertEqual(eventos[1].act_declared_at, eventos[2].act_declared_at)
+        self.assertEqual(eventos[2].authority_nome, 'João Macedo')
+        self.assertEqual(eventos[2].act_deadline_days, 30)
         # O item já validado leva SÓ o despacho (não revalida).
         tipos_ev1 = [x.event_type for x in sort_custody_chain(self.ev1.custody_chain.all())]
         self.assertEqual(tipos_ev1.count(EventType.VALIDACAO_APREENSAO), 1)
@@ -201,20 +218,28 @@ class DespacharLoteTest(TestCase):
         self.assertIn('Selecione pelo menos um item', r.content.decode())
 
     def test_sem_autoridade_devolve_erro(self):
-        r = self._post(self._payload([self.ev1.id], validated_by=''))
+        r = self._post(self._payload([self.ev1.id], authority_nome=''))
         self.assertEqual(r.status_code, 400)
-        self.assertIn('quem ordenou', r.content.decode())
+        self.assertIn('nome da autoridade', r.content.decode())
+
+    def test_sem_prazo_devolve_erro(self):
+        """O despacho FIXA o prazo da perícia: sem dias (ou com 0) é recusado."""
+        for invalido in ('', '0', 'abc'):
+            r = self._post(self._payload([self.ev1.id], act_deadline_days=invalido))
+            self.assertEqual(r.status_code, 400)
+            self.assertIn('prazo da perícia', r.content.decode())
+        self.assertEqual(self._last(self.ev1).event_type, EventType.VALIDACAO_APREENSAO)
 
     def test_data_no_futuro_devolve_erro(self):
         r = self._post(self._payload(
-            [self.ev1.id], validated_at=_dtl(timezone.now() + timedelta(days=1)),
+            [self.ev1.id], act_declared_at=_dtl(timezone.now() + timedelta(days=1)),
         ))
         self.assertEqual(r.status_code, 400)
         self.assertIn('futuro', r.content.decode())
 
     def test_data_anterior_a_genese_devolve_erro(self):
         r = self._post(self._payload(
-            [self.ev1.id], validated_at=_dtl(timezone.now() - timedelta(days=1)),
+            [self.ev1.id], act_declared_at=_dtl(timezone.now() - timedelta(days=1)),
         ))
         self.assertEqual(r.status_code, 400)
         self.assertIn('anteceder', r.content.decode())
@@ -257,9 +282,9 @@ class DespachoCaminhoUnicoTest(TestCase):
 
 
 class DespachoAPITest(BaseAPITestCase):
-    """A fronteira de escrita externa é a MESMA da validação: o serializer
-    recusa o despacho "nu" (sem identificação de quem o proferiu) e aceita o
-    evento certificado."""
+    """A fronteira de escrita externa é a MESMA da validação: o ``clean()`` do
+    modelo recusa o despacho "nu" (sem a autoridade estruturada — hv4) e o
+    handler global traduz em 400; o evento certificado é aceite."""
 
     def setUp(self):
         super().setUp()
@@ -267,6 +292,19 @@ class DespachoAPITest(BaseAPITestCase):
         self.ev = _evidence(self.occ, self.agent)
         _event(self.ev, self.agent)
         _event(self.ev, self.agent, event_type=EventType.VALIDACAO_APREENSAO)
+
+    def _despacho_payload(self, ev, **extra):
+        data = {
+            'evidence': ev.pk,
+            'event_type': 'DESPACHO_PERICIA',
+            'custodian_type': 'OPC',
+            'authority_nome': 'João Macedo',
+            'authority_cargo': 'Procurador da República',
+            'act_declared_at': timezone.now().isoformat(),
+            'act_deadline_days': 30,
+        }
+        data.update(extra)
+        return data
 
     def test_api_recusa_despacho_sem_identificacao(self):
         self.authenticate_as(self.agent)
@@ -279,29 +317,146 @@ class DespachoAPITest(BaseAPITestCase):
         self.assertIn('identificação', str(r.data))
         self.assertEqual(self.ev.custody_chain.count(), 2)
 
+    def test_api_recusa_despacho_sem_prazo(self):
+        self.authenticate_as(self.agent)
+        r = self.client.post(
+            reverse('core:custody-list'),
+            self._despacho_payload(self.ev, act_deadline_days=''),
+        )
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('prazo', str(r.data))
+        self.assertEqual(self.ev.custody_chain.count(), 2)
+
     def test_api_recusa_despacho_com_apreensao_por_validar(self):
         """A guarda do MODELO vale também na API: apreensão por validar →
         o despacho é recusado (CPP 178.º/5-6)."""
         ev2 = _evidence(self.occ, self.agent)
         _event(ev2, self.agent)   # apreensão SEM validação
         self.authenticate_as(self.agent)
-        r = self.client.post(reverse('core:custody-list'), {
-            'evidence': ev2.pk,
-            'event_type': 'DESPACHO_PERICIA',
-            'custodian_type': 'OPC',
-            'observations': 'Perícia ordenada pelo Procurador João Macedo.',
-        })
+        r = self.client.post(reverse('core:custody-list'), self._despacho_payload(ev2))
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('VALIDADA', str(r.data))
         self.assertEqual(ev2.custody_chain.count(), 1)
 
     def test_api_aceita_despacho_certificado(self):
         self.authenticate_as(self.agent)
-        r = self.client.post(reverse('core:custody-list'), {
-            'evidence': self.ev.pk,
-            'event_type': 'DESPACHO_PERICIA',
-            'custodian_type': 'OPC',
-            'observations': 'Perícia ordenada pelo Procurador João Macedo (Art. 154.º).',
-        })
+        r = self.client.post(reverse('core:custody-list'), self._despacho_payload(self.ev))
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         self.assertEqual(r.data['event_type'], 'DESPACHO_PERICIA')
+        self.assertEqual(r.data['authority_nome'], 'João Macedo')
+        self.assertEqual(r.data['act_deadline_days'], 30)
+        self.assertEqual(r.data['hash_version'], 'hv4')
+
+
+class AutoridadeHv4Test(BaseAPITestCase):
+    """Guardas hv4 do MODELO: autoridade órfã recusada fora dos atos
+    certificados; prazo só no despacho; data declarada nunca futura; fórmula
+    hv4 aditiva e re-verificável a partir do registo relido."""
+
+    def setUp(self):
+        super().setUp()
+        self.occ = _occ(self.agent, 'HV4-1')
+        self.ev = _evidence(self.occ, self.agent)
+        _event(self.ev, self.agent)
+
+    def test_autoridade_orfa_e_recusada(self):
+        """Identidade de autoridade fora de um ato certificado não entra
+        (ex.: numa apreensão — a génese não é um ato de autoridade)."""
+        ev2 = _evidence(self.occ, self.agent)
+        with self.assertRaisesMessage(DjangoValidationError, 'atos certificados'):
+            _event(
+                ev2, self.agent,
+                authority_nome='João Macedo', authority_cargo='Procurador',
+                act_declared_at=timezone.now(),
+            )
+
+    def test_prazo_fora_do_despacho_e_recusado(self):
+        with self.assertRaisesMessage(DjangoValidationError, 'prazo da perícia'):
+            _event(
+                self.ev, self.agent,
+                event_type=EventType.VALIDACAO_APREENSAO,
+                act_deadline_days=30,
+            )
+
+    def test_data_declarada_futura_e_recusada(self):
+        with self.assertRaisesMessage(DjangoValidationError, 'futuro'):
+            _event(
+                self.ev, self.agent,
+                event_type=EventType.VALIDACAO_APREENSAO,
+                act_declared_at=timezone.now() + timedelta(days=1),
+            )
+
+    def test_data_declarada_anterior_a_apreensao_recusada_no_modelo(self):
+        """A guarda de antecedência é invariante do LEDGER (clean()), não só
+        pré-validação do formulário — vale também na API."""
+        with self.assertRaisesMessage(DjangoValidationError, 'anteceder'):
+            _event(
+                self.ev, self.agent,
+                event_type=EventType.VALIDACAO_APREENSAO,
+                act_declared_at=timezone.now() - timedelta(days=1),
+            )
+
+    def test_ato_certificado_sem_autoridade_e_recusado(self):
+        with self.assertRaisesMessage(DjangoValidationError, 'identificação da autoridade'):
+            _event(
+                self.ev, self.agent,
+                event_type=EventType.VALIDACAO_APREENSAO,
+                authority_nome='', authority_cargo='',
+                act_declared_at=timezone.now(),
+            )
+
+    def test_hv3_e_hv4_diferem_para_mesmos_campos(self):
+        """A versão é parte do contrato: o mesmo registo em hv3 e hv4 produz
+        hashes distintos (prefixo + segmentos da autoridade no fim)."""
+        comum = dict(
+            evidence=self.ev, event_type=EventType.VALIDACAO_APREENSAO,
+            agent=self.agent, sequence=2, observations='',
+            authority_nome='João Macedo', authority_cargo='Procurador da República',
+            act_declared_at=timezone.now(),
+        )
+        rec_hv3 = ChainOfCustody(hash_version='hv3', **comum)
+        rec_hv4 = ChainOfCustody(hash_version='hv4', **comum)
+        ts = timezone.now()
+        rec_hv3.timestamp = ts
+        rec_hv4.timestamp = ts
+        self.assertNotEqual(
+            rec_hv3.compute_record_hash(previous_hash='0' * 64),
+            rec_hv4.compute_record_hash(previous_hash='0' * 64),
+        )
+
+    def test_registo_certificado_e_hv4_e_reverifica(self):
+        """O perito re-lê o registo da BD e recalcula o hash com a fórmula
+        hv4 — bate certo com o gravado (incl. a data declarada normalizada
+        a UTC no clean(), análogo da quantização GPS)."""
+        # Data declarada no FUSO LOCAL (não-UTC) — exercita a normalização;
+        # posterior à apreensão do setUp (a guarda de antecedência vale aqui).
+        rec = _event(
+            self.ev, self.agent, event_type=EventType.VALIDACAO_APREENSAO,
+            act_declared_at=timezone.localtime(timezone.now()),
+        )
+        self.assertEqual(rec.hash_version, 'hv4')
+        relido = ChainOfCustody.objects.get(pk=rec.pk)
+        anterior = ChainOfCustody.objects.get(
+            evidence=self.ev, sequence=relido.sequence - 1
+        ).record_hash
+        self.assertEqual(
+            relido.compute_record_hash(previous_hash=anterior), relido.record_hash
+        )
+
+    def test_registo_de_despacho_reverifica_com_prazo(self):
+        """Round-trip BD→fórmula do segmento ``aprazo`` (inteiro de dias) —
+        só o DESPACHO o preenche; o reverify da validação deixa-o vazio."""
+        _event(self.ev, self.agent, event_type=EventType.VALIDACAO_APREENSAO)
+        rec = _event(
+            self.ev, self.agent, event_type=EventType.DESPACHO_PERICIA,
+            act_deadline_days=45,
+        )
+        self.assertEqual(rec.hash_version, 'hv4')
+        relido = ChainOfCustody.objects.get(pk=rec.pk)
+        self.assertEqual(relido.act_deadline_days, 45)
+        anterior = ChainOfCustody.objects.get(
+            evidence=self.ev, sequence=relido.sequence - 1
+        ).record_hash
+        self.assertEqual(
+            relido.compute_record_hash(previous_hash=anterior), relido.record_hash
+        )

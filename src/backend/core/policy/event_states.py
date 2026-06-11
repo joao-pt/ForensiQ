@@ -124,12 +124,15 @@ GENESIS_EVENTS = {
 # vez). A derivação de item (DERIVACAO_ITEM) não é uma apreensão autónoma.
 SEIZURE_GENESIS_EVENTS = {EventType.APREENSAO_OBJETO, EventType.APREENSAO_DADOS}
 
-# ATOS de autoridade CERTIFICADOS (CPP art. 178.º/6 e 154.º): a validação da
+# ATOS de autoridade CERTIFICADOS (CPP art. 178.º/5-6 e 154.º): a validação da
 # apreensão e o despacho para perícia são atos jurídicos, não deslocações — o
-# evento tem de identificar QUEM os proferiu (texto certificado em
-# ``observations``, que entra na fórmula do hash). A fronteira de escrita
-# externa (serializer) recusa o evento "nu"; o modal único da ocorrência
-# constrói o texto a partir dos campos obrigatórios. Fonte única do conjunto.
+# evento identifica QUEM os proferiu em campos ESTRUTURADOS do ledger
+# (``authority_nome``/``authority_cargo``, ``act_declared_at`` e, no despacho,
+# ``act_deadline_days``), que entram na fórmula do hash (hv4 — ADR-0013). A
+# guarda vive no ``clean()`` do modelo (``_clean_authority``: obrigatórios nos
+# atos certificados, recusados como identidade órfã nos restantes eventos) e
+# vale em todas as fronteiras de escrita (UI, API, cascade). O modal único da
+# ocorrência só recolhe os campos. Fonte única do conjunto.
 CERTIFIED_ACT_EVENTS = frozenset(
     {EventType.VALIDACAO_APREENSAO, EventType.DESPACHO_PERICIA}
 )

@@ -13,7 +13,6 @@ from rest_framework import serializers
 
 from . import access, evidence_type_config
 from .models import (
-    CERTIFIED_ACT_EVENTS,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -514,20 +513,6 @@ class EvidenceSerializer(serializers.ModelSerializer):
 # ChainOfCustody
 # ---------------------------------------------------------------------------
 
-# Mensagem de recusa por ato certificado em falta (eixo do evento — o conjunto
-# vive na policy, CERTIFIED_ACT_EVENTS): cada ato identifica QUEM o proferiu.
-_CERTIFIED_ACT_REQUIRED = {
-    EventType.VALIDACAO_APREENSAO: (
-        'A validação da apreensão exige a identificação de quem a '
-        'proferiu (autoridade judiciária) nas observações.'
-    ),
-    EventType.DESPACHO_PERICIA: (
-        'O despacho para perícia exige a identificação de quem o '
-        'proferiu (autoridade) nas observações.'
-    ),
-}
-
-
 class ChainOfCustodySerializer(serializers.ModelSerializer):
     """
     Serializer para registos do ledger de eventos da custódia (ADR-0015).
@@ -597,6 +582,14 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'receiver_nome',
             'receiver_doc_tipo',
             'receiver_doc_numero',
+            # Autoridade do ato certificado (hv4): o clean() exige nome+cargo+
+            # data declarada na VALIDACAO_APREENSAO/DESPACHO_PERICIA (e o prazo
+            # em dias no despacho) e recusa-os nos restantes eventos — o erro
+            # chega à API como 400 via handler global (exceptions.py).
+            'authority_nome',
+            'authority_cargo',
+            'act_declared_at',
+            'act_deadline_days',
             'record_hash',
             'hash_version',
         ]
@@ -640,17 +633,10 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
                     'detém, o perito ou a autoridade do caso.'
                 )
         # Certificação dos ATOS de autoridade (validação da apreensão + despacho
-        # para perícia — conjunto único na policy, CERTIFIED_ACT_EVENTS): o
-        # evento tem de identificar quem o proferiu (texto em observations, que
-        # entra na fórmula do hash). Fecha na FRONTEIRA de escrita externa
-        # (UI + API usam este serializer) o caminho do evento "nu" — o modal
-        # constrói o texto a partir dos campos obrigatórios.
-        if attrs.get('event_type') in CERTIFIED_ACT_EVENTS and not (
-            attrs.get('observations') or ''
-        ).strip():
-            raise serializers.ValidationError(
-                {'observations': _CERTIFIED_ACT_REQUIRED[attrs['event_type']]}
-            )
+        # para perícia): a identificação de quem os proferiu é ESTRUTURADA
+        # (authority_*/act_* — hv4) e exigida pelo clean() do modelo, fonte
+        # única da guarda; o evento "nu" é recusado lá e devolvido como 400
+        # pelo handler global. Aqui não se duplica a regra.
         return attrs
 
 
@@ -711,6 +697,22 @@ class CascadeCustodyRequestSerializer(serializers.Serializer):
     )
     gps_accuracy_m = serializers.IntegerField(
         required=False, allow_null=True, default=None, min_value=0
+    )
+    # Autoridade do ato certificado (hv4): a cascata de VALIDACAO_APREENSAO/
+    # DESPACHO_PERICIA transporta a MESMA autoridade (nome/cargo/data declarada
+    # e, no despacho, prazo) para todas as evidências. Aqui só o formato — a
+    # exigência vive no clean() do modelo, por evidência.
+    authority_nome = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=200
+    )
+    authority_cargo = serializers.CharField(
+        required=False, allow_blank=True, default='', max_length=100
+    )
+    act_declared_at = serializers.DateTimeField(
+        required=False, allow_null=True, default=None
+    )
+    act_deadline_days = serializers.IntegerField(
+        required=False, allow_null=True, default=None, min_value=1
     )
 
     def validate(self, attrs):

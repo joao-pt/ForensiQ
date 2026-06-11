@@ -26,7 +26,12 @@ from django.db import DatabaseError, connection
 from django.test import TestCase
 from django.utils import timezone
 
-from core.tests_factories import LISBOA_GPS, RECEIVER_KWARGS, CrimeTipoFactory
+from core.tests_factories import (
+    LISBOA_GPS,
+    RECEIVER_KWARGS,
+    CrimeTipoFactory,
+    _fill_authority,
+)
 
 from .models import (
     VALIDATION_DEADLINE,
@@ -187,7 +192,12 @@ class ChainOfCustodyModelTest(TestCase):
 
     def _evento(self, event_type, **kwargs):
         kwargs.setdefault('agent', self.agent)
-        record = ChainOfCustody(evidence=self.evidence, event_type=event_type, **kwargs)
+        # Atos certificados exigem a autoridade estruturada (clean(), hv4) —
+        # defaults canónicos da fonte única de teste (tests_factories).
+        record = ChainOfCustody(
+            evidence=self.evidence, event_type=event_type,
+            **_fill_authority(event_type, kwargs),
+        )
         record.save()
         return record
 
@@ -236,6 +246,20 @@ class ChainOfCustodyModelTest(TestCase):
     def test_validacao_dentro_do_prazo_nao_assinalada(self):
         self._evento(EventType.APREENSAO_OBJETO)
         record = self._evento(EventType.VALIDACAO_APREENSAO)
+        self.assertFalse(record.validation_overdue)
+
+    def test_validacao_registada_tarde_mas_proferida_no_prazo_nao_assinalada(self):
+        """O prazo das 72h conta até ao ATO da autoridade (CPP 178.º/6): com o
+        hv4 a referência é a data DECLARADA (act_declared_at), não o momento do
+        registo — validação proferida dentro do prazo e registada dias depois
+        não fica em atraso."""
+        backdated = timezone.now() - timedelta(hours=80)
+        with mock.patch('core.models.timezone.now', return_value=backdated):
+            self._evento(EventType.APREENSAO_OBJETO)
+        record = self._evento(
+            EventType.VALIDACAO_APREENSAO,
+            act_declared_at=timezone.now() - timedelta(hours=75),
+        )
         self.assertFalse(record.validation_overdue)
 
     # --- Guarda da perícia ---
@@ -345,15 +369,16 @@ class DeriveLegalStateTest(TestCase):
 
     def _chain(self, ev, eventos):
         for event_type, custodian_type in eventos:
-            # A RESTITUICAO exige a identidade do recetor (clean(), hv3) —
-            # identidade canónica da fonte única de teste.
-            extra = RECEIVER_KWARGS if event_type == EventType.RESTITUICAO else {}
+            # A RESTITUICAO exige a identidade do recetor (clean(), hv3) e os
+            # atos certificados a autoridade estruturada (hv4) — defaults
+            # canónicos da fonte única de teste (tests_factories).
+            extra = dict(RECEIVER_KWARGS) if event_type == EventType.RESTITUICAO else {}
             ChainOfCustody(
                 evidence=ev,
                 event_type=event_type,
                 custodian_type=custodian_type,
                 agent=self.agent,
-                **extra,
+                **_fill_authority(event_type, extra),
             ).save()
         return list(ev.custody_chain.order_by('sequence'))
 

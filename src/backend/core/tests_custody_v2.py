@@ -1,6 +1,6 @@
 """
 ForensiQ — Testes do modelo de custódia v2 (ADR-0016): portador na cadeia de
-hash (hv2; registos novos hv3), gate de laboratório, handoff em dois tempos
+hash (hv2; registos novos hv4), gate de laboratório, handoff em dois tempos
 (encaminhar → receber),
 estado ``em_transito`` e caixa "prova a chegar" (ProvaEmTransito).
 
@@ -30,7 +30,7 @@ from core.models import (
     User,
     derive_legal_state,
 )
-from core.tests_factories import CrimeTipoFactory, InstitutionFactory
+from core.tests_factories import CrimeTipoFactory, InstitutionFactory, _fill_authority
 
 
 def _user(username, profile=User.Profile.FIRST_RESPONDER, clearance=None):
@@ -68,7 +68,12 @@ class CustodyV2Base(TestCase):
         )
 
     def _save(self, ev, event_type, **kwargs):
-        rec = ChainOfCustody(evidence=ev, event_type=event_type, agent=self.agent, **kwargs)
+        # Atos certificados exigem a autoridade estruturada (clean(), hv4) —
+        # defaults canónicos da fonte única de teste (tests_factories).
+        rec = ChainOfCustody(
+            evidence=ev, event_type=event_type, agent=self.agent,
+            **_fill_authority(event_type, kwargs),
+        )
         rec.save()
         return rec
 
@@ -235,13 +240,13 @@ class HandoffTwoPhaseTest(CustodyV2Base):
 
 
 class BearerHashTest(CustodyV2Base):
-    """Portador no hash (hv2/hv3): snapshot estável, versão por registo."""
+    """Portador no hash (hv2+): snapshot estável, versão por registo."""
 
-    def test_registo_novo_e_hv3(self):
+    def test_registo_novo_e_hv4(self):
         occ = self._occ('B1')
         ev = self._ev(occ, 'B1')
         rec = self._save(ev, EventType.APREENSAO_OBJETO, custodian_type=CustodianType.OPC)
-        self.assertEqual(rec.hash_version, 'hv3')
+        self.assertEqual(rec.hash_version, 'hv4')
 
     def test_snapshot_do_portador_copiado(self):
         ev = self._despachado('B2')
@@ -401,9 +406,9 @@ class SeedDemoHandoffSmokeTest(TestCase):
         self.assertTrue(
             ProvaEmTransito.objects.filter(acknowledged_at__isnull=True).exists()
         )
-        # Portador entrou na cadeia com snapshot (fórmula corrente, hv3).
+        # Portador entrou na cadeia com snapshot (fórmula corrente, hv4).
         enc = ChainOfCustody.objects.filter(
             event_type=EventType.ENCAMINHAMENTO_CUSTODIA
         ).first()
-        self.assertEqual(enc.hash_version, 'hv3')
+        self.assertEqual(enc.hash_version, 'hv4')
         self.assertTrue(enc.bearer_matricula)

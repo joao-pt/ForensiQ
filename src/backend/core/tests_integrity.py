@@ -24,7 +24,7 @@ from core.models import (
     Portador,
     User,
 )
-from core.tests_factories import CrimeTipoFactory, InstitutionFactory
+from core.tests_factories import CrimeTipoFactory, InstitutionFactory, _fill_authority
 
 
 class IntegrityBase(TestCase):
@@ -49,21 +49,29 @@ class IntegrityBase(TestCase):
         )
 
     def _save(self, ev, event_type, **kw):
-        rec = ChainOfCustody(evidence=ev, event_type=event_type, agent=self.agent, **kw)
+        # Atos certificados exigem a autoridade estruturada (clean(), hv4) —
+        # defaults canónicos da fonte única de teste (tests_factories).
+        rec = ChainOfCustody(
+            evidence=ev, event_type=event_type, agent=self.agent,
+            **_fill_authority(event_type, kw),
+        )
         rec.save()
         return rec
 
 
 class VerifyChainsTest(IntegrityBase):
     def test_valid_chain_intact(self):
+        # Inclui o DESPACHO para exercitar o round-trip BD→fórmula dos
+        # segmentos hv4 com prazo (aprazo) — só o despacho o preenche.
         ev = self._ev('V1')
         self._save(ev, EventType.APREENSAO_OBJETO, custodian_type=CustodianType.OPC)
         self._save(ev, EventType.VALIDACAO_APREENSAO, custodian_type=CustodianType.OPC)
+        self._save(ev, EventType.DESPACHO_PERICIA, custodian_type=CustodianType.OPC)
         result = integrity.verify_chains([ev.id])
         self.assertTrue(result['intact'])
         self.assertEqual(result['verified'], 1)
         self.assertEqual(result['total_items'], 1)
-        self.assertEqual(result['total_events'], 2)
+        self.assertEqual(result['total_events'], 3)
         self.assertEqual(result['broken'], [])
 
     def test_tampered_chain_broken(self):

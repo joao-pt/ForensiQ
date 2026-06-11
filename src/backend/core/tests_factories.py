@@ -33,6 +33,7 @@ import factory
 from django.utils import timezone
 
 from core.models import (
+    CERTIFIED_ACT_EVENTS,
     AuditLog,
     ChainOfCustody,
     CrimeCategoria,
@@ -74,6 +75,18 @@ RECEIVER_KWARGS = {
     'receiver_doc_tipo': 'CC',
     'receiver_doc_numero': '12345678 9 ZZ4',
 }
+
+# Autoridade canónica dos ATOS certificados (hv4 — CPP art. 178.º/5-6 e 154.º):
+# o clean() exige nome+cargo+data declarada na VALIDACAO_APREENSAO e no
+# DESPACHO_PERICIA (e o prazo em dias no despacho). Fonte única dos testes;
+# ``make_event``/``make_chain`` preenchem-na quando o teste não dá outra.
+AUTHORITY_KWARGS = {
+    'authority_nome': 'Helena Sousa Martins',
+    'authority_cargo': 'Procuradora da República',
+}
+
+# Prazo canónico fixado no despacho (dias) — obrigatório no DESPACHO_PERICIA.
+AUTHORITY_PRAZO_DIAS = 30
 
 # ---------------------------------------------------------------------------
 # Utilizadores
@@ -313,7 +326,10 @@ class PortadorFactory(factory.django.DjangoModelFactory):
 
 
 class ChainOfCustodyFactory(factory.django.DjangoModelFactory):
-    """Primeiro evento do ledger: APREENSAO_OBJETO pelo OPC (ADR-0015)."""
+    """Primeiro evento do ledger: APREENSAO_OBJETO pelo OPC (ADR-0015).
+
+    Com ``event_type`` de ato certificado, os campos da autoridade (hv4)
+    preenchem-se com a canónica — espelho de ``_fill_authority``."""
 
     class Meta:
         model = ChainOfCustody
@@ -323,6 +339,21 @@ class ChainOfCustodyFactory(factory.django.DjangoModelFactory):
     custodian_type = ChainOfCustody.CustodianType.OPC
     agent = factory.SubFactory(UserFactory)
     observations = 'Apreensão inicial no local (factory).'
+    authority_nome = factory.LazyAttribute(
+        lambda o: AUTHORITY_KWARGS['authority_nome']
+        if o.event_type in CERTIFIED_ACT_EVENTS else ''
+    )
+    authority_cargo = factory.LazyAttribute(
+        lambda o: AUTHORITY_KWARGS['authority_cargo']
+        if o.event_type in CERTIFIED_ACT_EVENTS else ''
+    )
+    act_declared_at = factory.LazyAttribute(
+        lambda o: timezone.now() if o.event_type in CERTIFIED_ACT_EVENTS else None
+    )
+    act_deadline_days = factory.LazyAttribute(
+        lambda o: AUTHORITY_PRAZO_DIAS
+        if o.event_type == ChainOfCustody.EventType.DESPACHO_PERICIA else None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +422,19 @@ def _fill_receiver(event_type, kwargs):
         and 'receiver_nome' not in kwargs
     ):
         kwargs.update(RECEIVER_KWARGS)
+    return _fill_authority(event_type, kwargs)
+
+
+def _fill_authority(event_type, kwargs):
+    """Default válido de factory: os ATOS certificados exigem a autoridade
+    estruturada (clean(), hv4) — preenche a canónica (e o prazo, no despacho)
+    quando o teste não fornece outra."""
+    if event_type in CERTIFIED_ACT_EVENTS:
+        if 'authority_nome' not in kwargs:
+            kwargs.update(AUTHORITY_KWARGS)
+        kwargs.setdefault('act_declared_at', timezone.now())
+        if event_type == ChainOfCustody.EventType.DESPACHO_PERICIA:
+            kwargs.setdefault('act_deadline_days', AUTHORITY_PRAZO_DIAS)
     return kwargs
 
 
@@ -444,6 +488,8 @@ __all__ = [
     'LAB_LISBOA_GPS',
     'VALID_IMEI',
     'RECEIVER_KWARGS',
+    'AUTHORITY_KWARGS',
+    'AUTHORITY_PRAZO_DIAS',
     'UserFactory',
     'ExpertFactory',
     'PeritoFactory',

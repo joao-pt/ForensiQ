@@ -270,9 +270,9 @@ class ReceiverHashTest(TestCase):
             custodian_type=CustodianType.PROPRIETARIO,
         )
 
-    def test_registo_de_restituicao_e_hv3_e_reverifica(self):
+    def test_registo_de_restituicao_e_hv4_e_reverifica(self):
         ev, rec = self._restituida()
-        self.assertEqual(rec.hash_version, 'hv3')
+        self.assertEqual(rec.hash_version, 'hv4')
         prev = sort_custody_chain(ev.custody_chain.all())[-2].record_hash
         relido = ChainOfCustody.objects.get(pk=rec.pk)
         self.assertEqual(relido.compute_record_hash(previous_hash=prev), relido.record_hash)
@@ -333,7 +333,7 @@ class RestituicaoAPITest(BaseAPITestCase):
         })
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         self.assertEqual(r.data['receiver_nome'], RECEIVER_KWARGS['receiver_nome'])
-        self.assertEqual(r.data['hash_version'], 'hv3')
+        self.assertEqual(r.data['hash_version'], 'hv4')
         self.assertEqual(r.data['legal_state'], 'restituida')
 
     def test_api_recusa_restituicao_sem_recetor(self):

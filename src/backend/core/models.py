@@ -13,6 +13,7 @@ Conformidade: ISO/IEC 27037 — hash SHA-256 em metadados de prova.
 
 import hashlib
 import uuid
+from datetime import UTC
 from decimal import Decimal
 
 from django.conf import settings
@@ -1893,6 +1894,39 @@ class ChainOfCustody(AppendOnlyModel):
         max_length=50, blank=True, default='',
         verbose_name='N.º do documento do recetor',
     )
+    # --- Autoridade do ATO certificado (modelo de custódia v2 — hv4) ---
+    # QUEM proferiu o ato de autoridade (validação da apreensão — CPP art.
+    # 178.º/5-6; despacho para perícia — CPP art. 154.º): identidade
+    # estruturada (pesquisável — "tudo o que a procuradora X validou"), com a
+    # DATA DECLARADA do ato e, no despacho, o prazo fixado para a perícia.
+    # Entram na cadeia de hash (hv4). O ``timestamp`` do evento continua a ser
+    # SEMPRE o do servidor (invariante anti-adulteração): a data declarada
+    # pela autoridade é facto certificado do ato, não o relógio do ledger.
+    authority_nome = models.CharField(
+        max_length=200, blank=True, default='',
+        verbose_name='Nome da autoridade (ato certificado)',
+    )
+    authority_cargo = models.CharField(
+        max_length=100, blank=True, default='',
+        verbose_name='Cargo da autoridade (ato certificado)',
+        help_text='Ex.: Procurador(a) da República, Juiz(a) de Instrução.',
+    )
+    act_declared_at = models.DateTimeField(
+        null=True, blank=True,
+        verbose_name='Data declarada do ato',
+        help_text=(
+            'Data e hora do despacho/validação declaradas pela autoridade '
+            '(o timestamp do evento é sempre o do servidor).'
+        ),
+    )
+    act_deadline_days = models.PositiveSmallIntegerField(
+        null=True, blank=True,
+        verbose_name='Prazo da perícia (dias)',
+        help_text=(
+            'N.º de dias fixado no despacho para a conclusão da perícia '
+            '(data-limite re-derivável: data declarada do despacho + prazo).'
+        ),
+    )
     record_hash = models.CharField(
         max_length=64,
         blank=True,
@@ -1908,8 +1942,10 @@ class ChainOfCustody(AppendOnlyModel):
         help_text=(
             'Versão da fórmula do record_hash (ADR-0013/0016). Registos anteriores '
             'ao portador são hv1; com o portador, hv2 (prefixo + snapshot do '
-            'portador); com o recetor, hv3 (idem + identidade do recetor no fim). '
-            'O verificador escolhe a fórmula pela versão — nunca se recalcula retroativo.'
+            'portador); com o recetor, hv3 (idem + identidade do recetor no fim); '
+            'com a autoridade dos atos certificados, hv4 (idem + autoridade/data '
+            'declarada/prazo no fim). O verificador escolhe a fórmula pela versão '
+            '— nunca se recalcula retroativo.'
         ),
     )
     sequence = models.PositiveIntegerField(
@@ -1981,11 +2017,19 @@ class ChainOfCustody(AppendOnlyModel):
         self._clean_encaminhamento(prior_types)
         self._clean_rececao(prior, prior_types)
         self._clean_receiver()
+        self._clean_authority(prior)
         self._clean_lab_gate(prior_types)
 
         # Coerência + quantização GPS (ADR-0013) na operação compósita única,
         # ANTES do hash — valor em memória == BD == recalculado pelo perito.
         self.gps_lat, self.gps_lng = quantize_gps_pair(self.gps_lat, self.gps_lng)
+
+        # Normalização UTC da data declarada do ato (hv4) — o análogo da
+        # quantização GPS para datetimes: o input chega no fuso local, a BD
+        # devolve UTC; sem normalizar, o isoformat() hasheado divergiria do
+        # relido pelo perito (mesmo instante, string diferente).
+        if self.act_declared_at is not None:
+            self.act_declared_at = self.act_declared_at.astimezone(UTC)
 
     def _clean_genesis(self, prior):
         """Génese (1.º evento): exatamente um evento de génese, na posição 1,
@@ -2050,7 +2094,11 @@ class ChainOfCustody(AppendOnlyModel):
             raise ValidationError(
                 {'event_type': 'A apreensão só pode ser validada uma vez.'}
             )
-        ts = self.timestamp or timezone.now()
+        # O prazo das 72h (CPP 178.º/6) conta até ao ATO da autoridade, não ao
+        # registo no sistema: com o hv4 a data juridicamente relevante é a
+        # declarada (``act_declared_at``); o timestamp do servidor fica como
+        # fallback (eventos hv1-hv3 e caminhos sem data declarada).
+        ts = self.act_declared_at or self.timestamp or timezone.now()
         self.validation_overdue = ts - seizure.timestamp > VALIDATION_DEADLINE
 
     def _clean_despacho(self, prior_types):
@@ -2225,6 +2273,92 @@ class ChainOfCustody(AppendOnlyModel):
                     }
                 )
 
+    def _clean_authority(self, prior):
+        """Autoridade do ato certificado (hv4): a validação da apreensão (CPP
+        art. 178.º/5-6) e o despacho para perícia (CPP art. 154.º) EXIGEM a
+        identificação estruturada de quem os proferiu — nome, cargo e data
+        declarada do ato (campos que entram na cadeia de hash; substituem o
+        antigo texto certificado em ``observations``). A data declarada nunca
+        está no futuro nem antecede o evento que fundamenta o ato (apreensão/
+        génese). Fora dos atos certificados os campos são recusados (o ledger
+        não aceita autoridade órfã); identidade parcial é sempre recusada. O
+        prazo fixado para a perícia é próprio do DESPACHO (obrigatório — é
+        dele que se re-deriva a data-limite) e recusado nos restantes eventos."""
+        is_certified = self.event_type in CERTIFIED_ACT_EVENTS
+        given = [
+            v
+            for v in (
+                (self.authority_nome or '').strip(),
+                (self.authority_cargo or '').strip(),
+            )
+            if v
+        ]
+        if is_certified:
+            if len(given) < 2 or self.act_declared_at is None:
+                raise ValidationError(
+                    {
+                        'authority_nome': (
+                            'O ato certificado exige a identificação da autoridade '
+                            'que o proferiu: nome, cargo e data declarada do ato '
+                            '(CPP art. 178.º/5-6 e 154.º; entra na cadeia de hash).'
+                        )
+                    }
+                )
+            if self.act_declared_at > timezone.now():
+                raise ValidationError(
+                    {'act_declared_at': 'A data declarada do ato não pode estar no futuro.'}
+                )
+            # O ato nunca antecede o evento de referência já no ledger: a
+            # validação não antecede a APREENSÃO que valida e o despacho não
+            # antecede a GÉNESE do item. Tolerância ao minuto — a data
+            # declarada chega com granularidade de minuto (o formulário único
+            # pré-valida com a mesma regra; aqui é o invariante do ledger,
+            # que vale também na API).
+            ref_events = (
+                SEIZURE_GENESIS_EVENTS
+                if self.event_type == EventType.VALIDACAO_APREENSAO
+                else GENESIS_EVENTS
+            )
+            ref = next((r for r in prior if r.event_type in ref_events), None)
+            if ref is not None and self.act_declared_at < ref.timestamp.replace(
+                second=0, microsecond=0
+            ):
+                raise ValidationError(
+                    {
+                        'act_declared_at': (
+                            'A data declarada do ato não pode anteceder o evento '
+                            'que o fundamenta (apreensão/génese do item).'
+                        )
+                    }
+                )
+        elif given or self.act_declared_at is not None:
+            raise ValidationError(
+                {
+                    'authority_nome': (
+                        'A identidade da autoridade só se regista nos atos '
+                        'certificados (validação da apreensão / despacho para perícia).'
+                    )
+                }
+            )
+        if self.event_type == EventType.DESPACHO_PERICIA:
+            if not self.act_deadline_days:
+                raise ValidationError(
+                    {
+                        'act_deadline_days': (
+                            'O despacho fixa o prazo da perícia: indique o número '
+                            'de dias (mínimo 1).'
+                        )
+                    }
+                )
+        elif self.act_deadline_days is not None:
+            raise ValidationError(
+                {
+                    'act_deadline_days': (
+                        'O prazo da perícia só se regista no despacho que a ordena.'
+                    )
+                }
+            )
+
     def _clean_lab_gate(self, prior_types):
         """Gate de laboratório (CPP Art. 154.º): encaminhar/entregar prova a um
         laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já no ledger — o
@@ -2250,7 +2384,7 @@ class ChainOfCustody(AppendOnlyModel):
         recalcular o hash a partir dos campos relidos da BD e do hash do
         registo anterior, verificando a integridade da cadeia (ISO/IEC 27037).
 
-        Três versões coexistem (o verificador escolhe pela ``hash_version``
+        Quatro versões coexistem (o verificador escolhe pela ``hash_version``
         gravada — NUNCA se recalcula um registo antigo com a fórmula nova):
 
         - ``hv1`` (legado, anterior ao portador): os 17 segmentos abaixo, sem
@@ -2264,6 +2398,11 @@ class ChainOfCustody(AppendOnlyModel):
           identidade do recetor no FIM (``rnome``/``rdocnum`` texto livre
           escapado; ``rdoctipo`` enum controlado, entra cru). Mesmo contrato
           aditivo: nada se reordena.
+        - ``hv4`` (autoridade dos atos certificados — CPP art. 178.º/5-6 e
+          154.º): prefixo ``hv4|`` + os segmentos hv3 + 4 segmentos do ato de
+          autoridade no FIM (``anome``/``acargo`` texto livre escapado;
+          ``adata`` ISO-8601 da data declarada, vazio se ausente; ``aprazo``
+          inteiro de dias, vazio se ausente). Mesmo contrato aditivo.
 
         Fórmula hv1 (17 segmentos por ``|``, ordem fixa — contrato irreversível):
 
@@ -2319,11 +2458,13 @@ class ChainOfCustody(AppendOnlyModel):
             f'|relinq={self.relinquished_by_id or ""}'
         )
 
-        # hv2/hv3 (contrato aditivo): prefixo de versão + snapshot do portador
+        # hv2..hv4 (contrato aditivo): prefixo de versão + snapshot do portador
         # acrescentados SEM reordenar os segmentos hv1; o hv3 junta a identidade
-        # do recetor NO FIM (restituição/entrega a particular, CPP art. 186.º).
+        # do recetor NO FIM (restituição/entrega a particular, CPP art. 186.º);
+        # o hv4 junta a autoridade do ato certificado NO FIM (CPP art.
+        # 178.º/5-6 e 154.º: nome/cargo, data declarada e prazo da perícia).
         version = self.hash_version or 'hv1'
-        if version in ('hv2', 'hv3'):
+        if version in ('hv2', 'hv3', 'hv4'):
             data = (
                 f'{version}|{data}'
                 f'|bmat={_hash_escape(self.bearer_matricula)}'
@@ -2331,11 +2472,19 @@ class ChainOfCustody(AppendOnlyModel):
                 f'|bapel={_hash_escape(self.bearer_apelido)}'
                 f'|bposto={_hash_escape(self.bearer_posto)}'
             )
-        if version == 'hv3':
+        if version in ('hv3', 'hv4'):
             data += (
                 f'|rnome={_hash_escape(self.receiver_nome)}'
                 f'|rdoctipo={self.receiver_doc_tipo}'
                 f'|rdocnum={_hash_escape(self.receiver_doc_numero)}'
+            )
+        if version == 'hv4':
+            adata = self.act_declared_at.isoformat() if self.act_declared_at else ''
+            data += (
+                f'|anome={_hash_escape(self.authority_nome)}'
+                f'|acargo={_hash_escape(self.authority_cargo)}'
+                f'|adata={adata}'
+                f'|aprazo={_hash_str(self.act_deadline_days)}'
             )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
@@ -2400,9 +2549,9 @@ class ChainOfCustody(AppendOnlyModel):
 
                     # Versão da fórmula + snapshot do portador (ADR-0016 v2):
                     # copiados ANTES do full_clean para entrarem na validação E no
-                    # hash. Todo registo novo é hv3 (portador + recetor na fórmula);
-                    # o snapshot só se há portador.
-                    self.hash_version = 'hv3'
+                    # hash. Todo registo novo é hv4 (portador + recetor + autoridade
+                    # do ato certificado na fórmula); o snapshot só se há portador.
+                    self.hash_version = 'hv4'
                     if self.bearer_id is not None:
                         self.bearer_matricula = self.bearer.matricula
                         self.bearer_nome = self.bearer.nome

@@ -27,7 +27,12 @@ from core.models import (
     ProvaEmTransito,
     User,
 )
-from core.tests_factories import CrimeTipoFactory, InstitutionFactory
+from core.tests_factories import (
+    AUTHORITY_KWARGS,
+    CrimeTipoFactory,
+    InstitutionFactory,
+    _fill_authority,
+)
 
 
 class ResolveWindowTest(TestCase):
@@ -107,6 +112,7 @@ class LegalStatesByEvidenceTest(TestCase):
             )
         ChainOfCustody.objects.create(
             evidence=cls.ev1, event_type=EventType.VALIDACAO_APREENSAO, agent=cls.agent,
+            act_declared_at=timezone.now(), **AUTHORITY_KWARGS,
         )
 
     def test_estado_por_item(self):
@@ -163,7 +169,12 @@ class LedgerAnalyticsTest(TestCase):
 
     def _save_at(self, ev, event_type, when, **kw):
         with mock.patch('core.models.timezone.now', return_value=when):
-            rec = ChainOfCustody(evidence=ev, event_type=event_type, agent=self.agent, **kw)
+            # Defaults da autoridade (hv4) DENTRO do relógio congelado — a
+            # data declarada de um ato retrodatado tem de ser <= ao "agora".
+            rec = ChainOfCustody(
+                evidence=ev, event_type=event_type, agent=self.agent,
+                **_fill_authority(event_type, kw),
+            )
             rec.save()
         return rec
 

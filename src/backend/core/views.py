@@ -492,6 +492,10 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     search_fields = [
         'code',
         'observations',
+        # Autoridade do ato certificado (hv4): a identidade saiu do texto de
+        # observations para campo estruturado — a pesquisa acompanha
+        # ("tudo o que a procuradora X validou").
+        'authority_nome',
         'evidence__code',
         'evidence__description',
         'evidence__occurrence__number',
@@ -614,6 +618,12 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
             'gps_lng': data.get('gps_lng'),
             'gps_accuracy_m': data.get('gps_accuracy_m'),
             'observations': data.get('observations', ''),
+            # Autoridade do ato certificado (hv4) — exigida pelo clean() do
+            # modelo nos eventos certificados; vazia nos restantes.
+            'authority_nome': data.get('authority_nome', ''),
+            'authority_cargo': data.get('authority_cargo', ''),
+            'act_declared_at': data.get('act_declared_at'),
+            'act_deadline_days': data.get('act_deadline_days'),
         }
         created_records = []
         try:

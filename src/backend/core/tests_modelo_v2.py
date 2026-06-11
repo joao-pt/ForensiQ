@@ -14,7 +14,12 @@ from core.models import (
     Evidence,
     Occurrence,
 )
-from core.tests_factories import RECEIVER_KWARGS, CrimeTipoFactory, UserFactory
+from core.tests_factories import (
+    AUTHORITY_KWARGS,
+    RECEIVER_KWARGS,
+    CrimeTipoFactory,
+    UserFactory,
+)
 
 
 def _occ(agent, n):
@@ -73,7 +78,8 @@ class HierarchicalIdTest(TestCase):
             evidence=e1, event_type=EventType.APREENSAO_OBJETO, agent=self.agent
         )
         r2 = ChainOfCustody.objects.create(
-            evidence=e1, event_type=EventType.VALIDACAO_APREENSAO, agent=self.agent
+            evidence=e1, event_type=EventType.VALIDACAO_APREENSAO, agent=self.agent,
+            act_declared_at=timezone.now(), **AUTHORITY_KWARGS,
         )
         self.assertEqual(r1.code, f'{e1.code}-M01')
         self.assertEqual(r2.code, f'{e1.code}-M02')
@@ -185,7 +191,8 @@ class BifurcationTest(TestCase):
             evidence=cls.raiz, event_type=EventType.APREENSAO_OBJETO, agent=cls.agent
         )
         ChainOfCustody.objects.create(
-            evidence=cls.raiz, event_type=EventType.VALIDACAO_APREENSAO, agent=cls.agent
+            evidence=cls.raiz, event_type=EventType.VALIDACAO_APREENSAO, agent=cls.agent,
+            act_declared_at=timezone.now(), **AUTHORITY_KWARGS,
         )
         ChainOfCustody.objects.create(
             evidence=cls.sub, event_type=EventType.DERIVACAO_ITEM, agent=cls.agent
@@ -227,7 +234,8 @@ class HashChainSealTest(TestCase):
             evidence=self.ev, event_type=EventType.APREENSAO_OBJETO, agent=self.agent
         )
         r2 = ChainOfCustody.objects.create(
-            evidence=self.ev, event_type=EventType.VALIDACAO_APREENSAO, agent=self.agent
+            evidence=self.ev, event_type=EventType.VALIDACAO_APREENSAO, agent=self.agent,
+            act_declared_at=timezone.now(), **AUTHORITY_KWARGS,
         )
         # Recalcular r2 encadeado a partir do r1 reproduz o hash gravado.
         self.assertEqual(r2.compute_record_hash(previous_hash=r1.record_hash), r2.record_hash)

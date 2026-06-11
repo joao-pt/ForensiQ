@@ -32,7 +32,12 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from core.tests_base import BaseAPITestCase
-from core.tests_factories import AuditLogFactory, UserFactory
+from core.tests_factories import (
+    AUTHORITY_KWARGS,
+    AUTHORITY_PRAZO_DIAS,
+    AuditLogFactory,
+    UserFactory,
+)
 
 from .models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 from .tests_factories import (
@@ -322,11 +327,16 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
             event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
             custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
+            act_declared_at=timezone.now(),
+            **AUTHORITY_KWARGS,
         ).save()
         ChainOfCustody(
             evidence=ev,
             event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
             agent=self.agent,
+            act_declared_at=timezone.now(),
+            act_deadline_days=AUTHORITY_PRAZO_DIAS,
+            **AUTHORITY_KWARGS,
         ).save()
         ChainOfCustody.objects.filter(evidence=ev).update(timestamp=within)
 

@@ -40,7 +40,12 @@ from core.models import (
 User = get_user_model()
 
 
-from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory, InstitutionFactory
+from core.tests_factories import (
+    TEST_PASSWORD,
+    CrimeTipoFactory,
+    InstitutionFactory,
+    _fill_authority,
+)
 
 
 def _make_user(username, profile='FIRST_RESPONDER', is_staff=False, is_superuser=False):
@@ -168,11 +173,13 @@ class OccurrenceIntakeRenderTest(TestCase):
                 ChainOfCustody.EventType.VALIDACAO_APREENSAO,
                 ChainOfCustody.EventType.DESPACHO_PERICIA,
             ):
+                # Atos certificados exigem a autoridade estruturada (clean(), hv4).
                 ChainOfCustody.objects.create(
                     evidence=ev,
                     event_type=et,
                     custodian_type=ChainOfCustody.CustodianType.OPC,
                     agent=cls.agent,
+                    **_fill_authority(et, {}),
                 )
             ChainOfCustody.objects.create(
                 evidence=ev,

@@ -164,7 +164,8 @@ class EvidenceAdmin(ImmutableAdminMixin, admin.ModelAdmin):
 class ChainOfCustodyAdmin(ImmutableAdminMixin, admin.ModelAdmin):
     list_display = ('pk', 'evidence', 'event_type', 'custodian_type', 'agent', 'timestamp')
     list_filter = ('event_type', 'custodian_type')
-    search_fields = ('observations', 'location_name', 'storage_location')
+    # authority_nome pesquisável: "tudo o que a procuradora X validou" (hv4).
+    search_fields = ('observations', 'location_name', 'storage_location', 'authority_nome')
     raw_id_fields = ('evidence', 'agent')
     readonly_fields = ('record_hash',)
 

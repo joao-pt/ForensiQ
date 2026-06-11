@@ -1,11 +1,11 @@
 """ForensiQ — Testes: validar a apreensão em LOTE a partir da ocorrência.
 
 Modelo de domínio (CPP art. 178.º/6): a validação é um ATO JURÍDICO, não uma
-deslocação — regista QUEM validou, QUANDO (data do despacho, declarada) e a
-justificação, sem GPS nem mudança de custódio (herdado do último evento). O
-``timestamp`` do evento é sempre o do servidor; a data do despacho entra no
-texto de ``observations``, que faz parte da fórmula do hash. O estado de
-custódia não muda (eixo ortogonal — ``validation_status``).
+deslocação — regista a AUTORIDADE que validou (nome/cargo) e a data declarada
+do ato em campos ESTRUTURADOS (hv4, entram na fórmula do hash), sem GPS nem
+mudança de custódio (herdado do último evento). O ``timestamp`` do evento é
+sempre o do servidor; ``observations`` leva só a justificação livre. O estado
+de custódia não muda (eixo ortogonal — ``validation_status``).
 """
 
 from datetime import timedelta
@@ -65,8 +65,9 @@ class ValidarLoteTest(TestCase):
         data = {
             'modal': '1',
             'evidence_ids': ids,
-            'validated_by': 'Procuradora Maria Costa',
-            'validated_at': _dtl(timezone.now()),
+            'authority_nome': 'Maria Costa',
+            'authority_cargo': 'Procuradora da República',
+            'act_declared_at': _dtl(timezone.now()),
         }
         data.update(extra)
         return data
@@ -79,9 +80,12 @@ class ValidarLoteTest(TestCase):
         self.assertNotIn('<html', body)  # fragmento
         self.assertIn(f'value="{self.ev1.id}"', body)
         self.assertIn(f'value="{self.ev2.id}"', body)
-        self.assertIn('name="validated_by"', body)
-        self.assertIn('name="validated_at"', body)
+        self.assertIn('name="authority_nome"', body)
+        self.assertIn('name="authority_cargo"', body)
+        self.assertIn('name="act_declared_at"', body)
         self.assertIn('name="justification"', body)
+        # A validação não fixa prazo de perícia (campo próprio do despacho).
+        self.assertNotIn('name="act_deadline_days"', body)
         # Ato jurídico: o modal não pede GPS nem local.
         self.assertNotIn('name="gps_lat"', body)
         self.assertNotIn('name="location_name"', body)
@@ -97,10 +101,14 @@ class ValidarLoteTest(TestCase):
         for ev in (self.ev1, self.ev2):
             ult = self._last(ev)
             self.assertEqual(ult.event_type, EventType.VALIDACAO_APREENSAO)
-            # Quem validou + data do despacho + justificação: texto CERTIFICADO
-            # (observations entra na fórmula do hash).
-            self.assertIn('Procuradora Maria Costa', ult.observations)
-            self.assertIn('Despacho 123/26.', ult.observations)
+            # Autoridade + data declarada ESTRUTURADAS (hv4 — entram na fórmula
+            # do hash); observations leva só a justificação livre.
+            self.assertEqual(ult.authority_nome, 'Maria Costa')
+            self.assertEqual(ult.authority_cargo, 'Procuradora da República')
+            self.assertIsNotNone(ult.act_declared_at)
+            self.assertIsNone(ult.act_deadline_days)
+            self.assertEqual(ult.observations, 'Despacho 123/26.')
+            self.assertEqual(ult.hash_version, 'hv4')
             # Ato sem deslocação: sem GPS; custódio herdado do último evento.
             self.assertIsNone(ult.gps_lat)
             self.assertEqual(ult.custodian_institution_id, self.opc.id)
@@ -128,20 +136,25 @@ class ValidarLoteTest(TestCase):
         self.assertIn('Selecione pelo menos um item', r.content.decode())
 
     def test_sem_autoridade_devolve_erro(self):
-        r = self._post(self._payload([self.ev1.id], validated_by=''))
+        r = self._post(self._payload([self.ev1.id], authority_nome=''))
         self.assertEqual(r.status_code, 400)
-        self.assertIn('quem validou', r.content.decode())
+        self.assertIn('nome da autoridade', r.content.decode())
+
+    def test_sem_cargo_devolve_erro(self):
+        r = self._post(self._payload([self.ev1.id], authority_cargo=''))
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('cargo da autoridade', r.content.decode())
 
     def test_data_no_futuro_devolve_erro(self):
         r = self._post(self._payload(
-            [self.ev1.id], validated_at=_dtl(timezone.now() + timedelta(days=1)),
+            [self.ev1.id], act_declared_at=_dtl(timezone.now() + timedelta(days=1)),
         ))
         self.assertEqual(r.status_code, 400)
         self.assertIn('futuro', r.content.decode())
 
     def test_data_anterior_a_apreensao_devolve_erro(self):
         r = self._post(self._payload(
-            [self.ev1.id], validated_at=_dtl(timezone.now() - timedelta(days=1)),
+            [self.ev1.id], act_declared_at=_dtl(timezone.now() - timedelta(days=1)),
         ))
         self.assertEqual(r.status_code, 400)
         self.assertIn('anteceder', r.content.decode())

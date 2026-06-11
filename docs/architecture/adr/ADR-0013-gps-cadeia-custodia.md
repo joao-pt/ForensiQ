@@ -38,6 +38,7 @@ Por fim, o hash. Como cada registo do ledger fica imutável ao gravar (triggers 
    > - **`hv1`** — os 17 segmentos acima, sem prefixo (registos anteriores ao portador).
    > - **`hv2`** — `hv2|` + os 17 segmentos + 4 do *snapshot* do portador (`bmat`/`bnome`/`bapel`/`bposto`, escapados) — portador na cadeia (mig. 0028).
    > - **`hv3`** — `hv3|` + os segmentos hv2 + 3 da identidade do **recetor** (`rnome`/`rdocnum` escapados; `rdoctipo` enum, cru) — restituição/entrega a particular com termo de entrega (CPP art. 186.º; mig. 0031).
+   > - **`hv4`** — `hv4|` + os segmentos hv3 + 4 do **ato de autoridade certificado** (`anome`/`acargo` escapados; `adata` ISO-8601 da data declarada do ato, normalizada a UTC no `clean()` — o análogo da quantização GPS para datetimes —, vazia se ausente; `aprazo` inteiro de dias do prazo da perícia, vazio se ausente) — validação da apreensão e despacho para perícia com autoridade estruturada (CPP art. 178.º/5-6 e 154.º; mig. 0032). Os campos substituem o antigo texto certificado em `observations`, que volta a ser justificação livre.
    >
    > A *docstring* de `compute_record_hash` continua a ser a fonte viva de cada fórmula.
 

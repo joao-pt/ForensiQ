@@ -1258,21 +1258,23 @@ def occurrence_encaminhar_view(request, occurrence_id):
 # ---------------------------------------------------------------------------
 # Atos de autoridade CERTIFICADOS — modal ÚNICO em lote (validar / despachar).
 # A validação da apreensão (CPP 178.º/6) e o despacho para perícia (CPP 154.º)
-# são ATOS jurídicos, não deslocações: registam QUEM os proferiu, QUANDO e a
-# referência/justificação num texto certificado em ``observations`` (entra na
-# fórmula do hash), sem GPS/morada e com custódio HERDADO do último evento.
-# A maquinaria (vista + formulário + registo) é UMA só; cada ato declara aqui
-# o seu vocabulário — o conjunto legal vive na policy (CERTIFIED_ACT_EVENTS).
+# são ATOS jurídicos, não deslocações: registam a AUTORIDADE que os proferiu
+# em campos ESTRUTURADOS do evento (nome/cargo, data declarada e, no despacho,
+# o prazo da perícia — entram na fórmula do hash, hv4), sem GPS/morada e com
+# custódio HERDADO do último evento; ``observations`` fica só para a
+# referência/justificação livre. A maquinaria (vista + formulário + registo)
+# é UMA só; cada ato declara aqui o seu vocabulário — o conjunto legal vive
+# na policy (CERTIFIED_ACT_EVENTS).
 # ---------------------------------------------------------------------------
 _CERTIFIED_ACT_SPECS = {
     'validar': {
         'slug': 'validar',
         'event_type': EventType.VALIDACAO_APREENSAO,
-        'certify': 'Apreensão validada por {quem} em {quando}.',
         'audit_key': 'validated_by',
         'success': 'Apreensão validada: {n} item(ns).',
         'err_sel': 'Selecione pelo menos um item para validar.',
-        'err_quem': 'Indique quem validou a apreensão (autoridade judiciária).',
+        'err_nome': 'Indique o nome da autoridade que validou a apreensão.',
+        'err_cargo': 'Indique o cargo da autoridade que validou a apreensão.',
         'err_quando': 'Indique a data e hora da validação.',
         'err_futuro': 'A data da validação não pode estar no futuro.',
         # A validação nunca antecede a APREENSÃO que valida.
@@ -1287,8 +1289,10 @@ _CERTIFIED_ACT_SPECS = {
             'autoridade pode validar só alguns itens: desmarque os que ficam de fora.'
         ),
         'legend': 'Itens com apreensão por validar',
-        'who_label': 'Quem validou *',
-        'who_placeholder': 'Autoridade judiciária — ex.: Procurador(a) …',
+        'nome_label': 'Autoridade — nome *',
+        'nome_placeholder': 'Quem validou — ex.: Maria Carvalho',
+        'cargo_label': 'Cargo *',
+        'cargo_placeholder': 'Ex.: Procurador(a) da República',
         'when_label': 'Data e hora do despacho *',
         'just_placeholder': 'Referência do despacho ou justificação (opcional)',
         'badge': 'validation',
@@ -1306,11 +1310,11 @@ _CERTIFIED_ACT_SPECS = {
     'despachar': {
         'slug': 'despachar',
         'event_type': EventType.DESPACHO_PERICIA,
-        'certify': 'Perícia ordenada por {quem} em {quando}.',
         'audit_key': 'ordered_by',
         'success': 'Despacho registado: {n} item(ns).',
         'err_sel': 'Selecione pelo menos um item para despachar.',
-        'err_quem': 'Indique quem ordenou a perícia (autoridade).',
+        'err_nome': 'Indique o nome da autoridade que ordenou a perícia.',
+        'err_cargo': 'Indique o cargo da autoridade que ordenou a perícia.',
         'err_quando': 'Indique a data e hora do despacho.',
         'err_futuro': 'A data do despacho não pode estar no futuro.',
         # O despacho nunca antecede a GÉNESE do item (apreensão/derivação).
@@ -1320,9 +1324,13 @@ _CERTIFIED_ACT_SPECS = {
         'submit': 'Registar despacho',
         'hint': (
             'O despacho ordena a perícia (CPP art. 154.º) — é o que abre as portas '
-            'do laboratório — e fica selado na cadeia de custódia. Não muda quem '
-            'detém a prova nem onde está. Desmarque os itens que ficam de fora.'
+            'do laboratório —, fixa o prazo para a sua conclusão e fica selado na '
+            'cadeia de custódia. Não muda quem detém a prova nem onde está. '
+            'Desmarque os itens que ficam de fora.'
         ),
+        # Prazo fixado no despacho (dias) → data-limite da perícia re-derivável.
+        'prazo_label': 'Prazo da perícia (dias) *',
+        'err_prazo': 'Indique o prazo da perícia em dias (mínimo 1).',
         # Apreensão por validar (CPP 178.º/5-6): o despacho só pode abranger o
         # item se INCLUIR a validação — a "validação implícita" da jurisprudência
         # torna-se um ato explícito no ledger (VALIDACAO imediatamente antes).
@@ -1336,8 +1344,10 @@ _CERTIFIED_ACT_SPECS = {
             'VALIDACAO_APREENSAO imediatamente antes, pela mesma autoridade e data.'
         ),
         'legend': 'Itens abrangidos pelo despacho',
-        'who_label': 'Quem ordenou a perícia *',
-        'who_placeholder': 'Autoridade — ex.: Procurador(a) / Juiz(a) …',
+        'nome_label': 'Autoridade — nome *',
+        'nome_placeholder': 'Quem ordenou a perícia — ex.: Maria Carvalho',
+        'cargo_label': 'Cargo *',
+        'cargo_placeholder': 'Ex.: Procurador(a) da República / Juiz(a) de Instrução',
         'when_label': 'Data e hora do despacho *',
         'just_placeholder': 'Referência do despacho ou âmbito da perícia (opcional)',
         'badge': 'state',
@@ -1347,37 +1357,40 @@ _CERTIFIED_ACT_SPECS = {
             'registada — ou não tem permissão de escrita no ledger.'
         ),
         'page_sub': (
-            'quem ordenou a perícia, quando e a referência (CPP art. 154.º; sem '
-            'GPS, a prova não se move)'
+            'quem ordenou a perícia, quando, o prazo e a referência (CPP art. '
+            '154.º; sem GPS, a prova não se move)'
         ),
     },
 }
 
 
-def _register_certified_act(request, evidences, act, autoridade, justificacao, ts,
-                            *, propagate=False):
+def _register_certified_act(request, evidences, act, autoridade, cargo,
+                            justificacao, ts, prazo=None, *, propagate=False):
     """Regista o ATO certificado em cada item: sem GPS nem local (a prova não
     se desloca) e custódio HERDADO do último evento do ledger (um ato de
     autoridade não muda quem detém a prova).
 
     O ``timestamp`` do evento é SEMPRE o do servidor (invariante anti-adulteração
-    do ledger): a data/hora do despacho declarada pela autoridade entra no texto
-    CERTIFICADO de ``observations`` — que faz parte da fórmula do hash, ficando
-    selada na cadeia. Devolve lista de erros (vazia = sucesso); qualquer falha
-    reverte tudo. ``propagate=True`` deixa a exceção subir (caso do despacho que
-    INCLUI a validação: dois atos na mesma transação envolvente)."""
-    quando = timezone.localtime(ts).strftime('%d/%m/%Y %H:%M')
-    obs = act['certify'].format(quem=autoridade, quando=quando)
-    if justificacao:
-        obs = f'{obs} {justificacao}'
+    do ledger): a identidade da autoridade (nome/cargo), a data/hora DECLARADA
+    do ato e, no despacho, o prazo da perícia entram em campos ESTRUTURADOS do
+    evento — que fazem parte da fórmula do hash (hv4), ficando selados na
+    cadeia; ``observations`` leva só a justificação/referência livre. Devolve
+    lista de erros (vazia = sucesso); qualquer falha reverte tudo.
+    ``propagate=True`` deixa a exceção subir (caso do despacho que INCLUI a
+    validação: dois atos na mesma transação envolvente)."""
 
     def _payload(ev):
         last = sort_custody_chain(ev.custody_chain.all())[-1]
         p = {
             'evidence': ev.id,
             'event_type': act['event_type'].value,
-            'observations': obs,
+            'observations': justificacao,
+            'authority_nome': autoridade,
+            'authority_cargo': cargo,
+            'act_declared_at': ts,
         }
+        if prazo is not None:
+            p['act_deadline_days'] = prazo
         if last.custodian_type:
             p['custodian_type'] = last.custodian_type
         if last.custodian_institution_id:
@@ -1388,7 +1401,7 @@ def _register_certified_act(request, evidences, act, autoridade, justificacao, t
 
     return _append_custody_events(
         request, _payload, evidences,
-        extra_details={act['audit_key']: autoridade},
+        extra_details={act['audit_key']: f'{autoridade} ({cargo})'},
         propagate=propagate,
     )
 
@@ -1407,14 +1420,16 @@ def _despachaveis_com_pendentes(user, occ):
     return prontos + pendentes
 
 
-def _register_despacho(request, evidences, act, autoridade, justificacao, ts):
+def _register_despacho(request, evidences, act, autoridade, cargo, justificacao,
+                       ts, prazo=None):
     """Registo do DESPACHO com a guarda da validação (CPP 178.º/5-6).
 
     Itens com apreensão POR VALIDAR só avançam se o operador marcar "o
     despacho inclui a validação" — regista-se então a VALIDACAO_APREENSAO
-    imediatamente antes do despacho, pela MESMA autoridade e data declarada,
-    tudo numa só transação (a validação implícita da jurisprudência fica
-    explícita no ledger). Sem pendentes, é o registo certificado normal."""
+    imediatamente antes do despacho, pela MESMA autoridade e data declarada
+    (sem prazo — o prazo é próprio do despacho), tudo numa só transação (a
+    validação implícita da jurisprudência fica explícita no ledger). Sem
+    pendentes, é o registo certificado normal."""
     from django.db import transaction
 
     a_validar = [ev for ev in evidences if getattr(ev, 'needs_validation', False)]
@@ -1425,16 +1440,18 @@ def _register_despacho(request, evidences, act, autoridade, justificacao, ts):
             f'«{act["companion_label"]}» — ou desmarque esses itens.'
         ]
     if not a_validar:
-        return _register_certified_act(request, evidences, act, autoridade, justificacao, ts)
+        return _register_certified_act(
+            request, evidences, act, autoridade, cargo, justificacao, ts, prazo
+        )
     try:
         with transaction.atomic():
             _register_certified_act(
-                request, a_validar, _CERTIFIED_ACT_SPECS['validar'], autoridade,
+                request, a_validar, _CERTIFIED_ACT_SPECS['validar'], autoridade, cargo,
                 'Validação incluída no despacho que ordena a perícia.', ts,
                 propagate=True,
             )
             _register_certified_act(
-                request, evidences, act, autoridade, justificacao, ts,
+                request, evidences, act, autoridade, cargo, justificacao, ts, prazo,
                 propagate=True,
             )
     except (DRFValidationError, DjangoValidationError) as exc:
@@ -1457,7 +1474,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
     válido segundo as guardas da policy) vêm pré-selecionados e são
     desmarcáveis (a autoridade pode abranger só alguns). Em sucesso no modal
     devolve 204 + HX-Redirect. O ``act`` (spec em ``_CERTIFIED_ACT_SPECS``)
-    traz o vocabulário, a elegibilidade e o texto certificado."""
+    traz o vocabulário, a elegibilidade e os campos do ato."""
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
@@ -1486,7 +1503,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
             'companion': any(getattr(e, 'needs_validation', False) for e in itens),
             'errors': errors,
             'data': data if data is not None else {
-                'validated_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+                'act_declared_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             },
             'modal': modal,
             'action': f'/occurrences/{occ.id}/{act["slug"]}/',
@@ -1495,17 +1512,27 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
 
     if request.method == 'POST':
         sel = [ev for ev in itens if str(ev.id) in submitted]
-        autoridade = (request.POST.get('validated_by') or '').strip()
+        autoridade = (request.POST.get('authority_nome') or '').strip()
+        cargo = (request.POST.get('authority_cargo') or '').strip()
         justificacao = (request.POST.get('justification') or '').strip()
-        raw_ts = (request.POST.get('validated_at') or '').strip()
+        raw_ts = (request.POST.get('act_declared_at') or '').strip()
         ts = parse_datetime(raw_ts) if raw_ts else None
         if ts is not None and timezone.is_naive(ts):
             ts = timezone.make_aware(ts)
+        # Prazo da perícia (dias) — só nos atos que o declaram (despacho).
+        prazo = None
+        if 'prazo_label' in act:
+            raw_prazo = (request.POST.get('act_deadline_days') or '').strip()
+            prazo = int(raw_prazo) if raw_prazo.isdigit() else None
         errs = []
         if not sel:
             errs.append(act['err_sel'])
         if not autoridade:
-            errs.append(act['err_quem'])
+            errs.append(act['err_nome'])
+        if not cargo:
+            errs.append(act['err_cargo'])
+        if 'prazo_label' in act and not prazo:
+            errs.append(act['err_prazo'])
         if ts is None:
             errs.append(act['err_quando'])
         elif ts > timezone.now():
@@ -1526,7 +1553,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
                     ))
         if not errs:
             registar = act.get('register', _register_certified_act)
-            errs = registar(request, sel, act, autoridade, justificacao, ts)
+            errs = registar(request, sel, act, autoridade, cargo, justificacao, ts, prazo)
         if not errs:
             messages.success(request, act['success'].format(n=len(sel)))
             return _form_success_response(modal, f'/occurrences/{occ.id}/')
@@ -2071,6 +2098,12 @@ def _decorate_events(events):
             f'{r.receiver_nome} · {r.get_receiver_doc_tipo_display()} '
             f'n.º {r.receiver_doc_numero}'
             if r.receiver_nome else ''
+        )
+        # Ato certificado (hv4): a autoridade que o proferiu e a data declarada
+        # — derivados dos campos estruturados (eventos antigos só têm o texto
+        # em observations, que continua a aparecer por baixo).
+        r.authority_label = (
+            f'{r.authority_nome} ({r.authority_cargo})' if r.authority_nome else ''
         )
 
 
