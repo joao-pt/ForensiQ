@@ -42,6 +42,8 @@ from core.grid import GridColumn, grid_list_response, serialize_columns
 from core.labels import (
     ACTION_CSS,
     ACTION_SHORT,
+    DESPACHO_BADGE_CSS,
+    DESPACHO_BADGE_LABEL,
     LEGAL_STATE_CSS,
     LEGAL_STATE_LABELS,
     VALIDATION_STATUS_CSS,
@@ -70,6 +72,7 @@ from core.models import (
 from core.policy import custody_transitions
 from core.utils import (
     get_user_display_name,
+    has_despacho,
     legal_state_of,
     sort_custody_chain,
     validation_status_of,
@@ -402,6 +405,13 @@ def _decorate_evidences(evidences):
         e.val_dot = (
             {'cls': VALIDATION_STATUS_CSS[vs], 'title': VALIDATION_STATUS_LABELS[vs]}
             if vs in VALIDATION_PENDING_STATUSES else None
+        )
+        # Despacho judicial (CPP 154.º/158.º): facto do ledger, não pendência —
+        # badge informativo no detalhe/timeline; sem marcador de grelha (os
+        # pontos das grelhas assinalam só trabalho pendente).
+        e.despacho_badge = (
+            {'css': DESPACHO_BADGE_CSS, 'label': DESPACHO_BADGE_LABEL}
+            if has_despacho(e) else None
         )
         e.aria_code = e.code or 'item de prova'
         e.detail_url = f'/evidences/{e.id}/'     # destino da linha/célula-código

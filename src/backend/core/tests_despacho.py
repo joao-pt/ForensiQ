@@ -281,6 +281,58 @@ class DespachoCaminhoUnicoTest(TestCase):
         self.assertIn(f'/occurrences/{self.occ.id}/despachar/', body)
 
 
+class DespachoBadgeTest(TestCase):
+    """Visibilidade GUI do despacho: badge «Com despacho judicial» DERIVADO do
+    ledger (``core.utils.has_despacho``) nas páginas de detalhe do item, da
+    ocorrência (tabela de itens) e da timeline, e no modal do despacho (item já
+    despachado fica marcado — selecioná-lo regista a 2.ª perícia, Art. 158.º).
+    A par, a tabela de itens passou a mostrar também «Validada»: os atos
+    certificados têm visibilidade POSITIVA, não só as pendências."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(name='PSP Bdg', type=InstitutionType.OPC, sigla='PSP-BG')
+        cls.agent = _user('bdg_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.occ = _occ(cls.agent, 'BDG-1')
+        # Item validado COM despacho registado.
+        cls.ev_desp = _evidence(cls.occ, cls.agent)
+        _event(cls.ev_desp, cls.agent, inst=cls.opc)
+        _event(cls.ev_desp, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+        _event(cls.ev_desp, cls.agent, event_type=EventType.DESPACHO_PERICIA, inst=cls.opc)
+        # Item validado SEM despacho (controlo negativo).
+        cls.ev_val = _evidence(cls.occ, cls.agent)
+        _event(cls.ev_val, cls.agent, inst=cls.opc)
+        _event(cls.ev_val, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+
+    def _get(self, url):
+        auth_cookie(self.client, self.agent)
+        return self.client.get(url)
+
+    def test_detalhe_do_item_mostra_o_badge(self):
+        body = self._get(f'/evidences/{self.ev_desp.id}/').content.decode()
+        self.assertIn('Com despacho judicial', body)
+
+    def test_item_sem_despacho_nao_mostra_o_badge(self):
+        body = self._get(f'/evidences/{self.ev_val.id}/').content.decode()
+        self.assertNotIn('Com despacho judicial', body)
+
+    def test_timeline_mostra_o_badge(self):
+        body = self._get(f'/evidences/{self.ev_desp.id}/custody/').content.decode()
+        self.assertIn('Com despacho judicial', body)
+
+    def test_tabela_de_itens_mostra_despacho_e_validada(self):
+        """Detalhe da ocorrência: a linha de cada item mostra os atos — a
+        «Validada» deixou de ser suprimida (mostrava-se só a pendência)."""
+        body = self._get(f'/occurrences/{self.occ.id}/').content.decode()
+        self.assertIn('Com despacho judicial', body)
+        self.assertIn('>Validada<', body)
+
+    def test_modal_despachar_marca_item_ja_despachado(self):
+        body = self._get(f'/occurrences/{self.occ.id}/despachar/?modal=1').content.decode()
+        self.assertIn('Com despacho judicial', body)
+
+
 class DespachoAPITest(BaseAPITestCase):
     """A fronteira de escrita externa é a MESMA da validação: o ``clean()`` do
     modelo recusa o despacho "nu" (sem a autoridade estruturada — hv4) e o

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from django.utils import timezone
 
+from core.policy.custody_transitions import despacho_done
 from core.policy.event_states import derive_legal_state, validation_status
 
 
@@ -62,3 +63,14 @@ def validation_status_of(evidence, now=None):
     """
     eventos = sort_custody_chain(evidence.custody_chain.all())
     return validation_status(eventos, now or timezone.now())
+
+
+def has_despacho(evidence):
+    """A perícia deste item foi ORDENADA por despacho judicial? (CPP art.
+    154.º/158.º — repetível; aqui interessa a presença, não a contagem).
+
+    Predicado da policy (:func:`despacho_done`) sobre o ledger lido via
+    ``all()`` (reaproveita o prefetch quando existe; a presença não depende
+    da ordem). Derivado do ledger, nunca guardado.
+    """
+    return despacho_done([e.event_type for e in evidence.custody_chain.all()])

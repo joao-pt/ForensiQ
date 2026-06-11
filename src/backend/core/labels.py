@@ -68,3 +68,9 @@ VALIDATION_STATUS_CSS = {
     'por_validar': 'warn',   # trabalho pendente dentro do prazo = âmbar
     'em_atraso': 'danger',
 }
+
+# Badge do DESPACHO judicial para perícia (CPP art. 154.º/158.º) — facto do
+# ledger (core.utils.has_despacho), não trabalho pendente: informa que a
+# perícia foi ordenada por autoridade judiciária, daí 'info' e não 'ok'/'warn'.
+DESPACHO_BADGE_LABEL = 'Com despacho judicial'
+DESPACHO_BADGE_CSS = 'info'
