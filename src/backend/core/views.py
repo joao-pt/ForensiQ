@@ -558,33 +558,34 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         """
         payload = CascadeCustodyRequestSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        evidence_ids = payload.validated_data['evidence_ids']
-        event_type = payload.validated_data['event_type']
-        custodian_type = payload.validated_data.get('custodian_type', '')
-        observations = payload.validated_data.get('observations', '')
-        location_name = payload.validated_data.get('location_name', '')
-        storage_location = payload.validated_data.get('storage_location', '')
-        gps_lat = payload.validated_data.get('gps_lat')
-        gps_lng = payload.validated_data.get('gps_lng')
-        gps_accuracy_m = payload.validated_data.get('gps_accuracy_m')
+        data = payload.validated_data
 
         evidences = list(
             Evidence.objects.select_related('occurrence', 'occurrence__agent').filter(
-                id__in=evidence_ids
+                id__in=data['evidence_ids']
             )
         )
-        if len(evidences) != len(set(evidence_ids)):
+        if len(evidences) != len(set(data['evidence_ids'])):
             return Response(
                 {'detail': 'Uma ou mais evidências não existem.'},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        # Gate de ESCRITA item-level (ADR-0017 §5) — o MESMO que perform_create.
-        # Antes usava _user_can_access_occurrence (acesso de LEITURA à ocorrência),
-        # o que deixava o titular da ocorrência injetar QUALQUER evento (incl.
-        # terminais) em itens detidos por outro custódio/laboratório. can_append_custody
-        # exige deter o item / override de perito / despacho da autoridade do caso.
+        denied = self._cascade_denied(request.user, evidences, data['event_type'])
+        if denied is not None:
+            return denied
+        return self._cascade_create(request, evidences, data)
+
+    @staticmethod
+    def _cascade_denied(user, evidences, event_type):
+        """Gate de ESCRITA item-level (ADR-0017 §5) — o MESMO que perform_create.
+
+        Antes usava _user_can_access_occurrence (acesso de LEITURA à ocorrência),
+        o que deixava o titular da ocorrência injetar QUALQUER evento (incl.
+        terminais) em itens detidos por outro custódio/laboratório.
+        can_append_custody exige deter o item / override de perito / despacho da
+        autoridade do caso. Devolve a resposta 403 ou ``None`` (autorizado)."""
         for ev in evidences:
-            if not access.can_append_custody(request.user, ev, event_type):
+            if not access.can_append_custody(user, ev, event_type):
                 return Response(
                     {
                         'detail': (
@@ -594,21 +595,25 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
+        return None
 
-        # Caminho de ESCRITA canónico (auditoria D20): em vez de construir o
-        # modelo à mão (que contornava o serializer e exigia validação GPS e
-        # normalização de erros próprias), instancia-se o ChainOfCustodySerializer
-        # por evidência dentro da transação — exatamente como o intake — com as
-        # mesmas guardas, ownership fail-closed e hash encadeado.
+    @staticmethod
+    def _cascade_create(request, evidences, data):
+        """Caminho de ESCRITA canónico (auditoria D20): em vez de construir o
+        modelo à mão (que contornava o serializer e exigia validação GPS e
+        normalização de erros próprias), instancia-se o ChainOfCustodySerializer
+        por evidência dentro da transação — exatamente como o intake — com as
+        mesmas guardas, ownership fail-closed e hash encadeado."""
+        location_name = data.get('location_name', '')
         base_payload = {
-            'event_type': event_type,
-            'custodian_type': custodian_type,
+            'event_type': data['event_type'],
+            'custodian_type': data.get('custodian_type', ''),
             'location_name': location_name,
-            'storage_location': storage_location,
-            'gps_lat': gps_lat,
-            'gps_lng': gps_lng,
-            'gps_accuracy_m': gps_accuracy_m,
-            'observations': observations,
+            'storage_location': data.get('storage_location', ''),
+            'gps_lat': data.get('gps_lat'),
+            'gps_lng': data.get('gps_lng'),
+            'gps_accuracy_m': data.get('gps_accuracy_m'),
+            'observations': data.get('observations', ''),
         }
         created_records = []
         try:

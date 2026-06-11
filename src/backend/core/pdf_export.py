@@ -795,8 +795,36 @@ def generate_occurrence_pdf(occurrence):
     story.append(Spacer(1, 0.2 * cm))
     story += _label_value_rows(_occurrence_summary_rows(occurrence), styles)
 
-    # 2. Inventário de itens — `all()` reaproveita o prefetch_related
-    # aplicado pela view (N12). Sort em memória (lista curta).
+    # 2. Inventário de itens.
+    story += _occurrence_inventory(occurrence, styles)
+
+    # 3. Declaração
+    story += _integrity_declaration(styles, gen_ts)
+
+    return _finish_doc(doc, story, buffer)
+
+
+def _inventory_row(item, styles, *, idx=''):
+    """Linha do inventário: item-RAIZ (numerado, negrito) ou SUB-componente
+    (sem número, «↳» em itálico), com estado de custódia DERIVADO e hash
+    truncado — a mesma forma para os dois níveis (antes duplicada)."""
+    state_label, _ = _current_custody_state(item)
+    is_sub = item.parent_evidence_id is not None
+    title = f'{item.display_code} · {_sanitize(item.get_type_display())}'
+    title = f'<i>↳ {title}</i>' if is_sub else f'<b>{title}</b>'
+    return [
+        Paragraph('' if is_sub else str(idx), styles['label' if is_sub else 'value']),
+        Paragraph(f'{title}<br/>{_sanitize(item.description)[:90]}', styles['value']),
+        Paragraph(_fmt_datetime(item.timestamp_seizure), styles['label']),
+        Paragraph(state_label, styles['value']),
+        Paragraph((item.integrity_hash or '')[:16] + '…', styles['hash']),
+    ]
+
+
+def _occurrence_inventory(occurrence, styles):
+    """Secção 2 do resumo do processo: inventário de itens agrupado por raiz +
+    sub-componentes. ``all()`` reaproveita o prefetch_related aplicado pela
+    view (N12); sort em memória (lista curta)."""
     evidences = sorted(occurrence.evidences.all(), key=lambda e: e.id)
     root_items = [e for e in evidences if e.parent_evidence_id is None]
     children_by_parent = {}
@@ -804,73 +832,37 @@ def generate_occurrence_pdf(occurrence):
         if e.parent_evidence_id:
             children_by_parent.setdefault(e.parent_evidence_id, []).append(e)
 
-    story.append(
+    flow = [
         Paragraph(
             f'2. Inventário de Itens de Prova ({len(evidences)})',
             styles['section'],
-        )
-    )
-    story.append(Spacer(1, 0.2 * cm))
-
+        ),
+        Spacer(1, 0.2 * cm),
+    ]
     if not evidences:
-        story.append(
-            Paragraph(
-                'Nenhum item de prova registado neste caso.',
-                styles['value'],
-            )
+        flow.append(
+            Paragraph('Nenhum item de prova registado neste caso.', styles['value'])
         )
-        story.append(Spacer(1, 0.3 * cm))
-    else:
-        header = [
-            [
-                Paragraph('#', styles['label']),
-                Paragraph('Item', styles['label']),
-                Paragraph('Apreensão', styles['label']),
-                Paragraph('Estado actual', styles['label']),
-                Paragraph('Hash', styles['label']),
-            ]
+        flow.append(Spacer(1, 0.3 * cm))
+        return flow
+
+    rows = [
+        [
+            Paragraph('#', styles['label']),
+            Paragraph('Item', styles['label']),
+            Paragraph('Apreensão', styles['label']),
+            Paragraph('Estado actual', styles['label']),
+            Paragraph('Hash', styles['label']),
         ]
-        rows = list(header)
-        for idx, item in enumerate(root_items, start=1):
-            state_label, _ = _current_custody_state(item)
-            item_label = item.display_code
-            rows.append(
-                [
-                    Paragraph(str(idx), styles['value']),
-                    Paragraph(
-                        f'<b>{item_label} · {_sanitize(item.get_type_display())}</b><br/>'
-                        f'{_sanitize(item.description)[:90]}',
-                        styles['value'],
-                    ),
-                    Paragraph(_fmt_datetime(item.timestamp_seizure), styles['label']),
-                    Paragraph(state_label, styles['value']),
-                    Paragraph((item.integrity_hash or '')[:16] + '…', styles['hash']),
-                ]
-            )
-            for sub in children_by_parent.get(item.pk, []):
-                sub_state, _ = _current_custody_state(sub)
-                sub_label = sub.display_code
-                rows.append(
-                    [
-                        Paragraph('', styles['label']),
-                        Paragraph(
-                            f'<i>↳ {sub_label} · {_sanitize(sub.get_type_display())}</i><br/>'
-                            f'{_sanitize(sub.description)[:90]}',
-                            styles['value'],
-                        ),
-                        Paragraph(_fmt_datetime(sub.timestamp_seizure), styles['label']),
-                        Paragraph(sub_state, styles['value']),
-                        Paragraph((sub.integrity_hash or '')[:16] + '…', styles['hash']),
-                    ]
-                )
+    ]
+    for idx, item in enumerate(root_items, start=1):
+        rows.append(_inventory_row(item, styles, idx=idx))
+        for sub in children_by_parent.get(item.pk, []):
+            rows.append(_inventory_row(sub, styles))
 
-        col_w = [0.8 * cm, 7.2 * cm, 3.5 * cm, 2.8 * cm, 2.5 * cm]
-        t = Table(rows, colWidths=col_w, repeatRows=1)
-        t.setStyle(_DATA_TABLE_STYLE)
-        story.append(t)
-        story.append(Spacer(1, 0.4 * cm))
-
-    # 3. Declaração
-    story += _integrity_declaration(styles, gen_ts)
-
-    return _finish_doc(doc, story, buffer)
+    col_w = [0.8 * cm, 7.2 * cm, 3.5 * cm, 2.8 * cm, 2.5 * cm]
+    t = Table(rows, colWidths=col_w, repeatRows=1)
+    t.setStyle(_DATA_TABLE_STYLE)
+    flow.append(t)
+    flow.append(Spacer(1, 0.4 * cm))
+    return flow
