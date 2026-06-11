@@ -34,6 +34,13 @@ Por fim, o hash. Como cada registo do ledger fica imutável ao gravar (triggers 
 
    > **Extensão (ADR-0016 §6).** A fórmula integra ainda quatro campos de selo por-evento — `sealed`, `seal_condition_on_receipt`, `new_seal_number`, `relinquished_by` — colocados *após* `observations`, num total de **17 segmentos**; a *docstring* de `compute_record_hash` (`core/models.py`) é a fonte viva e descreve-os na íntegra. A regra de ordem fixa mantém-se: os campos de selo são anexados no fim, sem alterar a posição dos anteriores.
 
+   > **Emenda (2026-06): versionamento ADITIVO da fórmula (`hash_version`).** A decisão "não há versionamento" caiu quando o ledger ganhou campos que têm de entrar no hash sem partir os registos históricos (imutáveis por trigger — recalcular retroativo é, por definição, adulteração). Cada geração acrescenta um prefixo de versão e os segmentos novos **no fim**, sem reordenar os anteriores; a coluna `hash_version` grava a fórmula de cada registo e o verificador escolhe por ela:
+   > - **`hv1`** — os 17 segmentos acima, sem prefixo (registos anteriores ao portador).
+   > - **`hv2`** — `hv2|` + os 17 segmentos + 4 do *snapshot* do portador (`bmat`/`bnome`/`bapel`/`bposto`, escapados) — portador na cadeia (mig. 0028).
+   > - **`hv3`** — `hv3|` + os segmentos hv2 + 3 da identidade do **recetor** (`rnome`/`rdocnum` escapados; `rdoctipo` enum, cru) — restituição/entrega a particular com termo de entrega (CPP art. 186.º; mig. 0031).
+   >
+   > A *docstring* de `compute_record_hash` continua a ser a fonte viva de cada fórmula.
+
 2. **Campo em falta serializa como string vazia, determinismicamente.** Um campo `null` (GPS não capturado, `storage_location` por preencher) entra na string como `''` entre separadores. Isto é tratamento de **dados em falta**, não de qualquer formato anterior: o desenho é novo e limpo, não há registos a preservar. A posição do campo na string é sempre a mesma, esteja preenchido ou vazio.
 
 3. **Campos de texto livre são escapados antes de entrar no hash.** `location_name` (nome de POI vindo do OSM/Nominatim) e `storage_location` (texto livre: armário/sala interno) podem conter `|` ou `,`, que são os separadores da string. Passam por `_hash_escape` (`\` → `\\`, `|` → `\|`, `,` → `\,`), garantindo que o conteúdo nunca colide com a estrutura da string. `event_type` e `custodian_type` são enums de valores controlados (sem separadores), logo não precisam de escaping.

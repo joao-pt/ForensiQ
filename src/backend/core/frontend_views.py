@@ -64,6 +64,7 @@ from core.models import (
     InstitutionType,
     Occurrence,
     Portador,
+    ReceiverDocType,
 )
 from core.policy import custody_transitions
 from core.utils import (
@@ -1060,6 +1061,16 @@ def occurrence_detail_view(request, occurrence_id):
     can_validate = can_handoff and any(
         e.validation_status in VALIDATION_PENDING_STATUSES for e in evidences
     )
+    # Restituir: aparece havendo itens que as guardas aceitam restituir JÁ
+    # (génese feita, ledger aberto, não em trânsito) — mesma fonte única do
+    # modal (policy.next_events; _restituiveis faz a seleção real no POST).
+    can_restitute = can_handoff and any(
+        EventType.RESTITUICAO.value in {
+            v
+            for v, _ in _valid_next_events(sort_custody_chain(e.custody_chain.all()), e)
+        }
+        for e in evidences
+    )
     return render(
         request,
         'occurrence_detail.html',
@@ -1068,6 +1079,7 @@ def occurrence_detail_view(request, occurrence_id):
             'evidences': evidences,
             'can_handoff': can_handoff,
             'can_validate': can_validate,
+            'can_restitute': can_restitute,
         },
     )
 
@@ -1099,6 +1111,13 @@ def _validaveis(user, occ):
     VALIDACAO_APREENSAO é próximo evento válido segundo as guardas (há génese de
     apreensão, ainda não validada, ledger aberto, não em trânsito)."""
     return _itens_com_proximo_evento(user, occ, EventType.VALIDACAO_APREENSAO)
+
+
+def _restituiveis(user, occ):
+    """Itens da ocorrência que podem ser RESTITUÍDOS agora (CPP art. 186.º):
+    RESTITUICAO é próximo evento válido segundo as guardas (génese feita,
+    ledger aberto, não em trânsito)."""
+    return _itens_com_proximo_evento(user, occ, EventType.RESTITUICAO)
 
 
 def _bearer_fields_from_post(request):
@@ -1133,6 +1152,27 @@ def _bearer_fields_from_post(request):
         'Indique o portador que conduz a prova: escolha um registado ou '
         'identifique o portador pontual.'
     )
+
+
+def _receiver_fields_from_post(request):
+    """Lê do POST a identidade de quem RECEBE a prova (fonte única do termo de
+    entrega — CPP art. 186.º): ``receiver_nome`` + ``receiver_doc_tipo`` +
+    ``receiver_doc_numero``, snapshot direto sem ficha (a pessoa não é
+    utilizador nem entidade registada); os três entram na cadeia de hash (hv3).
+    Devolve ``(payload, erro)``: payload com os campos do evento, ou erro
+    accionável (incompleto/tipo de documento inválido)."""
+    fields = {
+        f'receiver_{k}': (request.POST.get(f'receiver_{k}') or '').strip()
+        for k in ('nome', 'doc_tipo', 'doc_numero')
+    }
+    if not all(fields.values()):
+        return None, (
+            'Identifique quem recebeu a prova: nome completo, tipo e número '
+            'do documento (entra na cadeia de hash).'
+        )
+    if fields['receiver_doc_tipo'] not in ReceiverDocType.values:
+        return None, 'Tipo de documento do recetor inválido.'
+    return fields, None
 
 
 def _register_handoff(request, evidences, bearer_fields, destino):
@@ -1333,6 +1373,87 @@ def occurrence_validar_view(request, occurrence_id):
         return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
 
     return render(request, template, _ctx({}, None))
+
+
+def _register_restituicao(request, evidences, receiver_fields, fundamento):
+    """Regista RESTITUICAO em cada item (terminal — CPP art. 186.º, termo de
+    entrega): custódio passa a PROPRIETARIO e a identidade do recetor entra
+    estruturada no evento (e na cadeia de hash, hv3). Sem GPS — a entrega
+    formaliza-se no posto, não é uma deslocação rastreada. O ``timestamp`` é
+    SEMPRE o do servidor (invariante anti-adulteração); o fundamento/despacho
+    fica em ``observations``. Devolve lista de erros (vazia = sucesso);
+    qualquer falha reverte tudo."""
+    base = {
+        'event_type': EventType.RESTITUICAO.value,
+        'custodian_type': CustodianType.PROPRIETARIO.value,
+        'observations': fundamento,
+        **receiver_fields,
+    }
+    return _append_custody_events(
+        request, base, evidences,
+        extra_details={'receiver': receiver_fields['receiver_nome']},
+    )
+
+
+@jwt_cookie_user
+def occurrence_restituir_view(request, occurrence_id):
+    """Restituir prova em LOTE (CPP art. 186.º — termo de entrega) — ação
+    in-place (modal).
+
+    A restituição EXTINGUE a cadeia, pelo que o ato exige identificar QUEM
+    recebeu: nome completo + tipo e n.º de documento, campos estruturados que
+    entram na cadeia de hash (hv3) — pesquisáveis ("tudo o que X recebeu"),
+    ao contrário do texto de despacho da validação. Um evento RESTITUICAO por
+    item selecionado; os itens elegíveis vêm pré-selecionados e desmarcáveis
+    (restitui-se ao mesmo recetor num só termo). Em sucesso no modal devolve
+    204 + HX-Redirect.
+    """
+    user = request.user
+    occ = _readable_occurrence(user, occurrence_id)
+    if occ is None:
+        return HttpResponseNotFound('Ocorrência não encontrada.')
+
+    modal = _wants_modal(request)
+    template = _modal_template(modal, 'partials/_restituir_form.html', 'occurrence_restituir.html')
+    itens = _restituiveis(user, occ)
+
+    submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
+    for ev in itens:
+        # GET: tudo selecionado; re-render por erro: mantém a escolha do utilizador.
+        ev.checked = submitted is None or str(ev.id) in submitted
+
+    def _ctx(errors, data):
+        return {
+            'occ': occ,
+            'itens': itens,
+            'doc_tipos': ReceiverDocType.choices,
+            'errors': errors,
+            'data': data or {},
+            'modal': modal,
+            'action': f'/occurrences/{occ.id}/restituir/',
+            'cancel_url': f'/occurrences/{occ.id}/',
+        }
+
+    if request.method == 'POST':
+        sel = [ev for ev in itens if str(ev.id) in submitted]
+        receiver_fields, receiver_err = _receiver_fields_from_post(request)
+        fundamento = (request.POST.get('justification') or '').strip()
+        errs = []
+        if not sel:
+            errs.append('Selecione pelo menos um item para restituir.')
+        if receiver_err:
+            errs.append(receiver_err)
+        if not errs:
+            errs = _register_restituicao(request, sel, receiver_fields, fundamento)
+        if not errs:
+            messages.success(
+                request,
+                f'{len(sel)} item(ns) restituído(s) a {receiver_fields["receiver_nome"]}.',
+            )
+            return _form_success_response(modal, f'/occurrences/{occ.id}/')
+        return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
+
+    return render(request, template, _ctx({}, {}))
 
 
 @jwt_cookie_user
@@ -1765,6 +1886,13 @@ def _decorate_events(events):
         # Precisão pior que o limiar único (settings.GPS_ACCURACY_FLAG_M) é
         # assinalada; o template testa só a flag (sem literais de limiar).
         r.acc_flagged = bool(r.gps_accuracy_m and r.gps_accuracy_m > flag_m)
+        # Termo de entrega (hv3): quem recebeu a prova fora do sistema —
+        # apresentado na timeline/gaveta junto do evento (restituição/depositário).
+        r.receiver_label = (
+            f'{r.receiver_nome} · {r.get_receiver_doc_tipo_display()} '
+            f'n.º {r.receiver_doc_numero}'
+            if r.receiver_nome else ''
+        )
 
 
 def _chain_points(events):
@@ -1808,10 +1936,13 @@ def evidence_detail_view(request, evidence_id):
             # Mesma fonte única da página de custódia (policy.next_events): ledger
             # fechado ⇒ não se oferece «Registar evento» (auditoria D96).
             'ledger_closed': not valid_next,
-            # Validação pendente E aceitável já (não em trânsito/terminal): o
-            # botão abre o modal dedicado da ocorrência (formulário único do ato).
+            # Atos com modal dedicado na ocorrência (formulário único do ato),
+            # aceitáveis já (não em trânsito/terminal): validação e restituição.
             'can_validate': any(
                 v == EventType.VALIDACAO_APREENSAO.value for v, _ in valid_next
+            ),
+            'can_restitute': any(
+                v == EventType.RESTITUICAO.value for v, _ in valid_next
             ),
         },
     )
@@ -2057,15 +2188,16 @@ def custody_timeline_view(request, evidence_id):
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     valid_events = _valid_next_events(events, ev)
-    # A VALIDAÇÃO tem formulário PRÓPRIO (modal da ocorrência, que certifica
-    # quem validou/data do despacho/justificação — CPP 178.º/6): sai do select
-    # genérico para não existir um 2.º caminho sem esses campos. As guardas do
-    # modelo não mudam; ``can_validate`` liga o botão dedicado.
-    register_events = [
-        (v, label) for v, label in valid_events
-        if v != EventType.VALIDACAO_APREENSAO.value
-    ]
-    can_validate = len(register_events) != len(valid_events)
+    # Atos com formulário PRÓPRIO (modal da ocorrência): a VALIDAÇÃO certifica
+    # quem validou/data do despacho/justificação (CPP 178.º/6) e a RESTITUIÇÃO
+    # exige a identidade de quem recebeu (CPP 186.º — termo de entrega). Saem
+    # do select genérico para não existir um 2.º caminho sem esses campos. As
+    # guardas do modelo não mudam; cada flag liga o botão dedicado.
+    dedicated = {EventType.VALIDACAO_APREENSAO.value, EventType.RESTITUICAO.value}
+    register_events = [(v, label) for v, label in valid_events if v not in dedicated]
+    valid_values = {v for v, _ in valid_events}
+    can_validate = EventType.VALIDACAO_APREENSAO.value in valid_values
+    can_restitute = EventType.RESTITUICAO.value in valid_values
     return render(
         request,
         'custody_timeline.html',
@@ -2075,6 +2207,7 @@ def custody_timeline_view(request, evidence_id):
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             'valid_events': register_events,
             'can_validate': can_validate,
+            'can_restitute': can_restitute,
             'custodian_types': CustodianType.choices,
             'institutions': _active_institutions(),
             # Portadores ativos para o select do ENCAMINHAMENTO (ADR-0016 v2).

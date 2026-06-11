@@ -1,0 +1,21 @@
+{% extends 'form_page.html' %}
+
+{% block title %}Restituir prova — ForensiQ{% endblock %}
+
+{# Sem mapa nesta página (a entrega formaliza-se no posto, sem GPS). #}
+{% block extra_css %}{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/occurrences/">Ocorrências</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a href="/occurrences/{{ occ.id }}/" class="mono">{{ occ.code|default:occ.number }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Restituir prova</span>
+{% endblock %}
+
+{% block form_title %}Restituir prova{% endblock %}
+{% block form_subtitle %}
+      <p class="detail__sub">{{ occ.code|default:occ.number }} — termo de entrega: identidade de quem recebeu (CPP art. 186.º; encerra a cadeia de custódia)</p>
+{% endblock %}
+
+{% block form_body %}{% include 'partials/_restituir_form.html' %}{% endblock %}

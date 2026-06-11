@@ -15,6 +15,7 @@
   <div class="timeline__meta">
     <span>Custódio: <strong>{{ r.custodian_label }}</strong></span>
     <span>Responsável: {{ r.agent_label }}</span>
+    {% if r.receiver_label %}<span>Recebido por: <strong>{{ r.receiver_label }}</strong></span>{% endif %}
     {% if r.location_name %}<span>Local: {{ r.location_name }}</span>{% endif %}
     {% if r.storage_location %}<span>Armazenamento: {{ r.storage_location }}</span>{% endif %}
     {% if r.gps_lat is not None %}<span class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}</span>{% endif %}

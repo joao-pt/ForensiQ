@@ -36,7 +36,7 @@ User = get_user_model()
 
 
 from core.tests_base import image_upload, throttle_rate
-from core.tests_factories import CrimeTipoFactory
+from core.tests_factories import RECEIVER_KWARGS, CrimeTipoFactory
 
 
 def _png_upload(name='photo.png', size=(2, 2)):
@@ -297,6 +297,7 @@ class CascadeCustodyTest(BaseAPITestCase):
             event_type=EventType.RESTITUICAO,
             custodian_type=CustodianType.PROPRIETARIO,
             agent=self.agent,
+            **RECEIVER_KWARGS,
         )
         sequences_before = {
             ev.id: ev.custody_chain.count() for ev in [self.parent, self.sim, self.sd]

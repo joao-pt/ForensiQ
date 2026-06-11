@@ -1020,7 +1020,9 @@ class Command(BaseCommand):
         self._chain(e6a, [self._g(EventType.RESTITUICAO, CustodianType.PROPRIETARIO, None,
                     u['mp.prt1'], PORTO_BOAVISTA, now - timedelta(days=10), acc=9,
                     loc='Entrega ao proprietário', custodian_user=None,
-                    obs='Viatura restituída ao legítimo proprietário.')])
+                    obs='Viatura restituída ao legítimo proprietário.',
+                    receiver_nome='Manuel Augusto Ferreira Pinto',
+                    receiver_doc_tipo='CC', receiver_doc_numero='11483920 4 ZX1')])
 
         # =====================================================================
         # CASO 7 — Porto · Sabotagem informática (160, prioritário) — servidor em perícia.
@@ -1199,7 +1201,9 @@ class Command(BaseCommand):
                     u['perito.lpc2'], ipt('LPC'), cl.advance(days=3), acc=15, custodian_user=u['perito.lpc2']),
             self._g(EventType.RESTITUICAO, CustodianType.PROPRIETARIO, None, u['mp.cbr1'],
                     FARO_MARINA, cl.advance(days=5), acc=9, loc='Entrega ao proprietário',
-                    custodian_user=None, obs='Localizador restituído ao proprietário do veículo.'),
+                    custodian_user=None, obs='Localizador restituído ao proprietário do veículo.',
+                    receiver_nome='Sofia Alexandra Mendes Cardoso',
+                    receiver_doc_tipo='CC', receiver_doc_numero='09238471 2 ZY8'),
         ])
 
         # =====================================================================
@@ -1500,7 +1504,8 @@ class Command(BaseCommand):
 
     def _g(self, event_type, custodian_type, institution, agent, gps, when, *, acc=None,
            loc='', store='', sealed=False, seal_cond='', new_seal='', relinquished_by=None,
-           bearer=None, custodian_user=None, obs=''):
+           bearer=None, custodian_user=None, obs='',
+           receiver_nome='', receiver_doc_tipo='', receiver_doc_numero=''):
         """Empacota os parâmetros de UM evento de custódia (aplicado por :meth:`_chain`)."""
         lat, lng = (gps if gps else (None, None))
         # Ato de VALIDAÇÃO: texto certificado (quem validou + data do despacho),
@@ -1520,6 +1525,8 @@ class Command(BaseCommand):
             'location_name': loc, 'storage_location': store, 'sealed': sealed,
             'seal_condition_on_receipt': seal_cond, 'new_seal_number': new_seal,
             'relinquished_by': relinquished_by, 'bearer': bearer, 'observations': obs,
+            'receiver_nome': receiver_nome, 'receiver_doc_tipo': receiver_doc_tipo,
+            'receiver_doc_numero': receiver_doc_numero,
             'when': when,
         }
 

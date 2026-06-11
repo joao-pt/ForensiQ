@@ -141,7 +141,7 @@ class EncaminharLoteTest(TestCase):
 
     def test_encaminha_com_portador_pontual(self):
         """A lei exige IDENTIFICAR quem transporta, não que esteja pré-registado:
-        nome+apelido+matrícula/identificador entram no snapshot (hash hv2) sem FK."""
+        nome+apelido+matrícula/identificador entram no snapshot (hash hv2/hv3) sem FK."""
         r = self._post(self._enc_url(), {
             'modal': '1', 'evidence_ids': [self.ev1.id],
             'custodian_institution': self.opc2.id,
@@ -157,7 +157,7 @@ class EncaminharLoteTest(TestCase):
         self.assertEqual(ult.bearer_matricula, 'CC 12345678')
         self.assertEqual(ult.bearer_posto, 'Estafeta')
         self.assertEqual(legal_state_of(self.ev1), 'em_transito')
-        # O snapshot pontual entra na fórmula hv2 — o hash re-verifica.
+        # O snapshot pontual entra na fórmula (versão gravada) — o hash re-verifica.
         prev = sort_custody_chain(self.ev1.custody_chain.all())[-2].record_hash
         self.assertEqual(ult.compute_record_hash(previous_hash=prev), ult.record_hash)
 

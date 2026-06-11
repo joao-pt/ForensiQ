@@ -14,7 +14,7 @@ from core.models import (
     Evidence,
     Occurrence,
 )
-from core.tests_factories import CrimeTipoFactory, UserFactory
+from core.tests_factories import RECEIVER_KWARGS, CrimeTipoFactory, UserFactory
 
 
 def _occ(agent, n):
@@ -151,7 +151,8 @@ class GenesisGuardTest(TestCase):
         ev = _ev(self.occ, self.agent)
         self._genesis(ev, EventType.APREENSAO_OBJETO)
         ChainOfCustody.objects.create(
-            evidence=ev, event_type=EventType.RESTITUICAO, agent=self.agent
+            evidence=ev, event_type=EventType.RESTITUICAO, agent=self.agent,
+            **RECEIVER_KWARGS,
         )
         rec = ChainOfCustody(
             evidence=ev, event_type=EventType.TRANSFERENCIA_CUSTODIA, agent=self.agent

@@ -577,6 +577,12 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             'bearer_nome',
             'bearer_apelido',
             'bearer_posto',
+            # Recetor (hv3): identidade de quem recebe a prova fora do sistema —
+            # input direto (snapshot sem ficha); o clean() exige os três campos
+            # na RESTITUICAO e recusa-os fora da restituição/depositário.
+            'receiver_nome',
+            'receiver_doc_tipo',
+            'receiver_doc_numero',
             'record_hash',
             'hash_version',
         ]
@@ -592,7 +598,7 @@ class ChainOfCustodySerializer(serializers.ModelSerializer):
             # campos com a ficha (ADR-0016 v2); sem FK são o input direto do
             # portador PONTUAL (não registado) — o clean() exige nome+apelido+
             # matrícula no encaminhamento. Em ambos os casos é o snapshot que
-            # entra na cadeia de hash (hv2).
+            # entra na cadeia de hash (hv2/hv3).
             'record_hash',
             'hash_version',
         ]

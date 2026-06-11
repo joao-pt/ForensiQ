@@ -34,7 +34,7 @@ from core.middleware import CorrelationIDMiddleware
 from core.models import ChainOfCustody, CustodianType, EventType, Evidence, Occurrence
 from core.qr_verify import short_hash_for
 from core.tests_base import throttle_rate
-from core.tests_factories import TEST_PASSWORD, CrimeTipoFactory
+from core.tests_factories import RECEIVER_KWARGS, TEST_PASSWORD, CrimeTipoFactory
 
 User = get_user_model()
 
@@ -159,6 +159,7 @@ class CascadeErrorShapeTest(TestCase):
             event_type=EventType.RESTITUICAO,
             custodian_type=CustodianType.PROPRIETARIO,
             agent=self.agent,
+            **RECEIVER_KWARGS,
         )
 
     def test_cascade_invalido_devolve_detail(self):

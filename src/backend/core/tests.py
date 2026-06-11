@@ -26,7 +26,7 @@ from django.db import DatabaseError, connection
 from django.test import TestCase
 from django.utils import timezone
 
-from core.tests_factories import LISBOA_GPS, CrimeTipoFactory
+from core.tests_factories import LISBOA_GPS, RECEIVER_KWARGS, CrimeTipoFactory
 
 from .models import (
     VALIDATION_DEADLINE,
@@ -255,7 +255,11 @@ class ChainOfCustodyModelTest(TestCase):
 
     def test_terminal_restituicao_fecha(self):
         self._evento(EventType.APREENSAO_OBJETO)
-        self._evento(EventType.RESTITUICAO, custodian_type=CustodianType.PROPRIETARIO)
+        self._evento(
+            EventType.RESTITUICAO,
+            custodian_type=CustodianType.PROPRIETARIO,
+            **RECEIVER_KWARGS,
+        )
         with self.assertRaises(ValidationError):
             self._evento(EventType.TRANSFERENCIA_CUSTODIA)
 
@@ -333,11 +337,15 @@ class DeriveLegalStateTest(TestCase):
 
     def _chain(self, ev, eventos):
         for event_type, custodian_type in eventos:
+            # A RESTITUICAO exige a identidade do recetor (clean(), hv3) —
+            # identidade canónica da fonte única de teste.
+            extra = RECEIVER_KWARGS if event_type == EventType.RESTITUICAO else {}
             ChainOfCustody(
                 evidence=ev,
                 event_type=event_type,
                 custodian_type=custodian_type,
                 agent=self.agent,
+                **extra,
             ).save()
         return list(ev.custody_chain.order_by('sequence'))
 

@@ -66,6 +66,15 @@ LAB_LISBOA_GPS = (Decimal('38.7256000'), Decimal('-9.1430000'))
 # IMEI Luhn-válido canónico dos testes de lookup (antes 23 ocorrências — D107).
 VALID_IMEI = '490154203237518'
 
+# Identidade canónica de quem RECEBE a prova (hv3 — termo de entrega, CPP
+# art. 186.º): o clean() exige nome+documento na RESTITUICAO. Fonte única dos
+# testes; ``make_event``/``make_chain`` preenchem-na quando o teste não dá outra.
+RECEIVER_KWARGS = {
+    'receiver_nome': 'Maria José dos Santos Oliveira',
+    'receiver_doc_tipo': 'CC',
+    'receiver_doc_numero': '12345678 9 ZZ4',
+}
+
 # ---------------------------------------------------------------------------
 # Utilizadores
 # ---------------------------------------------------------------------------
@@ -374,6 +383,17 @@ def make_evidence(occ, agent, etype=Evidence.EvidenceType.MOBILE_DEVICE, parent=
     )
 
 
+def _fill_receiver(event_type, kwargs):
+    """Default válido de factory: a RESTITUICAO exige a identidade do recetor
+    (clean(), hv3) — preenche a canónica quando o teste não fornece outra."""
+    if (
+        event_type == ChainOfCustody.EventType.RESTITUICAO
+        and 'receiver_nome' not in kwargs
+    ):
+        kwargs.update(RECEIVER_KWARGS)
+    return kwargs
+
+
 def make_event(ev, agent, *, event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
                inst=None, holder=None, **kwargs):
     """Evento de ledger com custódio institucional opcional (antes ``_event`` — D104)."""
@@ -383,7 +403,7 @@ def make_event(ev, agent, *, event_type=ChainOfCustody.EventType.APREENSAO_OBJET
         agent=agent,
         custodian_institution=inst,
         custodian_user=holder,
-        **kwargs,
+        **_fill_receiver(event_type, kwargs),
     )
 
 
@@ -401,7 +421,8 @@ def make_chain(evidence, *events, agent=None):
         event_type, kwargs = item if isinstance(item, (tuple, list)) else (item, {})
         records.append(
             ChainOfCustody.objects.create(
-                evidence=evidence, event_type=event_type, agent=agent, **kwargs
+                evidence=evidence, event_type=event_type, agent=agent,
+                **_fill_receiver(event_type, dict(kwargs)),
             )
         )
     return records
@@ -422,6 +443,7 @@ __all__ = [
     'LISBOA_GPS_STR',
     'LAB_LISBOA_GPS',
     'VALID_IMEI',
+    'RECEIVER_KWARGS',
     'UserFactory',
     'ExpertFactory',
     'PeritoFactory',

@@ -36,6 +36,7 @@ from core.tests_factories import AuditLogFactory, UserFactory
 
 from .models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
 from .tests_factories import (
+    RECEIVER_KWARGS,
     CrimeTipoFactory,
     EvidenceMobileFactory,
     OccurrenceFactory,
@@ -370,6 +371,7 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
             event_type=ChainOfCustody.EventType.RESTITUICAO,
             custodian_type=ChainOfCustody.CustodianType.PROPRIETARIO,
             agent=self.agent,
+            **RECEIVER_KWARGS,
         ).save()
 
         data = self._dashboard(self.expert)

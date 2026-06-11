@@ -71,6 +71,17 @@ class EventType(models.TextChoices):
     DESTRUICAO = 'DESTRUICAO', 'Destruição'  # terminal
 
 
+class ReceiverDocType(models.TextChoices):
+    """Documento de identificação de quem RECEBE a prova fora do sistema
+    (restituição — CPP art. 186.º, termo de entrega — ou entrega a depositário
+    particular). Vocabulário do ledger: o valor entra CRU na fórmula de hash
+    (hv3), pelo que os códigos são contrato irreversível."""
+
+    CC = 'CC', 'Cartão de Cidadão'
+    PASSAPORTE = 'PASSAPORTE', 'Passaporte'
+    OUTRO = 'OUTRO', 'Outro documento'
+
+
 # Pares (slug, rótulo) PARTILHADOS entre o eixo do custódio (CustodianType) e
 # o tipo de instituição (InstitutionType, em core.models) — fonte ÚNICA dos
 # rótulos (auditoria D33): um rótulo novo/alterado edita-se SÓ aqui; o mapa

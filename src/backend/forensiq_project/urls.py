@@ -54,6 +54,7 @@ from core.frontend_views import (
     occurrence_detail_view,
     occurrence_encaminhar_view,
     occurrence_intake_view,
+    occurrence_restituir_view,
     occurrence_singular_redirect,
     occurrence_validar_view,
     occurrences_new_view,
@@ -141,6 +142,12 @@ urlpatterns = [
         'occurrences/<int:occurrence_id>/validar/',
         occurrence_validar_view,
         name='occurrence_validar',
+    ),
+    # Restituir prova em lote (CPP art. 186.º — termo de entrega) — ação in-place (modal)
+    path(
+        'occurrences/<int:occurrence_id>/restituir/',
+        occurrence_restituir_view,
+        name='occurrence_restituir',
     ),
 
     # Evidências

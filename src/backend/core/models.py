@@ -37,6 +37,7 @@ from core.policy.event_states import (
     VALIDATION_PENDING_STATUSES as VALIDATION_PENDING_STATUSES,
     CustodianType,
     EventType,
+    ReceiverDocType as ReceiverDocType,
     derive_legal_state as derive_legal_state,
     validation_status as validation_status,
 )
@@ -1872,6 +1873,25 @@ class ChainOfCustody(AppendOnlyModel):
     bearer_posto = models.CharField(
         max_length=50, blank=True, default='', verbose_name='Posto do portador (snapshot)'
     )
+    # --- Recetor (modelo de custódia v2 — hv3) ---
+    # Quem RECEBE a prova fora do sistema: obrigatório na RESTITUICAO (CPP
+    # art. 186.º — termo de entrega) e disponível na entrega a DEPOSITARIO
+    # particular. Identidade estruturada (pesquisável — "tudo o que X recebeu"),
+    # snapshot direto sem ficha (a pessoa não é utilizador nem entidade
+    # registada); entra na cadeia de hash (hv3).
+    receiver_nome = models.CharField(
+        max_length=200, blank=True, default='',
+        verbose_name='Nome completo do recetor',
+    )
+    receiver_doc_tipo = models.CharField(
+        max_length=12, blank=True, default='',
+        choices=ReceiverDocType.choices,
+        verbose_name='Tipo de documento do recetor',
+    )
+    receiver_doc_numero = models.CharField(
+        max_length=50, blank=True, default='',
+        verbose_name='N.º do documento do recetor',
+    )
     record_hash = models.CharField(
         max_length=64,
         blank=True,
@@ -1886,7 +1906,8 @@ class ChainOfCustody(AppendOnlyModel):
         verbose_name='Versão da fórmula de hash',
         help_text=(
             'Versão da fórmula do record_hash (ADR-0013/0016). Registos anteriores '
-            'ao portador são hv1; os novos são hv2 (prefixo + snapshot do portador). '
+            'ao portador são hv1; com o portador, hv2 (prefixo + snapshot do '
+            'portador); com o recetor, hv3 (idem + identidade do recetor no fim). '
             'O verificador escolhe a fórmula pela versão — nunca se recalcula retroativo.'
         ),
     )
@@ -2103,6 +2124,54 @@ class ChainOfCustody(AppendOnlyModel):
                     self.gps_lat = inst.gps_lat
                     self.gps_lng = inst.gps_lng
 
+        # --- Recetor (hv3): identidade de quem recebe a prova fora do sistema ---
+        # A RESTITUICAO (CPP art. 186.º — termo de entrega) EXIGE identificar quem
+        # recebeu: nome completo + tipo e n.º de documento (campos estruturados,
+        # que entram na cadeia de hash). A entrega a DEPOSITARIO particular pode
+        # registá-la. Fora destes atos os campos são recusados (o ledger não
+        # aceita identidade órfã); identidade parcial é sempre recusada.
+        receiver_given = [
+            v
+            for v in (
+                (self.receiver_nome or '').strip(),
+                (self.receiver_doc_tipo or '').strip(),
+                (self.receiver_doc_numero or '').strip(),
+            )
+            if v
+        ]
+        if self.event_type == EventType.RESTITUICAO and len(receiver_given) < 3:
+            raise ValidationError(
+                {
+                    'receiver_nome': (
+                        'A restituição exige a identificação de quem recebeu: '
+                        'nome completo, tipo e número do documento (CPP '
+                        'art. 186.º — termo de entrega; entra na cadeia de hash).'
+                    )
+                }
+            )
+        if receiver_given:
+            if len(receiver_given) < 3:
+                raise ValidationError(
+                    {
+                        'receiver_nome': (
+                            'Identificação do recetor incompleta: indique nome '
+                            'completo, tipo e número do documento.'
+                        )
+                    }
+                )
+            if (
+                self.event_type != EventType.RESTITUICAO
+                and self.custodian_type != CustodianType.DEPOSITARIO
+            ):
+                raise ValidationError(
+                    {
+                        'receiver_nome': (
+                            'A identidade do recetor só se regista na restituição '
+                            'ou na entrega a depositário.'
+                        )
+                    }
+                )
+
         # Gate de laboratório (CPP Art. 154.º): encaminhar/entregar prova a um
         # laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já no ledger — o
         # laboratório não admite prova sem despacho, nem que seja para arquivo. Não
@@ -2131,7 +2200,7 @@ class ChainOfCustody(AppendOnlyModel):
         recalcular o hash a partir dos campos relidos da BD e do hash do
         registo anterior, verificando a integridade da cadeia (ISO/IEC 27037).
 
-        Duas versões coexistem (o verificador escolhe pela ``hash_version``
+        Três versões coexistem (o verificador escolhe pela ``hash_version``
         gravada — NUNCA se recalcula um registo antigo com a fórmula nova):
 
         - ``hv1`` (legado, anterior ao portador): os 17 segmentos abaixo, sem
@@ -2140,6 +2209,11 @@ class ChainOfCustody(AppendOnlyModel):
           17 segmentos + 4 segmentos do snapshot do portador no FIM
           (``bmat``/``bnome``/``bapel``/``bposto``, texto livre escapado). Os
           segmentos hv1 NÃO são reordenados (contrato aditivo).
+        - ``hv3`` (recetor na cadeia — restituição/entrega a particular, CPP
+          art. 186.º): prefixo ``hv3|`` + os segmentos hv2 + 3 segmentos da
+          identidade do recetor no FIM (``rnome``/``rdocnum`` texto livre
+          escapado; ``rdoctipo`` enum controlado, entra cru). Mesmo contrato
+          aditivo: nada se reordena.
 
         Fórmula hv1 (17 segmentos por ``|``, ordem fixa — contrato irreversível):
 
@@ -2195,15 +2269,23 @@ class ChainOfCustody(AppendOnlyModel):
             f'|relinq={self.relinquished_by_id or ""}'
         )
 
-        # hv2 (ADR-0016 — portador na cadeia): prefixo de versão + snapshot do
-        # portador acrescentados SEM reordenar os segmentos hv1 (contrato aditivo).
-        if (self.hash_version or 'hv1') == 'hv2':
+        # hv2/hv3 (contrato aditivo): prefixo de versão + snapshot do portador
+        # acrescentados SEM reordenar os segmentos hv1; o hv3 junta a identidade
+        # do recetor NO FIM (restituição/entrega a particular, CPP art. 186.º).
+        version = self.hash_version or 'hv1'
+        if version in ('hv2', 'hv3'):
             data = (
-                f'hv2|{data}'
+                f'{version}|{data}'
                 f'|bmat={_hash_escape(self.bearer_matricula)}'
                 f'|bnome={_hash_escape(self.bearer_nome)}'
                 f'|bapel={_hash_escape(self.bearer_apelido)}'
                 f'|bposto={_hash_escape(self.bearer_posto)}'
+            )
+        if version == 'hv3':
+            data += (
+                f'|rnome={_hash_escape(self.receiver_nome)}'
+                f'|rdoctipo={self.receiver_doc_tipo}'
+                f'|rdocnum={_hash_escape(self.receiver_doc_numero)}'
             )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
@@ -2268,8 +2350,9 @@ class ChainOfCustody(AppendOnlyModel):
 
                     # Versão da fórmula + snapshot do portador (ADR-0016 v2):
                     # copiados ANTES do full_clean para entrarem na validação E no
-                    # hash. Todo registo novo é hv2; o snapshot só se há portador.
-                    self.hash_version = 'hv2'
+                    # hash. Todo registo novo é hv3 (portador + recetor na fórmula);
+                    # o snapshot só se há portador.
+                    self.hash_version = 'hv3'
                     if self.bearer_id is not None:
                         self.bearer_matricula = self.bearer.matricula
                         self.bearer_nome = self.bearer.nome

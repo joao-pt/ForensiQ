@@ -12,6 +12,7 @@
     <div class="facts__row"><dt>Sequência</dt><dd class="mono">#{{ r.sequence }}</dd></div>
     <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</dd></div>
     <div class="facts__row"><dt>Responsável</dt><dd>{{ r.agent_label }}</dd></div>
+    {% if r.receiver_label %}<div class="facts__row"><dt>Recebido por</dt><dd>{{ r.receiver_label }}</dd></div>{% endif %}
     {% if r.location_name %}<div class="facts__row"><dt>Local</dt><dd>{{ r.location_name }}</dd></div>{% endif %}
     {% if r.storage_location %}<div class="facts__row"><dt>Armazenamento</dt><dd>{{ r.storage_location }}</dd></div>{% endif %}
     {% if r.gps_lat is not None %}

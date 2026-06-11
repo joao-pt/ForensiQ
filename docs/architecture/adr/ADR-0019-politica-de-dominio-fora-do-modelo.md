@@ -77,7 +77,7 @@ fonte. Frontend e modelo deixam de poder divergir.
 
 ### 4. O que NÃO migra (e é deliberado dizê-lo)
 
-- **As fórmulas de hash** (`compute_record_hash` `hv1`/`hv2`, `compute_integrity_hash`
+- **As fórmulas de hash** (`compute_record_hash` `hv1`/`hv2`/`hv3`, `compute_integrity_hash`
   e os helpers `_hash_escape`/`_hash_str`/`_strip_exif`) — contrato forense
   irreversível e versionado. Mover arrisca a ordem/posição dos segmentos e parte hashes
   históricos, sem ganho.

@@ -52,6 +52,14 @@
         Encaminhar
       </a>
       {% endif %}
+      {% if can_restitute %}
+      {# Ação in-place: restituir em lote (CPP 186.º — termo de entrega c/ identidade do recetor). #}
+      <a class="btn-ghost" href="/occurrences/{{ occ.id }}/restituir/"
+         data-modal-open data-modal-title="Restituir prova">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        Restituir
+      </a>
+      {% endif %}
       {% if can_register %}
       <a class="btn-accent" href="/evidences/new/?occurrence={{ occ.id }}">
         {% include 'partials/icons/_plus.html' %}

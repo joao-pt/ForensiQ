@@ -1,6 +1,7 @@
 """
 ForensiQ — Testes do modelo de custódia v2 (ADR-0016): portador na cadeia de
-hash (hv2), gate de laboratório, handoff em dois tempos (encaminhar → receber),
+hash (hv2; registos novos hv3), gate de laboratório, handoff em dois tempos
+(encaminhar → receber),
 estado ``em_transito`` e caixa "prova a chegar" (ProvaEmTransito).
 
 Todos os eventos são criados append-only (.save()); nada de UPDATE no ledger
@@ -234,13 +235,13 @@ class HandoffTwoPhaseTest(CustodyV2Base):
 
 
 class BearerHashTest(CustodyV2Base):
-    """Portador no hash (hv2): snapshot estável, versão por registo."""
+    """Portador no hash (hv2/hv3): snapshot estável, versão por registo."""
 
-    def test_registo_novo_e_hv2(self):
+    def test_registo_novo_e_hv3(self):
         occ = self._occ('B1')
         ev = self._ev(occ, 'B1')
         rec = self._save(ev, EventType.APREENSAO_OBJETO, custodian_type=CustodianType.OPC)
-        self.assertEqual(rec.hash_version, 'hv2')
+        self.assertEqual(rec.hash_version, 'hv3')
 
     def test_snapshot_do_portador_copiado(self):
         ev = self._despachado('B2')
@@ -400,9 +401,9 @@ class SeedDemoHandoffSmokeTest(TestCase):
         self.assertTrue(
             ProvaEmTransito.objects.filter(acknowledged_at__isnull=True).exists()
         )
-        # Portador entrou na cadeia com snapshot (hv2).
+        # Portador entrou na cadeia com snapshot (fórmula corrente, hv3).
         enc = ChainOfCustody.objects.filter(
             event_type=EventType.ENCAMINHAMENTO_CUSTODIA
         ).first()
-        self.assertEqual(enc.hash_version, 'hv2')
+        self.assertEqual(enc.hash_version, 'hv3')
         self.assertTrue(enc.bearer_matricula)
