@@ -1960,7 +1960,10 @@ class ChainOfCustody(AppendOnlyModel):
 
         Não é um grafo de transições: aplica apenas as restrições legais
         reais, lendo os eventos anteriores da mesma evidência (dentro do
-        ``select_for_update`` de :meth:`save`).
+        ``select_for_update`` de :meth:`save`). Cada guarda vive num método
+        ``_clean_*`` próprio (mesma ordem de avaliação de sempre); as REGRAS
+        continuam nos predicados únicos da policy (ADR-0019) — aqui lê-se o
+        ledger, muta-se o objeto e traduz-se a recusa na mensagem legal.
         """
         super().clean()
 
@@ -1969,13 +1972,26 @@ class ChainOfCustody(AppendOnlyModel):
         )
         prior_types = [r.event_type for r in prior]
 
-        evidence = self.evidence
+        self._clean_genesis(prior)
+        self._clean_terminal_fecha_ledger(prior_types)
+        self._clean_validacao(prior, prior_types)
+        self._clean_inicio_pericia(prior_types)
+        self._clean_encaminhamento(prior_types)
+        self._clean_rececao(prior, prior_types)
+        self._clean_receiver()
+        self._clean_lab_gate(prior_types)
 
-        # Génese (1.º evento): exatamente um evento de génese, na posição 1,
-        # coerente com a proveniência da evidência (ADR-0016 §2). A coerência é
-        # por igualdade estrita com ``genesis_event_for`` — a fonte única decide
-        # (``policy.genesis_violation``), aqui só se traduz o código de recusa
-        # na mensagem legal (ADR-0019 §4).
+        # Coerência + quantização GPS (ADR-0013) na operação compósita única,
+        # ANTES do hash — valor em memória == BD == recalculado pelo perito.
+        self.gps_lat, self.gps_lng = quantize_gps_pair(self.gps_lat, self.gps_lng)
+
+    def _clean_genesis(self, prior):
+        """Génese (1.º evento): exatamente um evento de génese, na posição 1,
+        coerente com a proveniência da evidência (ADR-0016 §2). A coerência é
+        por igualdade estrita com ``genesis_event_for`` — a fonte única decide
+        (``policy.genesis_violation``), aqui só se traduz o código de recusa
+        na mensagem legal (ADR-0019 §4)."""
+        evidence = self.evidence
         if not prior:
             violation = custody_transitions.genesis_violation(
                 self.event_type,
@@ -2002,9 +2018,10 @@ class ChainOfCustody(AppendOnlyModel):
                 {'event_type': 'Um evento de génese só pode ser o primeiro evento.'}
             )
 
-        # Terminais fecham o ledger — nenhum evento depois de RESTITUICAO/DESTRUICAO,
-        # em QUALQUER posição (semântica de presença, ADR-0015; robusto a sequences
-        # fora de ordem hipotéticas).
+    def _clean_terminal_fecha_ledger(self, prior_types):
+        """Terminais fecham o ledger — nenhum evento depois de
+        RESTITUICAO/DESTRUICAO, em QUALQUER posição (semântica de presença,
+        ADR-0015; robusto a sequences fora de ordem hipotéticas)."""
         if custody_transitions.ledger_has_terminal(prior_types):
             raise ValidationError(
                 {
@@ -2015,23 +2032,27 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-        # VALIDACAO_APREENSAO: exige apreensão prévia, uma vez, ≤72h (assinalado).
-        if self.event_type == EventType.VALIDACAO_APREENSAO:
-            seizure = next(
-                (r for r in prior if r.event_type in SEIZURE_GENESIS_EVENTS), None
+    def _clean_validacao(self, prior, prior_types):
+        """VALIDACAO_APREENSAO: exige apreensão prévia, uma vez, ≤72h (assinalado
+        na flag derivada ``validation_overdue`` — facto relevante, não bloqueia)."""
+        if self.event_type != EventType.VALIDACAO_APREENSAO:
+            return
+        seizure = next(
+            (r for r in prior if r.event_type in SEIZURE_GENESIS_EVENTS), None
+        )
+        if seizure is None:
+            raise ValidationError(
+                {'event_type': 'VALIDACAO_APREENSAO requer uma apreensão prévia.'}
             )
-            if seizure is None:
-                raise ValidationError(
-                    {'event_type': 'VALIDACAO_APREENSAO requer uma apreensão prévia.'}
-                )
-            if custody_transitions.validation_done(prior_types):
-                raise ValidationError(
-                    {'event_type': 'A apreensão só pode ser validada uma vez.'}
-                )
-            ts = self.timestamp or timezone.now()
-            self.validation_overdue = ts - seizure.timestamp > VALIDATION_DEADLINE
+        if custody_transitions.validation_done(prior_types):
+            raise ValidationError(
+                {'event_type': 'A apreensão só pode ser validada uma vez.'}
+            )
+        ts = self.timestamp or timezone.now()
+        self.validation_overdue = ts - seizure.timestamp > VALIDATION_DEADLINE
 
-        # INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º).
+    def _clean_inicio_pericia(self, prior_types):
+        """INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º)."""
         if (
             self.event_type == EventType.INICIO_PERICIA
             and not custody_transitions.despacho_done(prior_types)
@@ -2045,91 +2066,99 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-        # --- Movimentação em dois tempos (ADR-0016 v2) ---
-        # ENCAMINHAMENTO: a origem entrega a prova a um portador, com destino; a
-        # prova fica EM TRÂNSITO (sem GPS — a coordenada regista-se na receção).
-        if self.event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
-            # Portador REGISTADO (FK; o save() copia o snapshot da ficha) OU
-            # PONTUAL (snapshot direto: nome + apelido + matrícula/identificador).
-            # A lei exige IDENTIFICAR quem transporta, não que esteja pré-registado
-            # numa base de dados — a verdade forense é o snapshot, que é o que
-            # entra na cadeia de hash (hv2); o FK é só conveniência de reutilização.
-            has_adhoc = bool(
-                (self.bearer_nome or '').strip()
-                and (self.bearer_apelido or '').strip()
-                and (self.bearer_matricula or '').strip()
+    def _clean_encaminhamento(self, prior_types):
+        """ENCAMINHAMENTO (1.º tempo da movimentação, ADR-0016 v2): a origem
+        entrega a prova a um portador, com destino; a prova fica EM TRÂNSITO
+        (sem GPS — a coordenada regista-se na receção).
+
+        Portador REGISTADO (FK; o save() copia o snapshot da ficha) OU PONTUAL
+        (snapshot direto: nome + apelido + matrícula/identificador). A lei exige
+        IDENTIFICAR quem transporta, não que esteja pré-registado numa base de
+        dados — a verdade forense é o snapshot, que é o que entra na cadeia de
+        hash (hv2/hv3); o FK é só conveniência de reutilização."""
+        if self.event_type != EventType.ENCAMINHAMENTO_CUSTODIA:
+            return
+        has_adhoc = bool(
+            (self.bearer_nome or '').strip()
+            and (self.bearer_apelido or '').strip()
+            and (self.bearer_matricula or '').strip()
+        )
+        if self.bearer_id is None and not has_adhoc:
+            raise ValidationError(
+                {
+                    'bearer': (
+                        'O encaminhamento exige um portador identificado: escolha '
+                        'um registado ou indique nome, apelido e matrícula/'
+                        'identificador (entra na cadeia de hash).'
+                    )
+                }
             )
-            if self.bearer_id is None and not has_adhoc:
-                raise ValidationError(
-                    {
-                        'bearer': (
-                            'O encaminhamento exige um portador identificado: escolha '
-                            'um registado ou indique nome, apelido e matrícula/'
-                            'identificador (entra na cadeia de hash).'
-                        )
-                    }
-                )
-            if not self.custodian_institution_id:
-                raise ValidationError(
-                    {
-                        'custodian_institution': (
-                            'O encaminhamento exige uma instituição de destino.'
-                        )
-                    }
-                )
-            if self.gps_lat is not None or self.gps_lng is not None:
-                raise ValidationError(
-                    {
-                        'gps_lat': (
-                            'O encaminhamento não capta GPS (a prova está em trânsito); '
-                            'a coordenada é registada na receção.'
-                        )
-                    }
-                )
-            if custody_transitions.is_in_transit(prior_types):
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'A prova já está em trânsito; registe a receção antes de '
-                            'novo encaminhamento.'
-                        )
-                    }
-                )
+        if not self.custodian_institution_id:
+            raise ValidationError(
+                {
+                    'custodian_institution': (
+                        'O encaminhamento exige uma instituição de destino.'
+                    )
+                }
+            )
+        if self.gps_lat is not None or self.gps_lng is not None:
+            raise ValidationError(
+                {
+                    'gps_lat': (
+                        'O encaminhamento não capta GPS (a prova está em trânsito); '
+                        'a coordenada é registada na receção.'
+                    )
+                }
+            )
+        if custody_transitions.is_in_transit(prior_types):
+            raise ValidationError(
+                {
+                    'event_type': (
+                        'A prova já está em trânsito; registe a receção antes de '
+                        'novo encaminhamento.'
+                    )
+                }
+            )
 
-        # RECEPCAO: o destino confirma a chegada de uma prova em trânsito. Herda o
-        # destino do encaminhamento e, em instituição fixa, a coordenada vem do
-        # registo da instituição (não há captura no terreno).
-        if self.event_type == EventType.RECEPCAO_CUSTODIA:
-            if not custody_transitions.is_in_transit(prior_types):
-                raise ValidationError(
-                    {
-                        'event_type': (
-                            'A receção só fecha um encaminhamento em curso (a prova '
-                            'tem de estar em trânsito).'
-                        )
-                    }
-                )
-            encaminhamento = prior[-1]
-            if not self.custodian_institution_id:
-                self.custodian_institution = encaminhamento.custodian_institution
-            if not self.custodian_type:
-                self.custodian_type = encaminhamento.custodian_type
-            if (
-                self.gps_lat is None
-                and self.gps_lng is None
-                and self.custodian_institution_id
-            ):
-                inst = self.custodian_institution
-                if inst and inst.gps_lat is not None and inst.gps_lng is not None:
-                    self.gps_lat = inst.gps_lat
-                    self.gps_lng = inst.gps_lng
+    def _clean_rececao(self, prior, prior_types):
+        """RECEPCAO (2.º tempo): o destino confirma a chegada de uma prova em
+        trânsito. Herda o destino/custódio do encaminhamento e, em instituição
+        fixa, a coordenada vem do registo da instituição (não há captura no
+        terreno)."""
+        if self.event_type != EventType.RECEPCAO_CUSTODIA:
+            return
+        if not custody_transitions.is_in_transit(prior_types):
+            raise ValidationError(
+                {
+                    'event_type': (
+                        'A receção só fecha um encaminhamento em curso (a prova '
+                        'tem de estar em trânsito).'
+                    )
+                }
+            )
+        encaminhamento = prior[-1]
+        if not self.custodian_institution_id:
+            self.custodian_institution = encaminhamento.custodian_institution
+        if not self.custodian_type:
+            self.custodian_type = encaminhamento.custodian_type
+        if (
+            self.gps_lat is None
+            and self.gps_lng is None
+            and self.custodian_institution_id
+        ):
+            inst = self.custodian_institution
+            if inst and inst.gps_lat is not None and inst.gps_lng is not None:
+                self.gps_lat = inst.gps_lat
+                self.gps_lng = inst.gps_lng
 
-        # --- Recetor (hv3): identidade de quem recebe a prova fora do sistema ---
-        # A RESTITUICAO (CPP art. 186.º — termo de entrega) EXIGE identificar quem
-        # recebeu: nome completo + tipo e n.º de documento (campos estruturados,
-        # que entram na cadeia de hash). A entrega a DEPOSITARIO particular pode
-        # registá-la. Fora destes atos os campos são recusados (o ledger não
-        # aceita identidade órfã); identidade parcial é sempre recusada.
+    def _clean_receiver(self):
+        """Recetor (hv3): identidade de quem recebe a prova fora do sistema.
+
+        A RESTITUICAO (CPP art. 186.º — termo de entrega) EXIGE identificar quem
+        recebeu: nome completo + tipo e n.º de documento (campos estruturados,
+        que entram na cadeia de hash). A entrega a DEPOSITARIO particular pode
+        registá-la. Fora destes atos os campos são recusados (o ledger não
+        aceita identidade órfã); identidade parcial é sempre recusada."""
         receiver_given = [
             v
             for v in (
@@ -2172,11 +2201,12 @@ class ChainOfCustody(AppendOnlyModel):
                     }
                 )
 
-        # Gate de laboratório (CPP Art. 154.º): encaminhar/entregar prova a um
-        # laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já no ledger — o
-        # laboratório não admite prova sem despacho, nem que seja para arquivo. Não
-        # se aplica à génese (a derivação de um sub-componente no laboratório herda
-        # a base legal do item-pai já lá presente).
+    def _clean_lab_gate(self, prior_types):
+        """Gate de laboratório (CPP Art. 154.º): encaminhar/entregar prova a um
+        laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já no ledger — o
+        laboratório não admite prova sem despacho, nem que seja para arquivo.
+        Não se aplica à génese (a derivação de um sub-componente no laboratório
+        herda a base legal do item-pai já lá presente)."""
         if custody_transitions.lab_gate_blocks(self.custodian_type, prior_types):
             raise ValidationError(
                 {
@@ -2186,10 +2216,6 @@ class ChainOfCustody(AppendOnlyModel):
                     )
                 }
             )
-
-        # Coerência + quantização GPS (ADR-0013) na operação compósita única,
-        # ANTES do hash — valor em memória == BD == recalculado pelo perito.
-        self.gps_lat, self.gps_lng = quantize_gps_pair(self.gps_lat, self.gps_lng)
 
     def compute_record_hash(self, previous_hash=None):
         """
