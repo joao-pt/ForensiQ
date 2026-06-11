@@ -1062,8 +1062,12 @@ def occurrence_detail_view(request, occurrence_id):
         {v for v, _ in _valid_next_events(sort_custody_chain(e.custody_chain.all()), e)}
         for e in evidences
     ]
+    # Despachável JÁ ou com apreensão por validar (o modal regista os dois
+    # atos juntos — elegibilidade alargada de _despachaveis_com_pendentes).
     can_despachar = can_handoff and any(
-        EventType.DESPACHO_PERICIA.value in s for s in next_sets
+        EventType.DESPACHO_PERICIA.value in s
+        or EventType.VALIDACAO_APREENSAO.value in s
+        for s in next_sets
     )
     can_restitute = can_handoff and any(
         EventType.RESTITUICAO.value in s for s in next_sets
@@ -1319,6 +1323,18 @@ _CERTIFIED_ACT_SPECS = {
             'do laboratório — e fica selado na cadeia de custódia. Não muda quem '
             'detém a prova nem onde está. Desmarque os itens que ficam de fora.'
         ),
+        # Apreensão por validar (CPP 178.º/5-6): o despacho só pode abranger o
+        # item se INCLUIR a validação — a "validação implícita" da jurisprudência
+        # torna-se um ato explícito no ledger (VALIDACAO imediatamente antes).
+        'companion_field': 'include_validation',
+        'companion_alert': (
+            'Há itens com a apreensão ainda POR VALIDAR (CPP art. 178.º): o '
+            'despacho só os pode abranger se incluir a validação.'
+        ),
+        'companion_label': (
+            'O despacho inclui a validação da apreensão — regista-se a '
+            'VALIDACAO_APREENSAO imediatamente antes, pela mesma autoridade e data.'
+        ),
         'legend': 'Itens abrangidos pelo despacho',
         'who_label': 'Quem ordenou a perícia *',
         'who_placeholder': 'Autoridade — ex.: Procurador(a) / Juiz(a) …',
@@ -1338,7 +1354,8 @@ _CERTIFIED_ACT_SPECS = {
 }
 
 
-def _register_certified_act(request, evidences, act, autoridade, justificacao, ts):
+def _register_certified_act(request, evidences, act, autoridade, justificacao, ts,
+                            *, propagate=False):
     """Regista o ATO certificado em cada item: sem GPS nem local (a prova não
     se desloca) e custódio HERDADO do último evento do ledger (um ato de
     autoridade não muda quem detém a prova).
@@ -1347,7 +1364,8 @@ def _register_certified_act(request, evidences, act, autoridade, justificacao, t
     do ledger): a data/hora do despacho declarada pela autoridade entra no texto
     CERTIFICADO de ``observations`` — que faz parte da fórmula do hash, ficando
     selada na cadeia. Devolve lista de erros (vazia = sucesso); qualquer falha
-    reverte tudo."""
+    reverte tudo. ``propagate=True`` deixa a exceção subir (caso do despacho que
+    INCLUI a validação: dois atos na mesma transação envolvente)."""
     quando = timezone.localtime(ts).strftime('%d/%m/%Y %H:%M')
     obs = act['certify'].format(quem=autoridade, quando=quando)
     if justificacao:
@@ -1371,7 +1389,65 @@ def _register_certified_act(request, evidences, act, autoridade, justificacao, t
     return _append_custody_events(
         request, _payload, evidences,
         extra_details={act['audit_key']: autoridade},
+        propagate=propagate,
     )
+
+
+def _despachaveis_com_pendentes(user, occ):
+    """Elegibilidade ALARGADA do despacho: itens despacháveis JÁ (apreensão
+    validada — ou sem apreensão própria) + itens com apreensão POR VALIDAR,
+    que só entram se o despacho INCLUIR a validação (CPP 178.º/5-6). Os
+    pendentes ficam marcados (``ev.needs_validation``) para o formulário
+    mostrar o alerta e exigir a opção expressa. Os dois conjuntos são
+    disjuntos por construção (as guardas da policy excluem-se mutuamente)."""
+    prontos = _itens_com_proximo_evento(user, occ, EventType.DESPACHO_PERICIA)
+    pendentes = _itens_com_proximo_evento(user, occ, EventType.VALIDACAO_APREENSAO)
+    for ev in pendentes:
+        ev.needs_validation = True
+    return prontos + pendentes
+
+
+def _register_despacho(request, evidences, act, autoridade, justificacao, ts):
+    """Registo do DESPACHO com a guarda da validação (CPP 178.º/5-6).
+
+    Itens com apreensão POR VALIDAR só avançam se o operador marcar "o
+    despacho inclui a validação" — regista-se então a VALIDACAO_APREENSAO
+    imediatamente antes do despacho, pela MESMA autoridade e data declarada,
+    tudo numa só transação (a validação implícita da jurisprudência fica
+    explícita no ledger). Sem pendentes, é o registo certificado normal."""
+    from django.db import transaction
+
+    a_validar = [ev for ev in evidences if getattr(ev, 'needs_validation', False)]
+    if a_validar and not request.POST.get(act['companion_field']):
+        pend = ', '.join(ev.code for ev in a_validar)
+        return [
+            f'Apreensão por validar em: {pend} (CPP art. 178.º). Marque '
+            f'«{act["companion_label"]}» — ou desmarque esses itens.'
+        ]
+    if not a_validar:
+        return _register_certified_act(request, evidences, act, autoridade, justificacao, ts)
+    try:
+        with transaction.atomic():
+            _register_certified_act(
+                request, a_validar, _CERTIFIED_ACT_SPECS['validar'], autoridade,
+                'Validação incluída no despacho que ordena a perícia.', ts,
+                propagate=True,
+            )
+            _register_certified_act(
+                request, evidences, act, autoridade, justificacao, ts,
+                propagate=True,
+            )
+    except (DRFValidationError, DjangoValidationError) as exc:
+        return _flatten_validation_error(exc)
+    return []
+
+
+# Ganchos próprios do DESPACHO (elegibilidade alargada + registo conjunto
+# validação+despacho) — ligados aqui porque as funções vivem depois do spec.
+_CERTIFIED_ACT_SPECS['despachar'].update(
+    elegiveis=_despachaveis_com_pendentes,
+    register=_register_despacho,
+)
 
 
 def _occurrence_certified_act_view(request, occurrence_id, act):
@@ -1389,7 +1465,11 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
 
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_ato_form.html', 'occurrence_ato.html')
-    itens = _itens_com_proximo_evento(user, occ, act['event_type'])
+    elegiveis = act.get('elegiveis')
+    itens = (
+        elegiveis(user, occ) if elegiveis
+        else _itens_com_proximo_evento(user, occ, act['event_type'])
+    )
 
     submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
     for ev in itens:
@@ -1401,6 +1481,9 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
             'occ': occ,
             'itens': itens,
             'act': act,
+            # Há itens que exigem o ato-companheiro (ex.: despacho a incluir a
+            # validação)? Liga o alerta + checkbox no formulário único.
+            'companion': any(getattr(e, 'needs_validation', False) for e in itens),
             'errors': errors,
             'data': data if data is not None else {
                 'validated_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
@@ -1442,7 +1525,8 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
                         code=ev.code, quando=f'{local:%d/%m/%Y %H:%M}',
                     ))
         if not errs:
-            errs = _register_certified_act(request, sel, act, autoridade, justificacao, ts)
+            registar = act.get('register', _register_certified_act)
+            errs = registar(request, sel, act, autoridade, justificacao, ts)
         if not errs:
             messages.success(request, act['success'].format(n=len(sel)))
             return _form_success_response(modal, f'/occurrences/{occ.id}/')
@@ -2037,8 +2121,11 @@ def evidence_detail_view(request, evidence_id):
             'can_validate': any(
                 v == EventType.VALIDACAO_APREENSAO.value for v, _ in valid_next
             ),
+            # Despachável JÁ ou por validar (o modal pode incluir a validação).
             'can_despachar': any(
-                v == EventType.DESPACHO_PERICIA.value for v, _ in valid_next
+                v in (EventType.DESPACHO_PERICIA.value,
+                      EventType.VALIDACAO_APREENSAO.value)
+                for v, _ in valid_next
             ),
             'can_restitute': any(
                 v == EventType.RESTITUICAO.value for v, _ in valid_next
@@ -2301,7 +2388,10 @@ def custody_timeline_view(request, evidence_id):
     register_events = [(v, label) for v, label in valid_events if v not in dedicated]
     valid_values = {v for v, _ in valid_events}
     can_validate = EventType.VALIDACAO_APREENSAO.value in valid_values
-    can_despachar = EventType.DESPACHO_PERICIA.value in valid_values
+    # Despachável JÁ ou com apreensão por validar (o modal pode incluir a validação).
+    can_despachar = (
+        EventType.DESPACHO_PERICIA.value in valid_values or can_validate
+    )
     can_restitute = EventType.RESTITUICAO.value in valid_values
     return render(
         request,

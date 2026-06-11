@@ -210,18 +210,33 @@ class NextEventsTests(SimpleTestCase):
         self.assertNotIn(EventType.TRANSFERENCIA_CUSTODIA.value, vals)
         self.assertNotIn(EventType.ASSUNCAO_CUSTODIA.value, vals)
         self.assertNotIn(RECEPCAO, vals)
-        # Validação oferece-se (há apreensão, ainda não validada); início NÃO (sem despacho).
+        # Validação oferece-se (há apreensão, ainda não validada); início NÃO
+        # (sem despacho); despacho NÃO (apreensão por validar — CPP 178.º/5-6).
         self.assertIn(VALIDACAO, vals)
         self.assertNotIn(INICIO_PERICIA, vals)
-        self.assertIn(DESPACHO, vals)
+        self.assertNotIn(DESPACHO, vals)
         self.assertIn(ENCAMINHAMENTO, vals)
 
     def test_validacao_some_depois_de_validada(self):
         self.assertNotIn(VALIDACAO, self._values([APREENSAO_OBJETO, VALIDACAO]))
 
+    def test_despacho_so_com_apreensao_validada(self):
+        # Bloqueado com apreensão por validar; oferecido depois da validação —
+        # e numa derivação (sem apreensão própria) nunca bloqueia.
+        self.assertNotIn(DESPACHO, self._values([APREENSAO_OBJETO]))
+        self.assertIn(DESPACHO, self._values([APREENSAO_OBJETO, VALIDACAO]))
+        self.assertIn(DESPACHO, self._values([DERIVACAO_ITEM]))
+
+    def test_despacho_sem_validacao_predicado(self):
+        self.assertTrue(ct.despacho_sem_validacao([APREENSAO_OBJETO]))
+        self.assertFalse(ct.despacho_sem_validacao([APREENSAO_OBJETO, VALIDACAO]))
+        self.assertFalse(ct.despacho_sem_validacao([DERIVACAO_ITEM]))
+
     def test_inicio_pericia_so_com_despacho(self):
         self.assertNotIn(INICIO_PERICIA, self._values([APREENSAO_OBJETO]))
-        self.assertIn(INICIO_PERICIA, self._values([APREENSAO_OBJETO, DESPACHO]))
+        self.assertIn(
+            INICIO_PERICIA, self._values([APREENSAO_OBJETO, VALIDACAO, DESPACHO])
+        )
 
     def test_derivacao_sem_apreensao_nao_oferece_validacao(self):
         # DERIVACAO_ITEM é génese mas NÃO é apreensão validável (CPP art. 178.º/6).

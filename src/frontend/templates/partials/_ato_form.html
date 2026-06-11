@@ -25,10 +25,22 @@
         {% if e.validation_badge %}<span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}
         {% else %}
         <span class="state state--{{ e.state_css }}">{{ e.state_label }}</span>
+        {% if e.needs_validation and e.validation_badge %}<span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}
         {% endif %}
       </label>
       {% endfor %}
     </fieldset>
+
+    {% if companion %}
+    {# Apreensão por validar (CPP 178.º): o ato-companheiro tem de ser expresso. #}
+    <div class="form-field form-field--full">
+      <p class="form-hint"><strong>{{ act.companion_alert }}</strong></p>
+      <label class="form-check">
+        <input type="checkbox" name="{{ act.companion_field }}" value="1"{% if data.include_validation %} checked{% endif %}>
+        <span>{{ act.companion_label }}</span>
+      </label>
+    </div>
+    {% endif %}
 
     <div class="form-grid">
       <div class="form-field">

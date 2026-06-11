@@ -48,11 +48,16 @@ class DespacharLoteTest(TestCase):
         cls.agent = _user('dsp_agent', User.Profile.FIRST_RESPONDER)
         InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
         cls.occ = _occ(cls.agent, 'DSP-1')
-        # Dois itens despacháveis (génese feita, ledger aberto).
+        # Dois itens despacháveis JÁ (apreensão validada — CPP 178.º/5-6).
         cls.ev1 = _evidence(cls.occ, cls.agent)
         _event(cls.ev1, cls.agent, inst=cls.opc)  # APREENSAO_OBJETO @opc
+        _event(cls.ev1, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
         cls.ev2 = _evidence(cls.occ, cls.agent)
         _event(cls.ev2, cls.agent, inst=cls.opc)
+        _event(cls.ev2, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+        # Item com apreensão POR VALIDAR: só despachável incluindo a validação.
+        cls.ev_pend = _evidence(cls.occ, cls.agent)
+        _event(cls.ev_pend, cls.agent, inst=cls.opc)
         # Item EM TRÂNSITO: não despachável (a receção tem de fechar primeiro).
         cls.ev_transit = _evidence(cls.occ, cls.agent)
         _event(cls.ev_transit, cls.agent, inst=cls.opc)
@@ -92,6 +97,11 @@ class DespacharLoteTest(TestCase):
         self.assertNotIn('<html', body)  # fragmento
         self.assertIn(f'value="{self.ev1.id}"', body)
         self.assertIn(f'value="{self.ev2.id}"', body)
+        # Pendente de validação TAMBÉM aparece (despachável incluindo-a),
+        # com o alerta e a opção expressa de incluir a validação.
+        self.assertIn(f'value="{self.ev_pend.id}"', body)
+        self.assertIn('name="include_validation"', body)
+        self.assertIn('POR VALIDAR', body)
         self.assertNotIn(f'value="{self.ev_transit.id}"', body)  # em trânsito
         self.assertIn('name="validated_by"', body)
         self.assertIn('name="validated_at"', body)
@@ -144,7 +154,44 @@ class DespacharLoteTest(TestCase):
         r = self._post(self._payload([self.ev1.id]))
         self.assertEqual(r.status_code, 204)
         self.assertEqual(self._last(self.ev1).event_type, EventType.DESPACHO_PERICIA)
-        self.assertEqual(self._last(self.ev2).event_type, EventType.APREENSAO_OBJETO)
+        self.assertEqual(self._last(self.ev2).event_type, EventType.VALIDACAO_APREENSAO)
+
+    # -- Apreensão por validar (CPP 178.º/5-6): despacho inclui a validação --
+
+    def test_pendente_sem_checkbox_devolve_erro(self):
+        """Item por validar selecionado sem a opção expressa → recusado, e
+        nada entra no ledger (nem validação, nem despacho)."""
+        r = self._post(self._payload([self.ev1.id, self.ev_pend.id]))
+        self.assertEqual(r.status_code, 400)
+        body = r.content.decode()
+        self.assertIn('por validar', body)
+        self.assertIn(self.ev_pend.code, body)
+        self.assertEqual(self._last(self.ev1).event_type, EventType.VALIDACAO_APREENSAO)
+        self.assertEqual(self._last(self.ev_pend).event_type, EventType.APREENSAO_OBJETO)
+
+    def test_pendente_com_checkbox_regista_validacao_e_despacho(self):
+        """Com «o despacho inclui a validação»: VALIDACAO_APREENSAO entra
+        imediatamente antes do DESPACHO, pela mesma autoridade — a validação
+        implícita da jurisprudência fica explícita no ledger."""
+        r = self._post(self._payload(
+            [self.ev1.id, self.ev_pend.id], include_validation='1',
+            justification='Despacho 90/26.',
+        ))
+        self.assertEqual(r.status_code, 204)
+        tipos = [x.event_type for x in sort_custody_chain(self.ev_pend.custody_chain.all())]
+        self.assertEqual(
+            tipos,
+            [EventType.APREENSAO_OBJETO, EventType.VALIDACAO_APREENSAO,
+             EventType.DESPACHO_PERICIA],
+        )
+        eventos = sort_custody_chain(self.ev_pend.custody_chain.all())
+        self.assertIn('Apreensão validada por Procurador João Macedo', eventos[1].observations)
+        self.assertIn('Validação incluída no despacho', eventos[1].observations)
+        self.assertIn('Perícia ordenada por Procurador João Macedo', eventos[2].observations)
+        # O item já validado leva SÓ o despacho (não revalida).
+        tipos_ev1 = [x.event_type for x in sort_custody_chain(self.ev1.custody_chain.all())]
+        self.assertEqual(tipos_ev1.count(EventType.VALIDACAO_APREENSAO), 1)
+        self.assertEqual(tipos_ev1[-1], EventType.DESPACHO_PERICIA)
 
     # -- Validação de entrada --------------------------------------------
 
@@ -171,7 +218,7 @@ class DespacharLoteTest(TestCase):
         ))
         self.assertEqual(r.status_code, 400)
         self.assertIn('anteceder', r.content.decode())
-        self.assertEqual(self._last(self.ev1).event_type, EventType.APREENSAO_OBJETO)
+        self.assertEqual(self._last(self.ev1).event_type, EventType.VALIDACAO_APREENSAO)
 
 
 class DespachoCaminhoUnicoTest(TestCase):
@@ -219,6 +266,7 @@ class DespachoAPITest(BaseAPITestCase):
         self.occ = _occ(self.agent, 'DAPI-1')
         self.ev = _evidence(self.occ, self.agent)
         _event(self.ev, self.agent)
+        _event(self.ev, self.agent, event_type=EventType.VALIDACAO_APREENSAO)
 
     def test_api_recusa_despacho_sem_identificacao(self):
         self.authenticate_as(self.agent)
@@ -229,7 +277,23 @@ class DespachoAPITest(BaseAPITestCase):
         })
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn('identificação', str(r.data))
-        self.assertEqual(self.ev.custody_chain.count(), 1)
+        self.assertEqual(self.ev.custody_chain.count(), 2)
+
+    def test_api_recusa_despacho_com_apreensao_por_validar(self):
+        """A guarda do MODELO vale também na API: apreensão por validar →
+        o despacho é recusado (CPP 178.º/5-6)."""
+        ev2 = _evidence(self.occ, self.agent)
+        _event(ev2, self.agent)   # apreensão SEM validação
+        self.authenticate_as(self.agent)
+        r = self.client.post(reverse('core:custody-list'), {
+            'evidence': ev2.pk,
+            'event_type': 'DESPACHO_PERICIA',
+            'custodian_type': 'OPC',
+            'observations': 'Perícia ordenada pelo Procurador João Macedo.',
+        })
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('VALIDADA', str(r.data))
+        self.assertEqual(ev2.custody_chain.count(), 1)
 
     def test_api_aceita_despacho_certificado(self):
         self.authenticate_as(self.agent)

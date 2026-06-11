@@ -1976,6 +1976,7 @@ class ChainOfCustody(AppendOnlyModel):
         self._clean_genesis(prior)
         self._clean_terminal_fecha_ledger(prior_types)
         self._clean_validacao(prior, prior_types)
+        self._clean_despacho(prior_types)
         self._clean_inicio_pericia(prior_types)
         self._clean_encaminhamento(prior_types)
         self._clean_rececao(prior, prior_types)
@@ -2051,6 +2052,28 @@ class ChainOfCustody(AppendOnlyModel):
             )
         ts = self.timestamp or timezone.now()
         self.validation_overdue = ts - seizure.timestamp > VALIDATION_DEADLINE
+
+    def _clean_despacho(self, prior_types):
+        """DESPACHO_PERICIA: a apreensão tem de estar VALIDADA (CPP art.
+        178.º/5-6). A jurisprudência admite a validação IMPLÍCITA no ato da
+        autoridade que ordena a perícia — num ledger forense esse ato fica
+        EXPLÍCITO: regista-se a VALIDACAO_APREENSAO imediatamente antes (o
+        modal do despacho oferece "incluir a validação"). Itens sem apreensão
+        própria (derivação) não bloqueiam — a regra vive na policy
+        (``despacho_sem_validacao``)."""
+        if (
+            self.event_type == EventType.DESPACHO_PERICIA
+            and custody_transitions.despacho_sem_validacao(prior_types)
+        ):
+            raise ValidationError(
+                {
+                    'event_type': (
+                        'O despacho para perícia exige a apreensão VALIDADA '
+                        '(CPP art. 178.º/5-6). Registe a validação primeiro — '
+                        'ou inclua-a no próprio despacho.'
+                    )
+                }
+            )
 
     def _clean_inicio_pericia(self, prior_types):
         """INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º)."""

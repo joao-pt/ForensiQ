@@ -308,6 +308,12 @@ class ChainOfCustodyAPITest(BaseAPITestCase):
         ).save()
         ChainOfCustody(
             evidence=self.evidence,
+            event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
+            agent=self.agent,
+        ).save()
+        ChainOfCustody(
+            evidence=self.evidence,
             event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
             agent=self.agent,
         ).save()

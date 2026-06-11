@@ -247,9 +247,17 @@ class ChainOfCustodyModelTest(TestCase):
 
     def test_inicio_pericia_com_despacho_passa(self):
         self._evento(EventType.APREENSAO_OBJETO)
+        self._evento(EventType.VALIDACAO_APREENSAO)   # o despacho exige-a (178.º/5-6)
         self._evento(EventType.DESPACHO_PERICIA)
         record = self._evento(EventType.INICIO_PERICIA)
         self.assertEqual(record.event_type, EventType.INICIO_PERICIA)
+
+    def test_despacho_sem_validacao_falha(self):
+        """DESPACHO_PERICIA com apreensão por validar é recusado (CPP 178.º/5-6
+        — a validação implícita da jurisprudência fica explícita no ledger)."""
+        self._evento(EventType.APREENSAO_OBJETO)
+        with self.assertRaises(ValidationError):
+            self._evento(EventType.DESPACHO_PERICIA)
 
     # --- Terminais fecham o ledger ---
 
@@ -392,6 +400,7 @@ class DeriveLegalStateTest(TestCase):
             ev,
             [
                 (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
@@ -405,6 +414,7 @@ class DeriveLegalStateTest(TestCase):
             ev,
             [
                 (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
@@ -419,6 +429,7 @@ class DeriveLegalStateTest(TestCase):
             ev,
             [
                 (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
@@ -471,6 +482,7 @@ class DeriveLegalStateTest(TestCase):
             ev,
             [
                 (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),
@@ -499,6 +511,7 @@ class DeriveLegalStateTest(TestCase):
             ev,
             [
                 (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+                (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
                 (EventType.DESPACHO_PERICIA, CustodianType.OPC),
                 (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
                 (EventType.CONCLUSAO_PERICIA, CustodianType.LAB_PUBLICO),

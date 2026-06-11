@@ -309,7 +309,8 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
         # Eventos de custódia: 3 nas últimas 24h, 0 nas anteriores.
         ev = EvidenceMobileFactory(agent=self.agent, occurrence=ancora)
         Evidence.objects.filter(pk=ev.pk).update(created_at=old)
-        # APREENSAO_OBJETO + DESPACHO_PERICIA + INICIO_PERICIA (sequência válida).
+        # APREENSAO_OBJETO + VALIDACAO_APREENSAO + DESPACHO_PERICIA (sequência
+        # válida — o despacho exige a apreensão validada, CPP 178.º/5-6).
         ChainOfCustody(
             evidence=ev,
             event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
@@ -318,13 +319,13 @@ class DashboardEnrichmentTest(DashboardBaseTestCase):
         ).save()
         ChainOfCustody(
             evidence=ev,
-            event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
+            event_type=ChainOfCustody.EventType.VALIDACAO_APREENSAO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
             agent=self.agent,
         ).save()
         ChainOfCustody(
             evidence=ev,
-            event_type=ChainOfCustody.EventType.INICIO_PERICIA,
-            custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
+            event_type=ChainOfCustody.EventType.DESPACHO_PERICIA,
             agent=self.agent,
         ).save()
         ChainOfCustody.objects.filter(evidence=ev).update(timestamp=within)

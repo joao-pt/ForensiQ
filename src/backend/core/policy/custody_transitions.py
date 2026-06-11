@@ -112,6 +112,19 @@ def despacho_done(prior_types):
     return EventType.DESPACHO_PERICIA in prior_types
 
 
+def despacho_sem_validacao(prior_types):
+    """O DESPACHO_PERICIA está bloqueado por apreensão POR VALIDAR?
+
+    A apreensão por OPC exige validação da autoridade judiciária (CPP art.
+    178.º/5-6); a jurisprudência admite que ordenar a perícia sobre o objeto
+    apreendido VALE como validação implícita — num ledger forense esse ato
+    tem de ficar EXPLÍCITO, pelo que o despacho só avança com a validação já
+    registada (o modal pode registar os dois atos juntos: validação
+    imediatamente antes do despacho). Itens sem apreensão própria (derivação
+    no laboratório) não têm o que validar — nunca bloqueiam."""
+    return has_prior_seizure(prior_types) and not validation_done(prior_types)
+
+
 def is_in_transit(prior_types):
     """A prova está em trânsito? (último evento = encaminhamento, ADR-0016 v2)."""
     return bool(prior_types) and prior_types[-1] == EventType.ENCAMINHAMENTO_CUSTODIA
@@ -144,7 +157,9 @@ def next_events(prior_types, *, has_parent=False, is_digital_file=False):
     - em trânsito (último = encaminhamento) → só a receção;
     - caso geral: exclui a génese (só na posição 1), a movimentação legado e a
       receção fora de trânsito; ``VALIDACAO_APREENSAO`` exige apreensão prévia e
-      ainda não validada; ``INICIO_PERICIA`` exige despacho prévio.
+      ainda não validada; ``DESPACHO_PERICIA`` exige a apreensão VALIDADA (CPP
+      178.º/5-6 — o modal pode registar validação+despacho juntos);
+      ``INICIO_PERICIA`` exige despacho prévio.
     """
     if not prior_types:
         return [genesis_event_for(has_parent=has_parent, is_digital_file=is_digital_file)]
@@ -163,6 +178,8 @@ def next_events(prior_types, *, has_parent=False, is_digital_file=False):
         if et == EventType.VALIDACAO_APREENSAO and (
             not has_prior_seizure(prior_types) or validation_done(prior_types)
         ):
+            continue
+        if et == EventType.DESPACHO_PERICIA and despacho_sem_validacao(prior_types):
             continue
         if et == EventType.INICIO_PERICIA and not despacho_done(prior_types):
             continue

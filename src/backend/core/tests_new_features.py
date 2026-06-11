@@ -135,6 +135,7 @@ class CurrentStateAndFilterTest(BaseAPITestCase):
         # Avança ev_in_analysis até estar em perícia (estado derivado em_pericia).
         for event_type, custodian_type in [
             (EventType.APREENSAO_OBJETO, CustodianType.OPC),
+            (EventType.VALIDACAO_APREENSAO, CustodianType.OPC),
             (EventType.DESPACHO_PERICIA, CustodianType.OPC),
             (EventType.TRANSFERENCIA_CUSTODIA, CustodianType.LAB_PUBLICO),
             (EventType.INICIO_PERICIA, CustodianType.LAB_PUBLICO),
