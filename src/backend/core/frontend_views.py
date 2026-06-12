@@ -3024,6 +3024,12 @@ def evidence_atos_view(request, evidence_id):
             'due': validation_due_at(seizure.timestamp),
             'hours': settings.VALIDATION_DEADLINE_HOURS,
         }
+    # Item derivado (génese DERIVACAO_ITEM): não há apreensão própria a validar
+    # — a base legal herda-se do item-pai (policy: SEIZURE_GENESIS_EVENTS
+    # exclui a derivação). Em vez do estado vazio, aponta-se a herança.
+    base_herdada = None
+    if seizure is None and ev.parent_evidence_id is not None:
+        base_herdada = ev.parent_evidence
 
     modal = _wants_modal(request)
     template = _modal_template(
@@ -3036,6 +3042,7 @@ def evidence_atos_view(request, evidence_id):
         'conclusao': conclusao,
         'extincao': extincao,
         'val_pending': val_pending,
+        'base_herdada': base_herdada,
         'late_label': VALIDATION_LATE_LABEL,
         'late_css': VALIDATION_LATE_CSS,
         'modal': modal,
@@ -3064,28 +3071,48 @@ def _register_seizure_genesis(request, ev):
     criado no PRÓPRIO ato de registo do item — não há prova registada sem ficar
     sob custódia (ADR-0016 §2).
 
-    Só para itens-RAIZ (APREENSAO_OBJETO / APREENSAO_DADOS, conforme a proveniência);
-    um sub-componente (com evidência-pai) entra por DERIVACAO_ITEM, que é ato do
-    perito e fica fora deste atalho. Custódio = OPC da instituição do agente (se
-    tiver pertença); GPS herdado do local da apreensão do item (se captado). Reusa
-    o ``ChainOfCustodySerializer`` — mesmas guardas, ownership (génese pelo agente)
-    e hash encadeado. Corre dentro da mesma transação do registo da evidência.
+    Item-RAIZ: APREENSAO_OBJETO / APREENSAO_DADOS conforme a proveniência, com
+    custódio = OPC da instituição do agente (se tiver pertença). SUB-COMPONENTE
+    (com evidência-pai): DERIVACAO_ITEM com custódio HERDADO do custódio ATUAL
+    do pai — último evento do ledger do pai, a mesma resposta do «onde está»
+    (``access.current_holder``) e o mesmo padrão de herança dos atos
+    certificados. O componente está onde o pai está: no terreno (pai acabado
+    de apreender → OPC) e no laboratório (pai à guarda do LAB → LAB). Decisão
+    §6: a sub-árvore herda a base legal da apreensão do pai — UMA apreensão
+    validável, a do pai (fecha também o plano do ADR-0016, Consequências:
+    «default de DERIVACAO_ITEM ao criar sub-item»). Pai ainda sem ledger
+    (criado via API): recua para o custódio de raiz. GPS herdado do local do
+    item (se captado). Reusa o ``ChainOfCustodySerializer`` — mesmas guardas,
+    ownership (génese pelo agente) e hash encadeado. Corre dentro da mesma
+    transação do registo da evidência.
     """
-    if ev.parent_evidence_id is not None:
-        return  # sub-componente: a génese por derivação é ato do perito (manual)
-    genesis = _genesis_event_for(ev)  # APREENSAO_OBJETO ou APREENSAO_DADOS
+    genesis = _genesis_event_for(ev)
     data = {
         'evidence': ev.id,
         'event_type': genesis.value,
         'custodian_type': CustodianType.OPC,
     }
-    inst_id = (
-        request.user.institution_memberships.filter(is_active=True)
-        .values_list('institution_id', flat=True)
-        .first()
-    )
-    if inst_id:
-        data['custodian_institution'] = inst_id
+    last = None
+    if ev.parent_evidence_id is not None:
+        parent_events = sort_custody_chain(ev.parent_evidence.custody_chain.all())
+        last = parent_events[-1] if parent_events else None
+    if last is not None:
+        # Herança do custódio (padrão de _register_certified_act): tipo,
+        # instituição e detentor pessoal copiados do último evento do pai.
+        if last.custodian_type:
+            data['custodian_type'] = last.custodian_type
+        if last.custodian_institution_id:
+            data['custodian_institution'] = last.custodian_institution_id
+        if last.custodian_user_id:
+            data['custodian_user'] = last.custodian_user_id
+    else:
+        inst_id = (
+            request.user.institution_memberships.filter(is_active=True)
+            .values_list('institution_id', flat=True)
+            .first()
+        )
+        if inst_id:
+            data['custodian_institution'] = inst_id
     if ev.gps_lat is not None and ev.gps_lng is not None:
         data['gps_lat'] = ev.gps_lat
         data['gps_lng'] = ev.gps_lng

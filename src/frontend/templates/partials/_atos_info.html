@@ -5,14 +5,20 @@
   (nome/cargo), data declarada, prazo/data-limite, justificação e o registo
   (quando, por quem, hash). Espera `ev` decorado (_decorate_evidences),
   `validacoes`/`despachos` decorados (_decorate_events, + acted_late /
-  governing_badge da vista), `conclusao`, `val_pending`, `late_*` e `modal`.
+  governing_badge da vista), `conclusao`, `val_pending`, `base_herdada`
+  (item-pai, quando a génese é DERIVACAO_ITEM), `late_*` e `modal`.
 {% endcomment %}
 <div data-modal-title="Atos de autoridade · {{ ev.code }}">
 
   <p class="form-hint"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · processo <span class="mono">{{ ev.occ_label }}</span></p>
 
-  {% if val_pending or validacoes %}
+  {% if val_pending or validacoes or base_herdada %}
   <h3 class="subhead">Validação da apreensão</h3>
+  {% endif %}
+
+  {% if base_herdada %}
+  {# Item autonomizado: a apreensão validável é a do pai — a sub-árvore herda a base legal (decisão §6). #}
+  <p class="form-hint">Sub-componente autonomizado do item-pai <a class="grid__link mono" href="{% url 'evidence_atos' base_herdada.id %}" data-modal-open>{{ base_herdada.code }}</a> — a base legal da apreensão (e a sua validação) consulta-se no item-pai.</p>
   {% endif %}
 
   {% if val_pending %}
@@ -37,7 +43,7 @@
   {% endif %}
   {% endif %}
 
-  {% if not validacoes and not despachos and not val_pending %}
+  {% if not validacoes and not despachos and not val_pending and not base_herdada %}
   <div class="empty">
     <p class="empty__title">Sem atos de autoridade</p>
     <p class="empty__hint">Este item não tem validação nem despacho registados no ledger.</p>

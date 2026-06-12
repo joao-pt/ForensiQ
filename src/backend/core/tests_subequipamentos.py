@@ -1,17 +1,40 @@
 """
-ForensiQ — Testes da árvore de sub-componentes (roadmap §6, Lote 1): guardas de
-profundidade/ciclo do modelo (sem cobertura até aqui) e ordem de ÁRVORE das
-listas por ocorrência (regressão: ``parent_evidence_id`` ASC punha as raízes
-NULL em último no PostgreSQL; ordenação lexicográfica punha .10 antes de .2).
+ForensiQ — Testes da árvore de sub-componentes (roadmap §6): guardas de
+profundidade/ciclo do modelo e ordem de ÁRVORE das listas por ocorrência
+(Lote 1 — regressão: ``parent_evidence_id`` ASC punha as raízes NULL em último
+no PostgreSQL; a ordenação lexicográfica punha .10 antes de .2); génese
+DERIVACAO_ITEM automática no registo do filho, com custódio HERDADO do
+custódio atual do pai (Lote 2 — decisão §6: uma apreensão validável, a do
+pai; a sub-árvore herda a base legal).
 """
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
 from core.frontend_views import _intake_world, _occurrence_items, _tree_sort_key
-from core.models import Evidence, Occurrence
-from core.tests_factories import CrimeTipoFactory, UserFactory
+from core.models import (
+    CustodianType,
+    EventType,
+    Evidence,
+    Institution,
+    InstitutionMembership,
+    InstitutionType,
+    Occurrence,
+    Portador,
+)
+from core.tests_base import auth_cookie
+from core.tests_factories import (
+    CrimeTipoFactory,
+    InstitutionFactory,
+    UserFactory,
+    make_chain,
+    make_user,
+)
+from core.utils import validation_status_of
+
+User = get_user_model()
 
 
 def _occ(agent, n):
@@ -137,3 +160,131 @@ class TreeOrderTest(TestCase):
         self.assertEqual(
             [e.code for e in evidences], [raiz1.code, filho.code, raiz2.code]
         )
+
+
+class GeneseAutomaticaDoFilhoTest(TestCase):
+    """Lote 2 — registar um sub-componente em /evidences/new/ cria a génese
+    DERIVACAO_ITEM na MESMA transação, com custódio herdado do custódio ATUAL
+    do pai (último evento do ledger — terreno: OPC; laboratório: LAB)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(
+            name='PSP Subequip', type=InstitutionType.OPC, sigla='PSP-SUB'
+        )
+        cls.agent = make_user('sub_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.occ = _occ(cls.agent, 'G1')
+
+    def _post_new(self, **extra):
+        auth_cookie(self.client, self.agent)
+        data = {
+            'occurrence': self.occ.id,
+            'type': Evidence.EvidenceType.MOBILE_DEVICE,
+            'description': 'Item de teste do registo encadeado.',
+        }
+        data.update(extra)
+        return self.client.post('/evidences/new/', data)
+
+    def _latest(self):
+        return Evidence.objects.filter(occurrence=self.occ).latest('id')
+
+    def test_filho_nasce_com_derivacao_na_mesma_transacao(self):
+        self._post_new()
+        pai = self._latest()
+        r = self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        self.assertEqual(r.status_code, 302)
+        filho = self._latest()
+        events = list(filho.custody_chain.all())
+        self.assertEqual(
+            len(events), 1, 'o registo do filho devia criar exatamente a génese'
+        )
+        g = events[0]
+        self.assertEqual(g.event_type, EventType.DERIVACAO_ITEM)
+        self.assertEqual(g.custodian_type, CustodianType.OPC)
+        self.assertEqual(g.custodian_institution_id, self.opc.id)
+        self.assertEqual(g.agent_id, self.agent.id)
+        # Eixo da validação: o filho não tem apreensão própria a validar — a
+        # base legal herda-se do pai (SEIZURE_GENESIS_EVENTS exclui a derivação).
+        self.assertIsNone(validation_status_of(filho))
+
+    def test_heranca_vem_do_pai_nao_da_pertenca_do_operador(self):
+        self._post_new()
+        pai = self._latest()
+        # Entre o registo do pai e o do filho, o agente muda de instituição —
+        # a génese do filho herda do PAI, não da pertença atual do operador.
+        InstitutionMembership.objects.filter(user=self.agent).update(is_active=False)
+        outra = Institution.objects.create(
+            name='GNR Subequip', type=InstitutionType.OPC, sigla='GNR-SUB'
+        )
+        InstitutionMembership.objects.create(user=self.agent, institution=outra)
+        self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        g = self._latest().custody_chain.get()
+        self.assertEqual(g.custodian_institution_id, self.opc.id)
+
+    def test_filho_derivado_no_laboratorio_herda_o_lab(self):
+        lab = InstitutionFactory(name='LPC Subequip', sigla='LPC-SUB')
+        portador = Portador.objects.create(
+            matricula='SUB-001', nome='Rui', apelido='Marques', posto='Agente'
+        )
+        self._post_new()
+        pai = self._latest()
+        make_chain(
+            pai,
+            (
+                EventType.VALIDACAO_APREENSAO,
+                {'custodian_type': CustodianType.OPC,
+                 'custodian_institution': self.opc},
+            ),
+            (
+                EventType.DESPACHO_PERICIA,
+                {'custodian_type': CustodianType.OPC,
+                 'custodian_institution': self.opc},
+            ),
+            (
+                EventType.ENCAMINHAMENTO_CUSTODIA,
+                {'custodian_type': CustodianType.LAB_PUBLICO,
+                 'custodian_institution': lab, 'bearer': portador},
+            ),
+            (
+                EventType.RECEPCAO_CUSTODIA,
+                {'custodian_type': CustodianType.LAB_PUBLICO,
+                 'custodian_institution': lab},
+            ),
+            agent=self.agent,
+        )
+        self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        g = self._latest().custody_chain.get()
+        self.assertEqual(g.event_type, EventType.DERIVACAO_ITEM)
+        self.assertEqual(g.custodian_type, CustodianType.LAB_PUBLICO)
+        self.assertEqual(g.custodian_institution_id, lab.id)
+
+    def test_pai_sem_ledger_recua_para_custodio_de_raiz(self):
+        # Pai criado fora da consola (caminho API: sem génese automática) — o
+        # filho não tem de onde herdar e recua para o custódio de raiz.
+        pai = _ev(self.occ, self.agent)
+        self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        g = self._latest().custody_chain.get()
+        self.assertEqual(g.event_type, EventType.DERIVACAO_ITEM)
+        self.assertEqual(g.custodian_type, CustodianType.OPC)
+        self.assertEqual(g.custodian_institution_id, self.opc.id)
+
+    def test_atos_do_filho_apontam_a_base_herdada(self):
+        self._post_new()
+        pai = self._latest()
+        self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        filho = self._latest()
+        r = self.client.get(f'/evidences/{filho.id}/atos/')
+        self.assertContains(r, 'base legal')
+        self.assertContains(r, pai.code)
+        self.assertNotContains(r, 'Sem atos de autoridade')

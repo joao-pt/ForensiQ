@@ -45,8 +45,10 @@ class EventType(models.TextChoices):
     - ``APREENSAO_OBJETO`` — objeto físico apreendido (CPP art. 178.º).
     - ``APREENSAO_DADOS`` — dados adquiridos no terreno e copiados para suporte
       autónomo (Lei do Cibercrime art. 16.º/7-b); só para ``DIGITAL_FILE``.
-    - ``DERIVACAO_ITEM`` — sub-componente autonomizado (em regra no laboratório);
-      só para evidência com ``parent_evidence``.
+    - ``DERIVACAO_ITEM`` — sub-componente autonomizado a partir do item-pai
+      (no terreno, registado com o pai; ou achado no laboratório); só para
+      evidência com ``parent_evidence``. Herda a base legal da apreensão do
+      pai (não é apreensão autónoma — ver ``SEIZURE_GENESIS_EVENTS``).
 
     Movimentação em dois tempos (ADR-0016 — modelo de custódia v2):
     ``ENCAMINHAMENTO_CUSTODIA`` (a origem entrega a prova a um portador, com
@@ -62,7 +64,7 @@ class EventType(models.TextChoices):
     # --- Génese (1.º movimento) ---
     APREENSAO_OBJETO = 'APREENSAO_OBJETO', 'Apreensão de objeto'
     APREENSAO_DADOS = 'APREENSAO_DADOS', 'Apreensão de dados informáticos'
-    DERIVACAO_ITEM = 'DERIVACAO_ITEM', 'Autonomizado no laboratório'
+    DERIVACAO_ITEM = 'DERIVACAO_ITEM', 'Autonomizado do item-pai'
     # --- Atos subsequentes ---
     VALIDACAO_APREENSAO = 'VALIDACAO_APREENSAO', 'Validação da apreensão'
     DESPACHO_PERICIA = 'DESPACHO_PERICIA', 'Despacho para perícia'
