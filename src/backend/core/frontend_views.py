@@ -455,7 +455,10 @@ def _decorate_evidences(evidences):
     for e in evidences:
         e.type_label = type_labels.get(e.type, e.type)
         e.agent_label = get_user_display_name(e.agent)
-        e.occ_label = e.occurrence.code or e.occurrence.number
+        # NUIPC-primeiro (fonte única display_label, D42): o processo mostra-se
+        # pelo identificador oficial — o código interno já vive no prefixo do
+        # código do item (e casa com o filtro/sort 'occurrence__number').
+        e.occ_label = e.occurrence.display_label
         e.state_label, e.state_css = _evidence_state(e)
         e.state_badge = {'css': e.state_css, 'label': e.state_label}
         e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
@@ -2031,8 +2034,10 @@ def evidences_view(request):
     # bolinha em Código carrega o estado legal no telemóvel. Marca/Modelo vivem em
     # type_specific_data (JSON), expostos no decorate; filtro JSON via key-transform (PG).
     columns = [
-        GridColumn('occ_label', 'Ocorrência', css='mono', width=15,
-                   filter=ColFilter('occ', 'Ocorrência', kind='text', field='occurrence__number', placeholder='NUIPC')),
+        # A célula mostra o NUIPC (occ_label = display_label) — célula, filtro
+        # e sort apontam TODOS a occurrence__number (decisão do parecer UX).
+        GridColumn('occ_label', 'NUIPC', css='mono grid__ellipsis', width=15,
+                   filter=ColFilter('occ', 'NUIPC', kind='text', field='occurrence__number', placeholder='NUIPC')),
         GridColumn('code', 'Código', cell='code', width=14, dot=True,
                    link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
