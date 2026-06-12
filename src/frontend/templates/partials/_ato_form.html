@@ -20,6 +20,7 @@
     <fieldset class="form-field form-field--full">
       <legend class="subhead">{{ act.legend }}</legend>
       {% for e in itens %}
+      {# Badges ESTÁTICOS de propósito (exceção à fonte única _act_badges): abrir a consulta a partir daqui trocaria o conteúdo do modal a meio do preenchimento. #}
       <label class="form-check">
         <input type="checkbox" name="evidence_ids" value="{{ e.id }}" {% if e.checked %}checked{% endif %}>
         <span class="mono">{{ e.code }}</span> · {{ e.type_label }}

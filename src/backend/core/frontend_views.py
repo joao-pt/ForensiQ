@@ -84,8 +84,10 @@ from core.models import (
 from core.policy import custody_transitions
 from core.policy.event_states import (
     DISPOSAL_EVENTS,
-    VALIDATION_DEADLINE,
+    pericia_prazo_resolucao,
+    seizure_of,
     validation_acted_late,
+    validation_due_at,
 )
 from core.utils import (
     current_location_of,
@@ -2969,9 +2971,7 @@ def evidence_atos_view(request, evidence_id):
             'custodian_institution', 'custodian_user', 'agent'
         ).all()
     )
-    seizure = next(
-        (r for r in eventos if r.event_type in SEIZURE_GENESIS_EVENTS), None
-    )
+    seizure = seizure_of(eventos)
     validacoes = [
         r for r in eventos if r.event_type == EventType.VALIDACAO_APREENSAO
     ]
@@ -2984,28 +2984,26 @@ def evidence_atos_view(request, evidence_id):
         r.acted_late = seizure is not None and validation_acted_late(
             seizure.timestamp, r.act_declared_at or r.timestamp
         )
-    # O prazo VIGENTE pertence ao último despacho (Art. 158.º — repetível): o
-    # badge do estatuto (em prazo/a vencer/vencido) só se pinta nesse; os
-    # anteriores ficam como história, com a sua própria data-limite.
-    if despachos and ev.pericia_badge:
-        despachos[-1].governing_badge = ev.pericia_badge
-    # Perícia já concluída depois do último despacho? Linha de contexto — o
-    # badge do prazo desaparece quando cumprido e a razão deve ser visível.
-    conclusao = None
-    if despachos:
-        conclusao = next(
-            (r for r in eventos
-             if r.event_type == EventType.CONCLUSAO_PERICIA
-             and r.sequence > despachos[-1].sequence), None
-        )
-    # Validação PENDENTE: o badge diz «por validar/em atraso»; aqui mostra-se a
-    # base — a apreensão e o limite legal (mesma aritmética de instantes da
-    # policy ``validation_status``).
+    # Regra posicional do eixo na FONTE ÚNICA (Art. 158.º — vale o último
+    # despacho; pericia_prazo_resolucao): o badge do estatuto pinta-se só no
+    # despacho vigente com o prazo vivo; quando o prazo já não corre, a RAZÃO
+    # fica visível — perícia concluída ou prazo extinto pela disposição.
+    despacho_vigente, resolucao = pericia_prazo_resolucao(eventos)
+    if despacho_vigente is not None and ev.pericia_badge:
+        despacho_vigente.governing_badge = ev.pericia_badge
+    conclusao = extincao = None
+    if resolucao is not None:
+        if resolucao.event_type == EventType.CONCLUSAO_PERICIA:
+            conclusao = resolucao
+        else:
+            extincao = resolucao
+    # Validação PENDENTE: o badge diz «por validar/em atraso»; aqui mostra-se
+    # a base — a apreensão e o limite legal (fórmula única da policy).
     val_pending = None
     if ev.validation_status in VALIDATION_PENDING_STATUSES and seizure is not None:
         val_pending = {
             'seizure': seizure,
-            'due': seizure.timestamp + VALIDATION_DEADLINE,
+            'due': validation_due_at(seizure.timestamp),
             'hours': settings.VALIDATION_DEADLINE_HOURS,
         }
 
@@ -3018,6 +3016,7 @@ def evidence_atos_view(request, evidence_id):
         'validacoes': validacoes,
         'despachos': despachos,
         'conclusao': conclusao,
+        'extincao': extincao,
         'val_pending': val_pending,
         'late_label': VALIDATION_LATE_LABEL,
         'late_css': VALIDATION_LATE_CSS,

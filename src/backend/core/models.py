@@ -43,6 +43,7 @@ from core.policy.event_states import (
     ReceiverDocType as ReceiverDocType,
     derive_legal_state as derive_legal_state,
     pericia_due_date as pericia_due_date,
+    seizure_of,
     validation_acted_late,
     validation_status as validation_status,
 )
@@ -2093,9 +2094,7 @@ class ChainOfCustody(AppendOnlyModel):
         na flag derivada ``validation_overdue`` — facto relevante, não bloqueia)."""
         if self.event_type != EventType.VALIDACAO_APREENSAO:
             return
-        seizure = next(
-            (r for r in prior if r.event_type in SEIZURE_GENESIS_EVENTS), None
-        )
+        seizure = seizure_of(prior)
         if seizure is None:
             raise ValidationError(
                 {'event_type': 'VALIDACAO_APREENSAO requer uma apreensão prévia.'}

@@ -3,9 +3,15 @@
   perícia) numa fonte ÚNICA, agrupados numa âncora: clicar abre a consulta
   read-only dos atos (/evidences/<id>/atos/ — modal in-place via
   data-modal-open; página completa no fallback sem-JS). O estado de CUSTÓDIA
-  não entra aqui (eixo diferente — fica a cargo de cada superfície).
+  não entra aqui (eixo diferente — fica a cargo de cada superfície). O nome
+  acessível É o texto dos badges (sem aria-label: «Label in Name», WCAG
+  2.5.3 — controlo por voz diz «clicar Validada»); a dica de ação vai no
+  title. Exceção documentada: _ato_form.html mantém spans estáticos (abrir
+  um modal a partir do formulário de outro modal trocaria o conteúdo a meio
+  do preenchimento).
   Parâmetros:
-    • e         — evidência decorada (_decorate_evidences);
-    • only_val  — só o badge da validação (linha «Validação» da ficha);
-    • only_desp — só despacho + prazo (linha «Despacho» da ficha).
-{% endcomment %}{% if e.validation_badge and not only_desp or e.despacho_badge and not only_val or e.pericia_badge and not only_val %}<a class="state-acts" href="{% url 'evidence_atos' e.id %}" data-modal-open data-modal-title="Atos de autoridade · {{ e.code }}" title="Consultar os atos: quem, quando, prazo" aria-label="Consultar os atos de autoridade de {{ e.aria_code }}">{% if e.validation_badge and not only_desp %}<span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}{% if not only_val %}{% if e.despacho_badge %}<span class="state state--{{ e.despacho_badge.css }}">{{ e.despacho_badge.label }}</span>{% endif %}{% if e.pericia_badge %}<span class="state state--{{ e.pericia_badge.css }}">{{ e.pericia_badge.label }}</span>{% endif %}{% endif %}</a>{% endif %}
+    • e            — evidência decorada (_decorate_evidences);
+    • only_val     — só o badge da validação (linha «Validação» da ficha);
+    • only_desp    — só despacho + prazo (linha «Despacho» da ficha);
+    • only_pericia — só o prazo da perícia (fila /inbound/, ordenada por ele).
+{% endcomment %}{% if e.validation_badge and not only_desp and not only_pericia or e.despacho_badge and not only_val and not only_pericia or e.pericia_badge and not only_val %}<a class="state-acts" href="{% url 'evidence_atos' e.id %}" data-modal-open data-modal-title="Atos de autoridade · {{ e.code }}" title="Consultar os atos: quem, quando, prazo">{% if e.validation_badge and not only_desp and not only_pericia %}<span class="state state--{{ e.validation_badge.css }}">{{ e.validation_badge.label }}</span>{% endif %}{% if e.despacho_badge and not only_val and not only_pericia %}<span class="state state--{{ e.despacho_badge.css }}">{{ e.despacho_badge.label }}</span>{% endif %}{% if e.pericia_badge and not only_val %}<span class="state state--{{ e.pericia_badge.css }}">{{ e.pericia_badge.label }}</span>{% endif %}</a>{% endif %}

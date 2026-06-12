@@ -293,9 +293,7 @@ def validation_status(eventos_ordenados, now):
     - ``'em_atraso'`` — apreensão há mais de ``VALIDATION_DEADLINE`` sem validação;
     - ``'por_validar'`` — apreensão dentro do prazo, validação ainda por registar.
     """
-    seizure = next(
-        (r for r in eventos_ordenados if r.event_type in SEIZURE_GENESIS_EVENTS), None
-    )
+    seizure = seizure_of(eventos_ordenados)
     if seizure is None:
         return None
     tipos = [r.event_type for r in eventos_ordenados]
@@ -303,21 +301,47 @@ def validation_status(eventos_ordenados, now):
         return 'validada'
     if any(t in DISPOSAL_EVENTS for t in tipos):
         return None
-    if now - seizure.timestamp > VALIDATION_DEADLINE:
+    if now > validation_due_at(seizure.timestamp):
         return 'em_atraso'
     return 'por_validar'
+
+
+def seizure_of(eventos_ordenados):
+    """O evento de APREENSÃO que constitui a génese validável do item
+    (``SEIZURE_GENESIS_EVENTS``), ou ``None``.
+
+    Fonte única do lookup partilhado pelo estatuto (:func:`validation_status`),
+    pela guarda do modelo (``_clean_validacao``) e pela consulta dos atos.
+    """
+    return next(
+        (r for r in eventos_ordenados if r.event_type in SEIZURE_GENESIS_EVENTS),
+        None,
+    )
+
+
+def validation_due_at(seizure_at):
+    """Limite legal da validação da apreensão: instante da apreensão +
+    ``VALIDATION_DEADLINE`` (CPP art. 178.º/6).
+
+    Fonte única da fórmula — prazo em HORAS, aritmética de INSTANTES (ao
+    contrário do prazo da perícia, que se conta em dias de calendário): o
+    estatuto (:func:`validation_status`), a flag do registo
+    (:func:`validation_acted_late`) e a consulta dos atos comparam todos
+    contra ESTE instante.
+    """
+    return seizure_at + VALIDATION_DEADLINE
 
 
 def validation_acted_late(seizure_at, acted_at):
     """O ato de validação foi praticado FORA do prazo legal (CPP art. 178.º/6)?
 
-    Fonte única da comparação «ato − apreensão > ``VALIDATION_DEADLINE``»:
-    usada pela flag ``validation_overdue`` do modelo (no registo do evento —
-    facto relevante, não bloqueia) e pela consulta dos atos (releitura de
-    eventos históricos do ledger, onde a flag não está persistida). Pura:
-    recebe os dois instantes, devolve bool.
+    Compara o instante do ato contra :func:`validation_due_at` — usada pela
+    flag ``validation_overdue`` do modelo (no registo do evento — facto
+    relevante, não bloqueia) e pela consulta dos atos (releitura de eventos
+    históricos do ledger, onde a flag não está persistida). Pura: recebe os
+    dois instantes, devolve bool.
     """
-    return acted_at - seizure_at > VALIDATION_DEADLINE
+    return acted_at > validation_due_at(seizure_at)
 
 
 # Conjunto canónico dos estatutos de validação deriváveis (sem o ``None``).
@@ -354,6 +378,34 @@ def pericia_due_date(despacho):
     return timezone.localtime(base).date() + timedelta(days=despacho.act_deadline_days)
 
 
+def pericia_prazo_resolucao(eventos_ordenados):
+    """O despacho VIGENTE e o evento que lhe RESOLVEU o prazo, se algum.
+
+    Fonte única da regra POSICIONAL do eixo (CPP art. 154.º/158.º): vários
+    despachos são possíveis e vale o ÚLTIMO; o prazo desse despacho deixa de
+    correr com o primeiro evento posterior que o resolve — CONCLUSAO_PERICIA
+    (cumprido) ou uma disposição final de ``DISPOSAL_EVENTS`` (extinto) — e
+    um despacho registado DEPOIS reabre o eixo (a PERDA_FAVOR_ESTADO não
+    fecha o ledger; o prazo desse despacho não pode vencer em silêncio).
+
+    Recebe os registos ordenados por sequence e devolve ``(despacho,
+    resolucao)``: ``(None, None)`` sem despacho; ``resolucao`` a ``None``
+    com o prazo vivo. :func:`pericia_deadline` deriva o estatuto daqui; a
+    consulta dos atos mostra a RAZÃO (o próprio evento resolutor).
+    """
+    despacho = None
+    resolucao = None
+    for r in eventos_ordenados:
+        if r.event_type == EventType.DESPACHO_PERICIA:
+            despacho, resolucao = r, None
+        elif despacho is not None and resolucao is None and (
+            r.event_type == EventType.CONCLUSAO_PERICIA
+            or r.event_type in DISPOSAL_EVENTS
+        ):
+            resolucao = r
+    return despacho, resolucao
+
+
 def pericia_deadline(eventos_ordenados, now):
     """Prazo da perícia ordenada por despacho — eixo derivado do ledger.
 
@@ -363,35 +415,20 @@ def pericia_deadline(eventos_ordenados, now):
     por sequence e o instante de referência ``now`` (função pura) e devolve
     ``None`` ou ``{'due': date, 'status': str, 'days_left': int}``.
 
-    - ``None`` — não aplicável: sem despacho, prazo já CUMPRIDO (existe
-      CONCLUSAO_PERICIA posterior ao último despacho — vários despachos são
-      possíveis, Art. 158.º: vale o prazo do ÚLTIMO), exigência extinta por
-      disposição final POSTERIOR ao despacho, ou despacho sem prazo
-      estruturado (pré-hv4);
+    - ``None`` — não aplicável: sem despacho, prazo do último despacho já
+      RESOLVIDO (cumprido/extinto — regra posicional em
+      :func:`pericia_prazo_resolucao`), ou despacho sem prazo estruturado
+      (pré-hv4);
     - ``status`` — ``'vencida'`` (a data-limite já passou), ``'a_vencer'``
       (faltam ≤ ``PERICIA_DEADLINE_WARNING_DAYS`` dias) ou ``'em_prazo'``.
-
-    Tal como o cumprimento, a EXTINÇÃO pela disposição é POSICIONAL: a
-    disposição apaga o prazo do despacho anterior, mas um despacho registado
-    DEPOIS dela reabre o eixo (a PERDA_FAVOR_ESTADO não fecha o ledger e a
-    policy continua a oferecer o despacho — o prazo desse despacho não pode
-    vencer em silêncio).
 
     O prazo conta-se em DIAS de calendário no fuso ativo: vence no FIM do dia
     da data-limite (comparação por data, não por instante), coerente com a
     contagem processual de prazos em dias e com a data mostrada nos badges.
     ``days_left`` é a diferença em dias (negativa quando vencida).
     """
-    despacho = None
-    fulfilled = False
-    for r in eventos_ordenados:
-        if r.event_type == EventType.DESPACHO_PERICIA:
-            despacho, fulfilled = r, False
-        elif r.event_type == EventType.CONCLUSAO_PERICIA:
-            fulfilled = True
-        elif r.event_type in DISPOSAL_EVENTS:
-            despacho = None
-    if despacho is None or fulfilled:
+    despacho, resolucao = pericia_prazo_resolucao(eventos_ordenados)
+    if despacho is None or resolucao is not None:
         return None
     due = pericia_due_date(despacho)
     if due is None:

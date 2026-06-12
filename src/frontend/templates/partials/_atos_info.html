@@ -24,31 +24,16 @@
   </dl>
   {% endif %}
 
-  {% for r in validacoes %}
-  <dl class="facts">
-    <div class="facts__row"><dt>Autoridade</dt><dd>{% if r.authority_label %}<strong>{{ r.authority_label }}</strong>{% else %}—{% endif %}</dd></div>
-    <div class="facts__row"><dt>Ato de</dt><dd>{% if r.act_declared_at %}<span class="mono">{{ r.act_declared_at|date:'Y-m-d H:i' }}</span>{% else %}—{% endif %}{% if r.acted_late %} <span class="state state--{{ late_css }}">{{ late_label }}</span>{% endif %}</dd></div>
-    {% if r.observations %}<div class="facts__row"><dt>Justificação</dt><dd>{{ r.observations }}</dd></div>{% endif %}
-    <div class="facts__row"><dt>Registo</dt><dd>#{{ r.sequence }} · <span class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span> · {{ r.agent_label }} · <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…</span></dd></div>
-  </dl>
-  {% endfor %}
+  {% for r in validacoes %}{% include 'partials/_ato_facts.html' %}{% endfor %}
 
   {% if despachos %}
   <h3 class="subhead">Despacho{{ despachos|length|pluralize }} para perícia</h3>
-  {% for r in despachos %}
-  <dl class="facts">
-    <div class="facts__row"><dt>Autoridade</dt><dd>{% if r.authority_label %}<strong>{{ r.authority_label }}</strong>{% else %}—{% endif %}</dd></div>
-    <div class="facts__row"><dt>Ato de</dt><dd>{% if r.act_declared_at %}<span class="mono">{{ r.act_declared_at|date:'Y-m-d H:i' }}</span>{% else %}—{% endif %}</dd></div>
-    {% if r.act_deadline_days %}
-    <div class="facts__row"><dt>Prazo</dt><dd>{{ r.act_deadline_days }} dia{{ r.act_deadline_days|pluralize }}{% if r.act_due %} — até <span class="mono">{{ r.act_due|date:'Y-m-d' }}</span>{% endif %}{% if r.governing_badge %} <span class="state state--{{ r.governing_badge.css }}">{{ r.governing_badge.label }}</span>{% endif %}</dd></div>
-    {% endif %}
-    {% if r.observations %}<div class="facts__row"><dt>Justificação</dt><dd>{{ r.observations }}</dd></div>{% endif %}
-    <div class="facts__row"><dt>Registo</dt><dd>#{{ r.sequence }} · <span class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span> · {{ r.agent_label }} · <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…</span></dd></div>
-  </dl>
-  {% endfor %}
+  {% for r in despachos %}{% include 'partials/_ato_facts.html' %}{% endfor %}
+  {# O badge do prazo desaparece quando deixa de correr — a razão fica visível aqui (regra posicional na policy: pericia_prazo_resolucao). #}
   {% if conclusao %}
-  {# O badge do prazo desaparece quando a perícia conclui — a razão fica visível aqui. #}
   <p class="form-hint">Perícia concluída a <span class="mono">{{ conclusao.timestamp|date:'Y-m-d H:i' }}</span> (evento #{{ conclusao.sequence }}) — o prazo do último despacho está cumprido.</p>
+  {% elif extincao %}
+  <p class="form-hint">{{ extincao.get_event_type_display }} a <span class="mono">{{ extincao.timestamp|date:'Y-m-d H:i' }}</span> (evento #{{ extincao.sequence }}) — o prazo do último despacho ficou extinto pela disposição final.</p>
   {% endif %}
   {% endif %}
 

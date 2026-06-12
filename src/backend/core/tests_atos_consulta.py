@@ -11,6 +11,7 @@ no fallback sem-JS); porta de leitura igual à do detalhe (need-to-know).
 from datetime import timedelta
 from unittest import mock
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -19,11 +20,13 @@ from django.utils import timezone
 from core.labels import VALIDATION_LATE_LABEL
 from core.models import (
     ChainOfCustody,
+    CustodianType,
     EventType,
     Institution,
     InstitutionMembership,
     InstitutionType,
 )
+from core.policy.event_states import validation_due_at
 from core.tests_base import auth_cookie
 from core.tests_factories import (
     AUTHORITY_KWARGS,
@@ -99,9 +102,12 @@ class AtosConsultaTest(TestCase):
         seizure = _event(ev, self.agent, inst=self.opc)  # APREENSAO_OBJETO
         body = self._get(ev, '?modal=1').content.decode()
         self.assertIn('Por validar', body)
-        # A base do estatuto: a apreensão e o limite legal (apreensão + 72h).
-        self.assertIn('72h após a apreensão', body)
-        limite = timezone.localtime(seizure.timestamp + timedelta(hours=72))
+        # A base do estatuto: a apreensão e o limite legal — fórmula e prazo
+        # da fonte única (validation_due_at / settings), nunca literais.
+        self.assertIn(
+            f'{settings.VALIDATION_DEADLINE_HOURS}h após a apreensão', body
+        )
+        limite = timezone.localtime(validation_due_at(seizure.timestamp))
         self.assertIn(limite.strftime('%Y-%m-%d %H:%M'), body)
 
     def test_validacao_fora_do_prazo_assinalada(self):
@@ -128,6 +134,21 @@ class AtosConsultaTest(TestCase):
         body = self._get(ev, '?modal=1').content.decode()
         self.assertIn('Perícia concluída a', body)
         # Prazo cumprido ⇒ sem badge de estatuto vigente.
+        self.assertNotIn('Perícia até', body)
+
+    def test_prazo_extinto_pela_disposicao_explicado(self):
+        # A PERDA não fecha o ledger mas extingue o prazo do despacho anterior
+        # (regra posicional da policy) — a razão tem de ficar visível.
+        ev = _evidence(self.occ, self.agent)
+        make_chain(
+            ev,
+            (EventType.APREENSAO_OBJETO, {'custodian_institution': self.opc}),
+            EventType.VALIDACAO_APREENSAO,
+            EventType.DESPACHO_PERICIA,
+            EventType.PERDA_FAVOR_ESTADO,
+        )
+        body = self._get(ev, '?modal=1').content.decode()
+        self.assertIn('extinto pela disposição final', body)
         self.assertNotIn('Perícia até', body)
 
     def test_item_sem_atos_mostra_vazio(self):
@@ -187,3 +208,22 @@ class AtosBadgesClicaveisTest(TestCase):
 
     def test_subtitulo_da_cadeia(self):
         self._assert_act_link(self._get(f'/evidences/{self.ev.id}/custody/'))
+
+    def test_fila_prova_a_chegar(self):
+        # O encaminhamento para o laboratório cria o aviso «prova a chegar»
+        # (ProvaEmTransito nasce no save do evento); a fila ordena pelo prazo
+        # da perícia — o badge tem de abrir a mesma consulta (only_pericia).
+        lab = Institution.objects.create(
+            name='Lab Badges', type=InstitutionType.LAB_PUBLICO, sigla='LAB-BD'
+        )
+        perito = _user('atos_perito', User.Profile.FORENSIC_EXPERT)
+        InstitutionMembership.objects.create(user=perito, institution=lab)
+        _event(
+            self.ev, self.agent,
+            event_type=EventType.ENCAMINHAMENTO_CUSTODIA,
+            custodian_type=CustodianType.LAB_PUBLICO, inst=lab,
+            bearer_nome='Rui', bearer_apelido='Faria', bearer_matricula='PSP-77',
+        )
+        auth_cookie(self.client, perito)
+        body = self.client.get('/inbound/').content.decode()
+        self._assert_act_link(body)

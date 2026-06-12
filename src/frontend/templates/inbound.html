@@ -40,7 +40,8 @@
       <tbody>
         {% for n in notices %}
         <tr role="row">
-          <td role="gridcell" class="mono grid__code"><a class="grid__link" href="{{ n.evidence.detail_url }}">{{ n.evidence.code }}</a>{% if n.evidence.pericia_badge %} <span class="state state--{{ n.evidence.pericia_badge.css }}">{{ n.evidence.pericia_badge.label }}</span>{% endif %}</td>
+          {# Badge do prazo na fonte única dos atos (_act_badges, clicável) — a fila ordena por ele. #}
+          <td role="gridcell" class="mono grid__code"><a class="grid__link" href="{{ n.evidence.detail_url }}">{{ n.evidence.code }}</a> {% include 'partials/_act_badges.html' with e=n.evidence only_pericia=True %}</td>
           <td role="gridcell" class="mono">
             {% if n.evidence.pri %}<span class="pri pri--{{ n.evidence.pri.cls }}" role="img" title="{{ n.evidence.pri.title }}" aria-label="{{ n.evidence.pri.title }}">{{ n.evidence.pri.level }}</span> {% endif %}<a href="/occurrences/{{ n.evidence.occurrence_id }}/">{{ n.evidence.occ_label }}</a>
           </td>

@@ -84,6 +84,14 @@
                     'input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled])'
                 );
             }
+            // Fragmento READ-ONLY (consulta, sem campos): foca a primeira ação
+            // do próprio fragmento por desenho — sem isto o showModal() nativo
+            // focava o primeiro focável do <dialog> (o X do cabeçalho), um
+            // destino por acidente que mudaria com o markup partilhado.
+            if (!target) {
+                target = body.querySelector('a[href], button:not([data-modal-close])')
+                    || body.querySelector('button');
+            }
             return target;
         });
         // Sinaliza para componentes que vivem dentro do fragmento (mapas, …).
