@@ -28,3 +28,21 @@ def cellattr(row, key):
             except (TypeError, KeyError, IndexError):
                 return ''
     return value
+
+
+@register.filter
+def human_hours(value):
+    """Duração humana a partir de HORAS decimais (fonte única).
+
+    Até 48h mantém as horas tal como vêm de ``core.analytics`` (437.2 →
+    ``437.2h`` deixava de se ler; 10.5 → ``10.5h``); acima disso lê-se em dias
+    (``18 d``). Só para durações DECORRIDAS — as constantes legais (72h) e o
+    prazo de calendário da perícia têm semântica própria e não passam por aqui.
+    """
+    try:
+        hours = float(value)
+    except (TypeError, ValueError):
+        return ''
+    if hours > 48:
+        return f'{round(hours / 24)} d'
+    return f'{value}h'

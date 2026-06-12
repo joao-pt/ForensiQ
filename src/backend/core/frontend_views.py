@@ -927,7 +927,10 @@ def _attn_scope(request, occ_qs, sla, pending_ids):
 # código e data nunca truncam; o tipo de crime é o que cede.
 _DASH_RECENT_COLUMNS = [
     GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=8),
-    GridColumn('code', 'Código', cell='code', width=18, link_key='detail_url', val_flag=True),
+    # dot=True: em mobile a coluna Pri. esconde-se — a bolinha de urgência na
+    # célula do código preserva o sinal, como em /occurrences/.
+    GridColumn('code', 'Código', cell='code', width=18, dot=True, link_key='detail_url',
+               val_flag=True),
     GridColumn('number', 'NUIPC', css='mono', width=18),
     GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=24),
     GridColumn('n_items', 'Itens', cell='num', css='col-hide-sm', width=8),
@@ -978,6 +981,10 @@ def dashboard_view(request):
             'lens_zone_label': access.lens_label(user, lens),
             'recent': recent,
             'recent_columns': recent_columns,
+            # Liga a bolinha de urgência da célula do código (gate de
+            # _grid_cell.html: col.dot AND urgency_legend) — sem a faixa-legenda,
+            # que só entra via _grid_toolbar (o painel não o usa).
+            'urgency_legend': URGENCY_LEGEND_OCCURRENCE,
             'attn_filter': attn_filter,
             'logs': _activity_feed(user, limit=20),
             'feed_is_national': access.has_national_read(user),
@@ -1040,9 +1047,11 @@ def _occurrences_list_response(request, archived=False):
         GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=21,
                    filter=ColFilter('cat', 'Tipo de crime', kind='select',
                                     field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
-        GridColumn('date_time', 'Data', cell='date', time=True, width=12,
+        # w14: a 12% a hora truncava com reticências em larguras comuns (a
+        # decisão foi ALARGAR, nunca amputar a hora); o Local, elástico, cede.
+        GridColumn('date_time', 'Data', cell='date', time=True, width=14,
                    filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
-        GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=20, geo=True,
+        GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=18, geo=True,
                    filter=ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local')),
         GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=12,
                    filter=ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente',
@@ -2214,7 +2223,10 @@ def _chain_points(events):
     for r in events:
         if r.gps_lat is None or r.gps_lng is None:
             continue
-        label = f'M{r.sequence:02d} · {r.get_event_type_display()} · {r.timestamp:%d/%m %H:%M}'
+        # Hora LOCAL, como a timeline (|date) — o strftime de um aware em UTC
+        # não converte e o tooltip divergia 1h do ledger na mesma página.
+        local_ts = timezone.localtime(r.timestamp)
+        label = f'M{r.sequence:02d} · {r.get_event_type_display()} · {local_ts:%d/%m %H:%M}'
         if r.gps_accuracy_m:
             label += f' · ±{r.gps_accuracy_m}m'
         pts.append({'lat': float(r.gps_lat), 'lng': float(r.gps_lng), 'label': label})

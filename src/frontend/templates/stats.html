@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static grid_extras %}
 
 {% block title %}Estatísticas — ForensiQ{% endblock %}
 
@@ -84,27 +84,27 @@
         <ul class="stats-alerts">
           <li class="stats-alert{% if sla.validations_overdue %} stats-alert--warn{% endif %}">
             <span class="stats-alert__num">{{ sla.validations_overdue }}</span>
-            <span class="stats-alert__label">Validações de apreensão em atraso (&gt; {{ sla.deadline_hours }}h — CPP art. 178.º/6)</span>
+            <span class="stats-alert__label">Validaç{{ sla.validations_overdue|pluralize:"ão,ões" }} de apreensão em atraso (&gt; {{ sla.deadline_hours }}h — CPP art. 178.º/6)</span>
           </li>
           <li class="stats-alert{% if sla.pericias_overdue %} stats-alert--warn{% endif %}">
             <span class="stats-alert__num">{{ sla.pericias_overdue }}</span>
-            <span class="stats-alert__label">Prazos de perícia vencidos (data-limite fixada no despacho — CPP art. 154.º)</span>
+            <span class="stats-alert__label">Prazo{{ sla.pericias_overdue|pluralize }} de perícia vencido{{ sla.pericias_overdue|pluralize }} (data-limite fixada no despacho — CPP art. 154.º)</span>
           </li>
           <li class="stats-alert{% if sla.pericias_due %} stats-alert--info{% endif %}">
             <span class="stats-alert__num">{{ sla.pericias_due }}</span>
-            <span class="stats-alert__label">Perícias a vencer em ≤{{ sla.pericia_warning_days }} dias</span>
+            <span class="stats-alert__label">Perícia{{ sla.pericias_due|pluralize }} a vencer em ≤{{ sla.pericia_warning_days }} dias</span>
           </li>
           <li class="stats-alert{% if sla.in_transit %} stats-alert--info{% endif %}">
             <span class="stats-alert__num">{{ sla.in_transit }}</span>
-            <span class="stats-alert__label">Prova em trânsito por receber{% if sla.oldest_transit_hours %} — mais antiga há {{ sla.oldest_transit_hours }}h{% endif %}</span>
+            <span class="stats-alert__label">Prova em trânsito por receber{% if sla.oldest_transit_hours %} — mais antiga há {{ sla.oldest_transit_hours|human_hours }}{% endif %}</span>
           </li>
           <li class="stats-alert">
-            <span class="stats-alert__num">{{ dwell.avg_dwell_hours }}h</span>
+            <span class="stats-alert__num">{{ dwell.avg_dwell_hours|human_hours }}</span>
             <span class="stats-alert__label">Dwell médio entre eventos de custódia ({{ dwell.intervals }} intervalo{{ dwell.intervals|pluralize }})</span>
           </li>
           <li class="stats-alert{% if dwell.longest_open_hours %} stats-alert--warn{% endif %}">
-            <span class="stats-alert__num">{{ dwell.longest_open_hours }}h</span>
-            <span class="stats-alert__label">Paragem atual mais longa ({{ dwell.open_items }} item em curso)</span>
+            <span class="stats-alert__num">{{ dwell.longest_open_hours|human_hours }}</span>
+            <span class="stats-alert__label">Paragem atual mais longa ({{ dwell.open_items }} ite{{ dwell.open_items|pluralize:"m,ns" }} em curso)</span>
           </li>
         </ul>
       </div>
