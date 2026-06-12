@@ -288,3 +288,130 @@ class GeneseAutomaticaDoFilhoTest(TestCase):
         self.assertContains(r, 'base legal')
         self.assertContains(r, pai.code)
         self.assertNotContains(r, 'Sem atos de autoridade')
+
+
+class FluxoEncadeadoTest(TestCase):
+    """Lote 3 — fluxo encadeado do registo (§6): ``?parent=`` tranca o
+    contexto, o sucesso segue para a página de continuação, o selector de pai
+    não oferece o impossível e a ficha ganha «Adicionar sub-componente»."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(
+            name='PSP Encadeado', type=InstitutionType.OPC, sigla='PSP-ENC'
+        )
+        cls.agent = make_user('enc_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.occ = _occ(cls.agent, 'F1')
+
+    def _post_new(self, action='/evidences/new/', **extra):
+        auth_cookie(self.client, self.agent)
+        data = {
+            'occurrence': self.occ.id,
+            'type': Evidence.EvidenceType.MOBILE_DEVICE,
+            'description': 'Item do fluxo encadeado.',
+        }
+        data.update(extra)
+        return self.client.post(action, data)
+
+    def _latest(self):
+        return Evidence.objects.filter(occurrence=self.occ).latest('id')
+
+    def test_form_com_parent_tranca_contexto(self):
+        self._post_new()
+        pai = self._latest()
+        r = self.client.get(f'/evidences/new/?parent={pai.id}')
+        self.assertContains(r, 'novo sub-componente')
+        self.assertContains(r, f'value="{self.occ.id}"')
+        self.assertContains(r, pai.code)
+        # Contexto trancado: sem selects de ocorrência/pai.
+        self.assertNotContains(r, 'id="f-occ"')
+        self.assertNotContains(r, 'id="f-parent"')
+
+    def test_parent_invalido_da_404(self):
+        self._post_new()
+        pai = self._latest()
+        folha = _ev(self.occ, self.agent, Evidence.EvidenceType.SIM_CARD, parent=pai)
+        auth_cookie(self.client, self.agent)
+        self.assertEqual(
+            self.client.get(f'/evidences/new/?parent={folha.id}').status_code, 404
+        )
+        # Item no nível máximo (3) também não admite filhos.
+        raiz = _ev(self.occ, self.agent, Evidence.EvidenceType.VEHICLE)
+        filho = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.VEHICLE_COMPONENT, parent=raiz
+        )
+        neto = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.GPS_TRACKER, parent=filho
+        )
+        self.assertEqual(
+            self.client.get(f'/evidences/new/?parent={neto.id}').status_code, 404
+        )
+        self.assertEqual(
+            self.client.get('/evidences/new/?parent=99999').status_code, 404
+        )
+
+    def test_post_redireciona_para_a_continuacao(self):
+        r = self._post_new()
+        ev = self._latest()
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r['Location'], f'/evidences/{ev.pk}/registado/')
+        # E o POST encadeado (action com ?parent=) cria o filho trancado.
+        r = self._post_new(
+            action=f'/evidences/new/?parent={ev.id}',
+            type=Evidence.EvidenceType.SIM_CARD,
+            parent_evidence=ev.id,
+        )
+        filho = self._latest()
+        self.assertEqual(r['Location'], f'/evidences/{filho.pk}/registado/')
+        self.assertEqual(filho.parent_evidence_id, ev.id)
+
+    def test_continuacao_de_raiz_oferece_filho_e_irmao(self):
+        self._post_new()
+        raiz = self._latest()
+        r = self.client.get(f'/evidences/{raiz.id}/registado/')
+        self.assertContains(r, f'/evidences/new/?parent={raiz.id}')
+        self.assertContains(r, f'/evidences/new/?occurrence={self.occ.id}')
+        self.assertContains(r, 'Concluir')
+        self.assertNotContains(r, 'Outro componente de')
+
+    def test_continuacao_de_filho_folha_explica_o_bloqueio(self):
+        self._post_new()
+        pai = self._latest()
+        self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        folha = self._latest()
+        r = self.client.get(f'/evidences/{folha.id}/registado/')
+        self.assertContains(r, 'não admite sub-componentes')
+        self.assertNotContains(r, f'/evidences/new/?parent={folha.id}')
+        # Irmão: «outro componente» do MESMO pai.
+        self.assertContains(r, f'/evidences/new/?parent={pai.id}')
+        self.assertContains(r, pai.code)
+
+    def test_selector_sem_folhas_nem_nivel_maximo(self):
+        raiz = _ev(self.occ, self.agent, Evidence.EvidenceType.VEHICLE)
+        filho = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.VEHICLE_COMPONENT, parent=raiz
+        )
+        neto = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.GPS_TRACKER, parent=filho
+        )
+        folha = _ev(self.occ, self.agent, Evidence.EvidenceType.SIM_CARD, parent=raiz)
+        auth_cookie(self.client, self.agent)
+        r = self.client.get('/evidences/new/')
+        self.assertContains(r, f'value="{raiz.id}" data-occurrence="{self.occ.id}"')
+        self.assertContains(r, f'value="{filho.id}" data-occurrence="{self.occ.id}"')
+        # Nível máximo e folha não se oferecem como pai (a recusa dura
+        # continua no clean()).
+        self.assertNotContains(r, f'value="{neto.id}" data-occurrence')
+        self.assertNotContains(r, f'value="{folha.id}" data-occurrence')
+
+    def test_ficha_mostra_adicionar_subcomponente_so_quando_admissivel(self):
+        self._post_new()
+        raiz = self._latest()
+        r = self.client.get(f'/evidences/{raiz.id}/')
+        self.assertContains(r, f'/evidences/new/?parent={raiz.id}')
+        folha = _ev(self.occ, self.agent, Evidence.EvidenceType.SIM_CARD, parent=raiz)
+        r = self.client.get(f'/evidences/{folha.id}/')
+        self.assertNotContains(r, f'/evidences/new/?parent={folha.id}')

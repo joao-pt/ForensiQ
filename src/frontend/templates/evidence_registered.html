@@ -1,0 +1,36 @@
+{% extends 'form_page.html' %}
+
+{% block title %}Item registado — ForensiQ{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/evidences/">Itens de prova</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a class="mono" href="/evidences/{{ ev.id }}/">{{ ev.code }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Registado</span>
+{% endblock %}
+
+{# Sem mapa nesta página — dispensa o Leaflet head da casca. #}
+{% block extra_css %}{% endblock %}
+
+{% block form_title %}Item <span class="mono">{{ ev.code }}</span> registado{% endblock %}
+
+{% block form_body %}
+{# Continuação do registo (§6 — fluxo encadeado): daqui registam-se sub-componentes/irmãos sem reencontrar contexto. #}
+<p class="form-hint">{{ ev.type_label }} · <span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span> · processo <span class="mono">{{ ev.occ_label }}</span></p>
+
+{% if sub_blocked %}
+<p class="form-hint">{{ sub_blocked }}</p>
+{% endif %}
+
+<div class="form-actions">
+  {% if not sub_blocked %}
+  <a class="btn-accent" href="/evidences/new/?parent={{ ev.id }}">Registar sub-componente deste item</a>
+  {% endif %}
+  {% if parent %}
+  <a class="btn-ghost" href="/evidences/new/?parent={{ parent.id }}">Outro componente de <span class="mono">{{ parent.code }}</span></a>
+  {% endif %}
+  <a class="btn-ghost" href="/evidences/new/?occurrence={{ ev.occurrence_id }}">Registar outro item desta apreensão</a>
+  <a class="btn-ghost" href="/evidences/{{ ev.id }}/">Concluir — abrir a ficha do item</a>
+</div>
+{% endblock %}

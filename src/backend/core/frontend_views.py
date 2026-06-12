@@ -423,6 +423,14 @@ def _tree_sort_key(ev):
         return (float('inf'),)
 
 
+def _tree_depth(ev):
+    """Nível do item na árvore (1=raiz), contado pelos pontos do código
+    hierárquico materializado (ADR-0016 — o código da ocorrência não tem
+    pontos). Não sobe ``parent_evidence``: fora do ``select_related`` cada
+    antepassado custaria uma query."""
+    return max(1, ev.code.count('.'))
+
+
 def _occurrence_items(occ):
     """Itens do processo em ordem de árvore, com ``tree_depth`` anotado (1=raiz,
     contado pelos pontos do código) — partilhado pelo detalhe da ocorrência e
@@ -431,7 +439,7 @@ def _occurrence_items(occ):
     e o «└» desenhava-se por cima do pai."""
     itens = sorted(_evidence_base_qs().filter(occurrence=occ), key=_tree_sort_key)
     for ev in itens:
-        ev.tree_depth = max(1, ev.code.count('.'))
+        ev.tree_depth = _tree_depth(ev)
     return itens
 
 
@@ -2742,12 +2750,43 @@ def _evd_field_ctx(post):
     return transversal, type_fields
 
 
+def _parent_options(user):
+    """Candidatos a PAI no selector do registo: âmbito do utilizador SEM os
+    tipos-folha nem os itens já no nível máximo (a recusa dura continua no
+    ``clean()`` — aqui só não se oferece o impossível), em ordem de árvore por
+    ocorrência, com rótulo recuado por nível e a ocorrência anotada (o
+    ``data-occurrence`` alimenta o filtro do cliente; sem JS a lista fica
+    completa e a guarda «mesma ocorrência» vale no POST)."""
+    qs = (
+        _scope_evidences(user)
+        .exclude(type__in=Evidence.EVIDENCE_LEAF_TYPES)
+        .select_related('occurrence')
+    )
+    out = []
+    for ev in qs:
+        depth = _tree_depth(ev)
+        if depth >= Evidence.MAX_TREE_DEPTH:
+            continue
+        # NBSP (espacos normais colapsam no rotulo de <option>).
+        pad = " " * 4 * (depth - 1)
+        prefix = f'{pad}└ ' if depth > 1 else ''
+        ev.option_label = f'{prefix}{ev.code} · {ev.get_type_display()}'
+        out.append(ev)
+    out.sort(key=lambda e: (e.occurrence.number, _tree_sort_key(e)))
+    return out
+
+
 @jwt_cookie_user
 def evidences_new_view(request):
     """Registo de nova evidência — server-rendered + POST via serializer (Fase 3).
 
     Reusa o ``EvidenceSerializer`` (validação por tipo, hash de integridade,
-    imutabilidade) e regista auditoria com o hash, tal como a API.
+    imutabilidade) e regista auditoria com o hash, tal como a API. Fluxo
+    encadeado (§6): com ``?parent=<id>`` o contexto fica TRANCADO — a
+    ocorrência herda-se do pai (o ``clean()`` exige a mesma) e os selects dão
+    lugar a factos com inputs hidden; o sucesso segue para a página de
+    continuação (``/evidences/<id>/registado/``), de onde se encadeia o
+    próximo registo.
     """
     from core.serializers import EvidenceSerializer
 
@@ -2755,14 +2794,47 @@ def evidences_new_view(request):
     if not access.can_register_records(user):
         raise PermissionDenied('Apenas agentes podem registar evidências.')
 
-    occurrences = _scope_occurrences(user).order_by('-date_time')
-    parents = _scope_evidences(user).order_by('occurrence__number', 'code')
+    parent = None
+    pid = request.GET.get('parent', '')
+    if pid:
+        try:
+            parent = (
+                _scope_evidences(user)
+                .select_related('occurrence')
+                .get(pk=int(pid))
+            )
+        except (ValueError, Evidence.DoesNotExist):
+            parent = None
+        # Pai tem de poder ter filhos — mesmas fontes únicas do clean()
+        # (tipos-folha, MAX_TREE_DEPTH); links gated não chegam aqui.
+        if (
+            parent is None
+            or parent.type in Evidence.EVIDENCE_LEAF_TYPES
+            or _tree_depth(parent) >= Evidence.MAX_TREE_DEPTH
+        ):
+            raise Http404('Este item não admite sub-componentes.')
+
+    occurrences = (
+        [] if parent else _scope_occurrences(user).order_by('-date_time')
+    )
+    parents = [] if parent else _parent_options(user)
     transversal_fields, type_fields = _evd_field_ctx(
         request.POST if request.method == 'POST' else {}
     )
     # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
-    # → redireciona para o item criado; erro → re-render com os erros.
+    # → página de continuação do registo; erro → re-render com os erros.
     template = 'evidences_new.html'
+    # O querystring do parent persiste no action — o re-render com erros
+    # mantém o contexto trancado.
+    action = f'/evidences/new/?parent={parent.pk}' if parent else '/evidences/new/'
+    parent_ctx = None
+    if parent is not None:
+        parent_ctx = {
+            'parent': parent,
+            'occ': parent.occurrence,
+            'child_depth': _tree_depth(parent) + 1,
+            'max_depth': Evidence.MAX_TREE_DEPTH,
+        }
 
     def _ctx(errors, data, preselect):
         """Contexto único da página (antes copiado 3× — auditoria D4).
@@ -2773,13 +2845,14 @@ def evidences_new_view(request):
         return {
             'occurrences': occurrences,
             'parents': parents,
+            'parent_ctx': parent_ctx,
             'evidence_types': evidence_type_config.active_choices(),
             'transversal_fields': transversal_fields,
             'type_fields': type_fields,
             'preselect': preselect,  # nosemgrep
             'errors': errors,
             'data': data,  # nosemgrep
-            'action': '/evidences/new/',
+            'action': action,
         }
 
     if request.method == 'POST':
@@ -2820,7 +2893,9 @@ def evidences_new_view(request):
                 details={'hash': ev.integrity_hash},
             )
             messages.success(request, f'Item de prova {ev.code} apreendido e registado.')
-            return HttpResponseRedirect(f'/evidences/{ev.pk}/')
+            # Fluxo encadeado (§6): a continuação oferece o registo do
+            # sub-componente/irmão seguinte sem reencontrar contexto.
+            return HttpResponseRedirect(f'/evidences/{ev.pk}/registado/')
         return render(
             request,
             template,
@@ -2961,8 +3036,46 @@ def evidence_detail_view(request, evidence_id):
             'can_restitute': can_write and any(
                 v == EventType.RESTITUICAO.value for v, _ in valid_next
             ),
+            # «Adicionar sub-componente» (§6): quem regista, em item que admite
+            # filhos (não-folha, nível < máx.) e com o ledger aberto — derivar
+            # de pai fechado é recusado pelo clean().
+            'can_add_sub': (
+                access.can_register_records(user)
+                and bool(valid_next)
+                and ev.type not in Evidence.EVIDENCE_LEAF_TYPES
+                and _tree_depth(ev) < Evidence.MAX_TREE_DEPTH
+            ),
         },
     )
+
+
+@jwt_cookie_user
+def evidence_registered_view(request, evidence_id):
+    """Página de CONTINUAÇÃO do registo (§6 — fluxo encadeado): o item ficou
+    registado e apreendido; daqui encadeia-se, sem reencontrar contexto, o
+    registo de um sub-componente deste item (``?parent=``), de outro
+    componente do mesmo pai, ou de outro item da mesma apreensão
+    (``?occurrence=``) — o caminho do wizard antigo, recuperado em
+    server-rendered. Só para quem regista (espelho do gate do formulário)."""
+    user = request.user
+    if not access.can_register_records(user):
+        raise PermissionDenied('Apenas agentes podem registar evidências.')
+    ev = _readable_evidence(user, evidence_id)
+    if ev is None:
+        raise Http404('Evidência não encontrada.')
+    _decorate_evidences([ev])
+    sub_blocked = None
+    if ev.type in Evidence.EVIDENCE_LEAF_TYPES:
+        sub_blocked = f'O tipo «{ev.get_type_display()}» não admite sub-componentes.'
+    elif _tree_depth(ev) >= Evidence.MAX_TREE_DEPTH:
+        sub_blocked = (
+            f'Profundidade máxima atingida ({Evidence.MAX_TREE_DEPTH} níveis).'
+        )
+    return render(request, 'evidence_registered.html', {
+        'ev': ev,
+        'sub_blocked': sub_blocked,
+        'parent': ev.parent_evidence,
+    })
 
 
 @jwt_cookie_user

@@ -17,6 +17,18 @@
       {# --- Secção 1: contexto (a que caso/item pertence) --- #}
       <div class="form-field form-field--full"><h3 class="subhead">Contexto</h3></div>
 
+      {% if parent_ctx %}
+      {# Fluxo encadeado (§6): contexto TRANCADO — ocorrência herdada do pai (o clean() exige a mesma); breadcrumb com o nível do novo sub-componente. #}
+      <input type="hidden" name="occurrence" value="{{ parent_ctx.occ.id }}">
+      <input type="hidden" name="parent_evidence" value="{{ parent_ctx.parent.id }}">
+      <div class="form-field form-field--full">
+        <p class="form-hint"><span class="mono">{{ parent_ctx.occ.code }}</span> · {{ parent_ctx.occ.number }}
+          <span aria-hidden="true">→</span> {{ parent_ctx.parent.get_type_display }} (<a class="grid__link mono" href="/evidences/{{ parent_ctx.parent.id }}/">{{ parent_ctx.parent.code }}</a>)
+          <span aria-hidden="true">→</span> <strong>novo sub-componente</strong> — nível {{ parent_ctx.child_depth }} de {{ parent_ctx.max_depth }}</p>
+        {% include 'partials/_field_error.html' with field_id='f-parent' error=errors.parent_evidence.0 %}
+        {% include 'partials/_field_error.html' with field_id='f-occ' error=errors.occurrence.0 %}
+      </div>
+      {% else %}
       <div class="form-field">
         <label for="f-occ">Ocorrência *</label>
         <select id="f-occ" name="occurrence" required{% if errors.occurrence %} aria-invalid="true" aria-describedby="f-occ-err"{% endif %}>
@@ -30,14 +42,16 @@
 
       <div class="form-field">
         <label for="f-parent">Sub-componente de (opcional)</label>
+        {# Candidatos sem folhas/nível máx. (view); o parent-filter.js restringe à ocorrência escolhida — sem JS a guarda «mesma ocorrência» vale no POST. #}
         <select id="f-parent" name="parent_evidence"{% if errors.parent_evidence %} aria-invalid="true" aria-describedby="f-parent-err"{% endif %}>
           <option value="">— nenhum (item raiz) —</option>
           {% for p in parents %}
-          <option value="{{ p.id }}" {% if data.parent_evidence == p.id|stringformat:'s' %}selected{% endif %}>{{ p.code }} · {{ p.get_type_display }}</option>
+          <option value="{{ p.id }}" data-occurrence="{{ p.occurrence_id }}" {% if data.parent_evidence == p.id|stringformat:'s' %}selected{% endif %}>{{ p.option_label }}</option>
           {% endfor %}
         </select>
         {% include 'partials/_field_error.html' with field_id='f-parent' error=errors.parent_evidence.0 %}
       </div>
+      {% endif %}
 
       {# --- Secção 2: identificação do item (foto sobe — documenta o item como encontrado) --- #}
       <div class="form-field form-field--full"><h3 class="subhead">Identificação do item</h3></div>

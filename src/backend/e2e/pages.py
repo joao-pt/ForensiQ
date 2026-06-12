@@ -38,6 +38,11 @@ def is_evidence_detail(url):
     return bool(re.search(r"/evidences/\d+/$", url))
 
 
+def is_evidence_registered(url):
+    """True se a URL é a continuação do registo (/evidences/<n>/registado/)."""
+    return bool(re.search(r"/evidences/\d+/registado/$", url))
+
+
 def app_pages(occ_id, ev_id):
     """Rotas autenticadas da app — lista CANÓNICA única (auditoria D114).
 
@@ -56,6 +61,7 @@ def app_pages(occ_id, ev_id):
         'evidence_new': {'path': '/evidences/new/'},
         'evidence_detail': {'path': f'/evidences/{ev_id}/', 'leaflet': True, 'htmx': True},
         'evidence_atos': {'path': f'/evidences/{ev_id}/atos/'},
+        'evidence_registered': {'path': f'/evidences/{ev_id}/registado/'},
         'custody': {'path': f'/evidences/{ev_id}/custody/', 'htmx': True},
         'custodies': {'path': '/custodies/', 'leaflet': True, 'htmx': True},
         'reports': {'path': '/reports/', 'htmx': True},

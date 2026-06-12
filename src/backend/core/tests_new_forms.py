@@ -104,7 +104,10 @@ class NewFormPageTest(TestCase):
             'description': 'Telemóvel registado pela página.',
         })
         ev = Evidence.objects.filter(occurrence=self.occ).latest('id')
-        self.assertRedirects(r, f'/evidences/{ev.pk}/', fetch_redirect_response=False)
+        # Fluxo encadeado (§6): o sucesso segue para a página de continuação.
+        self.assertRedirects(
+            r, f'/evidences/{ev.pk}/registado/', fetch_redirect_response=False
+        )
         # Registo = apreensão: a génese nasce na mesma transação.
         self.assertEqual(ev.custody_chain.count(), 1)
 

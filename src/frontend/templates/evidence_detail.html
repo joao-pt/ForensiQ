@@ -46,6 +46,13 @@
         Restituir
       </a>
       {% endif %}
+      {% if can_add_sub %}
+      {# Fluxo encadeado (§6): registo do sub-componente com o contexto trancado (?parent=) — caso laboratório (componente achado no item já registado). #}
+      <a class="btn-ghost" href="/evidences/new/?parent={{ ev.id }}">
+        {% include 'partials/icons/_plus.html' %}
+        Adicionar sub-componente
+      </a>
+      {% endif %}
       {% if not ledger_closed and can_write %}
       <a class="btn-accent" href="/evidences/{{ ev.id }}/custody/#custody-register">
         {% include 'partials/icons/_plus.html' %}
