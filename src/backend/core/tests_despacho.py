@@ -425,6 +425,15 @@ class PericiaPrazoTest(TestCase):
         self.assertIn(self.occ_due.number, body)
         self.assertNotIn(self.occ_late.number, body)
 
+    def test_evidences_attn_pericia_destino_canonico(self):
+        # /evidences/?attn= é o destino canónico do drill-down dos prazos.
+        body = self._get('/evidences/?attn=pericia').content.decode()
+        self.assertIn(self.ev_late.code, body)
+        self.assertNotIn(self.ev_due.code, body)
+        body = self._get('/evidences/?attn=pericia_due').content.decode()
+        self.assertIn(self.ev_due.code, body)
+        self.assertNotIn(self.ev_late.code, body)
+
     def test_grelha_ocorrencias_marca_prazos_em_atencao(self):
         """Marcador por linha SÓ nos processos com prazo vencido/a vencer (os
         itens estão todos validados — sem pontos do eixo da validação)."""

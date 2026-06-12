@@ -909,22 +909,35 @@ def _pri_counts(points):
     }
 
 
+# Rótulos dos eixos canónicos de atenção (``?attn=``) — fonte ÚNICA: as chaves
+# são a whitelist do filtro (painel E /evidences/); um eixo novo entra AQUI e
+# propaga-se a todas as superfícies.
+_ATTN_AXIS_LABELS = {
+    'overdue': 'validações em atraso',
+    'val_due': 'validações a vencer',
+    'transit': 'em trânsito por receber',
+    'pending': 'a aguardar validação',
+    'pericia': 'prazos de perícia vencidos',
+    'pericia_due': 'perícias a vencer',
+}
+
+
 def _attn_axes(sla, pending_ids):
-    """Eixos canónicos de atenção (``?attn=``) — fonte ÚNICA chave→(rótulo, ids).
+    """Eixos canónicos de atenção — chave→(rótulo, ids re-deriváveis).
 
     Partilhada pelo filtro local do painel (:func:`_attn_scope`) e pelo destino
-    canónico do drill-down ``/evidences/?attn=`` — um eixo novo entra AQUI e
-    propaga-se a todas as superfícies. Os ids vêm dos mapas re-deriváveis de
+    canónico do drill-down ``/evidences/?attn=``. Os ids vêm dos mapas de
     ``analytics.aging_sla`` + pendência de validação.
     """
-    return {
-        'overdue': ('validações em atraso', sla['overdue_ids']),
-        'val_due': ('validações a vencer', sla['validation_due_ids']),
-        'transit': ('em trânsito por receber', sla['transit_ids']),
-        'pending': ('a aguardar validação', pending_ids),
-        'pericia': ('prazos de perícia vencidos', sla['pericia_overdue_ids']),
-        'pericia_due': ('perícias a vencer', sla['pericia_due_ids']),
+    ids = {
+        'overdue': sla['overdue_ids'],
+        'val_due': sla['validation_due_ids'],
+        'transit': sla['transit_ids'],
+        'pending': pending_ids,
+        'pericia': sla['pericia_overdue_ids'],
+        'pericia_due': sla['pericia_due_ids'],
     }
+    return {key: (label, ids[key]) for key, label in _ATTN_AXIS_LABELS.items()}
 
 
 def _attn_scope(request, occ_qs, sla, pending_ids):
@@ -2063,6 +2076,20 @@ def evidences_view(request):
     lens = access.active_console_mode(request, user)
     qs = _lens_evidences(user, lens)
 
+    # ?attn= (eixo de atenção) — o chip preenche-se DENTRO do filtro (corre
+    # antes da montagem do contexto) e chega ao template via extra_ctx.
+    attn_ctx = {}
+
+    def _attn_evidence_filter(filtered_qs, _request, value):
+        sla = analytics.aging_sla(_lens_evidences(user, lens), _lens_custody(user, lens))
+        statuses = analytics.validation_statuses_by_evidence(_lens_custody(user, lens))
+        pending_ids = {
+            ev for ev, vs in statuses.items() if vs in VALIDATION_PENDING_STATUSES
+        }
+        label, ids = _attn_axes(sla, pending_ids)[value]
+        attn_ctx['attn_filter'] = {'key': value, 'label': label, 'n_items': len(ids)}
+        return filtered_qs.filter(id__in=ids)
+
     # Ordem = colunas: Ocorrência · Código · Data e Hora · Marca · Modelo · Nº série · Estado.
     # Mobile reduzido (col-reduce-hide) sobra Ocorrência · Código (bolinha) · Data; a
     # bolinha em Código carrega o estado legal no telemóvel. Marca/Modelo vivem em
@@ -2119,6 +2146,11 @@ def evidences_view(request):
                 lambda: analytics.legal_states_by_evidence(_lens_custody(user, lens))
             )
         },
+        # ?attn= — destino CANÓNICO do drill-down dos prazos (painel//stats/):
+        # filtra os ITENS pelos ids re-deriváveis dos mapas bulk. LAZY: o sla
+        # só se calcula com um eixo válido no pedido (como o ?state=).
+        computed_params={'attn': (frozenset(_ATTN_AXIS_LABELS), _attn_evidence_filter)},
+        extra_ctx=attn_ctx,
     )
 
 

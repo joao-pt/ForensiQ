@@ -237,6 +237,23 @@ class ValidationVisibilityTest(TestCase):
         body = self._get('/dashboard/?attn=pending').content.decode()
         self.assertIn(self.occ_pend.number, body)
         self.assertNotIn(self.occ_ok.number, body)
+        # O chip oferece o salto ao destino canónico (lista de itens).
+        self.assertIn('/evidences/?attn=pending', body)
+
+    def test_evidences_attn_pending_destino_canonico(self):
+        # /evidences/?attn=<eixo>: filtra ITENS pelos ids re-deriváveis; o
+        # param é pegajoso (hidden no toolbar) e o chip de limpeza aparece.
+        body = self._get('/evidences/?attn=pending').content.decode()
+        self.assertIn(self.ev_pend.code, body)
+        self.assertNotIn(self.ev_ok.code, body)
+        self.assertIn('attn-filter-chip', body)
+        self.assertIn('name="attn"', body)
+
+    def test_evidences_attn_invalido_ignorado(self):
+        body = self._get('/evidences/?attn=nope').content.decode()
+        self.assertIn(self.ev_pend.code, body)
+        self.assertIn(self.ev_ok.code, body)
+        self.assertNotIn('attn-filter-chip', body)
 
     def test_lista_ocorrencias_marca_processos_pendentes(self):
         body = self._get('/occurrences/').content.decode()
@@ -293,17 +310,17 @@ class ValidationDueDashboardTest(TestCase):
         # occ_due: apreensão a meio da janela de aviso (retrodatar = freeze-time;
         # os triggers PG de imutabilidade impedem retrodatar por UPDATE).
         cls.occ_due = _occ(cls.agent, 'DUE-W')
-        ev_due = _evidence(cls.occ_due, cls.agent)
+        cls.ev_due = _evidence(cls.occ_due, cls.agent)
         with mock.patch(
             'core.models.timezone.now',
             return_value=timezone.now()
             - (VALIDATION_DEADLINE - VALIDATION_DEADLINE_WARNING / 2),
         ):
-            _event(ev_due, cls.agent, inst=cls.opc)
+            _event(cls.ev_due, cls.agent, inst=cls.opc)
         # occ_fresh: apreensão de agora — pendente mas FORA da janela.
         cls.occ_fresh = _occ(cls.agent, 'DUE-F')
-        ev_fresh = _evidence(cls.occ_fresh, cls.agent)
-        _event(ev_fresh, cls.agent, inst=cls.opc)
+        cls.ev_fresh = _evidence(cls.occ_fresh, cls.agent)
+        _event(cls.ev_fresh, cls.agent, inst=cls.opc)
 
     def _get(self, url):
         auth_cookie(self.client, self.agent)
@@ -322,3 +339,8 @@ class ValidationDueDashboardTest(TestCase):
     def test_stats_mostra_linha_a_vencer(self):
         body = self._get('/stats/').content.decode()
         self.assertIn('a vencer (a ≤', body)
+
+    def test_evidences_attn_val_due_destino_canonico(self):
+        body = self._get('/evidences/?attn=val_due').content.decode()
+        self.assertIn(self.ev_due.code, body)
+        self.assertNotIn(self.ev_fresh.code, body)

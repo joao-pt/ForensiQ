@@ -402,18 +402,5 @@ a.attn-row:focus-visible {
     border-color: var(--accent);
 }
 
-/* Chip do filtro ativo no cabeçalho da tabela (clicar limpa). */
-.attn-filter-chip {
-    font-family: var(--font-mono);
-    font-size: var(--fs-2xs);
-    text-transform: uppercase;
-    letter-spacing: var(--tracking-wide);
-    color: var(--accent-on-tint);
-    background: var(--accent-tint);
-    border: 1px solid var(--accent);
-    border-radius: var(--r-pill);
-    padding: 2px var(--sp-2);
-    text-decoration: none;
-    white-space: nowrap;
-}
-.attn-filter-chip:hover { background: var(--accent-tint-hover); }
+/* .attn-filter-chip mudou-se para forensic.css (auditoria UX B9): o chip do
+   filtro ativo passou a servir também as páginas de lista (grid_page). */

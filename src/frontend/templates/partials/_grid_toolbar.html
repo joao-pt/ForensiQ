@@ -13,6 +13,8 @@
       hx-push-url="true"
       hx-indicator="#{{ busy_id }}">
   {% if lens %}<input type="hidden" name="lens" value="{{ lens }}">{% endif %}
+  {# Filtros computados ativos (?attn=…) — sem o hidden, o param evaporava-se à primeira busca/ordenação (hx-push-url reescreve o URL). #}
+  {% for p, v in sticky_params.items %}<input type="hidden" name="{{ p }}" value="{{ v }}">{% endfor %}
   <div class="grid-toolbar">
     {% if search_placeholder %}
     <div class="toolbar__search">

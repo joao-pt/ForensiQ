@@ -128,6 +128,11 @@
              title="Limpar o filtro (mostrar todas)">
             {{ attn_filter.label }} · {{ attn_filter.n_items }} ite{{ attn_filter.n_items|pluralize:"m,ns" }} em {{ attn_filter.n_occ }} ocorrência{{ attn_filter.n_occ|pluralize }} ✕
           </a>
+          {# Destino canónico do drill-down: a lista de ITENS com o mesmo eixo (?attn=). #}
+          <a class="attn-filter-chip" href="/evidences/?attn={{ attn_filter.key }}"
+             title="Abrir a lista de itens de prova com este filtro">
+            ver ite{{ attn_filter.n_items|pluralize:"m,ns" }} →
+          </a>
           {% endif %}
           <a class="section__more" href="/occurrences/">Ver todas →</a>
         </header>

@@ -20,6 +20,11 @@
     <div class="page-head__heading">
       <h1 class="page-head__title" id="{{ title_id }}">{% block page_title %}{% endblock %}</h1>
       <span class="page-head__count" id="{{ count_id }}" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
+      {% if attn_filter %}
+      <a class="attn-filter-chip" href="{{ endpoint }}" title="Limpar o filtro (mostrar tudo)">
+        {{ attn_filter.label }} · {{ attn_filter.n_items }} ite{{ attn_filter.n_items|pluralize:"m,ns" }} ✕
+      </a>
+      {% endif %}
     </div>
     {% block page_cta %}{% endblock %}
   </header>

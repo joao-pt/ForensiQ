@@ -71,7 +71,7 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
                        page_template, table_label, count_noun, count_plural='',
                        sorts, default_sort, sorts_ui=(), search_fields=(),
                        search_placeholder='', decorate=None, legend=None,
-                       pendency_legend=None,
+                       pendency_legend=None, computed_params=None,
                        row_clickable=True, mobile_reduce=True, page_size=25,
                        lens='', empty_title='', empty_hint='',
                        empty_filtered='Nenhum resultado para os filtros aplicados.',
@@ -103,6 +103,18 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
         if col.filter.accepts(value):
             qs = fn(qs, request, value)
 
+    # 2b) Filtros computados SEM coluna própria (ex.: ?attn= — eixo de atenção
+    #     transversal): param → (whitelist, fn). O valor ativo é "pegajoso":
+    #     entra em qs_base (paginação), em has_filters e num input hidden do
+    #     toolbar — senão evaporava-se à primeira busca/ordenação/página.
+    computed_params = computed_params or {}
+    sticky_params = {}
+    for param, (accepted, fn) in computed_params.items():
+        value = (request.GET.get(param) or '').strip()
+        if value and value in accepted:
+            qs = fn(qs, request, value)
+            sticky_params[param] = value
+
     # 3) Busca transversal (OR icontains sobre vários campos) — o que permite
     #    encolher a grelha no telemóvel (menos colunas, mas encontra tudo).
     query = (request.GET.get('q') or '').strip()
@@ -131,6 +143,7 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
     # 7) Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
     col_active = active_params(full_spec, request)
     base_params = dict(col_active)
+    base_params.update(sticky_params)
     if query:
         base_params['q'] = query
     if lens:
@@ -147,8 +160,9 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
         'columns': columns_ctx,
         'page_obj': page_obj,
         'total': paginator.count,
-        'has_filters': bool(col_active) or bool(query),
+        'has_filters': bool(col_active) or bool(query) or bool(sticky_params),
         'q': query,
+        'sticky_params': sticky_params,
         'urgency_legend': legend,
         # Legenda dos marcadores de pendência (val_dot/pericia_dot) — visível
         # também em desktop (--always), só nas grelhas que os mostram.
