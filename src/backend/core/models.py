@@ -970,8 +970,9 @@ class Evidence(AppendOnlyModel):
     de papel ou fotografias soltas — apenas dispositivos, ficheiros e
     suportes com relevância forense digital.
 
-    Suporta hierarquia de sub-componentes (máx. 3 níveis):
-    ex. Telemóvel (raiz) → SIM Card (filho) → (sem mais níveis).
+    Suporta hierarquia de sub-componentes (máx. 3 níveis — ``MAX_TREE_DEPTH``):
+    ex. Computador (raiz) → Disco interno (filho) → Ficheiro digital (neto,
+    nível 3 — sem mais níveis).
     """
 
     # Mensagens legais da imutabilidade (AppendOnlyModel — auditoria D25).
@@ -989,8 +990,7 @@ class Evidence(AppendOnlyModel):
     # Tipos terminais — não admitem sub-componentes.
     # Um cartão SIM, cartão de memória, cartão RFID/NFC ou ficheiro digital
     # é, por natureza, indivisível: não há prova forense útil em registar
-    # algo "dentro de" um SIM. A validação é aplicada em clean(); o frontend
-    # replica a constante (config.js EVIDENCE_LEAF_TYPES) só para UX.
+    # algo "dentro de" um SIM. A validação é aplicada em clean().
     EVIDENCE_LEAF_TYPES = frozenset(
         {
             'SIM_CARD',

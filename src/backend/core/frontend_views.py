@@ -411,10 +411,28 @@ def _custody_base_qs():
     return ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
 
 
-def _occurrence_items_qs(occ):
-    """Itens do processo, em ordem de árvore (raízes primeiro) — partilhado pelo
-    detalhe da ocorrência e pelos encaminháveis."""
-    return _evidence_base_qs().filter(occurrence=occ).order_by('parent_evidence_id', 'id')
+def _tree_sort_key(ev):
+    """Chave de ordem de ÁRVORE de um item: os segmentos NUMÉRICOS do sufixo do
+    código hierárquico (ADR-0016 — o código da ocorrência não tem pontos). A
+    comparação de tuplos põe a raiz antes dos filhos e cada filho adjacente ao
+    pai; numérica porque a lexicográfica punha .10 antes de .2. Código fora do
+    padrão (não devia existir — o save() materializa) vai para o fim."""
+    try:
+        return tuple(int(p) for p in ev.code.split('.')[1:])
+    except ValueError:
+        return (float('inf'),)
+
+
+def _occurrence_items(occ):
+    """Itens do processo em ordem de árvore, com ``tree_depth`` anotado (1=raiz,
+    contado pelos pontos do código) — partilhado pelo detalhe da ocorrência e
+    pelos modais de lote. A ordenação é em Python: em SQL,
+    ``parent_evidence_id`` ASC punha as raízes (NULL) em ÚLTIMO no PostgreSQL
+    e o «└» desenhava-se por cima do pai."""
+    itens = sorted(_evidence_base_qs().filter(occurrence=occ), key=_tree_sort_key)
+    for ev in itens:
+        ev.tree_depth = max(1, ev.code.count('.'))
+    return itens
 
 
 def _crime_categories():
@@ -1554,7 +1572,7 @@ def occurrence_detail_view(request, occurrence_id):
     # por item (a instituição é dona do processo). O object-level já foi imposto
     # por _readable_occurrence; a lista cross-ocorrência (Evidências) é que mantém
     # o need-to-know item-level.
-    evidences = list(_occurrence_items_qs(occ))
+    evidences = _occurrence_items(occ)
     _decorate_evidences(evidences)
     occ.evidence_count = len(evidences)
     # Encaminhar/validar são ações de escrita: escondidas a perfis só-leitura (a
@@ -1609,7 +1627,7 @@ def _itens_com_proximo_evento(user, occ, event_type):
     escrita no ledger (``can_append_custody``). Esqueleto único da seleção das
     ações em lote da ocorrência (encaminhar, validar). Lista decorada."""
     itens = []
-    for ev in _occurrence_items_qs(occ):
+    for ev in _occurrence_items(occ):
         events = sort_custody_chain(ev.custody_chain.all())
         valid = {v for v, _ in _valid_next_events(events, ev)}
         if event_type.value in valid and access.can_append_custody(user, ev, event_type):
@@ -3815,7 +3833,7 @@ def _intake_world(occurrence):
     eventos da ocorrência); ``with_events`` devolve também os registos
     agrupados, de onde se lê o destino do último encaminhamento de cada item.
     """
-    evidences = list(Evidence.objects.filter(occurrence=occurrence).order_by('code', 'id'))
+    evidences = sorted(Evidence.objects.filter(occurrence=occurrence), key=_tree_sort_key)
     states, eventos_por_ev = analytics.legal_states_by_evidence(
         ChainOfCustody.objects.filter(evidence__occurrence=occurrence),
         with_events=True,

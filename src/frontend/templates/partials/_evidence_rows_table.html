@@ -22,7 +22,7 @@
     {% for e in items %}
     <tr role="row" tabindex="0" data-row data-id="{{ e.id }}"
         data-href="{{ e.detail_url }}" aria-label="Abrir {{ e.code }}">
-      <td role="gridcell" class="mono grid__code">{% if tree_prefix and e.parent_evidence %}<span class="grid__muted">└ </span>{% endif %}<a class="grid__link" href="{{ e.detail_url }}">{{ e.code }}</a></td>
+      <td role="gridcell" class="mono grid__code">{% if tree_prefix and e.tree_depth > 1 %}<span class="grid__muted tree-lvl-{{ e.tree_depth }}">└ </span>{% endif %}<a class="grid__link" href="{{ e.detail_url }}">{{ e.code }}</a></td>
       <td role="gridcell" class="grid__ellipsis">{{ e.type_label }}</td>
       {# Badges dos atos numa âncora única (_act_badges): clicar abre a consulta read-only. #}
       <td role="gridcell"><span class="state state--{{ e.state_css }}">{{ e.state_label }}</span> {% include 'partials/_act_badges.html' with e=e %}</td>

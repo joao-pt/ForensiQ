@@ -520,6 +520,9 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .grid--clickable tbody tr:hover .grid__code { color: var(--accent); }
 .grid__ellipsis { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
 .grid__muted { color: var(--text-muted); }
+/* Recuo progressivo da árvore de sub-componentes (nível 2 = «└» encostado;
+   nível 3 = neto recuado — sem isto o neto era indistinguível do filho). */
+.tree-lvl-3 { padding-left: 1.1em; }
 .grid__pri { text-align: center; }
 .grid__geo {
     width: 12px; height: 12px;
