@@ -99,6 +99,33 @@ ARQUIVO_REOPEN_HINT = (
     'decidida após a perda a favor do Estado), mas deve ser deliberado.'
 )
 
+# Página «Atos de autoridade» (consulta global — grupo Análise): badge do ATO
+# por tipo de evento — rótulo CURTO de coluna (o completo do enum fica no
+# filtro e no modal; numa coluna de grelha truncava) e cor da paleta existente
+# (a validação pinta-se como o estatuto «validada», o despacho como o badge do
+# despacho). Estatuto compacto do PRAZO por linha — vocabulário do modal
+# _atos_info (prazo cumprido pela CONCLUSAO posterior; extinto pela disposição
+# final) + o despacho NÃO-vigente (Art. 158.º: vale o último; os anteriores
+# ficam substituídos, o prazo deles já não corre).
+ACT_EVENT_SHORT = {
+    'VALIDACAO_APREENSAO': 'Validação',
+    'DESPACHO_PERICIA': 'Despacho',
+}
+ACT_EVENT_CSS = {
+    'VALIDACAO_APREENSAO': VALIDATION_STATUS_CSS['validada'],
+    'DESPACHO_PERICIA': DESPACHO_BADGE_CSS,
+}
+PRAZO_RESOLVIDO_LABELS = {
+    'cumprido': 'Prazo cumprido',
+    'extinto': 'Prazo extinto',
+}
+PRAZO_RESOLVIDO_CSS = {
+    'cumprido': 'ok',
+    'extinto': 'muted',
+}
+DESPACHO_SUBSTITUIDO_LABEL = 'Substituído'
+DESPACHO_SUBSTITUIDO_CSS = 'muted'
+
 # Rótulo + cor do PRAZO da perícia ordenada (data-limite derivada do despacho:
 # core.policy.event_states.pericia_deadline). ``{due}`` é a data-limite
 # (YYYY-MM-DD) e ``{rel}`` a urgência relativa («hoje»/«amanhã»/«em N dias») —

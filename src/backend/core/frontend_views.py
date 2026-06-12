@@ -41,6 +41,8 @@ from core.audit import get_client_ip, log_access
 from core.auth import JWTCookieAuthentication
 from core.grid import GridColumn, grid_list_response, serialize_columns
 from core.labels import (
+    ACT_EVENT_CSS,
+    ACT_EVENT_SHORT,
     ACTION_CSS,
     ACTION_SHORT,
     ARQUIVO_BADGE_CSS,
@@ -49,10 +51,14 @@ from core.labels import (
     DESFECHO_MISTO_LABEL,
     DESPACHO_BADGE_CSS,
     DESPACHO_BADGE_LABEL,
+    DESPACHO_SUBSTITUIDO_CSS,
+    DESPACHO_SUBSTITUIDO_LABEL,
     LEGAL_STATE_CSS,
     LEGAL_STATE_LABELS,
     PERICIA_DEADLINE_CSS,
     PERICIA_DEADLINE_LABELS,
+    PRAZO_RESOLVIDO_CSS,
+    PRAZO_RESOLVIDO_LABELS,
     VALIDATION_LATE_CSS,
     VALIDATION_LATE_LABEL,
     VALIDATION_STATUS_CSS,
@@ -60,6 +66,7 @@ from core.labels import (
 )
 from core.list_filters import ColFilter
 from core.models import (
+    CERTIFIED_ACT_EVENTS,
     GENESIS_EVENTS,
     PERICIA_ATTENTION_STATUSES,
     SEIZURE_GENESIS_EVENTS,
@@ -3691,6 +3698,173 @@ def custody_list_view(request):
         empty_title='Sem eventos de custódia',
         empty_hint='Ainda não há eventos registados.',
         computed_filters={'state': _state_filter(_lens_states, fk='evidence_id')},
+        csv_export=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Atos de autoridade — consulta GLOBAL (grupo Análise). Fecha a pendência da
+# sessão dos badges: consultar validações/despachos sem passar item a item.
+# Grelha do gerador único sobre o ledger visível filtrado aos atos certificados
+# (CERTIFIED_ACT_EVENTS, hv4); a consulta RICA continua única no modal
+# /evidences/<id>/atos/ (a ação «Consultar» abre-o in-place, como a edição de
+# instituições) e a célula do item navega para a ficha.
+# ---------------------------------------------------------------------------
+
+# Sorts da grelha dos atos — registo do ledger com tiebreak por sequência
+# (mesma razão de _CUSTODY_SORTS: timestamps empatados baralham páginas).
+_ATOS_SORTS = {
+    'recent': ('-timestamp', '-sequence'),
+    'oldest': ('timestamp', 'sequence'),
+    'evidence': ('evidence__code', 'sequence'),
+}
+
+
+def _prazo_badge_of(rec, eventos, deadlines):
+    """Badge compacto da coluna «Prazo» de uma linha dos atos (None → '—').
+
+    Despacho: o estatuto VIGENTE (mesma derivação dos badges por item —
+    ``_pericia_badge`` sobre o bulk da analytics) só no ÚLTIMO despacho com o
+    prazo vivo; quando já não corre mostra-se a RAZÃO compacta (cumprido pela
+    CONCLUSAO posterior / extinto pela disposição — regra posicional
+    ``pericia_prazo_resolucao``) e os despachos anteriores ficam
+    «Substituído» (Art. 158.º: vale o último). Validação: assinala-se só o
+    ato FORA do prazo legal (mesma fórmula da consulta por item —
+    ``validation_acted_late`` sobre o instante declarado, fallback timestamp);
+    dentro do prazo não há estatuto a acrescentar.
+    """
+    if rec.event_type == EventType.DESPACHO_PERICIA:
+        vigente, resolucao = pericia_prazo_resolucao(eventos)
+        if vigente is None or rec.pk != vigente.pk:
+            return {'css': DESPACHO_SUBSTITUIDO_CSS, 'label': DESPACHO_SUBSTITUIDO_LABEL}
+        if resolucao is None:
+            return _pericia_badge(deadlines.get(rec.evidence_id))
+        key = (
+            'cumprido'
+            if resolucao.event_type == EventType.CONCLUSAO_PERICIA
+            else 'extinto'
+        )
+        return {'css': PRAZO_RESOLVIDO_CSS[key], 'label': PRAZO_RESOLVIDO_LABELS[key]}
+    seizure = seizure_of(eventos)
+    if seizure is not None and validation_acted_late(
+        seizure.timestamp, rec.act_declared_at or rec.timestamp
+    ):
+        return {'css': VALIDATION_LATE_CSS, 'label': VALIDATION_LATE_LABEL}
+    return None
+
+
+def _decorate_act_rows(events):
+    """Decoração das linhas da grelha dos atos: rótulos base do ledger
+    (``_decorate_events`` — autoridade, hash curto), badge do ATO (rótulo do
+    próprio enum, cor na fonte única de labels), estatuto do prazo por linha
+    (cadeia COMPLETA do item — só na página, como nas custódias) e as duas
+    navegações (item → ficha; «Consultar» → modal read-only já existente)."""
+    _decorate_events(events)
+    page_ledger = ChainOfCustody.objects.filter(
+        evidence_id__in={r.evidence_id for r in events}
+    )
+    deadlines = analytics.pericia_deadlines_by_evidence(page_ledger)
+    by_ev = {}
+    for rec in page_ledger.order_by('evidence_id', 'sequence'):
+        by_ev.setdefault(rec.evidence_id, []).append(rec)
+    for r in events:
+        r.occ_label = r.evidence.occurrence.display_label
+        r.item_code = r.evidence.code
+        r.item_url = f'/evidences/{r.evidence_id}/'
+        r.ato_badge = {
+            'css': ACT_EVENT_CSS.get(r.event_type, DESPACHO_BADGE_CSS),
+            'label': ACT_EVENT_SHORT.get(r.event_type, r.event_label),
+        }
+        r.prazo_badge = _prazo_badge_of(r, by_ev.get(r.evidence_id, ()), deadlines)
+        r.consultar = {
+            'href': f'/evidences/{r.evidence_id}/atos/',
+            'label': 'Consultar',
+            'aria': f'Consultar os atos de {r.evidence.code}',
+            'modal_title': f'Atos de autoridade · {r.evidence.code}',
+        }
+
+
+@jwt_cookie_user
+def authority_acts_view(request):
+    """Atos de autoridade — consulta GLOBAL, server-rendered (grupo Análise).
+
+    Grelha do gerador único sobre o ledger visível à lente ativa
+    (``_lens_custody`` — need-to-know igual às custódias) filtrado aos ATOS
+    certificados: quem proferiu cada ato (nome/cargo estruturados, hv4), a
+    data declarada, o estatuto do prazo e o registo selado (hash). A linha
+    não navega (como as instituições): a célula do item abre a ficha e a
+    ação «Consultar» abre o modal único ``/evidences/<id>/atos/``.
+    """
+    user = request.user
+    lens = access.active_console_mode(request, user)
+    # O base-qs da lente já traz evidence/occurrence/agent (select_related em
+    # _custody_base_qs) — tudo o que a decoração desta grelha consome.
+    qs = _lens_custody(user, lens).filter(event_type__in=CERTIFIED_ACT_EVENTS)
+
+    # Choices do filtro «Ato» restritos ao conjunto legal (fonte única na
+    # policy) — o select nunca oferece eventos que a grelha exclui à partida.
+    ato_choices = tuple(
+        (value, label) for value, label in EventType.choices
+        if value in CERTIFIED_ACT_EVENTS
+    )
+
+    columns = [
+        # NUIPC do processo (mesmo padrão de /custodies/ — decisão 4 da
+        # auditoria UX: o processo mostra-se pelo identificador oficial).
+        GridColumn('occ_label', 'NUIPC', css='mono grid__ellipsis col-hide-md', width=11,
+                   filter=ColFilter('occ', 'NUIPC', kind='text',
+                                    field='evidence__occurrence__number', placeholder='NUIPC')),
+        # Item (link para a ficha) — célula-código real (novo separador com
+        # Ctrl/middle-click); o filtro apanha a sub-árvore por prefixo.
+        GridColumn('item_code', 'Item', cell='code', css='grid__ellipsis', width=13,
+                   link_key='item_url',
+                   filter=ColFilter('item', 'Item', kind='text',
+                                    field='evidence__code', placeholder='Código do item')),
+        GridColumn('ato_badge', 'Ato', cell='state', width=9,
+                   filter=ColFilter('ato', 'Ato', kind='select', field='event_type',
+                                    choices=ato_choices)),
+        # Autoridade estruturada (hv4): nome (cargo) — filtro de TEXTO
+        # multi-campo (nunca um select/diretório de autoridades; need-to-know).
+        GridColumn('authority_label', 'Autoridade', css='grid__ellipsis col-hide-sm', width=17,
+                   filter=ColFilter('autoridade', 'Autoridade', kind='text',
+                                    fields=('authority_nome', 'authority_cargo'),
+                                    placeholder='Nome ou cargo')),
+        # Data juridicamente relevante: a DECLARADA pela autoridade ('—' nos
+        # eventos pré-hv4 sem campo estruturado; o registo selado fica no modal).
+        # No telemóvel cede o lugar à ação «Consultar» (o propósito da página) —
+        # a data completa está a um toque, no próprio modal.
+        GridColumn('act_declared_at', 'Data declarada', cell='date', time=True,
+                   css='col-reduce-hide', width=13,
+                   filter=ColFilter('declared', 'Data declarada', kind='date_range',
+                                    field='act_declared_at')),
+        GridColumn('prazo_badge', 'Prazo', cell='state', css='col-reduce-hide', width=18),
+        GridColumn('hash_short', 'Registo', suffix='…', css='mono grid__muted col-hide-md',
+                   width=9),
+        GridColumn('consultar', 'Consulta', cell='action', width=10),
+    ]
+
+    return grid_list_response(
+        request,
+        queryset=qs,
+        columns=columns,
+        grid_key='atos',
+        endpoint='/atos/',
+        page_template='atos.html',
+        table_label='Atos de autoridade',
+        count_noun='ato',
+        sorts=_ATOS_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigos'),
+                  ('evidence', 'Por item')),
+        search_fields=('evidence__code', 'evidence__occurrence__number',
+                       'authority_nome'),
+        search_placeholder='Pesquisar item, NUIPC, autoridade…',
+        decorate=_decorate_act_rows,
+        row_clickable=False,
+        page_size=30,
+        lens=lens,
+        empty_title='Sem atos de autoridade',
+        empty_hint='Ainda não há validações nem despachos registados no âmbito ativo.',
         csv_export=True,
     )
 

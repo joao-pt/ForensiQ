@@ -17,8 +17,14 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from core.labels import VALIDATION_LATE_LABEL
+from core.labels import (
+    DESPACHO_SUBSTITUIDO_LABEL,
+    PRAZO_RESOLVIDO_LABELS,
+    VALIDATION_LATE_LABEL,
+)
 from core.models import (
+    CERTIFIED_ACT_EVENTS,
+    AuditLog,
     ChainOfCustody,
     CustodianType,
     EventType,
@@ -227,3 +233,169 @@ class AtosBadgesClicaveisTest(TestCase):
         auth_cookie(self.client, perito)
         body = self.client.get('/inbound/').content.decode()
         self._assert_act_link(body)
+
+
+class AtosGlobaisGridTest(TestCase):
+    """Página /atos/ — consulta GLOBAL dos atos certificados (grupo Análise).
+
+    Grelha do gerador único sobre o ledger visível filtrado a
+    ``CERTIFIED_ACT_EVENTS``: só validações/despachos, com a autoridade
+    estruturada (hv4), o estatuto do prazo derivado por linha (despacho
+    vigente/substituído/cumprido/extinto; validação fora do prazo) e a ação
+    «Consultar» a abrir o modal único ``/evidences/<id>/atos/``. Mesma porta
+    need-to-know das custódias (``_lens_custody``)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(
+            name='PSP Atos Globais', type=InstitutionType.OPC, sigla='PSP-AG'
+        )
+        cls.agent = _user('atos_grid', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.occ = _occ(cls.agent, 'ATOS-3')
+        cls.ev = _evidence(cls.occ, cls.agent)
+        make_chain(
+            cls.ev,
+            (EventType.APREENSAO_OBJETO, {'custodian_institution': cls.opc}),
+            EventType.VALIDACAO_APREENSAO,
+            EventType.DESPACHO_PERICIA,
+        )
+
+    def _rows(self, suffix='', user=None):
+        auth_cookie(self.client, user or self.agent)
+        r = self.client.get('/atos/' + suffix)
+        self.assertEqual(r.status_code, 200)
+        return r, list(r.context['page_obj'].object_list)
+
+    # -- Âmbito e conteúdo ---------------------------------------------------
+
+    def test_lista_so_atos_certificados(self):
+        # A APREENSAO (génese) fica de fora — a grelha é dos ATOS, não do
+        # ledger inteiro; os dois atos do item aparecem.
+        _, rows = self._rows()
+        tipos = [r.event_type for r in rows]
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(set(tipos) <= set(CERTIFIED_ACT_EVENTS))
+        self.assertIn(EventType.VALIDACAO_APREENSAO, tipos)
+        self.assertIn(EventType.DESPACHO_PERICIA, tipos)
+
+    def test_linha_decorada_com_autoridade_navegacao_e_prazo(self):
+        _, rows = self._rows()
+        despacho = next(r for r in rows if r.event_type == EventType.DESPACHO_PERICIA)
+        # Autoridade estruturada (hv4): nome (cargo) — fonte única _decorate_events.
+        self.assertIn(AUTHORITY_KWARGS['authority_nome'], despacho.authority_label)
+        self.assertIn(AUTHORITY_KWARGS['authority_cargo'], despacho.authority_label)
+        # Navegações: item → ficha; «Consultar» → modal read-only já existente.
+        self.assertEqual(despacho.item_url, f'/evidences/{self.ev.id}/')
+        self.assertEqual(despacho.consultar['href'], f'/evidences/{self.ev.id}/atos/')
+        self.assertIn(self.ev.code, despacho.consultar['modal_title'])
+        # Despacho vigente com o prazo vivo: badge do estatuto (em prazo).
+        self.assertIn('Perícia até', despacho.prazo_badge['label'])
+        # Validação dentro do prazo: sem estatuto a acrescentar ('—' na célula).
+        validacao = next(
+            r for r in rows if r.event_type == EventType.VALIDACAO_APREENSAO
+        )
+        self.assertIsNone(validacao.prazo_badge)
+
+    def test_acao_consultar_abre_modal(self):
+        r, _ = self._rows()
+        body = r.content.decode()
+        self.assertIn(f'href="/evidences/{self.ev.id}/atos/"', body)
+        self.assertIn('data-modal-open', body)
+
+    def test_despacho_anterior_fica_substituido(self):
+        # Art. 158.º: vale o ÚLTIMO despacho (2.ª perícia) — o anterior deixa
+        # de ter prazo a correr e a grelha di-lo, em vez de dois «Perícia até».
+        ev = _evidence(self.occ, self.agent)
+        d1, d2 = make_chain(
+            ev,
+            (EventType.APREENSAO_OBJETO, {'custodian_institution': self.opc}),
+            EventType.VALIDACAO_APREENSAO,
+            EventType.DESPACHO_PERICIA,
+            EventType.DESPACHO_PERICIA,
+        )[2:]
+        _, rows = self._rows()
+        by_pk = {r.pk: r for r in rows}
+        self.assertEqual(by_pk[d1.pk].prazo_badge['label'], DESPACHO_SUBSTITUIDO_LABEL)
+        self.assertIn('Perícia até', by_pk[d2.pk].prazo_badge['label'])
+
+    def test_prazo_cumprido_e_extinto(self):
+        cumprida = _evidence(self.occ, self.agent)
+        make_chain(
+            cumprida,
+            (EventType.APREENSAO_OBJETO, {'custodian_institution': self.opc}),
+            EventType.VALIDACAO_APREENSAO,
+            EventType.DESPACHO_PERICIA,
+            EventType.INICIO_PERICIA,
+            EventType.CONCLUSAO_PERICIA,
+        )
+        extinta = _evidence(self.occ, self.agent)
+        make_chain(
+            extinta,
+            (EventType.APREENSAO_OBJETO, {'custodian_institution': self.opc}),
+            EventType.VALIDACAO_APREENSAO,
+            EventType.DESPACHO_PERICIA,
+            EventType.PERDA_FAVOR_ESTADO,
+        )
+        _, rows = self._rows()
+        labels = {
+            r.evidence_id: r.prazo_badge['label']
+            for r in rows if r.event_type == EventType.DESPACHO_PERICIA
+        }
+        self.assertEqual(labels[cumprida.id], PRAZO_RESOLVIDO_LABELS['cumprido'])
+        self.assertEqual(labels[extinta.id], PRAZO_RESOLVIDO_LABELS['extinto'])
+
+    def test_validacao_fora_do_prazo_assinalada(self):
+        ev = _evidence(self.occ, self.agent)
+        # Retrodatar = congelar o relógio na criação (ledger imutável, trigger PG).
+        backdated = timezone.now() - timedelta(hours=80)
+        with mock.patch('core.models.timezone.now', return_value=backdated):
+            _event(ev, self.agent, inst=self.opc)
+        tarde = _event(ev, self.agent, event_type=EventType.VALIDACAO_APREENSAO)
+        _, rows = self._rows()
+        linha = next(r for r in rows if r.pk == tarde.pk)
+        self.assertEqual(linha.prazo_badge['label'], VALIDATION_LATE_LABEL)
+
+    # -- Filtros e export ------------------------------------------------------
+
+    def test_filtro_por_ato(self):
+        _, rows = self._rows('?ato=DESPACHO_PERICIA')
+        self.assertTrue(rows)
+        self.assertTrue(
+            all(r.event_type == EventType.DESPACHO_PERICIA for r in rows)
+        )
+
+    def test_filtro_autoridade_por_nome_ou_cargo(self):
+        _, rows = self._rows('?autoridade=Procuradora')
+        self.assertEqual(len(rows), 2)
+        _, rows = self._rows('?autoridade=ninguém-com-este-nome')
+        self.assertEqual(rows, [])
+
+    def test_csv_export_auditado(self):
+        auth_cookie(self.client, self.agent)
+        r = self.client.get('/atos/?export=csv')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('text/csv', r['Content-Type'])
+        body = r.content.decode()
+        self.assertIn('Autoridade', body)
+        self.assertIn(AUTHORITY_KWARGS['authority_nome'], body)
+        # Extração massiva fica no trilho (EXPORT_CSV com o âmbito da grelha).
+        log = AuditLog.objects.filter(action=AuditLog.Action.EXPORT_CSV).latest('id')
+        self.assertEqual(log.details.get('grid'), 'atos')
+
+    # -- Acesso (need-to-know, mesma porta das custódias) ----------------------
+
+    def test_utilizador_sem_ambito_nao_ve_atos(self):
+        outra = Institution.objects.create(
+            name='GNR Fora Globais', type=InstitutionType.OPC, sigla='GNR-FG'
+        )
+        estranho = _user('atos_grid_estranho', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=estranho, institution=outra)
+        _, rows = self._rows(user=estranho)
+        self.assertEqual(rows, [])
+
+    def test_entrada_na_sidebar(self):
+        auth_cookie(self.client, self.agent)
+        body = self.client.get('/dashboard/').content.decode()
+        self.assertIn('href="/atos/', body)
+        self.assertIn('Atos de autoridade', body)

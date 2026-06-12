@@ -37,6 +37,7 @@ from core.auth_views import (
 from core.frontend_views import (
     arquivo_view,
     audit_console_view,
+    authority_acts_view,
     custody_evidence_redirect,
     custody_list_view,
     custody_singular_redirect,
@@ -176,6 +177,10 @@ urlpatterns = [
 
     # Custódias
     path('custodies/', custody_list_view, name='custodies'),
+
+    # Atos de autoridade — consulta global (validações/despachos certificados,
+    # hv4) sem passar item a item; a consulta rica continua em /evidences/<id>/atos/.
+    path('atos/', authority_acts_view, name='atos'),
 
     # Caixa "prova a chegar" — avisos de encaminhamento para a minha instituição,
     # por receber (2.ª metade do handoff, ADR-0016 v2). Liga ao intake/receber.

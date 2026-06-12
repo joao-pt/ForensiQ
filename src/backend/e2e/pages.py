@@ -64,6 +64,7 @@ def app_pages(occ_id, ev_id):
         'evidence_registered': {'path': f'/evidences/{ev_id}/registado/'},
         'custody': {'path': f'/evidences/{ev_id}/custody/', 'htmx': True},
         'custodies': {'path': '/custodies/', 'leaflet': True, 'htmx': True},
+        'atos': {'path': '/atos/', 'htmx': True},
         'reports': {'path': '/reports/', 'htmx': True},
         'institutions': {'path': '/institutions/', 'htmx': True},
         'stats': {'path': '/stats/'},
