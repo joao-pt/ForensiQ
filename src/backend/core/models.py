@@ -451,7 +451,13 @@ class Institution(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.sigla or self.name} ({self.get_type_display()})'
+        return f'{self.short_label} ({self.get_type_display()})'
+
+    @property
+    def short_label(self):
+        """Formato CURTO canónico — sigla, senão nome. Fonte única da regra
+        «sigla ou nome» (colunas, filtros, mensagens, caixa de receção)."""
+        return self.sigla or self.name
 
     @property
     def option_label(self):

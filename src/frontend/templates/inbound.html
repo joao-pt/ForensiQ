@@ -45,7 +45,7 @@
             {% if n.evidence.pri %}<span class="pri pri--{{ n.evidence.pri.cls }}" title="{{ n.evidence.pri.title }}" aria-label="{{ n.evidence.pri.title }}">{{ n.evidence.pri.level }}</span> {% endif %}<a href="/occurrences/{{ n.evidence.occurrence_id }}/">{{ n.evidence.occ_label }}</a>
           </td>
           <td role="gridcell" class="grid__ellipsis col-hide-sm">{{ n.evidence.type_label }}</td>
-          <td role="gridcell">{{ n.destino_institution.sigla|default:n.destino_institution.name }}</td>
+          <td role="gridcell">{{ n.destino_institution.short_label }}</td>
           <td role="gridcell" class="col-hide-sm">
             {{ n.bearer_label }}{% if n.bearer_mat %} <span class="grid__muted mono">({{ n.bearer_mat }})</span>{% endif %}
           </td>

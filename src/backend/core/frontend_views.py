@@ -288,12 +288,24 @@ def _decorate_occurrences_page(occurrences):
     _decorate_occurrences_validation(occurrences)
 
 
+# Rótulos do enum CustodianType uma vez por processo (equivalente bulk do
+# get_custodian_type_display; o ``.get`` dá o fallback «—» a valores em branco).
+_CTYPE_LABELS = dict(CustodianType.choices)
+
+
+def _holder_display(inst_label, ctype):
+    """Rótulo do detentor de um item — regra ÚNICA de composição, per-item
+    (:func:`_holder_label_of`) e bulk (:func:`_decorate_occurrences_where`):
+    instituição (``Institution.short_label``) → senão rótulo do
+    ``custodian_type`` («Proprietário» nos restituídos) → senão «—»."""
+    return inst_label or _CTYPE_LABELS.get(ctype, '—')
+
+
 def _decorate_occurrences_where(occurrences):
     """Anota ``occ.where_label`` — síntese «onde está a prova agora» por
     processo (Nota A camada 2): sigla quando os itens estão TODOS num local
-    único / «N locais» / «—» sem itens. O local de um item é a instituição do
-    último evento (sigla; sem instituição, o rótulo do ``custodian_type`` —
-    «Proprietário» nos restituídos). Itens sem eventos (génese por abrir) são
+    único / «N locais» / «—» sem itens. O local de um item compõe-se por
+    :func:`_holder_display`. Itens sem eventos (génese por abrir) são
     ignorados na síntese. Bulk: 1 passagem do ledger + 1 query de Evidence +
     1 de Institution, só sobre a página."""
     ids = [o.id for o in occurrences]
@@ -311,12 +323,12 @@ def _decorate_occurrences_where(occurrences):
         key = inst_id if inst_id is not None else f'ct:{ctype}'
         keys_by_occ.setdefault(occ_by_ev.get(ev_id), set()).add(key)
     inst_ids = {k for keys in keys_by_occ.values() for k in keys if isinstance(k, int)}
+    # ``only`` em vez de ``values_list``: a mesma query de 3 colunas, mas o
+    # formato vem da fonte única (Institution.short_label), não re-derivado.
     siglas = {
-        i: (sigla or name)
-        for i, sigla, name in Institution.objects.filter(id__in=inst_ids)
-        .values_list('id', 'sigla', 'name')
+        i.id: i.short_label
+        for i in Institution.objects.filter(id__in=inst_ids).only('id', 'sigla', 'name')
     }
-    ctype_labels = dict(CustodianType.choices)   # fallback bulk do get_..._display
     for o in occurrences:
         keys = keys_by_occ.get(o.id)
         if not keys:
@@ -326,8 +338,8 @@ def _decorate_occurrences_where(occurrences):
             continue
         key = next(iter(keys))
         o.where_label = (
-            siglas.get(key, '—') if isinstance(key, int)
-            else ctype_labels.get(key.removeprefix('ct:'), '—')
+            _holder_display(siglas.get(key), None) if isinstance(key, int)
+            else _holder_display(None, key.removeprefix('ct:'))
         )
 
 
@@ -403,9 +415,9 @@ def _active_institutions():
 
 
 def _institution_choices():
-    """(id, sigla-ou-nome) das instituições ativas — fonte única dos selects
+    """(id, short_label) das instituições ativas — fonte única dos selects
     «Instituição» (custódias) e «Onde está» (evidências)."""
-    return tuple((i.id, i.sigla or i.name) for i in _active_institutions())
+    return tuple((i.id, i.short_label) for i in _active_institutions())
 
 
 def _active_portadores():
@@ -486,17 +498,17 @@ def _evidence_state(st):
 def _holder_label_of(last):
     """(rótulo, tooltip) do detentor ATUAL a partir do último elo do ledger.
 
-    Sigla da instituição (nome completo no tooltip — decisão do parecer:
-    nunca tooltip-only); sem instituição (ex.: restituída), o rótulo do
-    ``custodian_type`` vem do enum da policy («Proprietário»); sem eventos, «—».
+    Composição única em :func:`_holder_display` (instituição → tipo de
+    custódio → «—»); nome completo da instituição no tooltip — decisão do
+    parecer: nunca tooltip-only. Sem eventos, («—», sem tooltip).
     """
     if last is None:
         return ('—', '')
     inst = last.custodian_institution
+    label = _holder_display(inst.short_label if inst else None, last.custodian_type)
     if inst is not None:
-        return (inst.sigla or inst.name, inst.name)
-    label = last.get_custodian_type_display()
-    return (label, label)
+        return (label, inst.name)
+    return (label, label if label != '—' else '')
 
 
 def _pericia_rel(days_left):
@@ -1482,7 +1494,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
         if not errs:
             messages.success(
                 request,
-                f'{len(sel)} item(ns) encaminhado(s) para {destino.sigla or destino.name}.',
+                f'{len(sel)} item(ns) encaminhado(s) para {destino.short_label}.',
             )
             return _form_success_response(modal, f'/occurrences/{occ.id}/')
         return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
@@ -2169,7 +2181,7 @@ def institution_new_view(request):
                 resource_id=inst.pk,
                 details={'institution': inst.pk, 'name': inst.name, 'type': inst.type},
             )
-            messages.success(request, f'Instituição {inst.sigla or inst.name} criada.')
+            messages.success(request, f'Instituição {inst.short_label} criada.')
             return _form_success_response(modal, '/institutions/')
         return render(request, template, _ctx(serializer.errors, request.POST), status=400)
 
@@ -2862,7 +2874,7 @@ def _decorate_custody_rows(events, states):
         )
         r.pericia_dot = _pericia_dot(_pericia_badge(deadlines.get(r.evidence_id)))
         inst = r.custodian_institution
-        r.institution_label = (inst.sigla or inst.name) if inst else '—'
+        r.institution_label = inst.short_label if inst else '—'
         r.detail_url = _custody_anchor_url(r)   # destino da linha/célula-código
 
 
