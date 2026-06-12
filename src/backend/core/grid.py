@@ -131,10 +131,14 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
         qs = post_filter(qs, request)
 
     # 5) Ordenação (lista branca → impede campos arbitrários por query param).
+    #    str = um campo; tuplo/lista = sort COMPOSTO (campo + tiebreak estável,
+    #    ex.: '-timestamp' + '-sequence' — sem ele a paginação baralha linhas
+    #    com valores empatados entre páginas).
     sort_key = (request.GET.get('sort') or '').strip()
     if sort_key not in sorts:
         sort_key = default_sort
-    qs = qs.order_by(sorts[sort_key])
+    sort_spec = sorts[sort_key]
+    qs = qs.order_by(*((sort_spec,) if isinstance(sort_spec, str) else sort_spec))
 
     # 6) Paginação + decoração de apresentação (rótulos, .dot, .aria_code).
     paginator = Paginator(qs, page_size)

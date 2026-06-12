@@ -163,6 +163,27 @@ class CustodyListRenderTest(TestCase):
         self.assertIn('urgency-dot', content)
         self.assertIn('state state--', content)
 
+    def test_custody_list_feed_de_auditoria(self):
+        # Parecer item 15: coluna ÚNICA de identificação (o código do evento já
+        # contém item+movimento — a coluna «Item» repetia o prefixo), NUIPC e
+        # Responsável com filtro, e cabeçalho honesto «Estado atual».
+        content = self._get('/custodies/').content.decode('utf-8')
+        self.assertNotIn('name="item"', content)
+        self.assertIn('name="occ"', content)
+        self.assertIn('name="agent"', content)
+        self.assertIn('Estado atual', content)
+        self.assertIn('Responsável', content)
+        # O Evento fica visível na redução mobile (sem col-reduce-hide).
+        self.assertIn('CC-1', content)   # NUIPC decorado (display_label)
+
+    def test_custody_list_filtro_responsavel_e_nuipc(self):
+        ok = self._get('/custodies/?agent=grid_cc').content.decode('utf-8')
+        self.assertIn('-M01', ok)
+        vazio = self._get('/custodies/?agent=outro_qualquer').content.decode('utf-8')
+        self.assertNotIn('-M01', vazio)
+        por_nuipc = self._get('/custodies/?occ=CC-1').content.decode('utf-8')
+        self.assertIn('-M01', por_nuipc)
+
 
 class ReportsListRenderTest(AuthenticatedFrontendTestCase):
     """Smoke da lista de Guias de transporte: linhas NÃO-clicáveis, ação PDF e

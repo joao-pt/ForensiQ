@@ -2835,10 +2835,14 @@ def custody_timeline_view(request, evidence_id):
     )
 
 
+# Sorts COMPOSTOS (tuplos — gerador único): '-sequence' como tiebreak torna a
+# paginação determinística com timestamps empatados (eventos do mesmo lote
+# atómico) — num registo probatório, linhas a baralhar entre páginas leem-se
+# como corrupção.
 _CUSTODY_SORTS = {
-    'recent': '-timestamp',
-    'oldest': 'timestamp',
-    'evidence': 'evidence__code',
+    'recent': ('-timestamp', '-sequence'),
+    'oldest': ('timestamp', 'sequence'),
+    'evidence': ('evidence__code', 'sequence'),
 }
 
 
@@ -2899,6 +2903,9 @@ def _decorate_custody_rows(events, states):
         r.pericia_dot = _pericia_dot(_pericia_badge(deadlines.get(r.evidence_id)))
         inst = r.custodian_institution
         r.institution_label = inst.short_label if inst else '—'
+        # NUIPC do processo — fonte única do formato (display_label, D42);
+        # occurrence já vem no select_related do base-qs (zero N+1).
+        r.occ_label = r.evidence.occurrence.display_label
         r.detail_url = _custody_anchor_url(r)   # destino da linha/célula-código
 
 
@@ -2932,27 +2939,46 @@ def custody_list_view(request):
         _decorate_custody_rows(events, _lens_states())
 
     columns = [
-        # val_flag no Código (sobrevive à redução mobile) — ver nota homóloga
-        # na grelha de /evidences/.
-        GridColumn('code', 'Código', cell='code', width=11, dot=True, val_flag=True,
-                   link_key='detail_url',
+        # Coluna ÚNICA de identificação (parecer item 15): o código do evento
+        # JÁ é '{item}-M{seq}' (fonte única no save() do modelo) — a antiga
+        # coluna «Item» repetia o prefixo em todas as linhas. O filtro de texto
+        # do Código apanha o código do item por prefixo. val_flag no Código
+        # (sobrevive à redução mobile) — ver nota homóloga em /evidences/.
+        GridColumn('code', 'Código', cell='code', css='grid__ellipsis', width=14,
+                   dot=True, val_flag=True, link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
-        GridColumn('evidence.code', 'Item', css='mono', width=11,
-                   filter=ColFilter('item', 'Item', kind='text', field='evidence__code', placeholder='Item')),
-        GridColumn('event_label', 'Evento', css='grid__ellipsis col-reduce-hide', width=15,
+        # NUIPC do processo (decisão 4 — mesmo padrão de /evidences/).
+        GridColumn('occ_label', 'NUIPC', css='mono grid__ellipsis col-hide-md', width=10,
+                   filter=ColFilter('occ', 'NUIPC', kind='text',
+                                    field='evidence__occurrence__number', placeholder='NUIPC')),
+        # Evento VISÍVEL em mobile (sem col-reduce-hide): num feed de auditoria
+        # do ledger, a linha reduzida tem de dizer O QUE aconteceu, não só quando.
+        GridColumn('event_label', 'Evento', css='grid__ellipsis', width=14,
                    filter=ColFilter('event', 'Evento', kind='select', field='event_type',
                                     choices=tuple(EventType.choices))),
-        GridColumn('custodian_label', 'Custódio', css='grid__muted col-hide-sm', width=13,
+        GridColumn('custodian_label', 'Custódio', css='grid__muted col-hide-sm', width=10,
                    filter=ColFilter('custodian', 'Custódio', kind='select', field='custodian_type',
                                     choices=tuple(CustodianType.choices))),
-        GridColumn('institution_label', 'Instituição', css='grid__muted col-reduce-hide', width=13,
+        GridColumn('institution_label', 'Instituição', css='grid__muted col-reduce-hide', width=10,
                    filter=ColFilter('institution', 'Instituição', kind='select',
                                     field='custodian_institution_id', choices=inst_choices)),
-        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
-                   filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
-        GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=16,
+        # Responsável = agente do evento (vocabulário da timeline); filtro de
+        # TEXTO multi-campo como o q_agent das ocorrências — nunca um select de
+        # utilizadores (nenhuma grelha expõe diretório de users; need-to-know).
+        GridColumn('agent_label', 'Responsável', css='grid__muted col-hide-sm', width=10,
+                   filter=ColFilter('agent', 'Responsável', kind='text',
+                                    fields=('agent__first_name', 'agent__last_name',
+                                            'agent__username'),
+                                    placeholder='Responsável')),
+        # «Estado atual»: o badge é o estado legal DERIVADO do item HOJE (cadeia
+        # completa) — todas as linhas históricas de um item mostram o mesmo; o
+        # cabeçalho antigo «Estado» sugeria o estado no momento do evento.
+        GridColumn('state_badge', 'Estado atual', cell='state', css='col-reduce-hide', width=10,
+                   filter=ColFilter('state', 'Estado atual', kind='select',
+                                    choices=list(LEGAL_STATE_LABELS.items()))),
+        GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=14,
                    filter=ColFilter('date', 'Data / hora', kind='date_range', field='timestamp')),
-        GridColumn('hash_short', 'Hash', suffix='…', css='mono grid__muted col-hide-md', width=10),
+        GridColumn('hash_short', 'Hash', suffix='…', css='mono grid__muted col-hide-md', width=8),
     ]
 
     return grid_list_response(
