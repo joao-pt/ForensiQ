@@ -84,6 +84,7 @@ from core.models import (
 from core.policy import custody_transitions
 from core.policy.event_states import (
     DISPOSAL_EVENTS,
+    TERMINAL_EVENTS,
     pericia_prazo_resolucao,
     seizure_of,
     validation_acted_late,
@@ -2750,13 +2751,38 @@ def _evd_field_ctx(post):
     return transversal, type_fields
 
 
+def _sub_blocked_reason(ev, eventos):
+    """Razão (PT) pela qual ``ev`` NÃO pode receber um sub-componente agora,
+    ou ``None``. FONTE ÚNICA das 4 superfícies do fluxo encadeado (selector de
+    pai, gate do ``?parent=``, botão da ficha, página de continuação): não se
+    oferece o impossível — a recusa dura continua no ``clean()``. Espelha as
+    guardas do modelo: tipos-folha, profundidade, pai fechado (terminal) e
+    pai em trânsito (o componente segue selado com o portador)."""
+    if ev.type in Evidence.EVIDENCE_LEAF_TYPES:
+        return f'O tipo «{ev.get_type_display()}» não admite sub-componentes.'
+    if _tree_depth(ev) >= Evidence.MAX_TREE_DEPTH:
+        return (
+            f'Profundidade máxima atingida ({Evidence.MAX_TREE_DEPTH} níveis).'
+        )
+    if any(e.event_type in TERMINAL_EVENTS for e in eventos):
+        return 'O ledger deste item está fechado (prova restituída ou destruída).'
+    if eventos and eventos[-1].event_type == EventType.ENCAMINHAMENTO_CUSTODIA:
+        return (
+            'Item em trânsito — a prova recebe-se no destino antes de se '
+            'autonomizarem componentes.'
+        )
+    return None
+
+
 def _parent_options(user):
     """Candidatos a PAI no selector do registo: âmbito do utilizador SEM os
-    tipos-folha nem os itens já no nível máximo (a recusa dura continua no
-    ``clean()`` — aqui só não se oferece o impossível), em ordem de árvore por
+    itens que não podem ter filhos agora (``_sub_blocked_reason`` — folhas,
+    nível máximo, ledger fechado, em trânsito), em ordem de árvore por
     ocorrência, com rótulo recuado por nível e a ocorrência anotada (o
     ``data-occurrence`` alimenta o filtro do cliente; sem JS a lista fica
     completa e a guarda «mesma ocorrência» vale no POST)."""
+    # O _evidence_base_qs já prefetch-a o ledger (_chain_prefetch) — o
+    # _sub_blocked_reason lê os eventos sem queries por candidato.
     qs = (
         _scope_evidences(user)
         .exclude(type__in=Evidence.EVIDENCE_LEAF_TYPES)
@@ -2764,9 +2790,9 @@ def _parent_options(user):
     )
     out = []
     for ev in qs:
-        depth = _tree_depth(ev)
-        if depth >= Evidence.MAX_TREE_DEPTH:
+        if _sub_blocked_reason(ev, sort_custody_chain(ev.custody_chain.all())):
             continue
+        depth = _tree_depth(ev)
         # NBSP (espacos normais colapsam no rotulo de <option>).
         pad = " " * 4 * (depth - 1)
         prefix = f'{pad}└ ' if depth > 1 else ''
@@ -2805,14 +2831,20 @@ def evidences_new_view(request):
             )
         except (ValueError, Evidence.DoesNotExist):
             parent = None
-        # Pai tem de poder ter filhos — mesmas fontes únicas do clean()
-        # (tipos-folha, MAX_TREE_DEPTH); links gated não chegam aqui.
-        if (
-            parent is None
-            or parent.type in Evidence.EVIDENCE_LEAF_TYPES
-            or _tree_depth(parent) >= Evidence.MAX_TREE_DEPTH
+        # Mesmo gate do POST (validate_occurrence): quem não pode criar prova
+        # nesta ocorrência não chega a um formulário que recusaria sempre.
+        if parent is not None and not access.can_access_occurrence(
+            user, parent.occurrence
         ):
-            raise Http404('Este item não admite sub-componentes.')
+            parent = None
+        if parent is None:
+            raise Http404('Item-pai não encontrado.')
+        # Pai tem de poder ter filhos AGORA — fonte única das superfícies
+        # (_sub_blocked_reason espelha as guardas do clean()).
+        if _sub_blocked_reason(
+            parent, sort_custody_chain(parent.custody_chain.all())
+        ):
+            raise Http404('Este item não admite sub-componentes agora.')
 
     occurrences = (
         [] if parent else _scope_occurrences(user).order_by('-date_time')
@@ -2892,7 +2924,15 @@ def evidences_new_view(request):
                 resource_id=ev.pk,
                 details={'hash': ev.integrity_hash},
             )
-            messages.success(request, f'Item de prova {ev.code} apreendido e registado.')
+            # O sub-componente não é apreensão autónoma (herda a base legal
+            # do pai) — o toast diz o ato certo.
+            verbo = (
+                'autonomizado do item-pai'
+                if ev.parent_evidence_id else 'apreendido'
+            )
+            messages.success(
+                request, f'Item de prova {ev.code} {verbo} e registado.'
+            )
             # Fluxo encadeado (§6): a continuação oferece o registo do
             # sub-componente/irmão seguinte sem reencontrar contexto.
             return HttpResponseRedirect(f'/evidences/{ev.pk}/registado/')
@@ -3037,13 +3077,15 @@ def evidence_detail_view(request, evidence_id):
                 v == EventType.RESTITUICAO.value for v, _ in valid_next
             ),
             # «Adicionar sub-componente» (§6): quem regista, em item que admite
-            # filhos (não-folha, nível < máx.) e com o ledger aberto — derivar
-            # de pai fechado é recusado pelo clean().
+            # filhos AGORA (_sub_blocked_reason — folha/nível/fechado/trânsito)
+            # E que consegue completar o fluxo: o destino ?parent= resolve em
+            # _scope_evidences e o POST exige can_access_occurrence — sem os
+            # mesmos gates, o botão era um beco (404/400 garantidos).
             'can_add_sub': (
                 access.can_register_records(user)
-                and bool(valid_next)
-                and ev.type not in Evidence.EVIDENCE_LEAF_TYPES
-                and _tree_depth(ev) < Evidence.MAX_TREE_DEPTH
+                and _sub_blocked_reason(ev, events) is None
+                and access.can_access_occurrence(user, ev.occurrence)
+                and _scope_evidences(user).filter(pk=ev.pk).exists()
             ),
         },
     )
@@ -3063,14 +3105,15 @@ def evidence_registered_view(request, evidence_id):
     ev = _readable_evidence(user, evidence_id)
     if ev is None:
         raise Http404('Evidência não encontrada.')
+    # A continuação é a antecâmara de NOVOS registos nesta ocorrência — quem
+    # não pode criar prova aqui (gate do POST, validate_occurrence) segue
+    # para a ficha do item em vez de links que recusariam sempre.
+    if not access.can_access_occurrence(user, ev.occurrence):
+        return HttpResponseRedirect(f'/evidences/{ev.pk}/')
     _decorate_evidences([ev])
-    sub_blocked = None
-    if ev.type in Evidence.EVIDENCE_LEAF_TYPES:
-        sub_blocked = f'O tipo «{ev.get_type_display()}» não admite sub-componentes.'
-    elif _tree_depth(ev) >= Evidence.MAX_TREE_DEPTH:
-        sub_blocked = (
-            f'Profundidade máxima atingida ({Evidence.MAX_TREE_DEPTH} níveis).'
-        )
+    sub_blocked = _sub_blocked_reason(
+        ev, sort_custody_chain(ev.custody_chain.all())
+    )
     return render(request, 'evidence_registered.html', {
         'ev': ev,
         'sub_blocked': sub_blocked,
@@ -3190,28 +3233,28 @@ def _register_seizure_genesis(request, ev):
     do pai — último evento do ledger do pai, a mesma resposta do «onde está»
     (``access.current_holder``) e o mesmo padrão de herança dos atos
     certificados. O componente está onde o pai está: no terreno (pai acabado
-    de apreender → OPC) e no laboratório (pai à guarda do LAB → LAB). Decisão
-    §6: a sub-árvore herda a base legal da apreensão do pai — UMA apreensão
-    validável, a do pai (fecha também o plano do ADR-0016, Consequências:
-    «default de DERIVACAO_ITEM ao criar sub-item»). Pai ainda sem ledger
-    (criado via API): recua para o custódio de raiz. GPS herdado do local do
+    de apreender → OPC) e no laboratório (pai à guarda do LAB → LAB); pai EM
+    TRÂNSITO é recusado (clean() + gates das superfícies — herdar daria o
+    destino que ainda não recebeu). Decisão §6: a sub-árvore herda a base
+    legal da apreensão do pai — UMA apreensão validável, a do pai (fecha
+    também o plano do ADR-0016, Consequências: «default de DERIVACAO_ITEM ao
+    criar sub-item»). Pai ainda sem ledger (criado via API): recua para o
+    custódio de raiz. GPS herdado do local do
     item (se captado). Reusa o ``ChainOfCustodySerializer`` — mesmas guardas,
     ownership (génese pelo agente) e hash encadeado. Corre dentro da mesma
     transação do registo da evidência.
     """
     genesis = _genesis_event_for(ev)
-    data = {
-        'evidence': ev.id,
-        'event_type': genesis.value,
-        'custodian_type': CustodianType.OPC,
-    }
+    data = {'evidence': ev.id, 'event_type': genesis.value}
     last = None
     if ev.parent_evidence_id is not None:
         parent_events = sort_custody_chain(ev.parent_evidence.custody_chain.all())
         last = parent_events[-1] if parent_events else None
     if last is not None:
-        # Herança do custódio (padrão de _register_certified_act): tipo,
-        # instituição e detentor pessoal copiados do último evento do pai.
+        # Herança TAL-E-QUAL do último evento do pai (padrão de
+        # _register_certified_act) — incluindo o custódio em branco (ex.: MP
+        # não promove custódio): pré-semear OPC criava o par incoerente
+        # «OPC + instituição do MP».
         if last.custodian_type:
             data['custodian_type'] = last.custodian_type
         if last.custodian_institution_id:
@@ -3219,6 +3262,8 @@ def _register_seizure_genesis(request, ev):
         if last.custodian_user_id:
             data['custodian_user'] = last.custodian_user_id
     else:
+        # Raiz — ou pai ainda sem ledger (criado via API): custódio de raiz.
+        data['custodian_type'] = CustodianType.OPC
         inst_id = (
             request.user.institution_memberships.filter(is_active=True)
             .values_list('institution_id', flat=True)

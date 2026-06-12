@@ -62,17 +62,18 @@ def test_create_evidence_with_photo(page, auth_as, live_server, tiny_image):
 
 
 def test_chained_subcomponent_registration(page, auth_as, live_server):
-    """Fluxo encadeado (§6): registar um telemóvel e, a partir da continuação,
-    o cartão SIM como sub-componente — contexto trancado (?parent=) e génese
-    DERIVACAO_ITEM automática na mesma transação."""
+    """Fluxo encadeado (§6): registar um veículo e, a partir da continuação,
+    o componente eletrónico (filho) e o rastreador GPS (neto) — contexto
+    trancado (?parent=), génese DERIVACAO_ITEM automática, e o bloqueio de
+    profundidade explicado no nível máximo (3)."""
     agent = UserFactory.create(username="ag.ev.chain", password="Aa123456!")
     occ = OccurrenceFactory.create(agent=agent)
     auth_as(agent)
 
     page.goto("/evidences/new/", wait_until="load")
     page.select_option("#f-occ", value=str(occ.id))
-    page.select_option("#f-type", value=Evidence.EvidenceType.MOBILE_DEVICE)
-    page.fill("#f-desc", "Telemóvel pai (fluxo encadeado E2E).")
+    page.select_option("#f-type", value=Evidence.EvidenceType.VEHICLE)
+    page.fill("#f-desc", "Veículo pai (fluxo encadeado E2E).")
     page.click("button[type=submit]")
     page.wait_for_url(is_evidence_registered, timeout=10000)
 
@@ -83,16 +84,32 @@ def test_chained_subcomponent_registration(page, auth_as, live_server):
     expect(page.locator("#f-parent")).to_have_count(0)
     expect(page.get_by_text("novo sub-componente")).to_be_visible()
 
-    page.select_option("#f-type", value=Evidence.EvidenceType.SIM_CARD)
-    page.fill("#f-desc", "Cartão SIM dentro do telemóvel (E2E).")
+    page.select_option("#f-type", value=Evidence.EvidenceType.VEHICLE_COMPONENT)
+    page.fill("#f-desc", "Centralina dentro do veículo (E2E).")
     page.click("button[type=submit]")
     page.wait_for_url(is_evidence_registered, timeout=10000)
 
+    # Neto (3.º nível, ainda admissível) a partir da continuação do filho.
+    page.click("text=Registar sub-componente deste item")
+    page.wait_for_url(lambda url: "?parent=" in url, timeout=10000)
+    page.select_option("#f-type", value=Evidence.EvidenceType.GPS_TRACKER)
+    page.fill("#f-desc", "Rastreador GPS dentro da centralina (E2E).")
+    page.click("button[type=submit]")
+    page.wait_for_url(is_evidence_registered, timeout=10000)
+
+    # No nível máximo a continuação explica o bloqueio em vez do botão.
+    expect(page.get_by_text("Profundidade máxima atingida")).to_be_visible()
+    expect(
+        page.get_by_text("Registar sub-componente deste item")
+    ).to_have_count(0)
+
     pai = Evidence.objects.get(occurrence=occ, parent_evidence__isnull=True)
     filho = Evidence.objects.get(occurrence=occ, parent_evidence=pai)
-    assert filho.code == f"{pai.code}.1"
-    genese = filho.custody_chain.get()
-    assert genese.event_type == EventType.DERIVACAO_ITEM
+    neto = Evidence.objects.get(occurrence=occ, parent_evidence=filho)
+    assert neto.code == f"{pai.code}.1.1"
+    for item in (filho, neto):
+        genese = item.custody_chain.get()
+        assert genese.event_type == EventType.DERIVACAO_ITEM
 
 
 def test_create_evidence_requires_occurrence_and_type(page, auth_as, live_server):

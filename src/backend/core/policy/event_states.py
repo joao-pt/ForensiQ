@@ -187,7 +187,10 @@ def derive_legal_state(eventos_ordenados):
       volta ao OPC, senão ``encaminhada``.
     - último TRANSFERENCIA_CUSTODIA/ASSUNCAO_CUSTODIA (LEGADO) → ``a_guarda_opc`` se
       de volta ao OPC, senão ``encaminhada`` (lab/tribunal/depositário/proprietário).
-    - DESPACHO_PERICIA/VALIDACAO_APREENSAO/génese como último → ``a_guarda_opc``
+    - génese como último → segue o custódio da génese: ``a_guarda_opc`` no OPC
+      (raiz apreendida), senão ``encaminhada`` — uma DERIVACAO_ITEM herdada
+      nasce onde o pai está (ex.: laboratório).
+    - DESPACHO_PERICIA/VALIDACAO_APREENSAO como último → ``a_guarda_opc``
       (a prova não se moveu; o despacho/validação são atos, não deslocações).
     """
     if not eventos_ordenados:
@@ -225,7 +228,14 @@ def derive_legal_state(eventos_ordenados):
         # qualquer outro custódio = encaminhada.
         return 'a_guarda_opc' if ultimo.custodian_type == CustodianType.OPC else 'encaminhada'
 
-    # DESPACHO_PERICIA / VALIDACAO_APREENSAO / génese como último: a prova não se
+    if et in GENESIS_EVENTS:
+        # Génese como último evento: o item está com o custódio da génese.
+        # Espelho do ramo da receção — relevante para DERIVACAO_ITEM com
+        # custódio herdado (o filho nasce onde o pai está, ex. laboratório);
+        # a raiz apreendida (custódio OPC) continua «à guarda do OPC».
+        return 'a_guarda_opc' if ultimo.custodian_type == CustodianType.OPC else 'encaminhada'
+
+    # DESPACHO_PERICIA / VALIDACAO_APREENSAO como último: a prova não se
     # moveu — continua à guarda do OPC (a validação deriva-se no OUTRO eixo).
     return 'a_guarda_opc'
 

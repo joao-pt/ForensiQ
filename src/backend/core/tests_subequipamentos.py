@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from core.frontend_views import _intake_world, _occurrence_items, _tree_sort_key
 from core.models import (
+    ChainOfCustody,
     CustodianType,
     EventType,
     Evidence,
@@ -32,7 +33,7 @@ from core.tests_factories import (
     make_chain,
     make_user,
 )
-from core.utils import validation_status_of
+from core.utils import legal_state_of, validation_status_of
 
 User = get_user_model()
 
@@ -260,10 +261,14 @@ class GeneseAutomaticaDoFilhoTest(TestCase):
         self._post_new(
             type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
         )
-        g = self._latest().custody_chain.get()
+        filho = self._latest()
+        g = filho.custody_chain.get()
         self.assertEqual(g.event_type, EventType.DERIVACAO_ITEM)
         self.assertEqual(g.custodian_type, CustodianType.LAB_PUBLICO)
         self.assertEqual(g.custodian_institution_id, lab.id)
+        # Estado derivado coerente com o custódio da génese: o filho nasce
+        # onde o pai está (laboratório → «encaminhada», não «à guarda do OPC»).
+        self.assertEqual(legal_state_of(filho), 'encaminhada')
 
     def test_pai_sem_ledger_recua_para_custodio_de_raiz(self):
         # Pai criado fora da consola (caminho API: sem génese automática) — o
@@ -286,7 +291,9 @@ class GeneseAutomaticaDoFilhoTest(TestCase):
         filho = self._latest()
         r = self.client.get(f'/evidences/{filho.id}/atos/')
         self.assertContains(r, 'base legal')
-        self.assertContains(r, pai.code)
+        # O link da herança aponta o PAI (o code do pai é prefixo do do filho
+        # — só o href distingue).
+        self.assertContains(r, f'/evidences/{pai.id}/atos/')
         self.assertNotContains(r, 'Sem atos de autoridade')
 
 
@@ -322,7 +329,9 @@ class FluxoEncadeadoTest(TestCase):
         pai = self._latest()
         r = self.client.get(f'/evidences/new/?parent={pai.id}')
         self.assertContains(r, 'novo sub-componente')
-        self.assertContains(r, f'value="{self.occ.id}"')
+        # Hidden inputs ancorados ao name (os PKs de occ e pai podem coincidir).
+        self.assertContains(r, f'name="occurrence" value="{self.occ.id}"')
+        self.assertContains(r, f'name="parent_evidence" value="{pai.id}"')
         self.assertContains(r, pai.code)
         # Contexto trancado: sem selects de ocorrência/pai.
         self.assertNotContains(r, 'id="f-occ"')
@@ -415,3 +424,176 @@ class FluxoEncadeadoTest(TestCase):
         folha = _ev(self.occ, self.agent, Evidence.EvidenceType.SIM_CARD, parent=raiz)
         r = self.client.get(f'/evidences/{folha.id}/')
         self.assertNotContains(r, f'/evidences/new/?parent={folha.id}')
+
+
+class GuardasDaRevisaoTest(TestCase):
+    """Correções da revisão adversarial dos Lotes 1-3: pai em trânsito, pai
+    fechado, herança tal-e-qual (custódio em branco do MP), gates alinhados
+    nas superfícies do fluxo encadeado e toast do filho."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(
+            name='PSP Guardas', type=InstitutionType.OPC, sigla='PSP-GRD'
+        )
+        cls.lab = InstitutionFactory(name='LPC Guardas', sigla='LPC-GRD')
+        cls.mp = Institution.objects.create(
+            name='DIAP Guardas', type=InstitutionType.MP, sigla='MP-GRD'
+        )
+        cls.agent = make_user('grd_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.portador = Portador.objects.create(
+            matricula='GRD-001', nome='Ana', apelido='Silva', posto='Agente'
+        )
+        cls.occ = _occ(cls.agent, 'R1')
+
+    def _post_new(self, **extra):
+        auth_cookie(self.client, self.agent)
+        data = {
+            'occurrence': self.occ.id,
+            'type': Evidence.EvidenceType.MOBILE_DEVICE,
+            'description': 'Item das guardas da revisão.',
+        }
+        data.update(extra)
+        return self.client.post('/evidences/new/', data)
+
+    def _latest(self):
+        return Evidence.objects.filter(occurrence=self.occ).latest('id')
+
+    def _pai_em_transito(self):
+        self._post_new()
+        pai = self._latest()
+        make_chain(
+            pai,
+            (
+                EventType.VALIDACAO_APREENSAO,
+                {'custodian_type': CustodianType.OPC,
+                 'custodian_institution': self.opc},
+            ),
+            (
+                EventType.DESPACHO_PERICIA,
+                {'custodian_type': CustodianType.OPC,
+                 'custodian_institution': self.opc},
+            ),
+            (
+                EventType.ENCAMINHAMENTO_CUSTODIA,
+                {'custodian_type': CustodianType.LAB_PUBLICO,
+                 'custodian_institution': self.lab, 'bearer': self.portador},
+            ),
+            agent=self.agent,
+        )
+        return pai
+
+    def test_pai_em_transito_recusa_derivacao_no_modelo(self):
+        pai = self._pai_em_transito()
+        filho = _ev(self.occ, self.agent, Evidence.EvidenceType.SIM_CARD, parent=pai)
+        with self.assertRaises(ValidationError) as ctx:
+            ChainOfCustody.objects.create(
+                evidence=filho,
+                event_type=EventType.DERIVACAO_ITEM,
+                agent=self.agent,
+                custodian_type=CustodianType.OPC,
+            )
+        self.assertIn('trânsito', str(ctx.exception.message_dict['event_type']))
+
+    def test_pai_em_transito_bloqueia_as_superficies(self):
+        pai = self._pai_em_transito()
+        auth_cookie(self.client, self.agent)
+        # Gate do ?parent= → 404; botão da ficha escondido; continuação explica.
+        self.assertEqual(
+            self.client.get(f'/evidences/new/?parent={pai.id}').status_code, 404
+        )
+        r = self.client.get(f'/evidences/{pai.id}/')
+        self.assertNotContains(r, f'/evidences/new/?parent={pai.id}')
+        r = self.client.get(f'/evidences/{pai.id}/registado/')
+        self.assertContains(r, 'em trânsito')
+        self.assertNotContains(r, f'/evidences/new/?parent={pai.id}')
+        # E o selector do formulário solto não o oferece.
+        r = self.client.get('/evidences/new/')
+        self.assertNotContains(r, f'value="{pai.id}" data-occurrence')
+
+    def test_pai_fechado_excluido_das_superficies(self):
+        self._post_new()
+        pai = self._latest()
+        make_chain(
+            pai,
+            (
+                EventType.VALIDACAO_APREENSAO,
+                {'custodian_type': CustodianType.OPC,
+                 'custodian_institution': self.opc},
+            ),
+            (
+                EventType.RESTITUICAO,
+                {'custodian_type': CustodianType.PROPRIETARIO},
+            ),
+            agent=self.agent,
+        )
+        auth_cookie(self.client, self.agent)
+        self.assertEqual(
+            self.client.get(f'/evidences/new/?parent={pai.id}').status_code, 404
+        )
+        r = self.client.get(f'/evidences/{pai.id}/registado/')
+        self.assertContains(r, 'fechado')
+        self.assertNotContains(r, f'/evidences/new/?parent={pai.id}')
+        r = self.client.get('/evidences/new/')
+        self.assertNotContains(r, f'value="{pai.id}" data-occurrence')
+
+    def test_heranca_tal_e_qual_do_custodio_em_branco_no_mp(self):
+        # O MP não promove custódio (CUSTODIAN_TYPE_BY_INSTITUTION sem chave
+        # MP): o encaminhamento/receção ficam com custodian_type em branco —
+        # o filho herda TAL-E-QUAL, nunca o par incoerente «OPC + MP».
+        self._post_new()
+        pai = self._latest()
+        make_chain(
+            pai,
+            (
+                EventType.VALIDACAO_APREENSAO,
+                {'custodian_type': CustodianType.OPC,
+                 'custodian_institution': self.opc},
+            ),
+            (
+                EventType.ENCAMINHAMENTO_CUSTODIA,
+                {'custodian_institution': self.mp, 'bearer': self.portador},
+            ),
+            (
+                EventType.RECEPCAO_CUSTODIA,
+                {'custodian_institution': self.mp},
+            ),
+            agent=self.agent,
+        )
+        self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        g = self._latest().custody_chain.get()
+        self.assertEqual(g.event_type, EventType.DERIVACAO_ITEM)
+        self.assertEqual(g.custodian_type, '')
+        self.assertEqual(g.custodian_institution_id, self.mp.id)
+
+    def test_colega_institucional_nao_ve_um_botao_que_dava_404(self):
+        # Colega da MESMA OPC (leitura institucional) mas sem acesso de
+        # criação à ocorrência (validate_occurrence): o botão não aparece e o
+        # ?parent= recusa — gates alinhados com o POST.
+        self._post_new()
+        pai = self._latest()
+        colega = make_user('grd_colega', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=colega, institution=self.opc)
+        auth_cookie(self.client, colega)
+        r = self.client.get(f'/evidences/{pai.id}/')
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, f'/evidences/new/?parent={pai.id}')
+        self.assertEqual(
+            self.client.get(f'/evidences/new/?parent={pai.id}').status_code, 404
+        )
+
+    def test_toast_do_filho_diz_autonomizado(self):
+        r = self._post_new()
+        pai = self._latest()
+        # Consome o toast do pai (a fila de messages persiste entre pedidos).
+        r = self.client.get(r['Location'])
+        self.assertContains(r, 'apreendido e registado')
+        r = self._post_new(
+            type=Evidence.EvidenceType.SIM_CARD, parent_evidence=pai.id
+        )
+        r = self.client.get(r['Location'])
+        self.assertContains(r, 'autonomizado do item-pai e registado')
+        self.assertNotContains(r, 'apreendido e registado')

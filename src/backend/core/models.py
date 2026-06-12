@@ -2070,6 +2070,29 @@ class ChainOfCustody(AppendOnlyModel):
                         )
                     }
                 )
+            # Derivação com o pai EM TRÂNSITO é proibida: o conjunto segue
+            # selado com o portador e o custódio herdado seria o DESTINO que
+            # ainda não recebeu a prova (movimentação em dois tempos —
+            # ADR-0016 v2).
+            if self.event_type == EventType.DERIVACAO_ITEM:
+                ultimo_pai = (
+                    ChainOfCustody.objects.filter(
+                        evidence_id=evidence.parent_evidence_id
+                    )
+                    .order_by('-sequence')
+                    .values_list('event_type', flat=True)
+                    .first()
+                )
+                if ultimo_pai == EventType.ENCAMINHAMENTO_CUSTODIA:
+                    raise ValidationError(
+                        {
+                            'event_type': (
+                                'Não se autonomiza um componente de prova em '
+                                'trânsito — a evidência-pai tem de ser '
+                                'recebida no destino primeiro.'
+                            )
+                        }
+                    )
         elif self.event_type in GENESIS_EVENTS:
             raise ValidationError(
                 {'event_type': 'Um evento de génese só pode ser o primeiro evento.'}
