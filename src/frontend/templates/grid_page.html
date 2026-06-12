@@ -31,6 +31,9 @@
     {% block page_cta %}{% endblock %}
   </header>
 
+  {# Lede opcional (1 linha de propósito da página) — bloco da casca única, nunca markup bespoke por página. #}
+  {% block page_lede %}{% endblock %}
+
   {% include 'partials/_grid_toolbar.html' %}
 
 </section>

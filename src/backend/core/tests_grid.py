@@ -280,3 +280,54 @@ class AuditTrailGridTest(TestCase):
         self.assertIn('aud_nac', body)
         self.assertIn('×19', body)               # 20 do feed = CREATE + 19 VIEW
         self.assertIn('As minhas ocorrências', body)
+
+
+class ReportsLoteFTest(AuthenticatedFrontendTestCase):
+    """Item 18: coluna «Em trânsito», célula Itens com link, lede com toggle de
+    arquivados (?arch=1 pegajoso) e EXPORT CSV genérico da grelha filtrada
+    (auditado por EXPORT_CSV; só nas grelhas opt-in)."""
+
+    def test_reports_lede_em_transito_e_link_itens(self):
+        OccurrenceFactory(agent=self.test_user)
+        content = self.client.get('/reports/').content.decode('utf-8')
+        self.assertIn('Em trânsito', content)
+        self.assertIn('o PDF é guia, não prova autónoma', content)
+        self.assertIn('Incluir processos arquivados', content)
+        self.assertIn('/evidences/?occ=', content)
+
+    def test_reports_toggle_arquivados(self):
+        from core.models import EventType
+
+        occ = _occ(self.test_user, 'RPT-ARQ')
+        ev = _evidence(occ, self.test_user)
+        _event(ev, self.test_user)
+        _event(ev, self.test_user, event_type=EventType.RESTITUICAO)
+        base = self.client.get('/reports/').content.decode('utf-8')
+        self.assertNotIn(occ.code, base)
+        com_arquivados = self.client.get('/reports/?arch=1').content.decode('utf-8')
+        self.assertIn(occ.code, com_arquivados)
+
+    def test_export_csv_filtrado_e_auditado(self):
+        from core.models import AuditLog
+
+        occ = _occ(self.test_user, 'RPT-CSV')
+        _event(_evidence(occ, self.test_user), self.test_user)
+        r = self.client.get('/reports/?export=csv')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('text/csv', r['Content-Type'])
+        body = r.content.decode('utf-8')
+        self.assertIn('Código', body)        # cabeçalho da spec
+        self.assertIn(occ.code, body)
+        log = AuditLog.objects.filter(action=AuditLog.Action.EXPORT_CSV).last()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.details.get('grid'), 'rpt')
+
+    def test_export_csv_tambem_nas_custodias_e_so_opt_in(self):
+        occ = _occ(self.test_user, 'RPT-CC')
+        _event(_evidence(occ, self.test_user), self.test_user)
+        cc = self.client.get('/custodies/?export=csv')
+        self.assertIn('text/csv', cc['Content-Type'])
+        self.assertIn('-M01', cc.content.decode('utf-8'))
+        # Grelhas sem opt-in ignoram o parametro (resposta HTML normal).
+        occs = self.client.get('/occurrences/?export=csv')
+        self.assertIn('text/html', occs['Content-Type'])

@@ -1,6 +1,11 @@
 {% extends 'grid_page.html' %}
 
 {% block title %}Guias de transporte — ForensiQ{% endblock %}
-{% block breadcrumb %}<span class="breadcrumb-current">Relatórios</span>{% endblock %}
+{% block breadcrumb %}<span class="breadcrumb-current">Guias de transporte</span>{% endblock %}
 
 {% block page_title %}Guias de transporte{% endblock %}
+
+{% block page_lede %}
+{# Propósito numa linha (item 18) + toggle de arquivados (?arch=1 pegajoso — o estado sobrevive a busca/ordenação via hidden input do toolbar). #}
+<p class="page-lead">Guia de transporte (PDF) por processo — o PDF é guia, não prova autónoma; a célula «Itens» abre a lista de evidências do processo. {% if sticky_params.arch %}<a href="/reports/{% if lens %}?lens={{ lens }}{% endif %}">Ocultar processos arquivados</a>{% else %}<a href="/reports/?arch=1{% if lens %}&amp;lens={{ lens }}{% endif %}">Incluir processos arquivados</a>{% endif %}</p>
+{% endblock %}

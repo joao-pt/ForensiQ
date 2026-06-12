@@ -11,11 +11,13 @@ classe utilitária ``grid__col--wN`` (CSP-safe, sem estilo inline). Telemóvel: 
 grelha reduz às colunas marcadas (resto ``col-reduce-hide``), bolinha de urgência
 + legenda + só a busca global (regras em ``forensic.css``).
 """
+import csv
 from dataclasses import dataclass
 from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import render
 
 from core.list_filters import (
@@ -69,6 +71,56 @@ def serialize_columns(columns, filters=None):
     } for c in columns]
 
 
+def _csv_cell(row, col):
+    """Valor ACHATADO de uma célula para o CSV — regras por tipo de célula na
+    fonte única (os dicts de apresentação nunca se re-exprimem nas views):
+    pri→title, state→label, action→href, date→ISO; resto = valor textual."""
+    from core.templatetags.grid_extras import cellattr
+
+    v = cellattr(row, col.key)
+    if v is None:
+        return ''
+    if col.cell == 'pri':
+        return v.get('title', '') if isinstance(v, dict) else str(v)
+    if col.cell == 'state':
+        return v.get('label', '') if isinstance(v, dict) else str(v)
+    if col.cell == 'action':
+        return v.get('href', '') if isinstance(v, dict) else str(v)
+    if col.cell == 'date':
+        return v.isoformat() if hasattr(v, 'isoformat') else str(v)
+    return str(v)
+
+
+def _export_csv(request, *, qs, columns, decorate, grid_key, qs_base):
+    """Export CSV da grelha FILTRADA (parecer item 18) — a MESMA queryset dos
+    passos de filtragem, SEM paginação; a decoração bulk e as colunas vêm da
+    própria spec (zero re-expressão). O need-to-know já está aplicado a
+    montante (o chamador entrega o queryset scoped — mesmo contrato de
+    ``legal_states_by_evidence``). Auditado: qualquer extração massiva fica no
+    trilho (EXPORT_CSV; sem recurso único → SYSTEM + id sentinela 0 e os
+    filtros ativos nos details, para re-verificação do âmbito extraído)."""
+    from core.audit import log_access
+    from core.models import AuditLog
+
+    rows = list(qs)
+    if decorate is not None:
+        decorate(rows)
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{grid_key}-export.csv"'
+    writer = csv.writer(response)
+    writer.writerow([c.label for c in columns])
+    for row in rows:
+        writer.writerow([_csv_cell(row, c) for c in columns])
+    log_access(
+        request=request,
+        action=AuditLog.Action.EXPORT_CSV,
+        resource_type=AuditLog.ResourceType.SYSTEM,
+        resource_id=0,
+        details={'grid': grid_key, 'rows': len(rows), 'filters': qs_base},
+    )
+    return response
+
+
 def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
                        page_template, table_label, count_noun, count_plural='',
                        sorts, default_sort, sorts_ui=(), search_fields=(),
@@ -77,7 +129,8 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
                        row_clickable=True, mobile_reduce=True, page_size=25,
                        lens='', empty_title='', empty_hint='',
                        empty_filtered='Nenhum resultado para os filtros aplicados.',
-                       computed_filters=None, post_filter=None, extra_ctx=None):
+                       computed_filters=None, post_filter=None, extra_ctx=None,
+                       csv_export=False):
     """Resposta de uma lista server-rendered + HTMX a partir da spec de colunas.
 
     Em pedidos HTMX devolve só o fragmento ``partials/_grid.html`` (com a contagem
@@ -144,13 +197,8 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
     sort_spec = sorts[sort_key]
     qs = qs.order_by(*((sort_spec,) if isinstance(sort_spec, str) else sort_spec))
 
-    # 6) Paginação + decoração de apresentação (rótulos, .dot, .aria_code).
-    paginator = Paginator(qs, page_size)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    if decorate is not None:
-        decorate(page_obj.object_list)
-
-    # 7) Querystring base (sem 'page') para a paginação propagar TODOS os filtros.
+    # Querystring base (sem 'page') — propaga TODOS os filtros na paginação e
+    # no link de export (computada antes do passo 6: o export precisa dela).
     col_active = active_params(full_spec, request)
     base_params = dict(col_active)
     base_params.update(sticky_params)
@@ -161,6 +209,18 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
     if sorts_ui:
         base_params['sort'] = sort_key
     qs_base = urlencode(base_params)
+
+    # 5b) Export CSV da grelha filtrada (opt-in por grelha): a MESMA queryset,
+    #     SEM paginação — o link da UI é um <a> normal fora do contrato HTMX.
+    if csv_export and (request.GET.get('export') or '').strip() == 'csv':
+        return _export_csv(request, qs=qs, columns=columns, decorate=decorate,
+                           grid_key=grid_key, qs_base=qs_base)
+
+    # 6) Paginação + decoração de apresentação (rótulos, .dot, .aria_code).
+    paginator = Paginator(qs, page_size)
+    page_obj = paginator.get_page(request.GET.get('page'))
+    if decorate is not None:
+        decorate(page_obj.object_list)
 
     # 8) Colunas no formato do template (nome + filtro emparelhado por param).
     fbar = {f['param']: f for f in filter_bar_context(full_spec, request)}
@@ -198,6 +258,11 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
         'empty_title': empty_title,
         'empty_hint': empty_hint,
         'empty_filtered': empty_filtered,
+        # Link do export CSV (grelhas opt-in) com os filtros ativos embebidos.
+        'csv_export_url': (
+            f'{endpoint}?{qs_base + "&" if qs_base else ""}export=csv'
+            if csv_export else ''
+        ),
         'is_htmx': bool(request.headers.get('HX-Request')),
     }
     if extra_ctx:

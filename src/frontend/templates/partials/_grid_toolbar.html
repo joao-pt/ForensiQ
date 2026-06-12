@@ -32,6 +32,10 @@
       </select>
     </label>
     {% endif %}
+    {% if csv_export_url %}
+    {# Export CSV da grelha FILTRADA (item 18): <a> normal FORA do contrato HTMX (uma resposta CSV não pode ser swapped para dentro da grelha). #}
+    <a class="btn-ghost" href="{{ csv_export_url }}" aria-label="Exportar a grelha filtrada em CSV">CSV</a>
+    {% endif %}
     <span class="toolbar__busy" id="{{ busy_id }}" aria-hidden="true"></span>
   </div>
   <div id="{{ grid_id }}" class="gridwrap">

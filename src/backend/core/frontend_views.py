@@ -15,6 +15,7 @@ import logging
 import re
 from datetime import timedelta
 from functools import wraps
+from urllib.parse import quote as urlquote
 
 from django.conf import settings
 from django.contrib import messages
@@ -3281,6 +3282,7 @@ def custody_list_view(request):
         empty_title='Sem eventos de custódia',
         empty_hint='Ainda não há eventos registados.',
         computed_filters={'state': _state_filter(_lens_states, fk='evidence_id')},
+        csv_export=True,
     )
 
 
@@ -3393,23 +3395,56 @@ def reports_view(request):
 
     def decorate_reports(items):
         _decorate_occurrences(items)
+        # «Em trânsito» por processo (parecer item 18) — 1 passagem do ledger
+        # só sobre a página (espelho de _decorate_occurrences_where); o estado
+        # vem da fonte única (legal_states_by_evidence), nunca re-derivado.
+        ids = [o.id for o in items]
+        states = analytics.legal_states_by_evidence(
+            ChainOfCustody.objects.filter(evidence__occurrence_id__in=ids)
+        )
+        occ_by_ev = dict(
+            Evidence.objects.filter(occurrence_id__in=ids).values_list('id', 'occurrence_id')
+        )
+        transit = {}
+        for ev_id, st in states.items():
+            if st == 'em_transito':
+                occ_id = occ_by_ev.get(ev_id)
+                transit[occ_id] = transit.get(occ_id, 0) + 1
         for o in items:
             o.detail_href = f'/occurrences/{o.id}/'
+            o.n_transit = transit.get(o.id, 0)
+            # Célula Itens → lista de evidências FILTRADA pelo NUIPC (param
+            # canónico 'occ' de /evidences/) — caminho para a guia POR ITEM.
+            # O NUIPC contém '/': urlencode obrigatório.
+            o.items_href = (
+                f'/evidences/?occ={urlquote(o.number, safe="")}'
+                + (f'&lens={lens}' if lens else '')
+                if o.number else ''
+            )
             # Caminho do PDF pela rota nomeada do router (fonte única — D103).
             o.guia = {'href': reverse('core:occurrence-export-pdf', args=[o.id]), 'label': 'PDF',
                       'aria': f'Descarregar guia PDF de {o.code}'}
 
+    def reports_split(filtered_qs, req):
+        # Por omissão SÓ processos ativos (coerente com /occurrences/); o
+        # ?arch=1 pegajoso (computed_params identidade) inclui os arquivados.
+        if (req.GET.get('arch') or '').strip() == '1':
+            return filtered_qs
+        return filtered_qs.exclude(pk__in=_archived_occurrence_ids(filtered_qs))
+
     columns = [
         GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6),
-        GridColumn('code', 'Código', cell='code', width=15, dot=True, link_key='detail_href',
+        GridColumn('code', 'Código', cell='code', width=14, dot=True, link_key='detail_href',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
-        GridColumn('number', 'NUIPC', css='mono', width=18,
+        GridColumn('number', 'NUIPC', css='mono', width=16,
                    filter=ColFilter('number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
-        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-hide-md', width=27,
+        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-hide-md', width=21,
                    filter=ColFilter('cat', 'Tipo de crime', kind='select',
                                     field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
-        GridColumn('n_ev', 'Itens', cell='num', css='col-hide-sm', width=9),
-        GridColumn('date_time', 'Data', cell='date', time=False, css='col-hide-sm', width=13,
+        GridColumn('n_ev', 'Itens', cell='num', css='col-hide-sm', width=9,
+                   link_key='items_href'),
+        GridColumn('n_transit', 'Em trânsito', cell='num', css='col-hide-sm', width=10),
+        GridColumn('date_time', 'Data', cell='date', time=False, css='col-hide-sm', width=12,
                    filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
         GridColumn('guia', 'Guia', cell='action', width=12),
     ]
@@ -3434,6 +3469,10 @@ def reports_view(request):
         lens=lens,
         empty_title='Sem ocorrências',
         empty_hint='Ainda não há ocorrências para gerar guias.',
+        post_filter=reports_split,
+        # 'arch' pegajoso: fn identidade — a divisão real vive no post_filter.
+        computed_params={'arch': ({'1'}, lambda q, r, v: q)},
+        csv_export=True,
     )
 
 
