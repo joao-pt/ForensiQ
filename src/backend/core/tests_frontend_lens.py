@@ -56,9 +56,20 @@ class ConsoleFrontendTest(TestCase):
 
         # Processo ARQUIVADO: único item em estado terminal (restituído).
         cls.occ_arch = _occ(cls.responder, 'C-ARQUIVO')
-        ev_x = _evidence(cls.occ_arch, cls.responder)
-        _event(ev_x, cls.responder, inst=cls.opc)  # APREENSAO_OBJETO
-        _event(ev_x, cls.responder, event_type=EventType.RESTITUICAO, inst=cls.opc)
+        cls.ev_x = _evidence(cls.occ_arch, cls.responder)
+        _event(cls.ev_x, cls.responder, inst=cls.opc)  # APREENSAO_OBJETO
+        _event(cls.ev_x, cls.responder, event_type=EventType.RESTITUICAO, inst=cls.opc)
+
+        # Processo ARQUIVADO por PERDA (ledger ABERTO — decisão 1): alvo do
+        # aviso de reabertura nas superfícies de escrita. O membro do OPC
+        # detém o item (custódia institucional) e pode escrever no ledger.
+        cls.opc_member = cls._u('cf_opc_member', User.Profile.EVIDENCE_CUSTODIAN)
+        InstitutionMembership.objects.create(user=cls.opc_member, institution=cls.opc)
+        cls.occ_perda = _occ(cls.responder, 'C-PERDA')
+        cls.ev_p = _evidence(cls.occ_perda, cls.responder)
+        _event(cls.ev_p, cls.responder, inst=cls.opc)  # APREENSAO_OBJETO
+        _event(cls.ev_p, cls.responder,
+               event_type=EventType.PERDA_FAVOR_ESTADO, inst=cls.opc)
 
     @classmethod
     def _u(cls, username, profile):
@@ -218,3 +229,49 @@ class ConsoleFrontendTest(TestCase):
         body = self._get(self.responder, '/arquivo/').content.decode()
         self.assertIn(f'data-id="{self.occ_arch.id}"', body)
         self.assertNotIn(f'data-id="{self.occ_active.id}"', body)
+
+    # -- Arquivo com desfecho (parecer item 14) ------------------------------
+
+    def test_arquivo_tem_desfecho_e_concluido_em(self):
+        body = self._get(self.responder, '/arquivo/').content.decode()
+        self.assertIn('Desfecho', body)
+        self.assertIn('Concluído em', body)
+        self.assertIn('name="desfecho"', body)           # filtro derivado
+        self.assertIn('Restituída', body)                # desfecho do occ_arch
+        self.assertIn('Perdida a favor do Estado', body)  # desfecho do occ_perda
+
+    def test_arquivo_filtro_desfecho(self):
+        com = self._get(self.responder, '/arquivo/?desfecho=restituida').content.decode()
+        self.assertIn(f'data-id="{self.occ_arch.id}"', com)
+        self.assertNotIn(f'data-id="{self.occ_perda.id}"', com)
+        sem = self._get(self.responder, '/arquivo/?desfecho=destruida').content.decode()
+        self.assertNotIn(f'data-id="{self.occ_arch.id}"', sem)
+
+    def test_detalhe_arquivado_tem_badge_concluido(self):
+        arq = self._get(self.responder, f'/occurrences/{self.occ_arch.id}/').content.decode()
+        self.assertIn('Concluído — no Arquivo', arq)
+        ativo = self._get(self.responder, f'/occurrences/{self.occ_active.id}/').content.decode()
+        self.assertNotIn('Concluído — no Arquivo', ativo)
+
+    def test_ficha_do_item_terminal_tem_desfecho(self):
+        body = self._get(self.responder, f'/evidences/{self.ev_x.id}/').content.decode()
+        self.assertIn('<dt>Desfecho</dt>', body)
+        self.assertIn('Restituição', body)               # rótulo do EVENTO (enum)
+        ativo = self._get(self.responder, f'/evidences/{self.ev_a.id}/').content.decode()
+        self.assertNotIn('<dt>Desfecho</dt>', ativo)
+
+    def test_aviso_reabertura_nas_superficies_de_escrita(self):
+        # PERDA deixa o ledger ABERTO (decisão 1): o form da timeline e os
+        # modais de um processo arquivado avisam; num processo ativo não.
+        timeline = self._get(
+            self.opc_member, f'/evidences/{self.ev_p.id}/custody/'
+        ).content.decode()
+        self.assertIn('processo arquivado', timeline)
+        modal = self._get(
+            self.opc_member, f'/occurrences/{self.occ_perda.id}/restituir/'
+        ).content.decode()
+        self.assertIn('processo arquivado', modal)
+        ativo = self._get(
+            self.responder, f'/evidences/{self.ev_a.id}/custody/'
+        ).content.decode()
+        self.assertNotIn('processo arquivado', ativo)

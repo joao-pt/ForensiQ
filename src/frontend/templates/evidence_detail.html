@@ -93,6 +93,10 @@
           {% if ev.current_seal %}
           <div class="facts__row"><dt>Selo em vigor</dt><dd class="mono">{{ ev.current_seal }}</dd></div>
           {% endif %}
+          {% if ev.desfecho_event %}
+          {# Desfecho do item (parecer item 14): rótulo do EVENTO de disposição final (enum) + data. #}
+          <div class="facts__row"><dt>Desfecho</dt><dd>{{ ev.desfecho_event.get_event_type_display }} · <span class="mono">{{ ev.desfecho_event.timestamp|date:'Y-m-d H:i' }}</span></dd></div>
+          {% endif %}
           <div class="facts__row"><dt>Último evento</dt><dd>{{ ev.last_event.get_event_type_display }} · <span class="mono">{{ ev.last_event.timestamp|date:'Y-m-d H:i' }}</span></dd></div>
         </dl>
         {% endif %}

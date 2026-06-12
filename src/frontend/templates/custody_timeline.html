@@ -69,6 +69,7 @@
       <span class="custody-register__hint">+ adicionar ao ledger</span>
     </summary>
     <div class="section__body">
+      {% include 'partials/_arquivo_reopen_hint.html' %}
       {% for e in register_errors %}<p class="form-error visible" role="alert">{{ e }}</p>{% endfor %}
       <form method="post" action="/evidences/{{ ev.id }}/custody/">
         {% csrf_token %}

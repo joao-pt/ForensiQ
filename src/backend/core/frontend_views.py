@@ -18,7 +18,7 @@ from functools import wraps
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
-from django.db.models import Count, Prefetch
+from django.db.models import Count, Max, Prefetch, Q
 from django.http import (
     Http404,
     HttpResponse,
@@ -41,6 +41,10 @@ from core.grid import GridColumn, grid_list_response, serialize_columns
 from core.labels import (
     ACTION_CSS,
     ACTION_SHORT,
+    ARQUIVO_BADGE_CSS,
+    ARQUIVO_BADGE_LABEL,
+    ARQUIVO_REOPEN_HINT,
+    DESFECHO_MISTO_LABEL,
     DESPACHO_BADGE_CSS,
     DESPACHO_BADGE_LABEL,
     LEGAL_STATE_CSS,
@@ -73,6 +77,7 @@ from core.models import (
     pericia_due_date,
 )
 from core.policy import custody_transitions
+from core.policy.event_states import DISPOSAL_EVENTS
 from core.utils import (
     current_location_of,
     current_seal_of,
@@ -919,7 +924,7 @@ def _lens_custody(user, lens):
 # ---------------------------------------------------------------------------
 
 
-def _archived_occurrence_ids(user, occ_qs):
+def _archived_occurrence_ids(occ_qs):
     """``set`` de IDs ARQUIVADOS no âmbito ``occ_qs``: ocorrências com ≥1 item e
     TODOS os itens em estado legal terminal (restituída/perdida a favor do
     Estado/destruída). Itens SEM eventos (estado por abrir) impedem o arquivo — o
@@ -927,8 +932,8 @@ def _archived_occurrence_ids(user, occ_qs):
 
     Eficiência (não varre tudo a cada página): só se DERIVA o estado das
     ocorrências CANDIDATAS — as que têm no ledger ≥1 evento de disposição final
-    (restituição / destruição / perda a favor do Estado). Uma ocorrência sem
-    nenhum desses eventos não pode estar concluída e é descartada em SQL, sem custo
+    (``DISPOSAL_EVENTS`` — fonte única da policy). Uma ocorrência sem nenhum
+    desses eventos não pode estar concluída e é descartada em SQL, sem custo
     de derivação. A derivação usa a cadeia COMPLETA do candidato (não o âmbito da
     lente): "processo concluído" é uma propriedade OBJETIVA do ledger, independente
     de quem vê que eventos — para o titular/membro o âmbito já é a cadeia inteira,
@@ -936,11 +941,7 @@ def _archived_occurrence_ids(user, occ_qs):
     verdade (sem tradução para SQL), aplicada só ao subconjunto candidato."""
     candidate_ids = list(
         occ_qs.filter(
-            evidences__custody_chain__event_type__in=(
-                EventType.RESTITUICAO,
-                EventType.DESTRUICAO,
-                EventType.PERDA_FAVOR_ESTADO,
-            )
+            evidences__custody_chain__event_type__in=DISPOSAL_EVENTS
         )
         .values_list('pk', flat=True)
         .distinct()
@@ -960,6 +961,50 @@ def _archived_occurrence_ids(user, occ_qs):
         for occ_id, sts in by_occ.items()
         if sts and all(s in TERMINAL_LEGAL_STATES for s in sts)
     }
+
+
+def _occurrence_archived(occ):
+    """O processo está CONCLUÍDO (no Arquivo)? Mesma fonte única da lista
+    (:func:`_archived_occurrence_ids`) sobre UMA ocorrência — barato: o
+    pré-filtro SQL descarta logo os não-candidatos. 1 chamada por request."""
+    return occ.id in _archived_occurrence_ids(Occurrence.objects.filter(pk=occ.pk))
+
+
+def _desfechos_by_occurrence(occ_ids):
+    """{occ_id: desfecho} no âmbito dado — o estado legal partilhado por TODOS
+    os itens quando é um só (``'restituida'``/``'perdida_favor_estado'``/
+    ``'destruida'``…), senão ``'misto'``. Fonte ÚNICA da síntese «Desfecho» do
+    Arquivo (coluna + filtro derivado); bulk: 1 passagem do ledger + 1 query de
+    Evidence. Só faz sentido comparar com desfechos TERMINAIS — num âmbito
+    não-arquivado o valor pode ser um estado vivo e nunca casa com o filtro."""
+    out = {}
+    if not occ_ids:
+        return out
+    states = analytics.legal_states_by_evidence(
+        ChainOfCustody.objects.filter(evidence__occurrence_id__in=occ_ids)
+    )
+    by_occ = {}
+    for ev_id, occ_id in Evidence.objects.filter(
+        occurrence_id__in=occ_ids
+    ).values_list('id', 'occurrence_id'):
+        by_occ.setdefault(occ_id, set()).add(states.get(ev_id))
+    for occ_id, sts in by_occ.items():
+        out[occ_id] = next(iter(sts)) if len(sts) == 1 else 'misto'
+    return out
+
+
+def _decorate_occurrences_desfecho(occurrences):
+    """Anota ``occ.desfecho_badge`` (coluna «Desfecho» do Arquivo): rótulo/cor
+    do estado terminal único (fonte única LEGAL_STATE_LABELS/CSS), ou «Misto»
+    quando os itens tiveram desfechos diferentes. Bulk, só sobre a página."""
+    desfechos = _desfechos_by_occurrence([o.id for o in occurrences])
+    for o in occurrences:
+        st = desfechos.get(o.id)
+        if st in TERMINAL_LEGAL_STATES:
+            o.desfecho_badge = {'css': LEGAL_STATE_CSS[st],
+                                'label': LEGAL_STATE_LABELS[st]}
+        else:
+            o.desfecho_badge = {'css': 'muted', 'label': DESFECHO_MISTO_LABEL}
 
 
 def _dashboard_tiles(cus_qs):
@@ -1194,40 +1239,96 @@ def _occurrences_list_response(request, archived=False):
                                  filter=ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente',
                                                   fields=('agent__first_name', 'agent__last_name', 'agent__username')))
 
-    # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente/Onde está.
-    columns = [
-        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
-                   filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
-                                    choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
-                                             (Occurrence.Priority.NORMAL, 'Normais')))),
-        GridColumn('code', 'Código', cell='code', width=13, dot=True, val_flag=True,
-                   link_key='detail_url',
-                   filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
-        GridColumn('number', 'NUIPC', css='mono', width=16,
-                   filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
-        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=21,
-                   filter=ColFilter('cat', 'Tipo de crime', kind='select',
-                                    field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
-        # w14: a 12% a hora truncava com reticências em larguras comuns (a
-        # decisão foi ALARGAR, nunca amputar a hora); o Local, elástico, cede.
-        GridColumn('date_time', 'Data', cell='date', time=True, width=14,
-                   filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
-        GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=18, geo=True,
-                   filter=ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local')),
-        last_column,
-    ]
+    if archived:
+        # Arquivo (parecer item 14): o processo está CONCLUÍDO — as colunas
+        # respondem «como acabou» (Desfecho, badge+filtro) e «quando» («Concluído
+        # em», sort default). O Local cede o lugar (continua na busca transversal
+        # e no detalhe); a Data dos factos reduz-se ao desktop. Soma = 100.
+        desfecho_choices = tuple(
+            (s, LEGAL_STATE_LABELS[s]) for s in LEGAL_STATE_LABELS
+            if s in TERMINAL_LEGAL_STATES
+        ) + (('misto', DESFECHO_MISTO_LABEL),)
+        columns = [
+            GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
+                       filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
+                                        choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
+                                                 (Occurrence.Priority.NORMAL, 'Normais')))),
+            GridColumn('code', 'Código', cell='code', width=13, dot=True, val_flag=True,
+                       link_key='detail_url',
+                       filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
+            GridColumn('number', 'NUIPC', css='mono', width=14,
+                       filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
+            GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=16,
+                       filter=ColFilter('cat', 'Tipo de crime', kind='select',
+                                        field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
+            GridColumn('date_time', 'Data', cell='date', time=True,
+                       css='col-reduce-hide', width=14,
+                       filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
+            GridColumn('desfecho_badge', 'Desfecho', cell='state', css='col-reduce-hide', width=12,
+                       filter=ColFilter('desfecho', 'Desfecho', kind='select',
+                                        choices=desfecho_choices)),
+            # Data do ÚLTIMO evento de disposição (annotation do archived_split);
+            # sem filtro de coluna — a annotation só existe depois do passo 1.
+            GridColumn('concluded_at', 'Concluído em', cell='date', width=13),
+            last_column,
+        ]
+    else:
+        # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente/Onde está.
+        columns = [
+            GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
+                       filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
+                                        choices=((Occurrence.Priority.PRIORITARIA, 'Prioritárias'),
+                                                 (Occurrence.Priority.NORMAL, 'Normais')))),
+            GridColumn('code', 'Código', cell='code', width=13, dot=True, val_flag=True,
+                       link_key='detail_url',
+                       filter=ColFilter('q_code', 'Código', kind='text', field='code', placeholder='Código')),
+            GridColumn('number', 'NUIPC', css='mono', width=16,
+                       filter=ColFilter('q_number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
+            GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-reduce-hide', width=21,
+                       filter=ColFilter('cat', 'Tipo de crime', kind='select',
+                                        field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
+            # w14: a 12% a hora truncava com reticências em larguras comuns (a
+            # decisão foi ALARGAR, nunca amputar a hora); o Local, elástico, cede.
+            GridColumn('date_time', 'Data', cell='date', time=True, width=14,
+                       filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
+            GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=18, geo=True,
+                       filter=ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local')),
+            last_column,
+        ]
 
     def decorate_page(occurrences):
         _decorate_occurrences_page(occurrences)
         if personal_zone:
             _decorate_occurrences_where(occurrences)
+        if archived:
+            _decorate_occurrences_desfecho(occurrences)
 
     def archived_split(filtered_qs, _request):
         # Processo CONCLUÍDO = todos os itens em estado legal terminal. Deriva-se
-        # sobre o âmbito já filtrado e divide-se (sem coluna nova).
-        archived_ids = _archived_occurrence_ids(user, filtered_qs)
-        return (filtered_qs.filter(pk__in=archived_ids) if archived
-                else filtered_qs.exclude(pk__in=archived_ids))
+        # sobre o âmbito já filtrado e divide-se (sem coluna nova). No Arquivo,
+        # anota-se «Concluído em» = último evento de DISPOSIÇÃO (bulk SQL,
+        # ordenável — o post_filter corre antes do order_by do gerador).
+        archived_ids = _archived_occurrence_ids(filtered_qs)
+        if archived:
+            return filtered_qs.filter(pk__in=archived_ids).annotate(
+                concluded_at=Max(
+                    'evidences__custody_chain__timestamp',
+                    filter=Q(evidences__custody_chain__event_type__in=DISPOSAL_EVENTS),
+                )
+            )
+        return filtered_qs.exclude(pk__in=archived_ids)
+
+    def _desfecho_filter(qs_in, _request, value):
+        # Filtro DERIVADO (whitelist em ColFilter.accepts): processos cuja
+        # síntese de desfecho casa com o valor. Corre antes do archived_split,
+        # mas um processo «todos os itens no desfecho X» é arquivado por
+        # definição — o split posterior não muda o resultado.
+        matches = [
+            o for o, st in _desfechos_by_occurrence(
+                list(qs_in.values_list('pk', flat=True))
+            ).items() if st == value
+        ]
+        return qs_in.filter(pk__in=matches)
 
     lens_qs = f'?lens={lens}' if lens else ''
     if archived:
@@ -1241,6 +1342,20 @@ def _occurrences_list_response(request, archived=False):
         )
         empty_filtered = 'Nenhum resultado para os filtros aplicados.'
 
+    # No Arquivo a ordenação operativa é a CONCLUSÃO (annotation do
+    # archived_split — o gerador ordena depois do post_filter).
+    if archived:
+        sorts = {**_OCC_SORTS, 'concluded': '-concluded_at'}
+        default_sort = 'concluded'
+        sorts_ui = (('concluded', 'Conclusão'), ('recent', 'Mais recentes'),
+                    ('oldest', 'Mais antigas'), ('number', 'NUIPC'),
+                    ('created', 'Data de registo'))
+    else:
+        sorts = _OCC_SORTS
+        default_sort = 'recent'
+        sorts_ui = (('recent', 'Mais recentes'), ('oldest', 'Mais antigas'),
+                    ('number', 'NUIPC'), ('created', 'Data de registo'))
+
     return grid_list_response(
         request,
         queryset=qs,
@@ -1250,10 +1365,9 @@ def _occurrences_list_response(request, archived=False):
         page_template='arquivo.html' if archived else 'occurrences.html',
         table_label='Processos arquivados' if archived else 'Lista de ocorrências',
         count_noun='processo' if archived else 'registo',
-        sorts=_OCC_SORTS,
-        default_sort='recent',
-        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigas'),
-                  ('number', 'NUIPC'), ('created', 'Data de registo')),
+        sorts=sorts,
+        default_sort=default_sort,
+        sorts_ui=sorts_ui,
         search_fields=('code', 'number', 'address',
                        'agent__first_name', 'agent__last_name', 'agent__username',
                        'crime_type__descritivo', 'crime_type__subcategoria__nome',
@@ -1267,6 +1381,7 @@ def _occurrences_list_response(request, archived=False):
         empty_hint=empty_hint,
         empty_filtered=empty_filtered,
         post_filter=archived_split,
+        computed_filters={'desfecho': _desfecho_filter} if archived else None,
     )
 
 
@@ -1329,12 +1444,19 @@ def occurrence_detail_view(request, occurrence_id):
     can_restitute = can_handoff and any(
         EventType.RESTITUICAO.value in s for s in next_sets
     )
+    # Processo CONCLUÍDO (no Arquivo) — badge no cabeçalho (parecer item 14);
+    # mesma fonte única da lista (nunca re-exprimir o critério).
+    archived_badge = (
+        {'css': ARQUIVO_BADGE_CSS, 'label': ARQUIVO_BADGE_LABEL}
+        if _occurrence_archived(occ) else None
+    )
     return render(
         request,
         'occurrence_detail.html',
         {
             'occ': occ,
             'evidences': evidences,
+            'archived_badge': archived_badge,
             'can_handoff': can_handoff,
             'can_validate': can_validate,
             'can_despachar': can_despachar,
@@ -1468,6 +1590,9 @@ def occurrence_encaminhar_view(request, occurrence_id):
     itens = _encaminhaveis(user, occ)
     destinos = _active_institutions()
     portadores = _active_portadores()
+    # Aviso não-bloqueante (item 14): escrever num processo do Arquivo é
+    # legítimo, mas deve ser deliberado.
+    reopen_hint = ARQUIVO_REOPEN_HINT if _occurrence_archived(occ) else ''
 
     submitted = set(request.POST.getlist('evidence_ids')) if request.method == 'POST' else None
     for ev in itens:
@@ -1480,6 +1605,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
             'itens': itens,
             'destinos': destinos,
             'portadores': portadores,
+            'reopen_hint': reopen_hint,
             'errors': errors,
             'data': data or {},
             'modal': modal,
@@ -1761,6 +1887,10 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
             else str(ev.id) in submitted
         )
 
+    # Aviso não-bloqueante (item 14): escrever num processo do Arquivo é
+    # legítimo (ex.: despacho sobre item perdido), mas deve ser deliberado.
+    reopen_hint = ARQUIVO_REOPEN_HINT if _occurrence_archived(occ) else ''
+
     def _ctx(errors, data):
         return {
             'occ': occ,
@@ -1769,6 +1899,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
             # Há itens que exigem o ato-companheiro (ex.: despacho a incluir a
             # validação)? Liga o alerta + checkbox no formulário único.
             'companion': any(getattr(e, 'needs_validation', False) for e in itens),
+            'reopen_hint': reopen_hint,
             'errors': errors,
             'data': data if data is not None else {
                 'act_declared_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
@@ -1895,11 +2026,16 @@ def occurrence_restituir_view(request, occurrence_id):
         # GET: tudo selecionado; re-render por erro: mantém a escolha do utilizador.
         ev.checked = submitted is None or str(ev.id) in submitted
 
+    # Aviso não-bloqueante (item 14): a restituição após a perda é o caso
+    # legítimo por excelência — o aviso só dá o contexto do Arquivo.
+    reopen_hint = ARQUIVO_REOPEN_HINT if _occurrence_archived(occ) else ''
+
     def _ctx(errors, data):
         return {
             'occ': occ,
             'itens': itens,
             'doc_tipos': ReceiverDocType.choices,
+            'reopen_hint': reopen_hint,
             'errors': errors,
             'data': data or {},
             'modal': modal,
@@ -2500,6 +2636,13 @@ def evidence_detail_view(request, evidence_id):
     ev.current_seal = current_seal_of(ev)
     ev.current_location, ev.current_storage = current_location_of(ev)
     events = sort_custody_chain(ev.custody_chain.all())
+    # Desfecho do item (parecer item 14): último evento de DISPOSIÇÃO final —
+    # rótulo do próprio enum na linha «Desfecho» da Situação atual. A presença
+    # de um destes eventos implica estado terminal (a perda domina os atos
+    # posteriores; restituição/destruição fecham o ledger).
+    ev.desfecho_event = next(
+        (r for r in reversed(events) if r.event_type in DISPOSAL_EVENTS), None
+    )
     _decorate_events(events)
     # Espelho de _evidence_base_qs: a decoração deriva 4 eixos do ledger por
     # item — sem o prefetch, cada sub-componente custava 4 queries do ledger
@@ -2817,6 +2960,12 @@ def custody_timeline_view(request, evidence_id):
         {
             'ev': ev,
             'events': events,
+            # Aviso não-bloqueante (item 14): registar num processo do Arquivo
+            # é legítimo (a policy decide a validade), mas deve ser deliberado.
+            'reopen_hint': (
+                ARQUIVO_REOPEN_HINT
+                if register_events and _occurrence_archived(ev.occurrence) else ''
+            ),
             'valid_events': register_events,
             'can_write': can_write,
             'can_validate': can_validate,

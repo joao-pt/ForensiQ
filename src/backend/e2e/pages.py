@@ -48,6 +48,7 @@ def app_pages(occ_id, ev_id):
     return {
         'dashboard': {'path': '/dashboard/', 'leaflet': True, 'htmx': True},
         'occurrences': {'path': '/occurrences/', 'leaflet': True, 'htmx': True},
+        'arquivo': {'path': '/arquivo/', 'htmx': True},
         'occurrence_new': {'path': '/occurrences/new/'},
         'occurrence_detail': {'path': f'/occurrences/{occ_id}/', 'htmx': True},
         'intake': {'path': f'/occurrences/{occ_id}/intake/'},

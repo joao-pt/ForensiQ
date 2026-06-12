@@ -75,6 +75,21 @@ VALIDATION_STATUS_CSS = {
 DESPACHO_BADGE_LABEL = 'Com despacho judicial'
 DESPACHO_BADGE_CSS = 'info'
 
+# Arquivo (parecer UX item 14): badge do processo CONCLUÍDO no detalhe, rótulo
+# da síntese quando os itens têm desfechos DIFERENTES (coluna Desfecho do
+# Arquivo) e aviso não-bloqueante das superfícies de escrita num processo
+# arquivado. Nota de policy: eventos de custódia nunca DES-arquivam um processo
+# (a perda domina os atos posteriores; restituição/destruição fecham o ledger)
+# — só o registo de um item NOVO o devolve às listas ativas.
+ARQUIVO_BADGE_LABEL = 'Concluído — no Arquivo'
+ARQUIVO_BADGE_CSS = 'muted'
+DESFECHO_MISTO_LABEL = 'Misto'
+ARQUIVO_REOPEN_HINT = (
+    'Este processo está concluído (no Arquivo): o registo acrescenta '
+    'atividade a um processo arquivado — legítimo (ex.: restituição '
+    'decidida após a perda a favor do Estado), mas deve ser deliberado.'
+)
+
 # Rótulo + cor do PRAZO da perícia ordenada (data-limite derivada do despacho:
 # core.policy.event_states.pericia_deadline). ``{due}`` é a data-limite
 # (YYYY-MM-DD) e ``{rel}`` a urgência relativa («hoje»/«amanhã»/«em N dias») —

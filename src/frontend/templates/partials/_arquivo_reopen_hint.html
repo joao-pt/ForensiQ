@@ -1,0 +1,4 @@
+{# Aviso NÃO-bloqueante de escrita em processo do Arquivo (parecer item 14, decisão 1): a policy decide o que é válido; aqui só se dá o contexto. Espera `reopen_hint` (texto de core/labels.py; vazio = sem aviso). #}
+{% if reopen_hint %}
+<p class="form-hint"><strong>{{ reopen_hint }}</strong></p>
+{% endif %}
