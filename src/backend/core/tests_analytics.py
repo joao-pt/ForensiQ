@@ -12,7 +12,7 @@ from datetime import timedelta
 from decimal import Decimal
 from unittest import mock
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core import analytics
@@ -218,6 +218,8 @@ class LedgerAnalyticsTest(TestCase):
         self.assertLess(dwell['avg_dwell_hours'], 11)          # ~10h
         self.assertEqual(dwell['open_items'], 3)               # nenhum terminal
         self.assertGreater(dwell['longest_open_hours'], 90)    # ev1 parado ~100h
+        self.assertEqual(dwell['longest_open_evidence_id'], ev1.id)
+        self.assertEqual(dwell['longest_open_code'], ev1.code)
 
         flow = analytics.throughput(occ_qs, evd_qs, cus_qs, now - timedelta(days=365))
         self.assertEqual(flow['opened'], 1)                    # 1 ocorrência na janela
@@ -262,6 +264,32 @@ class LedgerAnalyticsTest(TestCase):
         self.assertGreater(dwell['longest_open_hours'], 19)  # C ~20h…
         self.assertLess(dwell['longest_open_hours'], 21)     # …nunca a perda de A (60h)
         self.assertEqual(dwell['intervals'], 4)             # A:1 + C:3 fechados
+        # A paragem identificada é a do item REABERTO (C), nunca a perda de A.
+        self.assertEqual(dwell['longest_open_evidence_id'], ev_c.id)
+
+    def test_dwell_warn_por_limiar_configuravel(self):
+        """O warn da paragem máxima dispara contra CUSTODY_DWELL_WARNING_HOURS
+        (lido em runtime — override_settings funciona), não por truthiness."""
+        now = timezone.now()
+        occ = self._occ('DW2', now - timedelta(hours=60))
+        ev = self._ev(occ, 'SN-DW2-1', now - timedelta(hours=50))
+        self._save_at(ev, EventType.APREENSAO_OBJETO, now - timedelta(hours=50),
+                      custodian_type=CustodianType.OPC)
+
+        with override_settings(CUSTODY_DWELL_WARNING_HOURS=48):
+            dwell = analytics.custody_dwell(ChainOfCustody.objects.all(), now=now)
+            self.assertTrue(dwell['longest_open_warn'])     # 50h >= 48h
+        with override_settings(CUSTODY_DWELL_WARNING_HOURS=72):
+            dwell = analytics.custody_dwell(ChainOfCustody.objects.all(), now=now)
+            self.assertFalse(dwell['longest_open_warn'])    # 50h < 72h
+        self.assertEqual(dwell['longest_open_evidence_id'], ev.id)
+        self.assertEqual(dwell['longest_open_code'], ev.code)
+        self.assertEqual(dwell['dwell_warn_hours'], 72)
+
+        # Sem paragens abertas (queryset vazio) → sem item identificado.
+        vazio = analytics.custody_dwell(ChainOfCustody.objects.none(), now=now)
+        self.assertIsNone(vazio['longest_open_evidence_id'])
+        self.assertIsNone(vazio['longest_open_code'])
 
     def test_validacoes_a_vencer_eixo_preventivo(self):
         """O recorte preventivo [prazo-aviso, prazo[ é DISJUNTO do «em atraso»

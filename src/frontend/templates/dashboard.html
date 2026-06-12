@@ -97,10 +97,19 @@
               <span class="attn-row__label">em trânsito por receber</span>
             </div>
             {% endif %}
+            {% if dwell.longest_open_evidence_id %}
+            <a class="attn-row{% if dwell.longest_open_warn %} attn-row--warn{% endif %}"
+               href="/evidences/{{ dwell.longest_open_evidence_id }}/custody/"
+               title="Abrir a timeline de custódia do item parado há mais tempo ({{ dwell.longest_open_code }})">
+              <span class="attn-row__num">{{ dwell.longest_open_hours|human_hours }}</span>
+              <span class="attn-row__label">paragem atual mais longa · {{ dwell.longest_open_code }}</span>
+            </a>
+            {% else %}
             <div class="attn-row">
               <span class="attn-row__num">{{ dwell.longest_open_hours|human_hours }}</span>
               <span class="attn-row__label">paragem atual mais longa</span>
             </div>
+            {% endif %}
             <div class="attn-row" title="Movimentos de custódia nas últimas 24 horas">
               <span class="attn-row__num">{{ moves_24h }}</span>
               <span class="attn-row__label">movimento{{ moves_24h|pluralize }} nas últimas 24h</span>

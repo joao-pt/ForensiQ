@@ -259,6 +259,10 @@ VALIDATION_DEADLINE_WARNING_HOURS = int(os.environ.get('VALIDATION_DEADLINE_WARN
 # passa a "a vencer" nos alertas. Parâmetro operacional, não regra legal — o
 # prazo em si é o fixado em cada despacho.
 PERICIA_DEADLINE_WARNING_DAYS = int(os.environ.get('PERICIA_DEADLINE_WARNING_DAYS', 7))
+# Limiar (horas) a partir do qual a paragem ABERTA mais longa da custódia é
+# sinalizada (warn) no painel e em /stats/. Parâmetro operacional, não regra
+# legal (default 168h = 7 dias) — antes o warn disparava com qualquer paragem.
+CUSTODY_DWELL_WARNING_HOURS = int(os.environ.get('CUSTODY_DWELL_WARNING_HOURS', 168))
 # Limite de tamanho de upload de imagem (OWASP — proteção DoS). Externalizado
 # para afinação por operador sem alterar código (default 25 MB).
 MAX_IMAGE_UPLOAD_BYTES = int(os.environ.get('MAX_IMAGE_UPLOAD_BYTES', 25 * 1024 * 1024))

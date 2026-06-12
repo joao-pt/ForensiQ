@@ -106,9 +106,14 @@
             <span class="stats-alert__num">{{ dwell.avg_dwell_hours|human_hours }}</span>
             <span class="stats-alert__label">Dwell médio entre eventos de custódia ({{ dwell.intervals }} intervalo{{ dwell.intervals|pluralize }})</span>
           </li>
-          <li class="stats-alert{% if dwell.longest_open_hours %} stats-alert--warn{% endif %}">
+          <li class="stats-alert{% if dwell.longest_open_warn %} stats-alert--warn{% endif %}">
             <span class="stats-alert__num">{{ dwell.longest_open_hours|human_hours }}</span>
+            {% if dwell.longest_open_evidence_id %}
+            <a class="stats-alert__label stats-alert__link" href="/evidences/{{ dwell.longest_open_evidence_id }}/custody/"
+               title="Abrir a timeline de custódia do item parado há mais tempo">Paragem atual mais longa — {{ dwell.longest_open_code }} ({{ dwell.open_items }} ite{{ dwell.open_items|pluralize:"m,ns" }} em curso)</a>
+            {% else %}
             <span class="stats-alert__label">Paragem atual mais longa ({{ dwell.open_items }} ite{{ dwell.open_items|pluralize:"m,ns" }} em curso)</span>
+            {% endif %}
           </li>
         </ul>
       </div>

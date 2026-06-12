@@ -227,7 +227,11 @@ def custody_dwell(cus_qs, now=None):
     Devolve a média global das paragens fechadas e a paragem ATUAL mais longa
     (último evento → agora, só para itens sem disposição final — DISPOSAL_EVENTS
     — como ÚLTIMO evento; um evento posterior à perda reabre a paragem, tal
-    como reabre o prazo da perícia).
+    como reabre o prazo da perícia). A paragem máxima vem IDENTIFICADA
+    (``longest_open_evidence_id``/``longest_open_code``) — número re-derivável
+    → devolve o id, como o ``aging_sla`` — e com o flag ``longest_open_warn``
+    calculado contra ``CUSTODY_DWELL_WARNING_HOURS`` (settings; lido em runtime
+    para os testes poderem usar ``override_settings``).
     """
     now = now or timezone.now()
     rows = (
@@ -244,18 +248,33 @@ def custody_dwell(cus_qs, now=None):
         prev_ev, prev_ts = ev_id, ts
         last_by_ev[ev_id] = (et, ts)
 
-    open_secs = [
-        (now - ts).total_seconds()
-        for et, ts in last_by_ev.values()
+    open_stops = [
+        ((now - ts).total_seconds(), ev_id)
+        for ev_id, (et, ts) in last_by_ev.items()
         if ts is not None and et not in DISPOSAL_EVENTS
     ]
     avg_h = (sum(closed_secs) / len(closed_secs) / 3600) if closed_secs else 0
-    longest_open_h = (max(open_secs) / 3600) if open_secs else 0
+    # max() sobre tuplos desempata pelo ev_id maior — determinístico mas
+    # arbitrário; identifica-se UM item mesmo com paragens empatadas.
+    longest_secs, longest_ev = max(open_stops) if open_stops else (0, None)
+    longest_open_h = longest_secs / 3600
+    # Code por query DIRIGIDA sobre cus_qs (a lente preserva o need-to-know);
+    # nunca um JOIN de evidence__code em todas as linhas do ledger.
+    longest_code = (
+        cus_qs.filter(evidence_id=longest_ev)
+        .values_list('evidence__code', flat=True).first()
+        if longest_ev is not None else None
+    )
+    warn_hours = settings.CUSTODY_DWELL_WARNING_HOURS
     return {
         'avg_dwell_hours': round(avg_h, 1),
         'intervals': len(closed_secs),
         'longest_open_hours': round(longest_open_h, 1),
-        'open_items': len(open_secs),
+        'longest_open_evidence_id': longest_ev,
+        'longest_open_code': longest_code,
+        'longest_open_warn': longest_open_h >= warn_hours,
+        'dwell_warn_hours': warn_hours,
+        'open_items': len(open_stops),
     }
 
 
