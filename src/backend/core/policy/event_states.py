@@ -308,6 +308,18 @@ def validation_status(eventos_ordenados, now):
     return 'por_validar'
 
 
+def validation_acted_late(seizure_at, acted_at):
+    """O ato de validação foi praticado FORA do prazo legal (CPP art. 178.º/6)?
+
+    Fonte única da comparação «ato − apreensão > ``VALIDATION_DEADLINE``»:
+    usada pela flag ``validation_overdue`` do modelo (no registo do evento —
+    facto relevante, não bloqueia) e pela consulta dos atos (releitura de
+    eventos históricos do ledger, onde a flag não está persistida). Pura:
+    recebe os dois instantes, devolve bool.
+    """
+    return acted_at - seizure_at > VALIDATION_DEADLINE
+
+
 # Conjunto canónico dos estatutos de validação deriváveis (sem o ``None``).
 VALIDATION_STATUSES = frozenset({'validada', 'em_atraso', 'por_validar'})
 

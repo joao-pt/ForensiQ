@@ -1,0 +1,21 @@
+{% extends 'form_page.html' %}
+
+{% block title %}Atos · {{ ev.code }} — ForensiQ{% endblock %}
+
+{# Sem mapa nesta página (consulta de atos jurídicos — a prova não se move). #}
+{% block extra_css %}{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/evidences/">Itens de prova</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <a href="{% url 'evidence_detail' ev.id %}" class="mono">{{ ev.code }}</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">Atos</span>
+{% endblock %}
+
+{% block form_title %}Atos de autoridade{% endblock %}
+{% block form_subtitle %}
+      <p class="detail__sub"><span class="mono">{{ ev.code }}</span> — validação e despacho selados na cadeia de custódia (quem, quando, prazo)</p>
+{% endblock %}
+
+{% block form_body %}{% include 'partials/_atos_info.html' %}{% endblock %}

@@ -53,6 +53,8 @@ from core.labels import (
     LEGAL_STATE_LABELS,
     PERICIA_DEADLINE_CSS,
     PERICIA_DEADLINE_LABELS,
+    VALIDATION_LATE_CSS,
+    VALIDATION_LATE_LABEL,
     VALIDATION_STATUS_CSS,
     VALIDATION_STATUS_LABELS,
 )
@@ -80,7 +82,11 @@ from core.models import (
     pericia_due_date,
 )
 from core.policy import custody_transitions
-from core.policy.event_states import DISPOSAL_EVENTS
+from core.policy.event_states import (
+    DISPOSAL_EVENTS,
+    VALIDATION_DEADLINE,
+    validation_acted_late,
+)
 from core.utils import (
     current_location_of,
     current_seal_of,
@@ -2937,6 +2943,86 @@ def evidence_detail_view(request, evidence_id):
             ),
         },
     )
+
+
+@jwt_cookie_user
+def evidence_atos_view(request, evidence_id):
+    """Consulta READ-ONLY dos atos de autoridade de um item (badge → modal).
+
+    Os badges «Validada»/«Com despacho judicial»/«Perícia até …» dizem só O QUE
+    existe; esta vista mostra o resto que está selado no ledger (hv4): quem
+    proferiu cada ato (nome/cargo), a data declarada, o prazo e a data-limite
+    derivada, a justificação e o registo (quando, por quem, hash). Mesmo
+    contrato modal/página dos atos (fragmento para o <dialog> central; página
+    completa no fallback sem-JS). Porta de leitura igual à do detalhe
+    (``_readable_evidence``); não escreve nada.
+    """
+    ev = _readable_evidence(request.user, evidence_id)
+    if ev is None:
+        raise Http404('Evidência não encontrada.')
+    _decorate_evidences([ev])
+
+    # Releitura dirigida do ledger (agent não vem no _chain_prefetch — aqui o
+    # «registado por» mostra-se por ato, são sempre poucos eventos).
+    eventos = sort_custody_chain(
+        ev.custody_chain.select_related(
+            'custodian_institution', 'custodian_user', 'agent'
+        ).all()
+    )
+    seizure = next(
+        (r for r in eventos if r.event_type in SEIZURE_GENESIS_EVENTS), None
+    )
+    validacoes = [
+        r for r in eventos if r.event_type == EventType.VALIDACAO_APREENSAO
+    ]
+    despachos = [r for r in eventos if r.event_type == EventType.DESPACHO_PERICIA]
+    _decorate_events(validacoes + despachos)
+    for r in validacoes:
+        # Espelho da flag ``validation_overdue`` do registo (não persistida):
+        # mesmo predicado da policy, mesmos instantes (ato declarado, fallback
+        # timestamp do servidor).
+        r.acted_late = seizure is not None and validation_acted_late(
+            seizure.timestamp, r.act_declared_at or r.timestamp
+        )
+    # O prazo VIGENTE pertence ao último despacho (Art. 158.º — repetível): o
+    # badge do estatuto (em prazo/a vencer/vencido) só se pinta nesse; os
+    # anteriores ficam como história, com a sua própria data-limite.
+    if despachos and ev.pericia_badge:
+        despachos[-1].governing_badge = ev.pericia_badge
+    # Perícia já concluída depois do último despacho? Linha de contexto — o
+    # badge do prazo desaparece quando cumprido e a razão deve ser visível.
+    conclusao = None
+    if despachos:
+        conclusao = next(
+            (r for r in eventos
+             if r.event_type == EventType.CONCLUSAO_PERICIA
+             and r.sequence > despachos[-1].sequence), None
+        )
+    # Validação PENDENTE: o badge diz «por validar/em atraso»; aqui mostra-se a
+    # base — a apreensão e o limite legal (mesma aritmética de instantes da
+    # policy ``validation_status``).
+    val_pending = None
+    if ev.validation_status in VALIDATION_PENDING_STATUSES and seizure is not None:
+        val_pending = {
+            'seizure': seizure,
+            'due': seizure.timestamp + VALIDATION_DEADLINE,
+            'hours': settings.VALIDATION_DEADLINE_HOURS,
+        }
+
+    modal = _wants_modal(request)
+    template = _modal_template(
+        modal, 'partials/_atos_info.html', 'evidence_atos.html'
+    )
+    return render(request, template, {
+        'ev': ev,
+        'validacoes': validacoes,
+        'despachos': despachos,
+        'conclusao': conclusao,
+        'val_pending': val_pending,
+        'late_label': VALIDATION_LATE_LABEL,
+        'late_css': VALIDATION_LATE_CSS,
+        'modal': modal,
+    })
 
 
 def _genesis_event_for(evidence):

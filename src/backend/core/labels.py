@@ -71,6 +71,13 @@ VALIDATION_STATUS_CSS = {
     'em_atraso': 'danger',
 }
 
+# Consulta dos atos (badge clicável → modal read-only): espelho de APRESENTAÇÃO
+# da flag ``validation_overdue`` do registo (policy ``validation_acted_late``)
+# — a validação fora do prazo legal é aceite e fica assinalada, não bloqueia
+# (daí âmbar, não vermelho).
+VALIDATION_LATE_LABEL = 'Fora do prazo legal'
+VALIDATION_LATE_CSS = 'warn'
+
 # Badge do DESPACHO judicial para perícia (CPP art. 154.º/158.º) — facto do
 # ledger (core.utils.has_despacho), não trabalho pendente: informa que a
 # perícia foi ordenada por autoridade judiciária, daí 'info' e não 'ok'/'warn'.

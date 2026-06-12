@@ -1,0 +1,66 @@
+{% comment %}
+  Consulta READ-ONLY dos atos de autoridade de um item — fragmento partilhado
+  pelo modal (badge clicável → <dialog> central) e pela página de fallback
+  (evidence_atos.html). Mostra o que está selado no ledger (hv4): autoridade
+  (nome/cargo), data declarada, prazo/data-limite, justificação e o registo
+  (quando, por quem, hash). Espera `ev` decorado (_decorate_evidences),
+  `validacoes`/`despachos` decorados (_decorate_events, + acted_late /
+  governing_badge da vista), `conclusao`, `val_pending`, `late_*` e `modal`.
+{% endcomment %}
+<div data-modal-title="Atos de autoridade · {{ ev.code }}">
+
+  <p class="form-hint"><span class="mono">{{ ev.code }}</span> · {{ ev.type_label }} · processo <span class="mono">{{ ev.occ_label }}</span></p>
+
+  {% if val_pending or validacoes %}
+  <h3 class="subhead">Validação da apreensão</h3>
+  {% endif %}
+
+  {% if val_pending %}
+  {# Pendente: o badge diz «por validar / em atraso»; aqui está a base — a apreensão e o limite legal. #}
+  <dl class="facts">
+    <div class="facts__row"><dt>Estatuto</dt><dd><span class="state state--{{ ev.validation_badge.css }}">{{ ev.validation_badge.label }}</span></dd></div>
+    <div class="facts__row"><dt>Apreensão</dt><dd>{{ val_pending.seizure.get_event_type_display }} · <span class="mono">{{ val_pending.seizure.timestamp|date:'Y-m-d H:i' }}</span></dd></div>
+    <div class="facts__row"><dt>Prazo legal</dt><dd>{{ val_pending.hours }}h após a apreensão — até <span class="mono">{{ val_pending.due|date:'Y-m-d H:i' }}</span></dd></div>
+  </dl>
+  {% endif %}
+
+  {% for r in validacoes %}
+  <dl class="facts">
+    <div class="facts__row"><dt>Autoridade</dt><dd>{% if r.authority_label %}<strong>{{ r.authority_label }}</strong>{% else %}—{% endif %}</dd></div>
+    <div class="facts__row"><dt>Ato de</dt><dd>{% if r.act_declared_at %}<span class="mono">{{ r.act_declared_at|date:'Y-m-d H:i' }}</span>{% else %}—{% endif %}{% if r.acted_late %} <span class="state state--{{ late_css }}">{{ late_label }}</span>{% endif %}</dd></div>
+    {% if r.observations %}<div class="facts__row"><dt>Justificação</dt><dd>{{ r.observations }}</dd></div>{% endif %}
+    <div class="facts__row"><dt>Registo</dt><dd>#{{ r.sequence }} · <span class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span> · {{ r.agent_label }} · <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…</span></dd></div>
+  </dl>
+  {% endfor %}
+
+  {% if despachos %}
+  <h3 class="subhead">Despacho{{ despachos|length|pluralize }} para perícia</h3>
+  {% for r in despachos %}
+  <dl class="facts">
+    <div class="facts__row"><dt>Autoridade</dt><dd>{% if r.authority_label %}<strong>{{ r.authority_label }}</strong>{% else %}—{% endif %}</dd></div>
+    <div class="facts__row"><dt>Ato de</dt><dd>{% if r.act_declared_at %}<span class="mono">{{ r.act_declared_at|date:'Y-m-d H:i' }}</span>{% else %}—{% endif %}</dd></div>
+    {% if r.act_deadline_days %}
+    <div class="facts__row"><dt>Prazo</dt><dd>{{ r.act_deadline_days }} dia{{ r.act_deadline_days|pluralize }}{% if r.act_due %} — até <span class="mono">{{ r.act_due|date:'Y-m-d' }}</span>{% endif %}{% if r.governing_badge %} <span class="state state--{{ r.governing_badge.css }}">{{ r.governing_badge.label }}</span>{% endif %}</dd></div>
+    {% endif %}
+    {% if r.observations %}<div class="facts__row"><dt>Justificação</dt><dd>{{ r.observations }}</dd></div>{% endif %}
+    <div class="facts__row"><dt>Registo</dt><dd>#{{ r.sequence }} · <span class="mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span> · {{ r.agent_label }} · <span class="mono" title="Hash do registo (encadeado)">{{ r.hash_short }}…</span></dd></div>
+  </dl>
+  {% endfor %}
+  {% if conclusao %}
+  {# O badge do prazo desaparece quando a perícia conclui — a razão fica visível aqui. #}
+  <p class="form-hint">Perícia concluída a <span class="mono">{{ conclusao.timestamp|date:'Y-m-d H:i' }}</span> (evento #{{ conclusao.sequence }}) — o prazo do último despacho está cumprido.</p>
+  {% endif %}
+  {% endif %}
+
+  {% if not validacoes and not despachos and not val_pending %}
+  <div class="empty">
+    <p class="empty__title">Sem atos de autoridade</p>
+    <p class="empty__hint">Este item não tem validação nem despacho registados no ledger.</p>
+  </div>
+  {% endif %}
+
+  <div class="form-actions">
+    <a class="btn-ghost" href="{% url 'custody_timeline' ev.id %}">Ver cadeia completa</a>
+    {% if modal %}<button type="button" class="btn-ghost" data-modal-close>Fechar</button>{% endif %}
+  </div>
+</div>

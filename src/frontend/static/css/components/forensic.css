@@ -600,6 +600,23 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 /* Variantes .state--*::before: no mapa tom→cor único, junto ao .urgency-dot (D88). */
 
+/* Badges dos ATOS clicáveis (_act_badges.html → consulta read-only no modal):
+   grupo numa só âncora. Sublinhado pontilhado distingue o link sem ser só
+   pela cor (regra link-in-text-block — mesmo padrão de .page-lead a); no
+   hover/teclado a borda dos pills acende a accent. */
+.state-acts {
+    display: inline-flex; align-items: center; gap: 4px;
+    text-decoration: underline dotted;
+    text-decoration-color: var(--text-placeholder);
+    text-underline-offset: 4px;
+}
+.state-acts:hover { text-decoration-color: var(--accent); }
+.state-acts:hover .state, .state-acts:focus-visible .state {
+    border-color: var(--accent);
+    color: var(--text);
+}
+.state-acts:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ============================================================
    Paginação
    ============================================================ */

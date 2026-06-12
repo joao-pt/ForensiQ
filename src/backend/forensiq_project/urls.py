@@ -42,6 +42,7 @@ from core.frontend_views import (
     custody_singular_redirect,
     custody_timeline_view,
     dashboard_view,
+    evidence_atos_view,
     evidence_detail_view,
     evidence_singular_redirect,
     evidences_new_view,
@@ -162,6 +163,8 @@ urlpatterns = [
     path('evidences/', evidences_view, name='evidences'),
     path('evidences/new/', evidences_new_view, name='evidences_new'),
     path('evidences/<int:evidence_id>/', evidence_detail_view, name='evidence_detail'),
+    # Consulta read-only dos atos de autoridade (badge → modal; página no fallback)
+    path('evidences/<int:evidence_id>/atos/', evidence_atos_view, name='evidence_atos'),
     path('evidences/<int:evidence_id>/custody/', custody_timeline_view, name='custody_timeline'),
 
     # Custódias

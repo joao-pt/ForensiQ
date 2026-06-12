@@ -43,6 +43,7 @@ from core.policy.event_states import (
     ReceiverDocType as ReceiverDocType,
     derive_legal_state as derive_legal_state,
     pericia_due_date as pericia_due_date,
+    validation_acted_late,
     validation_status as validation_status,
 )
 from core.validators import validate_gps_coherence, validate_imei
@@ -2108,7 +2109,7 @@ class ChainOfCustody(AppendOnlyModel):
         # declarada (``act_declared_at``); o timestamp do servidor fica como
         # fallback (eventos hv1-hv3 e caminhos sem data declarada).
         ts = self.act_declared_at or self.timestamp or timezone.now()
-        self.validation_overdue = ts - seizure.timestamp > VALIDATION_DEADLINE
+        self.validation_overdue = validation_acted_late(seizure.timestamp, ts)
 
     def _clean_despacho(self, prior_types):
         """DESPACHO_PERICIA: a apreensão tem de estar VALIDADA (CPP art.
