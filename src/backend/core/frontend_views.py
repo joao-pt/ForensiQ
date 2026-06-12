@@ -205,6 +205,17 @@ URGENCY_LEGEND_EVIDENCE = (
     {'cls': 'muted', 'label': 'Restituída / destruída'},
 )
 
+# Legenda dos marcadores de PENDÊNCIA (val_dot/pericia_dot, sufixados ao código
+# e SEMPRE visíveis — também em desktop, onde não há coluna própria). Duas
+# entradas = os dois buckets de cor partilhados pelos dois eixos; as cores vêm
+# das fontes únicas em core.labels (validação e prazo da perícia coincidem).
+PENDENCY_LEGEND = (
+    {'cls': VALIDATION_STATUS_CSS['por_validar'],
+     'label': 'Pendente: apreensão por validar / perícia a vencer'},
+    {'cls': VALIDATION_STATUS_CSS['em_atraso'],
+     'label': 'Em atraso: validação fora de prazo / perícia vencida'},
+)
+
 
 def _decorate_occurrences_validation(occurrences):
     """Anota ``occ.val_dot`` e ``occ.pericia_dot`` quando a ocorrência tem itens
@@ -1099,6 +1110,7 @@ def _occurrences_list_response(request, archived=False):
         search_placeholder='Procurar código, NUIPC, crime, local, agente…',
         decorate=_decorate_occurrences_page,
         legend=URGENCY_LEGEND_OCCURRENCE,
+        pendency_legend=PENDENCY_LEGEND,
         page_size=25,
         lens=lens,
         empty_hint=empty_hint,
@@ -2038,7 +2050,10 @@ def evidences_view(request):
         # e sort apontam TODOS a occurrence__number (decisão do parecer UX).
         GridColumn('occ_label', 'NUIPC', css='mono grid__ellipsis', width=15,
                    filter=ColFilter('occ', 'NUIPC', kind='text', field='occurrence__number', placeholder='NUIPC')),
-        GridColumn('code', 'Código', cell='code', width=14, dot=True,
+        # val_flag no Código (sobrevive à redução mobile, como nas ocorrências)
+        # — na coluna Estado (col-reduce-hide) os sinais de pendência sumiam
+        # no telemóvel (parecer UX, item 7).
+        GridColumn('code', 'Código', cell='code', width=14, dot=True, val_flag=True,
                    link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
         GridColumn('timestamp_seizure', 'Data e Hora', cell='date', time=True, width=15,
@@ -2050,7 +2065,6 @@ def evidences_view(request):
         GridColumn('serial_number', 'Nº série', css='mono grid__muted col-reduce-hide', width=16,
                    filter=ColFilter('serial', 'Nº série', kind='text', field='serial_number', placeholder='Nº série')),
         GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=12,
-                   val_flag=True,
                    filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
     ]
 
@@ -2072,6 +2086,7 @@ def evidences_view(request):
         search_placeholder='Pesquisar código, nº série, marca, NUIPC…',
         decorate=_decorate_evidences,
         legend=URGENCY_LEGEND_EVIDENCE,
+        pendency_legend=PENDENCY_LEGEND,
         page_size=25,
         lens=lens,
         empty_title='Sem itens de prova',
@@ -2678,7 +2693,9 @@ def custody_list_view(request):
         _decorate_custody_rows(events, _lens_states())
 
     columns = [
-        GridColumn('code', 'Código', cell='code', width=11, dot=True,
+        # val_flag no Código (sobrevive à redução mobile) — ver nota homóloga
+        # na grelha de /evidences/.
+        GridColumn('code', 'Código', cell='code', width=11, dot=True, val_flag=True,
                    link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
         GridColumn('evidence.code', 'Item', css='mono', width=11,
@@ -2693,7 +2710,6 @@ def custody_list_view(request):
                    filter=ColFilter('institution', 'Instituição', kind='select',
                                     field='custodian_institution_id', choices=inst_choices)),
         GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
-                   val_flag=True,
                    filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
         GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=16,
                    filter=ColFilter('date', 'Data / hora', kind='date_range', field='timestamp')),
@@ -2717,6 +2733,7 @@ def custody_list_view(request):
         search_placeholder='Pesquisar item, NUIPC, código…',
         decorate=decorate_custody,
         legend=URGENCY_LEGEND_EVIDENCE,
+        pendency_legend=PENDENCY_LEGEND,
         page_size=30,
         lens=lens,
         empty_title='Sem eventos de custódia',

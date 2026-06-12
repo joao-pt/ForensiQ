@@ -4,10 +4,19 @@
   coluna). Recebe `urgency_legend` = lista de {cls, label} da view (fonte única das
   cores/níveis). Usa o mesmo componente .urgency-dot das linhas. Não renderiza nada
   se a view não fornecer a legenda.
+  `pendency_legend` (val_dot/pericia_dot) é a lista irmã SEMPRE visível
+  (--always): esses marcadores não têm coluna própria em nenhuma largura.
 {% endcomment %}
 {% if urgency_legend %}
 <ul class="urgency-legend" aria-label="Legenda de urgência">
   {% for item in urgency_legend %}
+  <li class="urgency-legend__item"><span class="urgency-dot urgency-dot--{{ item.cls }}" aria-hidden="true"></span>{{ item.label }}</li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% if pendency_legend %}
+<ul class="urgency-legend urgency-legend--always" aria-label="Legenda dos marcadores de pendência">
+  {% for item in pendency_legend %}
   <li class="urgency-legend__item"><span class="urgency-dot urgency-dot--{{ item.cls }}" aria-hidden="true"></span>{{ item.label }}</li>
   {% endfor %}
 </ul>

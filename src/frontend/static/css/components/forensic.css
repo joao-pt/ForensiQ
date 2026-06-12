@@ -558,16 +558,19 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    que só governa a bolinha de urgência prefixada. */
 .val-flag { margin-left: var(--sp-2); }
 .grid__dot-host > .val-flag { display: inline-block; margin-right: 0; }
-/* Legenda (discreta, só telemóvel — no desktop há coluna). */
-.urgency-legend { display: none; }
+/* Legenda (discreta; a de urgência só no telemóvel — no desktop há coluna.
+   O modificador --always fica visível em qualquer largura: é o caso da legenda
+   de pendência, cujos marcadores não têm coluna própria). */
+.urgency-legend {
+    display: none; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
+    margin: 0; padding: var(--sp-3) var(--sp-4);
+    list-style: none; font-size: var(--fs-xs); color: var(--text-muted);
+    border-top: 1px solid var(--border);
+}
+.urgency-legend__item { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.urgency-legend--always { display: flex; }
 @media (max-width: 767px) {
-    .urgency-legend {
-        display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4);
-        margin: 0; padding: var(--sp-3) var(--sp-4);
-        list-style: none; font-size: var(--fs-xs); color: var(--text-muted);
-        border-top: 1px solid var(--border);
-    }
-    .urgency-legend__item { display: inline-flex; align-items: center; gap: var(--sp-2); }
+    .urgency-legend { display: flex; }
 }
 
 /* Estado (custódia legal / estado atual da evidência) — pill neutro mono */

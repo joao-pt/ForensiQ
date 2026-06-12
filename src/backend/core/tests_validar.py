@@ -252,3 +252,16 @@ class ValidationVisibilityTest(TestCase):
         body = self._get('/custodies/').content.decode()
         # 1 evento do item pendente; os 2 eventos do item validado não marcam.
         self.assertEqual(body.count('val-flag'), 1)
+
+    def test_marcador_na_celula_do_codigo_e_legenda_de_pendencia(self):
+        # Parecer UX item 7: o marcador saiu da coluna Estado (col-reduce-hide
+        # — sumia no telemóvel) para a célula do Código, que sobrevive à
+        # redução; a legenda de pendência fica visível também em desktop.
+        for url in ('/evidences/', '/custodies/'):
+            body = self._get(url).content.decode()
+            code_cells = [c for c in body.split('</td>') if 'grid__code' in c]
+            self.assertTrue(any('val-flag' in c for c in code_cells), url)
+            state_cells = [c for c in body.split('</td>') if 'class="state state--' in c]
+            self.assertFalse(any('val-flag' in c for c in state_cells), url)
+            self.assertIn('urgency-legend--always', body)
+            self.assertIn('marcadores de pendência', body)
