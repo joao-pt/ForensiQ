@@ -46,7 +46,7 @@
         Restituir
       </a>
       {% endif %}
-      {% if not ledger_closed %}
+      {% if not ledger_closed and can_write %}
       <a class="btn-accent" href="/evidences/{{ ev.id }}/custody/#custody-register">
         {% include 'partials/icons/_plus.html' %}
         Registar evento

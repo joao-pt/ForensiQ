@@ -54,6 +54,23 @@ class InstitutionViewsTest(TestCase):
     def test_lista_negada_a_normal(self):
         self.assertEqual(self._get(self.normal, '/institutions/').status_code, 403)
 
+    def test_negada_a_so_leitura_mesmo_nacional(self):
+        # «Só-leitura é só-leitura» (parecer UX 2026-06-12): chefe/auditor leem a
+        # consola, mas gerir instituições é escrita — 403 nas duas superfícies.
+        for profile in (User.Profile.CHEFE_SERVICO, User.Profile.AUDITOR):
+            user = _user(f'inst_ro_{profile}'.lower(), profile,
+                         clearance=User.Clearance.NACIONAL)
+            self.assertEqual(self._get(user, '/institutions/').status_code, 403)
+            self.assertEqual(self._get(user, '/institutions/new/').status_code, 403)
+
+    def test_403_devolve_pagina_com_casca(self):
+        # O handler403 rende a casca da app (handler registado + raise
+        # PermissionDenied nas views) — nunca texto cru.
+        r = self._get(self.normal, '/institutions/')
+        self.assertEqual(r.status_code, 403)
+        self.assertContains(r, '<html', status_code=403)
+        self.assertContains(r, 'Sem permissão', status_code=403)
+
     def test_criar_negada_a_normal(self):
         r = self._post(self.normal, '/institutions/new/', {
             'name': 'Intrusa', 'type': 'OPC', 'address': 'Rua A',

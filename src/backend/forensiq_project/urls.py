@@ -211,5 +211,6 @@ urlpatterns = [
 # Handlers de erro — registados no módulo raiz de URLs (Django convention)
 # ---------------------------------------------------------------------------
 
+handler403 = 'core.frontend_views.forbidden_view'
 handler404 = 'core.frontend_views.not_found_view'
 handler500 = 'core.frontend_views.server_error_view'

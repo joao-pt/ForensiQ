@@ -17,12 +17,11 @@ from functools import wraps
 
 from django.conf import settings
 from django.contrib import messages
-from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
 from django.db.models import Count
 from django.http import (
+    Http404,
     HttpResponse,
-    HttpResponseForbidden,
-    HttpResponseNotFound,
     HttpResponsePermanentRedirect,
     HttpResponseRedirect,
 )
@@ -602,7 +601,7 @@ def verifications_view(request):
 
     user = request.user
     if not access.is_expert_or_staff(user):
-        return HttpResponseForbidden('Acesso reservado a perito forense / staff.')
+        raise PermissionDenied('Acesso reservado a perito forense / staff.')
 
     query = (request.GET.get('q') or '').strip()
     result = None
@@ -1130,7 +1129,7 @@ def occurrence_detail_view(request, occurrence_id):
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
-        return HttpResponseNotFound('Ocorrência não encontrada.')
+        raise Http404('Ocorrência não encontrada.')
     _decorate_occurrences([occ])
     # Processo INTEIRO: quem ACEDE à ocorrência vê TODOS os seus itens, sem filtro
     # por item (a instituição é dona do processo). O object-level já foi imposto
@@ -1296,7 +1295,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
-        return HttpResponseNotFound('Ocorrência não encontrada.')
+        raise Http404('Ocorrência não encontrada.')
 
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_encaminhar_form.html', 'occurrence_encaminhar.html')
@@ -1576,7 +1575,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
-        return HttpResponseNotFound('Ocorrência não encontrada.')
+        raise Http404('Ocorrência não encontrada.')
 
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_ato_form.html', 'occurrence_ato.html')
@@ -1719,7 +1718,7 @@ def occurrence_restituir_view(request, occurrence_id):
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
     if occ is None:
-        return HttpResponseNotFound('Ocorrência não encontrada.')
+        raise Http404('Ocorrência não encontrada.')
 
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_restituir_form.html', 'occurrence_restituir.html')
@@ -1807,7 +1806,7 @@ def occurrences_new_view(request):
 
     user = request.user
     if not access.can_register_records(user):
-        return HttpResponseForbidden('Apenas agentes podem registar ocorrências.')
+        raise PermissionDenied('Apenas agentes podem registar ocorrências.')
 
     crime_categories = _crime_categories()
     # Página completa (navegação directa pelo atalho da barra lateral). Sucesso
@@ -1902,7 +1901,7 @@ def institutions_view(request):
     """
     user = request.user
     if not access.can_manage_institutions(user):
-        return HttpResponseForbidden('Sem permissão para gerir instituições.')
+        raise PermissionDenied('Sem permissão para gerir instituições.')
 
     def apply_inst_state(filtered_qs, _request, value):
         return filtered_qs.filter(is_active=(value == 'active'))
@@ -1973,7 +1972,7 @@ def institution_new_view(request):
 
     user = request.user
     if not access.can_manage_institutions(user):
-        return HttpResponseForbidden('Sem permissão para criar instituições.')
+        raise PermissionDenied('Sem permissão para criar instituições.')
 
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_institution_form.html', 'institution_new.html')
@@ -2105,7 +2104,7 @@ def evidences_new_view(request):
 
     user = request.user
     if not access.can_register_records(user):
-        return HttpResponseForbidden('Apenas agentes podem registar evidências.')
+        raise PermissionDenied('Apenas agentes podem registar evidências.')
 
     occurrences = _scope_occurrences(user).order_by('-date_time')
     parents = _scope_evidences(user).order_by('occurrence__number', 'code')
@@ -2239,7 +2238,7 @@ def evidence_detail_view(request, evidence_id):
     user = request.user
     ev = _readable_evidence(user, evidence_id)
     if ev is None:
-        return HttpResponseNotFound('Evidência não encontrada.')
+        raise Http404('Evidência não encontrada.')
     _decorate_evidences([ev])
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
@@ -2252,6 +2251,11 @@ def evidence_detail_view(request, evidence_id):
     )
     _decorate_evidences(sub_components)
     valid_next = _valid_next_events(events, ev)
+    # As ações de escrita derivam da máquina de estados E do papel do leitor —
+    # um perfil só-leitura nunca vê botões de escrita (o POST já era fail-closed
+    # no serializer; aqui fecha-se o RENDER — espelho do can_handoff do detalhe
+    # da ocorrência).
+    can_write = not access.is_read_only_profile(request.user)
     return render(
         request,
         'evidence_detail.html',
@@ -2263,19 +2267,20 @@ def evidence_detail_view(request, evidence_id):
             # Mesma fonte única da página de custódia (policy.next_events): ledger
             # fechado ⇒ não se oferece «Registar evento» (auditoria D96).
             'ledger_closed': not valid_next,
+            'can_write': can_write,
             # Atos com modal dedicado na ocorrência (formulário único do ato),
             # aceitáveis já (não em trânsito/terminal): validação, despacho e
             # restituição.
-            'can_validate': any(
+            'can_validate': can_write and any(
                 v == EventType.VALIDACAO_APREENSAO.value for v, _ in valid_next
             ),
             # Despachável JÁ ou por validar (o modal pode incluir a validação).
-            'can_despachar': any(
+            'can_despachar': can_write and any(
                 v in (EventType.DESPACHO_PERICIA.value,
                       EventType.VALIDACAO_APREENSAO.value)
                 for v, _ in valid_next
             ),
-            'can_restitute': any(
+            'can_restitute': can_write and any(
                 v == EventType.RESTITUICAO.value for v, _ in valid_next
             ),
         },
@@ -2505,7 +2510,7 @@ def custody_timeline_view(request, evidence_id):
     # fail-closed) — abrir a timeline não concede direito de registar eventos.
     ev = _readable_evidence(user, evidence_id)
     if ev is None:
-        return HttpResponseNotFound('Evidência não encontrada.')
+        raise Http404('Evidência não encontrada.')
 
     sub_components = list(ev.sub_components.order_by('id'))
     register_errors = []
@@ -2535,12 +2540,16 @@ def custody_timeline_view(request, evidence_id):
     }
     register_events = [(v, label) for v, label in valid_events if v not in dedicated]
     valid_values = {v for v, _ in valid_events}
-    can_validate = EventType.VALIDACAO_APREENSAO.value in valid_values
+    # Render fail-closed para papéis só-leitura: o ledger e o mapa continuam
+    # visíveis, mas botões de atos e formulário de registo não se oferecem a
+    # quem nunca pode escrever (o POST já era recusado no serializer).
+    can_write = not access.is_read_only_profile(request.user)
+    can_validate = can_write and EventType.VALIDACAO_APREENSAO.value in valid_values
     # Despachável JÁ ou com apreensão por validar (o modal pode incluir a validação).
-    can_despachar = (
+    can_despachar = can_write and (
         EventType.DESPACHO_PERICIA.value in valid_values or can_validate
     )
-    can_restitute = EventType.RESTITUICAO.value in valid_values
+    can_restitute = can_write and EventType.RESTITUICAO.value in valid_values
     return render(
         request,
         'custody_timeline.html',
@@ -2549,6 +2558,7 @@ def custody_timeline_view(request, evidence_id):
             'events': events,
             'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             'valid_events': register_events,
+            'can_write': can_write,
             'can_validate': can_validate,
             'can_despachar': can_despachar,
             'can_restitute': can_restitute,
@@ -2830,7 +2840,9 @@ def occurrence_intake_view(request, occurrence_id):
     # caixa "prova a chegar" mostra o item ao membro do destino, mas o intake
     # recusava-o (403). A porta de ESCRITA real continua no serializer
     # (can_append_custody, fail-closed); aqui decide-se só quem vê/usa o formulário.
-    can_receive = (
+    # Papéis só-leitura nunca abrem o formulário de receção (escrita no ledger)
+    # — mesmo sendo membros da instituição de destino ou staff.
+    can_receive = not access.is_read_only_profile(user) and (
         user.is_superuser
         or access.is_expert_or_staff(user)
         or access.has_inbound_for_occurrence(user, occurrence)
@@ -3034,6 +3046,15 @@ def settings_view(request):
 def not_found_view(request, exception=None):
     """Handler 404 — página amigável em vez do default do Django."""
     return render(request, '404.html', status=404)
+
+
+def forbidden_view(request, exception=None):
+    """Handler 403 — página com casca em vez do texto cru do Django.
+
+    A mensagem do ``raise PermissionDenied('…')`` chega ao template (as views
+    explicam o PORQUÊ — «sem permissão de escrita», «perfil só-leitura»…)."""
+    message = str(exception) if exception is not None and str(exception) else ''
+    return render(request, '403.html', {'exception_message': message}, status=403)
 
 
 def server_error_view(request):

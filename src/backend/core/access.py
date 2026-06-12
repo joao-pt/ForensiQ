@@ -103,7 +103,11 @@ def is_read_only_profile(user):
 
 def can_register_records(user):
     """Pode REGISTAR ocorrências/itens de prova? Primeiro interveniente ou staff
-    (a génese da prova capta-se no terreno — ADR-0016 §2)."""
+    (a génese da prova capta-se no terreno — ADR-0016 §2). Os papéis só-leitura
+    nunca registam, mesmo com is_staff — «só-leitura é só-leitura» (os campos
+    profile e is_staff são ortogonais; mesmo padrão de can_append_custody)."""
+    if is_read_only_profile(user):
+        return False
     return bool(
         getattr(user, 'is_staff', False)
         or _profile(user) == User.Profile.FIRST_RESPONDER
@@ -120,9 +124,13 @@ def is_expert_or_staff(user):
 
 
 def can_manage_institutions(user):
-    """Gerir instituições (pontos de controlo) é ato de administração — a mesma
-    regra da leitura nacional (staff ou credencial NACIONAL). Se um dia divergir,
-    a regra própria fica AQUI, não inline nas views/templates."""
+    """Gerir instituições (pontos de controlo) é ato de administração — a regra
+    da leitura nacional (staff ou credencial NACIONAL), EXCETO os papéis
+    só-leitura: criar/editar instituições é escrita e «só-leitura é só-leitura»
+    (decisão do parecer UX 2026-06-12). A regra vive AQUI, não inline nas
+    views/templates."""
+    if is_read_only_profile(user):
+        return False
     return has_national_read(user)
 
 

@@ -424,3 +424,32 @@ class ConsoleSessionTest(TestCase):
         # Sessão com 'institution' mas utilizador sem pertença → MINE.
         req = self._req(session={access.CONSOLE_SESSION_KEY: access.Lens.INSTITUTION})
         self.assertEqual(access.console_mode(req, self.outsider), access.Lens.MINE)
+
+
+class ReadOnlyIsReadOnlyTest(TestCase):
+    """«Só-leitura é só-leitura» (parecer UX 2026-06-12, decisão 2): os papéis
+    CHEFE_SERVICO/AUDITOR nunca passam nos predicados de ESCRITA — nem com
+    credencial NACIONAL, nem com is_staff (campos ortogonais; READ_ONLY corre
+    antes de qualquer bypass, como em can_append_custody)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.chefe_nac = _user('ro_chefe_nac', User.Profile.CHEFE_SERVICO, User.Clearance.NACIONAL)
+        cls.auditor = _user('ro_auditor', User.Profile.AUDITOR, User.Clearance.NACIONAL)
+        cls.auditor_staff = _user('ro_auditor_staff', User.Profile.AUDITOR)
+        cls.auditor_staff.is_staff = True
+        cls.auditor_staff.save(update_fields=['is_staff'])
+
+    def test_nao_gerem_instituicoes(self):
+        for user in (self.chefe_nac, self.auditor, self.auditor_staff):
+            self.assertFalse(access.can_manage_institutions(user))
+
+    def test_nao_registam_ocorrencias_nem_itens(self):
+        for user in (self.chefe_nac, self.auditor, self.auditor_staff):
+            self.assertFalse(access.can_register_records(user))
+
+    def test_escrita_continua_aberta_aos_papeis_proprios(self):
+        # Guarda de regressão: a exclusão não pode apertar os perfis de escrita.
+        nacional = _user('ro_fr_nac', User.Profile.FIRST_RESPONDER, User.Clearance.NACIONAL)
+        self.assertTrue(access.can_manage_institutions(nacional))
+        self.assertTrue(access.can_register_records(nacional))

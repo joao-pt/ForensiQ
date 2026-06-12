@@ -5,8 +5,10 @@
 
 {% block page_title %}Ocorrências{% endblock %}
 {% block page_cta %}
+    {% if can_register %}
     <a class="btn-accent" href="/occurrences/new/">
       {% include 'partials/icons/_plus.html' %}
       Nova ocorrência
     </a>
+    {% endif %}
 {% endblock %}

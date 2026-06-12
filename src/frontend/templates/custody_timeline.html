@@ -78,7 +78,7 @@
       <p class="dd__nogeo">Cadeia fechada — esta evidência tem um evento terminal (restituição/destruição). Não são aceites mais eventos.</p>
     </div>
   </section>
-  {% else %}
+  {% elif can_write %}
   <details class="section custody-register" id="custody-register" {% if register_errors %}open{% endif %}>
     <summary class="section__head">
       <h2 class="section__title">Registar novo evento</h2>
