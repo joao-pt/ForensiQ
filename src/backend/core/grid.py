@@ -71,24 +71,44 @@ def serialize_columns(columns, filters=None):
     } for c in columns]
 
 
+# Caracteres que o Excel/LibreOffice interpretam como início de FÓRMULA ao
+# abrir um CSV — neutralizá-los é a defesa OWASP contra injeção de fórmula.
+_CSV_FORMULA_LEADERS = ('=', '+', '-', '@', '\t', '\r')
+
+
+def _csv_safe(value):
+    """Neutraliza injeção de fórmula em CSV (OWASP): campos de texto livre
+    (NUIPC, sigla/nome de instituição, nomes de agente) chegam crus à grelha e,
+    se começarem por ``= + - @`` (ou TAB/CR), o Excel/LibreOffice executam-nos
+    como fórmula ao abrir o ficheiro. Prefixa-se com aspa simples para forçar
+    texto. O ``csv.writer`` já trata o quoting RFC-4180 (vírgulas/aspas/quebras
+    de linha) — problema diferente que este NÃO substitui."""
+    if value and value[0] in _CSV_FORMULA_LEADERS:
+        return "'" + value
+    return value
+
+
 def _csv_cell(row, col):
     """Valor ACHATADO de uma célula para o CSV — regras por tipo de célula na
     fonte única (os dicts de apresentação nunca se re-exprimem nas views):
-    pri→title, state→label, action→href, date→ISO; resto = valor textual."""
+    pri→title, state→label, action→href, date→ISO; resto = valor textual. O
+    resultado passa por :func:`_csv_safe` (defesa contra injeção de fórmula)."""
     from core.templatetags.grid_extras import cellattr
 
     v = cellattr(row, col.key)
     if v is None:
         return ''
     if col.cell == 'pri':
-        return v.get('title', '') if isinstance(v, dict) else str(v)
-    if col.cell == 'state':
-        return v.get('label', '') if isinstance(v, dict) else str(v)
-    if col.cell == 'action':
-        return v.get('href', '') if isinstance(v, dict) else str(v)
-    if col.cell == 'date':
-        return v.isoformat() if hasattr(v, 'isoformat') else str(v)
-    return str(v)
+        s = v.get('title', '') if isinstance(v, dict) else str(v)
+    elif col.cell == 'state':
+        s = v.get('label', '') if isinstance(v, dict) else str(v)
+    elif col.cell == 'action':
+        s = v.get('href', '') if isinstance(v, dict) else str(v)
+    elif col.cell == 'date':
+        s = v.isoformat() if hasattr(v, 'isoformat') else str(v)
+    else:
+        s = str(v)
+    return _csv_safe(s)
 
 
 def _export_csv(request, *, qs, columns, decorate, grid_key, qs_base):
@@ -108,7 +128,7 @@ def _export_csv(request, *, qs, columns, decorate, grid_key, qs_base):
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = f'attachment; filename="{grid_key}-export.csv"'
     writer = csv.writer(response)
-    writer.writerow([c.label for c in columns])
+    writer.writerow([_csv_safe(c.label) for c in columns])
     for row in rows:
         writer.writerow([_csv_cell(row, c) for c in columns])
     log_access(

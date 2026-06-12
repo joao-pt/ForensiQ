@@ -14,7 +14,7 @@ from django.urls import reverse
 from rest_framework_simplejwt.tokens import AccessToken
 
 from core.auth import ACCESS_COOKIE_NAME
-from core.grid import GridColumn, grid_list_response
+from core.grid import GridColumn, _csv_cell, grid_list_response
 from core.templatetags.grid_extras import cellattr
 from core.tests_base import auth_cookie
 from core.tests_factories import (
@@ -282,6 +282,27 @@ class AuditTrailGridTest(TestCase):
         self.assertIn('As minhas ocorrências', body)
 
 
+class CsvFormulaInjectionTest(SimpleTestCase):
+    """Defesa OWASP contra injeção de fórmula no export CSV (item 18): uma
+    célula de texto livre iniciada por = + - @ (ou TAB/CR) é prefixada com
+    aspa simples para o Excel/LibreOffice não a executarem como fórmula."""
+
+    def _cell(self, value):
+        o = _Obj()
+        o.number = value
+        return _csv_cell(o, GridColumn('number', 'NUIPC'))
+
+    def test_prefixos_perigosos_sao_neutralizados(self):
+        for raw in ('=HYPERLINK("http://x")', '+1', '-2', '@cmd', '\tx', '\rx'):
+            self.assertEqual(self._cell(raw), "'" + raw)
+
+    def test_valor_benigno_fica_intacto(self):
+        self.assertEqual(self._cell('NUIPC-2026-000123'), 'NUIPC-2026-000123')
+
+    def test_celula_vazia_fica_vazia(self):
+        self.assertEqual(self._cell(''), '')
+
+
 class ReportsLoteFTest(AuthenticatedFrontendTestCase):
     """Item 18: coluna «Em trânsito», célula Itens com link, lede com toggle de
     arquivados (?arch=1 pegajoso) e EXPORT CSV genérico da grelha filtrada
@@ -331,3 +352,11 @@ class ReportsLoteFTest(AuthenticatedFrontendTestCase):
         # Grelhas sem opt-in ignoram o parametro (resposta HTML normal).
         occs = self.client.get('/occurrences/?export=csv')
         self.assertIn('text/html', occs['Content-Type'])
+
+    def test_export_csv_neutraliza_injecao_de_formula(self):
+        # NUIPC controlado pelo utilizador iniciado por '=' não pode sair do
+        # CSV como fórmula executável (OWASP CSV injection).
+        occ = OccurrenceFactory(agent=self.test_user, number='=2+5')
+        _event(_evidence(occ, self.test_user), self.test_user)
+        body = self.client.get('/reports/?export=csv').content.decode('utf-8')
+        self.assertIn("'=2+5", body)        # prefixado com aspa simples

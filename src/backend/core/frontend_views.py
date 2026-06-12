@@ -2452,6 +2452,7 @@ def institution_new_view(request):
             'institution_types': InstitutionType.choices,
             'modal': modal,
             'action': '/institutions/new/',
+            'loc_required': True,
         }
 
     if request.method == 'POST':
@@ -2550,6 +2551,9 @@ def institution_edit_view(request, institution_id):
             'form_title': 'Editar instituição',
             'submit_label': 'Guardar alterações',
             'show_active': True,
+            # POST parcial: morada/GPS não são obrigatórios na edição (as
+            # instituições semeadas sem georreferência têm de ser editáveis).
+            'loc_required': False,
             'edit_warning': _institution_edit_warning(inst),
         }
 
@@ -3886,6 +3890,14 @@ def settings_view(request):
                 validate_email(email)
             except DjangoValidationError:
                 contact_errors['email'] = 'Email inválido.'
+            else:
+                # validate_email não limita o comprimento; User.email é
+                # varchar(254) — sem esta guarda, um email válido mas >254
+                # rebenta no save() (DataError → 500) em vez de erro de form.
+                if len(email) > 254:
+                    contact_errors['email'] = (
+                        'Email demasiado longo (máx. 254 caracteres).'
+                    )
         if len(phone) > 20:
             contact_errors['phone'] = 'Telefone demasiado longo (máx. 20 caracteres).'
         if not contact_errors:

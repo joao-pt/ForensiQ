@@ -197,3 +197,23 @@ class InstitutionEditTest(TestCase):
         self.assertIn('Email', body)
         self.assertIn(f'/institutions/{self.inst.id}/edit/', body)
         self.assertIn('data-modal-open', body)
+
+    def test_edicao_nao_forca_morada_gps_obrigatorios(self):
+        # O partial é fonte única de criação/edição; na EDIÇÃO morada e GPS não
+        # podem sair como `required` (instituições sem georreferência têm de ser
+        # editáveis — o POST parcial server-side já cobre isto). Nome continua.
+        self._auth(self.nacional)
+        body = self.client.get(
+            f'/institutions/{self.inst.id}/edit/?modal=1'
+        ).content.decode()
+        self.assertNotRegex(body, r'name="address"[^>]*required')
+        self.assertNotRegex(body, r'name="gps_lat"[^>]*required')
+        self.assertNotRegex(body, r'name="gps_lng"[^>]*required')
+        self.assertRegex(body, r'name="name"[^>]*required')
+
+    def test_criacao_mantem_morada_gps_obrigatorios(self):
+        # Na CRIAÇÃO manual a localização continua obrigatória (GPS-só-no-terreno).
+        self._auth(self.nacional)
+        body = self.client.get('/institutions/new/?modal=1').content.decode()
+        self.assertRegex(body, r'name="address"[^>]*required')
+        self.assertRegex(body, r'name="gps_lat"[^>]*required')

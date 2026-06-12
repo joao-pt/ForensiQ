@@ -705,3 +705,14 @@ class SettingsLoteFTest(AuthenticatedFrontendTestCase):
         self.assertIn('Email inválido', r.content.decode())
         self.test_user.refresh_from_db()
         self.assertEqual(self.test_user.email, antes)
+
+    def test_post_email_demasiado_longo_nao_grava(self):
+        # validate_email aceita o formato; a coluna é varchar(254). Sem guarda
+        # de comprimento, gravar rebentava com 500 em vez de erro de formulário.
+        antes = self.test_user.email
+        longo = 'a' * 250 + '@e.com'   # 256 chars, formato válido
+        r = self.client.post('/settings/', {'email': longo, 'phone': ''})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('demasiado longo', r.content.decode())
+        self.test_user.refresh_from_db()
+        self.assertEqual(self.test_user.email, antes)

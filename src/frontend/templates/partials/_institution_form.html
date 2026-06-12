@@ -5,7 +5,9 @@
     • página completa (institution_new.html / institution_edit.html);
     • fragmento modal (ação-in-place) quando `modal` é verdadeiro.
   A view parametriza `action`, `form_title`, `submit_label`, `show_active`
-  (+`edit_warning`) — os defaults preservam a criação. Em modo modal submete
+  (+`edit_warning`) e `loc_required` (morada+GPS obrigatórios: True na criação
+  manual, False na edição — instituições semeadas sem georreferência têm de
+  ser editáveis sem inventar coordenadas). Em modo modal submete
   via HTMX para #app-modal-body (sucesso = 204 + HX-Redirect).
 {% endcomment %}
 <div data-modal-title="{{ form_title|default:'Nova instituição' }}">
@@ -50,8 +52,8 @@
       </div>
 
       <div class="form-field form-field--full">
-        <label for="f-i-address">Morada *</label>
-        <input type="text" id="f-i-address" name="address" value="{{ data.address }}" required maxlength="255"
+        <label for="f-i-address">Morada{% if loc_required %} *{% endif %}</label>
+        <input type="text" id="f-i-address" name="address" value="{{ data.address }}" {% if loc_required %}required {% endif %}maxlength="255"
                placeholder="Rua, nº, localidade"
                {% if errors.address %}aria-invalid="true" aria-describedby="f-i-address-err"{% endif %}>
         {% include 'partials/_field_error.html' with field_id='f-i-address' error=errors.address.0 %}
@@ -61,7 +63,7 @@
       {# dispositivo é um atalho. A coordenada é COPIADA para o evento na receção #}
       {# (GPS-só-no-terreno), por isso é obrigatória na criação manual. #}
       <div class="form-field form-field--full" role="group" aria-labelledby="f-i-geo-label">
-        <span class="subhead" id="f-i-geo-label">Localização (ponto de controlo) *</span>
+        <span class="subhead" id="f-i-geo-label">Localização (ponto de controlo){% if loc_required %} *{% endif %}</span>
         <div class="map-picker" data-map-picker
              data-lat-target="#f-i-lat" data-lng-target="#f-i-lng"
              data-decimals="{{ gps_decimals }}"></div>
@@ -71,7 +73,7 @@
         </div>
       </div>
 
-      {% include 'partials/_gps_inputs.html' with id_prefix='f-i' data=data errors=errors required=True ph_lat='38.7197003' ph_lng='-9.1466657' %}
+      {% include 'partials/_gps_inputs.html' with id_prefix='f-i' data=data errors=errors required=loc_required ph_lat='38.7197003' ph_lng='-9.1466657' %}
 
       {% if show_active %}
       {# Toggle de atividade (item 19): inativa sai dos destinos/selects; o aviso é informativo (guard-rail), nunca bloqueia. #}

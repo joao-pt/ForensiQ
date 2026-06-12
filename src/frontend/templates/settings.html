@@ -43,7 +43,7 @@
           {% csrf_token %}
           <div class="form-field">
             <label for="set-email">Email</label>
-            <input type="email" id="set-email" name="email" value="{{ u.email }}"
+            <input type="email" id="set-email" name="email" value="{{ u.email }}" maxlength="254"
                    {% if contact_errors.email %}aria-invalid="true"{% endif %}>
             {% if contact_errors.email %}<p class="form-error visible">{{ contact_errors.email }}</p>{% endif %}
           </div>
