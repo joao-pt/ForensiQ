@@ -26,6 +26,7 @@ LEGAL_STATE_LABELS = {
 # badges .state; auditoria D97). Ações fora do mapa ficam neutras (sem classe).
 ACTION_CSS = {
     'CREATE': 'ok',
+    'UPDATE': 'info',
     'EXPORT_PDF': 'info',
     'EXPORT_CSV': 'info',
     'SYSTEM_ALERT': 'danger',
@@ -38,6 +39,7 @@ ACTION_CSS = {
 ACTION_SHORT = {
     'VIEW': 'Visualização',
     'CREATE': 'Criação',
+    'UPDATE': 'Atualização',
     'EXPORT_PDF': 'Export. PDF',
     'EXPORT_CSV': 'Export. CSV',
     'AUDIT_PURGE': 'Expurgo RGPD',

@@ -2710,6 +2710,10 @@ class AuditLog(AppendOnlyModel):
 
         VIEW = 'VIEW', 'Visualização'
         CREATE = 'CREATE', 'Criação'
+        # Edição de dados de REFERÊNCIA (instituições, perfil próprio) — a
+        # prova/ledger continuam imutáveis; reutilizar CREATE seria desonesto
+        # no trilho (parecer item 19).
+        UPDATE = 'UPDATE', 'Atualização'
         EXPORT_PDF = 'EXPORT_PDF', 'Exportação PDF'
         EXPORT_CSV = 'EXPORT_CSV', 'Exportação CSV'
         AUDIT_PURGE = 'AUDIT_PURGE', 'Expurgo de Logs (retenção RGPD)'

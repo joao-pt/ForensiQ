@@ -47,6 +47,7 @@ from core.frontend_views import (
     evidences_new_view,
     evidences_view,
     inbound_view,
+    institution_edit_view,
     institution_new_view,
     institutions_view,
     login_view,
@@ -173,6 +174,8 @@ urlpatterns = [
     # Instituições (pontos de controlo fixos) — gestão (staff/NACIONAL)
     path('institutions/', institutions_view, name='institutions'),
     path('institutions/new/', institution_new_view, name='institution_new'),
+    path('institutions/<int:institution_id>/edit/', institution_edit_view,
+         name='institution_edit'),
 
     # Relatórios PDF, estatísticas e definições
     path('reports/', reports_view, name='reports'),

@@ -124,3 +124,76 @@ class InstitutionViewsTest(TestCase):
         self.assertIn('data-map-picker', body)   # devolve o fragmento do formulário
         self.assertNotIn('<html', body)          # continua a ser fragmento (modal)
         self.assertFalse(Institution.objects.filter(name='Sem GPS').exists())
+
+
+class InstitutionEditTest(TestCase):
+    """Edição de instituição (parecer item 19) — espelho do modal de criação:
+    mesmo gate, mesmo partial parametrizado, update() do serializer; POST
+    parcial (semeadas sem GPS continuam editáveis); toggle is_active com
+    guard-rail informativo; trilho UPDATE com antes/depois."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.nacional = _user(
+            'edit_nacional', User.Profile.FIRST_RESPONDER,
+            clearance=User.Clearance.NACIONAL
+        )
+        cls.normal = _user('edit_normal', User.Profile.FIRST_RESPONDER)
+        cls.inst = Institution.objects.create(
+            name='Lab Editavel', type=InstitutionType.LAB_PUBLICO, sigla='LAB-ED'
+        )
+
+    def _auth(self, user):
+        auth_cookie(self.client, user)
+
+    def test_editar_negada_a_normal_e_so_leitura(self):
+        self._auth(self.normal)
+        url = f'/institutions/{self.inst.id}/edit/'
+        self.assertEqual(self.client.get(url).status_code, 403)
+        ro = _user('edit_ro', User.Profile.AUDITOR, clearance=User.Clearance.NACIONAL)
+        self._auth(ro)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+    def test_get_modal_prefill_e_toggle(self):
+        self._auth(self.nacional)
+        body = self.client.get(
+            f'/institutions/{self.inst.id}/edit/?modal=1'
+        ).content.decode()
+        self.assertIn('Lab Editavel', body)               # valores pré-preenchidos
+        self.assertIn('Editar instituição', body)         # título parametrizado
+        self.assertIn('name="is_active"', body)           # toggle só na edição
+        self.assertNotIn('<html', body)                   # fragmento modal
+
+    def test_post_parcial_edita_sem_gps_e_audita(self):
+        from core.models import AuditLog
+
+        # Instituição semeada SEM morada/GPS: a edição da sigla não pode
+        # obrigar a inventar coordenadas (POST parcial, vazios removidos).
+        self._auth(self.nacional)
+        r = self.client.post(f'/institutions/{self.inst.id}/edit/', {
+            'modal': '1', 'name': 'Lab Editavel', 'type': 'LAB_PUBLICO',
+            'sigla': 'LAB-ED2', 'is_active': '1',
+        })
+        self.assertEqual(r.status_code, 204)
+        self.inst.refresh_from_db()
+        self.assertEqual(self.inst.sigla, 'LAB-ED2')
+        log = AuditLog.objects.filter(action=AuditLog.Action.UPDATE).last()
+        self.assertIsNotNone(log)
+        self.assertIn('sigla', log.details.get('fields', {}))
+
+    def test_post_inativa_instituicao(self):
+        self._auth(self.nacional)
+        r = self.client.post(f'/institutions/{self.inst.id}/edit/', {
+            'modal': '1', 'name': 'Lab Editavel', 'type': 'LAB_PUBLICO',
+        })   # checkbox ausente = inativa
+        self.assertEqual(r.status_code, 204)
+        self.inst.refresh_from_db()
+        self.assertFalse(self.inst.is_active)
+
+    def test_grelha_tem_contactos_e_editar(self):
+        self._auth(self.nacional)
+        body = self.client.get('/institutions/').content.decode()
+        self.assertIn('Telefone', body)
+        self.assertIn('Email', body)
+        self.assertIn(f'/institutions/{self.inst.id}/edit/', body)
+        self.assertIn('data-modal-open', body)

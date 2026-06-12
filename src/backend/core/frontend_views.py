@@ -75,6 +75,7 @@ from core.models import (
     InstitutionType,
     Occurrence,
     Portador,
+    ProvaEmTransito,
     ReceiverDocType,
     pericia_due_date,
 )
@@ -2376,21 +2377,30 @@ def institutions_view(request):
                                 'label': 'Ativa' if active else 'Inativa'}
             inst.dot = {'cls': 'ok' if active else 'muted',
                         'title': 'Ativa' if active else 'Inativa'}
+            # Edição ação-in-place (item 19): a célula 'action' abre o modal
+            # (modal-action.js re-liga gatilhos chegados por swap HTMX).
+            inst.edit = {'href': f'/institutions/{inst.id}/edit/', 'label': 'Editar',
+                         'aria': f'Editar a instituição {inst.short_label}',
+                         'modal_title': 'Editar instituição'}
 
     state_choices = (('active', 'Ativa'), ('inactive', 'Inativa'))
     columns = [
-        GridColumn('name', 'Nome', width=24, dot=True,
+        GridColumn('name', 'Nome', width=18, dot=True,
                    filter=ColFilter('name', 'Nome', kind='text', field='name', placeholder='Nome')),
-        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=18,
+        GridColumn('type_label', 'Tipo', css='grid__ellipsis', width=12,
                    filter=ColFilter('type', 'Tipo', kind='select', field='type',
                                     choices=tuple(InstitutionType.choices))),
-        GridColumn('sigla', 'Sigla', css='mono', width=11,
+        GridColumn('sigla', 'Sigla', css='mono', width=9,
                    filter=ColFilter('sigla', 'Sigla', kind='text', field='sigla', placeholder='Sigla')),
-        GridColumn('address', 'Morada', css='grid__muted col-hide-sm', width=23,
+        GridColumn('address', 'Morada', css='grid__muted grid__ellipsis col-hide-sm', width=12,
                    filter=ColFilter('address', 'Morada', kind='text', field='address', placeholder='Morada')),
-        GridColumn('gps_label', 'GPS', css='mono col-hide-md', width=13),
-        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
+        GridColumn('gps_label', 'GPS', css='mono col-hide-md', width=9),
+        # Contactos visíveis (item 19): a ficha deixa de ser exclusiva do form.
+        GridColumn('phone', 'Telefone', css='mono col-hide-md', width=10),
+        GridColumn('email', 'Email', css='grid__muted grid__ellipsis col-hide-sm', width=13),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=8,
                    filter=ColFilter('state', 'Estado', kind='select', choices=state_choices)),
+        GridColumn('edit', 'Editar', cell='action', width=9),
     ]
 
     return grid_list_response(
@@ -2445,8 +2455,8 @@ def institution_new_view(request):
         }
 
     if request.method == 'POST':
-        fields = ('name', 'type', 'sigla', 'address', 'gps_lat', 'gps_lng', 'email', 'phone')
-        data = {k: request.POST[k].strip() for k in fields if request.POST.get(k, '').strip()}
+        data = {k: request.POST[k].strip() for k in _INSTITUTION_FIELDS
+                if request.POST.get(k, '').strip()}
         serializer = InstitutionSerializer(data=data)
         if serializer.is_valid():
             try:
@@ -2465,6 +2475,113 @@ def institution_new_view(request):
         return render(request, template, _ctx(serializer.errors, request.POST), status=400)
 
     return render(request, template, _ctx({}, {}))
+
+
+# Campos editáveis do formulário de instituição — partilhados pela criação e
+# pela edição (o partial é a fonte única do markup).
+_INSTITUTION_FIELDS = ('name', 'type', 'sigla', 'address', 'gps_lat', 'gps_lng',
+                       'email', 'phone')
+
+
+def _institution_edit_warning(inst):
+    """Aviso INFORMATIVO do toggle de atividade (item 19 — guard-rail que nunca
+    bloqueia): inativar tira a instituição dos destinos/selects, mas não revoga
+    custódia nem pertenças — se ela DETÉM prova agora (derivado do ledger,
+    nunca guardado) ou tem prova a chegar por reconhecer, o operador deve
+    sabê-lo antes de decidir."""
+    ledger = ChainOfCustody.objects.filter(
+        evidence__in=Evidence.objects.filter(custody_chain__custodian_institution=inst)
+    )
+    held = sum(
+        1 for inst_id, _ct in analytics.current_holders_by_evidence(ledger).values()
+        if inst_id == inst.id
+    )
+    pendentes = ProvaEmTransito.objects.filter(
+        destino_institution=inst, acknowledged_at__isnull=True
+    ).count()
+    parts = []
+    if held:
+        parts.append(f'detém atualmente {held} item(ns) de prova')
+    if pendentes:
+        parts.append(f'tem {pendentes} aviso(s) de prova a chegar por reconhecer')
+    if not parts:
+        return ''
+    return (f'Atenção: esta instituição { " e ".join(parts) }. Inativá-la '
+            'retira-a dos destinos e filtros, mas não move a prova nem revoga '
+            'pertenças.')
+
+
+@jwt_cookie_user
+def institution_edit_view(request, institution_id):
+    """Edição de instituição — espelho do modal de criação (item 19): mesmo
+    gate, mesmo partial (parametrizado) e o ``update()`` do
+    ``InstitutionSerializer``, que existia sem chamador.
+
+    O POST é PARCIAL com campos vazios removidos: as instituições semeadas sem
+    morada/GPS continuam editáveis sem obrigar a inventar coordenadas (a
+    exigência address+GPS do serializer é deliberada da CRIAÇÃO manual). O
+    toggle de atividade vem com guard-rail informativo, nunca bloqueante; a
+    edição fica no trilho (UPDATE com antes/depois)."""
+    from core.serializers import InstitutionSerializer
+
+    user = request.user
+    if not access.can_manage_institutions(user):
+        raise PermissionDenied('Sem permissão para gerir instituições.')
+    inst = Institution.objects.filter(pk=institution_id).first()
+    if inst is None:
+        raise Http404('Instituição não encontrada.')
+
+    modal = _wants_modal(request)
+    template = _modal_template(modal, 'partials/_institution_form.html', 'institution_edit.html')
+
+    def _initial():
+        vals = {f: getattr(inst, f) or '' for f in _INSTITUTION_FIELDS}
+        vals['is_active'] = inst.is_active
+        return vals
+
+    def _ctx(errors, data):
+        return {
+            'errors': errors,
+            'data': data if data is not None else _initial(),
+            'institution_types': InstitutionType.choices,
+            'modal': modal,
+            'inst': inst,
+            'action': f'/institutions/{inst.id}/edit/',
+            'form_title': 'Editar instituição',
+            'submit_label': 'Guardar alterações',
+            'show_active': True,
+            'edit_warning': _institution_edit_warning(inst),
+        }
+
+    if request.method == 'POST':
+        data = {k: request.POST[k].strip() for k in _INSTITUTION_FIELDS
+                if request.POST.get(k, '').strip()}
+        # Checkbox: ausente = desmarcado (o form de edição expõe sempre o toggle).
+        data['is_active'] = bool(request.POST.get('is_active'))
+        antes = {f: getattr(inst, f) for f in (*_INSTITUTION_FIELDS, 'is_active')}
+        serializer = InstitutionSerializer(inst, data=data, partial=True)
+        if serializer.is_valid():
+            try:
+                inst = serializer.save()
+            except DjangoValidationError as exc:
+                return render(request, template, _ctx({'geral': exc.messages}, request.POST), status=400)
+            # Antes/depois dos campos alterados — re-verificação do trilho.
+            mudados = {
+                f: {'antes': str(antes[f]), 'depois': str(getattr(inst, f))}
+                for f in antes if str(antes[f]) != str(getattr(inst, f))
+            }
+            log_access(
+                request=request,
+                action=AuditLog.Action.UPDATE,
+                resource_type=AuditLog.ResourceType.SYSTEM,
+                resource_id=inst.pk,
+                details={'institution': inst.pk, 'fields': mudados},
+            )
+            messages.success(request, f'Instituição {inst.short_label} atualizada.')
+            return _form_success_response(modal, '/institutions/')
+        return render(request, template, _ctx(serializer.errors, request.POST), status=400)
+
+    return render(request, template, _ctx({}, None))
 
 
 @jwt_cookie_user

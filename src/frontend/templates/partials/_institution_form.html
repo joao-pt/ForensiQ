@@ -1,13 +1,14 @@
 {% load l10n %}
 {% comment %}
-  Formulário de criação de instituição (ponto de controlo fixo).
-  Fonte ÚNICA partilhada por duas superfícies da MESMA lógica:
-    • página completa (institution_new.html) — fallback no-JS / navegação direta;
+  Formulário de instituição (ponto de controlo fixo) — fonte ÚNICA da CRIAÇÃO
+  e da EDIÇÃO (item 19), cada uma em duas superfícies da mesma lógica:
+    • página completa (institution_new.html / institution_edit.html);
     • fragmento modal (ação-in-place) quando `modal` é verdadeiro.
-  Em modo modal submete via HTMX para #app-modal-body (erros voltam aqui; o
-  sucesso responde 204 + HX-Redirect e o HTMX navega).
+  A view parametriza `action`, `form_title`, `submit_label`, `show_active`
+  (+`edit_warning`) — os defaults preservam a criação. Em modo modal submete
+  via HTMX para #app-modal-body (sucesso = 204 + HX-Redirect).
 {% endcomment %}
-<div data-modal-title="Nova instituição">
+<div data-modal-title="{{ form_title|default:'Nova instituição' }}">
 
   {% include 'partials/_form_errors.html' %}
 
@@ -72,8 +73,19 @@
 
       {% include 'partials/_gps_inputs.html' with id_prefix='f-i' data=data errors=errors required=True ph_lat='38.7197003' ph_lng='-9.1466657' %}
 
+      {% if show_active %}
+      {# Toggle de atividade (item 19): inativa sai dos destinos/selects; o aviso é informativo (guard-rail), nunca bloqueia. #}
+      <div class="form-field form-field--full">
+        {% if edit_warning %}<p class="form-hint"><strong>{{ edit_warning }}</strong></p>{% endif %}
+        <label class="form-check">
+          <input type="checkbox" name="is_active" value="1" {% if data.is_active %}checked{% endif %}>
+          <span>Instituição ativa (aparece nos destinos e filtros)</span>
+        </label>
+      </div>
+      {% endif %}
+
     </div>
 
-    {% include 'partials/_form_actions.html' with cancel_url='/institutions/' submit_label='Criar instituição' %}
+    {% include 'partials/_form_actions.html' with cancel_url='/institutions/' submit_label=submit_label|default:'Criar instituição' %}
   </form>
 </div>

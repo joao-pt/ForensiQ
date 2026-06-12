@@ -1,0 +1,25 @@
+{% extends 'form_page.html' %}
+{% load static %}
+
+{% block title %}Editar instituição — ForensiQ{% endblock %}
+
+{% block breadcrumb %}
+  <a href="/institutions/">Instituições</a>
+  <span class="breadcrumb-sep" aria-hidden="true">/</span>
+  <span class="breadcrumb-current">{{ inst.short_label }}</span>
+{% endblock %}
+
+{% block form_title %}Editar instituição{% endblock %}
+{% block form_subtitle %}
+      <p class="detail__sub"><span class="mono">{{ inst.short_label }}</span> · ponto de controlo fixo — a coordenada é copiada para o evento na receção</p>
+{% endblock %}
+
+{% block form_body %}{% include 'partials/_institution_form.html' %}{% endblock %}
+
+{% block form_scripts %}
+  {% include '_leaflet_js.html' %}
+  <script src="{% static 'js/components/geo.js' %}"></script>
+  <script src="{% static 'js/components/geo-capture.js' %}"></script>
+  <script src="{% static 'js/map-picker.js' %}"></script>
+  <script src="{% static 'js/form-error-focus.js' %}"></script>
+{% endblock %}
