@@ -75,6 +75,27 @@
     <section class="section">
       <header class="section__head"><h2 class="section__title">Ficha do item</h2></header>
       <div class="section__body">
+        {% if ev.last_event %}
+        {# Situação ATUAL — derivada do ÚLTIMO elo do ledger (re-verificável; nunca guardada). #}
+        <h3 class="subhead">Situação atual</h3>
+        <dl class="facts">
+          <div class="facts__row"><dt>Custódio</dt><dd>{{ ev.last_event.get_custodian_type_display }}{% if ev.last_event.custodian_user %} — {{ ev.last_event.custodian_user.get_full_name|default:ev.last_event.custodian_user.username }}{% endif %}</dd></div>
+          {% if ev.last_event.custodian_institution %}
+          <div class="facts__row"><dt>Instituição</dt><dd>{% if ev.last_event.custodian_institution.sigla %}<span class="mono">{{ ev.last_event.custodian_institution.sigla }}</span> — {% endif %}{{ ev.last_event.custodian_institution.name }}</dd></div>
+          {% endif %}
+          {% if ev.last_event.location_name %}
+          <div class="facts__row"><dt>Local</dt><dd>{{ ev.last_event.location_name }}</dd></div>
+          {% endif %}
+          {% if ev.last_event.storage_location %}
+          <div class="facts__row"><dt>Armazenamento</dt><dd>{{ ev.last_event.storage_location }}</dd></div>
+          {% endif %}
+          {% if ev.current_seal %}
+          <div class="facts__row"><dt>Selo em vigor</dt><dd class="mono">{{ ev.current_seal }}</dd></div>
+          {% endif %}
+          <div class="facts__row"><dt>Último evento</dt><dd>{{ ev.last_event.get_event_type_display }} · <span class="mono">{{ ev.last_event.timestamp|date:'Y-m-d H:i' }}</span></dd></div>
+        </dl>
+        <h3 class="subhead">Registo</h3>
+        {% endif %}
         <dl class="facts">
           <div class="facts__row"><dt>Tipo</dt><dd>{{ ev.type_label }}</dd></div>
           <div class="facts__row"><dt>Estado</dt><dd><span class="state state--{{ ev.state_css }}">{{ ev.state_label }}</span></dd></div>

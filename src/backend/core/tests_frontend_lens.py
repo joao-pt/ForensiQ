@@ -135,6 +135,50 @@ class ConsoleFrontendTest(TestCase):
         estranho = self._u('cf_estranho', User.Profile.EVIDENCE_CUSTODIAN)
         self.assertEqual(self._get(estranho, f'/evidences/{self.ev_b.id}/').status_code, 404)
 
+    # -- Onde está a prova agora (parecer UX, Nota A) -------------------------
+
+    def test_evidences_mostra_onde_esta_com_filtro_por_instituicao(self):
+        # Camada 1: coluna «Onde está» (sigla do ÚLTIMO evento; tooltip = nome
+        # completo) + filtro derivado por instituição.
+        body = self._get(self.responder, '/evidences/').content.decode()
+        self.assertIn('Onde está', body)
+        self.assertIn('LAB-C', body)            # ev_a transferido para o lab
+        self.assertIn('title="Lab C"', body)    # tooltip nunca-only (title_key)
+        filtered = self._get(
+            self.responder, f'/evidences/?inst={self.lab.id}'
+        ).content.decode()
+        self.assertIn(self.ev_a.code, filtered)
+        self.assertNotIn(self.ev_b.code, filtered)
+
+    def test_detalhe_tem_bloco_situacao_atual(self):
+        body = self._get(self.responder, f'/evidences/{self.ev_a.id}/').content.decode()
+        self.assertIn('Situação atual', body)
+        self.assertIn('Último evento', body)
+        self.assertIn('Lab C', body)            # instituição do último elo
+
+    def test_tabela_de_itens_tem_localizacao_atual(self):
+        body = self._get(self.responder, f'/occurrences/{self.occ_active.id}/').content.decode()
+        self.assertIn('Localização atual', body)
+        self.assertIn('LAB-C', body)
+
+    def test_zona_pessoal_troca_agente_por_onde_esta(self):
+        # Camada 2 (decisão 3): a zona pessoal mostra a síntese por processo
+        # («N locais» quando os itens estão espalhados); o filtro de Agente sai.
+        body = self._get(self.responder, '/occurrences/').content.decode()
+        self.assertIn('Onde está', body)
+        self.assertNotIn('name="q_agent"', body)
+        self.assertIn('2 locais', body)          # ev_a@LAB-C + ev_b@PSP-C
+
+    def test_zona_instituicao_mantem_agente(self):
+        body = self._get(self.member, '/occurrences/?lens=institution').content.decode()
+        self.assertIn('name="q_agent"', body)
+        self.assertNotIn('Onde está', body)
+
+    def test_arquivo_sintese_local_unico(self):
+        # Restituído: a sigla da instituição do último evento (local único).
+        body = self._get(self.responder, '/arquivo/').content.decode()
+        self.assertIn('PSP-C', body)
+
     # -- Arquivo ------------------------------------------------------------
 
     def test_lista_ativa_exclui_arquivados(self):

@@ -18,7 +18,7 @@ from functools import wraps
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError as DjangoValidationError
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 from django.http import (
     Http404,
     HttpResponse,
@@ -74,6 +74,7 @@ from core.models import (
 )
 from core.policy import custody_transitions
 from core.utils import (
+    current_seal_of,
     get_user_display_name,
     has_despacho,
     legal_state_of,
@@ -287,6 +288,49 @@ def _decorate_occurrences_page(occurrences):
     _decorate_occurrences_validation(occurrences)
 
 
+def _decorate_occurrences_where(occurrences):
+    """Anota ``occ.where_label`` — síntese «onde está a prova agora» por
+    processo (Nota A camada 2): sigla quando os itens estão TODOS num local
+    único / «N locais» / «—» sem itens. O local de um item é a instituição do
+    último evento (sigla; sem instituição, o rótulo do ``custodian_type`` —
+    «Proprietário» nos restituídos). Itens sem eventos (génese por abrir) são
+    ignorados na síntese. Bulk: 1 passagem do ledger + 1 query de Evidence +
+    1 de Institution, só sobre a página."""
+    ids = [o.id for o in occurrences]
+    for o in occurrences:
+        o.where_label = '—'
+    if not ids:
+        return
+    ledger = ChainOfCustody.objects.filter(evidence__occurrence_id__in=ids)
+    holders = analytics.current_holders_by_evidence(ledger)
+    occ_by_ev = dict(
+        Evidence.objects.filter(occurrence_id__in=ids).values_list('id', 'occurrence_id')
+    )
+    keys_by_occ = {}
+    for ev_id, (inst_id, ctype) in holders.items():
+        key = inst_id if inst_id is not None else f'ct:{ctype}'
+        keys_by_occ.setdefault(occ_by_ev.get(ev_id), set()).add(key)
+    inst_ids = {k for keys in keys_by_occ.values() for k in keys if isinstance(k, int)}
+    siglas = {
+        i: (sigla or name)
+        for i, sigla, name in Institution.objects.filter(id__in=inst_ids)
+        .values_list('id', 'sigla', 'name')
+    }
+    ctype_labels = dict(CustodianType.choices)   # fallback bulk do get_..._display
+    for o in occurrences:
+        keys = keys_by_occ.get(o.id)
+        if not keys:
+            continue
+        if len(keys) > 1:
+            o.where_label = f'{len(keys)} locais'
+            continue
+        key = next(iter(keys))
+        o.where_label = (
+            siglas.get(key, '—') if isinstance(key, int)
+            else ctype_labels.get(key.removeprefix('ct:'), '—')
+        )
+
+
 def _decorate_occurrences(occurrences):
     """Anota cada ocorrência com campos de apresentação (sem tocar no modelo)."""
     for occ in occurrences:
@@ -320,10 +364,18 @@ def _occurrence_base_qs():
     return Occurrence.objects.select_related('agent', 'crime_type')
 
 
+def _chain_prefetch(lookup='custody_chain'):
+    """Prefetch ÚNICO do ledger com os FKs do custódio resolvidos — sem o
+    ``select_related``, ler ``last.custodian_institution`` numa lista custava
+    1 query por linha (a «situação atual» deriva do último elo)."""
+    return Prefetch(lookup, queryset=ChainOfCustody.objects.select_related(
+        'custodian_institution', 'custodian_user'))
+
+
 def _evidence_base_qs():
     return Evidence.objects.select_related(
         'occurrence', 'agent', 'parent_evidence'
-    ).prefetch_related('custody_chain')
+    ).prefetch_related(_chain_prefetch())
 
 
 def _custody_base_qs():
@@ -348,6 +400,12 @@ def _crime_cat_choices():
 
 def _active_institutions():
     return Institution.objects.filter(is_active=True).order_by('name')
+
+
+def _institution_choices():
+    """(id, sigla-ou-nome) das instituições ativas — fonte única dos selects
+    «Instituição» (custódias) e «Onde está» (evidências)."""
+    return tuple((i.id, i.sigla or i.name) for i in _active_institutions())
 
 
 def _active_portadores():
@@ -418,12 +476,27 @@ def _scope_evidences(user):
     return access.scope_evidences(user, base_qs=_evidence_base_qs())
 
 
-def _evidence_state(evidence):
-    """(label, css) do estado legal derivado da cadeia de custódia."""
-    st = legal_state_of(evidence)
+def _evidence_state(st):
+    """(label, css) de um estado legal já derivado (``None`` = sem custódia)."""
     if st is None:
         return ('Sem custódia', 'muted')
     return (LEGAL_STATE_LABELS.get(st, st), LEGAL_STATE_CSS.get(st, 'muted'))
+
+
+def _holder_label_of(last):
+    """(rótulo, tooltip) do detentor ATUAL a partir do último elo do ledger.
+
+    Sigla da instituição (nome completo no tooltip — decisão do parecer:
+    nunca tooltip-only); sem instituição (ex.: restituída), o rótulo do
+    ``custodian_type`` vem do enum da policy («Proprietário»); sem eventos, «—».
+    """
+    if last is None:
+        return ('—', '')
+    inst = last.custodian_institution
+    if inst is not None:
+        return (inst.sigla or inst.name, inst.name)
+    label = last.get_custodian_type_display()
+    return (label, label)
 
 
 def _pericia_rel(days_left):
@@ -470,9 +543,14 @@ def _decorate_evidences(evidences):
         # pelo identificador oficial — o código interno já vive no prefixo do
         # código do item (e casa com o filtro/sort 'occurrence__number').
         e.occ_label = e.occurrence.display_label
-        e.state_label, e.state_css = _evidence_state(e)
+        # Estado legal + ÚLTIMO elo numa só materialização: o último evento dá
+        # a «situação atual» (onde está a prova agora) sem segunda passagem.
+        st, last = legal_state_of(e, with_last=True)
+        e.last_event = last
+        e.state_label, e.state_css = _evidence_state(st)
         e.state_badge = {'css': e.state_css, 'label': e.state_label}
         e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
+        e.holder_label, e.holder_title = _holder_label_of(last)
         # Estatuto de VALIDAÇÃO da apreensão — eixo ortogonal ao estado (CPP
         # art. 178.º/6); None = não aplicável (sem badge). O val_dot é o
         # marcador compacto por linha, SÓ quando há trabalho pendente.
@@ -495,7 +573,11 @@ def _decorate_evidences(evidences):
         )
         # Prazo da perícia ordenada (data-limite derivada do despacho, hv4):
         # badge junto ao do despacho; marcador por linha SÓ quando pede atenção.
-        e.pericia_badge = _pericia_badge(pericia_deadline_of(e))
+        # A derivação fica retida (e.pericia_deadline) — a fila de receção
+        # ordena por days_left sem recomputar.
+        pd = pericia_deadline_of(e)
+        e.pericia_deadline = pd
+        e.pericia_badge = _pericia_badge(pd)
         e.pericia_dot = _pericia_dot(e.pericia_badge)
         e.aria_code = e.code or 'item de prova'
         e.detail_url = f'/evidences/{e.id}/'     # destino da linha/célula-código
@@ -504,6 +586,9 @@ def _decorate_evidences(evidences):
         tsd = e.type_specific_data or {}
         e.marca = tsd.get('marca', '')
         e.modelo = tsd.get('modelo', '')
+        # Fusão de apresentação «Equipamento» (marca+modelo — vazias em metade
+        # da demo; juntas libertam largura para a «Onde está»).
+        e.equipamento = ' '.join(p for p in (e.marca, e.modelo) if p)
 
 
 def _readable_evidence(user, pk):
@@ -1074,7 +1159,20 @@ def _occurrences_list_response(request, archived=False):
     qs = _lens_occurrences(user, lens)
 
     cat_choices = _crime_cat_choices()
-    # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente.
+    # Última coluna POR ZONA (decisão 3 do parecer UX — Nota A camada 2): na
+    # zona pessoal o Agente é (quase sempre) constante → cede o lugar à síntese
+    # «Onde está» (sigla única / «N locais» / «—», display-only); na zona
+    # Instituição o Agente varia e mantém-se, com o seu filtro.
+    personal_zone = lens != access.Lens.INSTITUTION
+    if personal_zone:
+        last_column = GridColumn('where_label', 'Onde está',
+                                 css='grid__muted col-hide-sm', width=12)
+    else:
+        last_column = GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=12,
+                                 filter=ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente',
+                                                  fields=('agent__first_name', 'agent__last_name', 'agent__username')))
+
+    # Ordem = colunas: Pri · Código · NUIPC · Crime · Data · Local · Agente/Onde está.
     columns = [
         GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6,
                    filter=ColFilter('pri', 'Prioridade', kind='select', field='priority',
@@ -1094,10 +1192,13 @@ def _occurrences_list_response(request, archived=False):
                    filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
         GridColumn('address', 'Local', css='grid__ellipsis grid__muted col-reduce-hide', width=18, geo=True,
                    filter=ColFilter('q_address', 'Local', kind='text', field='address', placeholder='Local')),
-        GridColumn('agent_label', 'Agente', css='grid__muted col-hide-sm', width=12,
-                   filter=ColFilter('q_agent', 'Agente', kind='text', placeholder='Agente',
-                                    fields=('agent__first_name', 'agent__last_name', 'agent__username'))),
+        last_column,
     ]
+
+    def decorate_page(occurrences):
+        _decorate_occurrences_page(occurrences)
+        if personal_zone:
+            _decorate_occurrences_where(occurrences)
 
     def archived_split(filtered_qs, _request):
         # Processo CONCLUÍDO = todos os itens em estado legal terminal. Deriva-se
@@ -1136,7 +1237,7 @@ def _occurrences_list_response(request, archived=False):
                        'crime_type__descritivo', 'crime_type__subcategoria__nome',
                        'crime_type__subcategoria__categoria__nome'),
         search_placeholder='Procurar código, NUIPC, crime, local, agente…',
-        decorate=_decorate_occurrences_page,
+        decorate=decorate_page,
         legend=URGENCY_LEGEND_OCCURRENCE,
         pendency_legend=PENDENCY_LEGEND,
         page_size=25,
@@ -1826,7 +1927,7 @@ def inbound_view(request):
             'destino_institution',
             'encaminhamento_event',
         )
-        .prefetch_related('evidence__custody_chain')
+        .prefetch_related(_chain_prefetch('evidence__custody_chain'))
         .order_by('-created_at', 'evidence__code')
     )
     _decorate_evidences([n.evidence for n in notices])
@@ -2076,6 +2177,16 @@ def evidences_view(request):
     lens = access.active_console_mode(request, user)
     qs = _lens_evidences(user, lens)
 
+    inst_choices = _institution_choices()
+
+    # Filtro derivado «Onde está» (detentor ATUAL do ledger — sem caminho ORM
+    # direto): avaliado LAZY como o ?state=, sobre a lente do utilizador.
+    def _inst_filter(filtered_qs, _request, value):
+        holders = analytics.current_holders_by_evidence(_lens_custody(user, lens))
+        matching = [ev_id for ev_id, (inst_id, _ct) in holders.items()
+                    if inst_id is not None and str(inst_id) == value]
+        return filtered_qs.filter(id__in=matching)
+
     # ?attn= (eixo de atenção) — o chip preenche-se DENTRO do filtro (corre
     # antes da montagem do contexto) e chega ao template via extra_ctx.
     attn_ctx = {}
@@ -2090,30 +2201,38 @@ def evidences_view(request):
         attn_ctx['attn_filter'] = {'key': value, 'label': label, 'n_items': len(ids)}
         return filtered_qs.filter(id__in=ids)
 
-    # Ordem = colunas: Ocorrência · Código · Data e Hora · Marca · Modelo · Nº série · Estado.
-    # Mobile reduzido (col-reduce-hide) sobra Ocorrência · Código (bolinha) · Data; a
-    # bolinha em Código carrega o estado legal no telemóvel. Marca/Modelo vivem em
-    # type_specific_data (JSON), expostos no decorate; filtro JSON via key-transform (PG).
+    # Ordem = colunas: NUIPC · Código · Data · Tipo · Equipamento · Nº série ·
+    # Onde está · Estado. Mobile reduzido (col-reduce-hide) sobra NUIPC ·
+    # Código (bolinha) · Data. Equipamento = fusão de apresentação marca+modelo
+    # (type_specific_data JSON; filtro OR multi-campo); «Onde está» = detentor
+    # ATUAL derivado do ledger (parecer UX, Nota A camada 1).
     columns = [
         # A célula mostra o NUIPC (occ_label = display_label) — célula, filtro
         # e sort apontam TODOS a occurrence__number (decisão do parecer UX).
-        GridColumn('occ_label', 'NUIPC', css='mono grid__ellipsis', width=15,
+        GridColumn('occ_label', 'NUIPC', css='mono grid__ellipsis', width=13,
                    filter=ColFilter('occ', 'NUIPC', kind='text', field='occurrence__number', placeholder='NUIPC')),
         # val_flag no Código (sobrevive à redução mobile, como nas ocorrências)
         # — na coluna Estado (col-reduce-hide) os sinais de pendência sumiam
         # no telemóvel (parecer UX, item 7).
-        GridColumn('code', 'Código', cell='code', width=14, dot=True, val_flag=True,
+        GridColumn('code', 'Código', cell='code', width=13, dot=True, val_flag=True,
                    link_key='detail_url',
                    filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
-        GridColumn('timestamp_seizure', 'Data e Hora', cell='date', time=True, width=15,
+        GridColumn('timestamp_seizure', 'Data e Hora', cell='date', time=True, width=13,
                    filter=ColFilter('date', 'Data e Hora', kind='date_range', field='timestamp_seizure')),
-        GridColumn('marca', 'Marca', css='grid__ellipsis col-reduce-hide', width=14,
-                   filter=ColFilter('marca', 'Marca', kind='text', field='type_specific_data__marca', placeholder='Marca')),
-        GridColumn('modelo', 'Modelo', css='grid__ellipsis col-reduce-hide', width=14,
-                   filter=ColFilter('modelo', 'Modelo', kind='text', field='type_specific_data__modelo', placeholder='Modelo')),
-        GridColumn('serial_number', 'Nº série', css='mono grid__muted col-reduce-hide', width=16,
+        GridColumn('type_label', 'Tipo', css='grid__ellipsis col-reduce-hide', width=11,
+                   filter=ColFilter('type', 'Tipo', kind='select', field='type',
+                                    choices=tuple(evidence_type_config.active_choices()))),
+        GridColumn('equipamento', 'Equipamento', css='grid__ellipsis col-reduce-hide', width=15,
+                   filter=ColFilter('equip', 'Equipamento', kind='text', placeholder='Marca/modelo',
+                                    fields=('type_specific_data__marca', 'type_specific_data__modelo'))),
+        GridColumn('serial_number', 'Nº série', css='mono grid__muted col-reduce-hide', width=12,
                    filter=ColFilter('serial', 'Nº série', kind='text', field='serial_number', placeholder='Nº série')),
-        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=12,
+        # Sigla compacta + nome completo no tooltip (nunca tooltip-only) —
+        # restituídos mostram o rótulo do custodian_type («Proprietário»).
+        GridColumn('holder_label', 'Onde está', css='grid__ellipsis col-reduce-hide', width=12,
+                   title_key='holder_title',
+                   filter=ColFilter('inst', 'Onde está', kind='select', choices=inst_choices)),
+        GridColumn('state_badge', 'Estado', cell='state', css='col-reduce-hide', width=11,
                    filter=ColFilter('state', 'Estado', kind='select', choices=list(LEGAL_STATE_LABELS.items()))),
     ]
 
@@ -2140,11 +2259,13 @@ def evidences_view(request):
         lens=lens,
         empty_title='Sem itens de prova',
         empty_hint='Ainda não há itens registados.',
-        # Estado legal deriva da cadeia COMPLETA dos itens da zona ativa (WI-E).
+        # Estado legal deriva da cadeia COMPLETA dos itens da zona ativa (WI-E);
+        # «Onde está» deriva do ÚLTIMO evento (current_holders_by_evidence).
         computed_filters={
             'state': _state_filter(
                 lambda: analytics.legal_states_by_evidence(_lens_custody(user, lens))
-            )
+            ),
+            'inst': _inst_filter,
         },
         # ?attn= — destino CANÓNICO do drill-down dos prazos (painel//stats/):
         # filtra os ITENS pelos ids re-deriváveis dos mapas bulk. LAZY: o sla
@@ -2314,6 +2435,9 @@ def evidence_detail_view(request, evidence_id):
     if ev is None:
         raise Http404('Evidência não encontrada.')
     _decorate_evidences([ev])
+    # Selo EM VIGOR (derivado do ledger — fonte única core.utils) para o bloco
+    # «Situação atual» da ficha.
+    ev.current_seal = current_seal_of(ev)
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     # Espelho de _evidence_base_qs: a decoração deriva 4 eixos do ledger por
@@ -2321,7 +2445,7 @@ def evidence_detail_view(request, evidence_id):
     # (+1 do FK occurrence).
     sub_components = list(
         ev.sub_components.select_related('agent', 'occurrence')
-        .prefetch_related('custody_chain').order_by('id')
+        .prefetch_related(_chain_prefetch()).order_by('id')
     )
     _decorate_evidences(sub_components)
     valid_next = _valid_next_events(events, ev)
@@ -2738,8 +2862,7 @@ def custody_list_view(request):
     # tornar explícita a dependência do gerador (cellattr 'evidence.code' + estado).
     qs = _lens_custody(user, lens).select_related('custodian_institution', 'evidence')
 
-    institutions = _active_institutions()
-    inst_choices = tuple((i.id, i.sigla or i.name) for i in institutions)
+    inst_choices = _institution_choices()
 
     _lens_states = _custody_states_memo(user, lens)
 

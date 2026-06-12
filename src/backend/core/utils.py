@@ -90,3 +90,17 @@ def pericia_deadline_of(evidence, now=None):
     """
     eventos = sort_custody_chain(evidence.custody_chain.all())
     return pericia_deadline(eventos, now or timezone.now())
+
+
+def current_seal_of(evidence):
+    """N.º do selo EM VIGOR de UMA evidência — derivado do ledger, nunca guardado.
+
+    Último ``new_seal_number`` não-vazio da cadeia ordenada (uma receção pode
+    voltar a selar); fallback ao selo inicial da génese. Mesmo micro-fluxo de
+    :func:`legal_state_of` (reaproveita o prefetch). ``''`` = sem selo.
+    """
+    eventos = sort_custody_chain(evidence.custody_chain.all())
+    for rec in reversed(eventos):
+        if rec.new_seal_number:
+            return rec.new_seal_number
+    return evidence.initial_seal_number or ''

@@ -171,6 +171,26 @@ def state_distribution(states_by_ev):
     }
 
 
+def current_holders_by_evidence(custody_qs):
+    """``{evidence_id: (custodian_institution_id, custodian_type)}`` do ÚLTIMO
+    evento por item, numa única query — espelho BULK de
+    ``access.current_holder`` (per-item, portas de escrita; em listas seria
+    N+1). Consumido pelas sínteses «onde está a prova agora» (coluna de
+    /evidences/, síntese por processo) e pelo filtro derivado por instituição.
+    Sem rótulos: analytics devolve dados; sigla/fallback do custodian_type são
+    apresentação (views).
+    """
+    rows = (
+        custody_qs.select_related(None)
+        .order_by('evidence_id', 'sequence')
+        .values_list('evidence_id', 'custodian_institution_id', 'custodian_type')
+    )
+    holders = {}
+    for ev_id, inst_id, ctype in rows:
+        holders[ev_id] = (inst_id, ctype)   # o último por sequence ganha
+    return holders
+
+
 def bucket_counts(qs, field, since, trunc=TruncWeek):
     """Contagem por balde temporal: ``filter(field>=since) → annotate(trunc) →
     Count``, devolvendo ``{data: n}``. Fonte única da pipeline de séries — a
