@@ -2018,6 +2018,7 @@ class ChainOfCustody(AppendOnlyModel):
         self._clean_inicio_pericia(prior_types)
         self._clean_encaminhamento(prior_types)
         self._clean_rececao(prior, prior_types)
+        self._clean_seal()
         self._clean_receiver()
         self._clean_authority(prior)
         self._clean_lab_gate(prior_types)
@@ -2224,6 +2225,27 @@ class ChainOfCustody(AppendOnlyModel):
             if inst and inst.gps_lat is not None and inst.gps_lng is not None:
                 self.gps_lat = inst.gps_lat
                 self.gps_lng = inst.gps_lng
+
+    def _clean_seal(self):
+        """Selo VIOLADO exige observação (parecer UX item 12).
+
+        Um selo violado é um facto probatório grave: o registo tem de
+        descrever o estado do selo/embalagem (a observação entra na cadeia de
+        hash). Só o VIOLADO obriga — PARTIDO/AUSENTE são ocorrências normais
+        de manuseamento. Vale em qualquer evento (o modelo não restringe os
+        campos de selo por tipo — a apreensão também sela)."""
+        if (
+            self.seal_condition_on_receipt == Evidence.SealCondition.VIOLADO
+            and not (self.observations or '').strip()
+        ):
+            raise ValidationError(
+                {
+                    'observations': (
+                        'Selo violado exige observação: descreva o estado do '
+                        'selo/embalagem (entra na cadeia de hash).'
+                    )
+                }
+            )
 
     def _clean_receiver(self):
         """Recetor (hv3): identidade de quem recebe a prova fora do sistema.

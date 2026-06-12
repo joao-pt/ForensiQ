@@ -330,3 +330,91 @@ class IntakeFilaRececaoTest(TestCase):
         # ev_y e de OUTRA instituicao — nao conta na caixa do membro.
         self.assertEqual(r.status_code, 302)
         self.assertEqual(r['Location'], f'/occurrences/{self.occurrence.id}/')
+
+
+class IntakeSeloEstruturadoTest(TestCase):
+    """Rececao com condicao do selo estruturada (parecer UX item 12): select +
+    novo selo POR ITEM no intake; selo VIOLADO sem observacao e recusado pela
+    guarda do clean() (fail-closed em todas as superficies)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.agent = _make_user('agent_selo')
+        cls.expert = _make_user('expert_selo', profile='FORENSIC_EXPERT')
+        cls.lab = InstitutionFactory(name='Lab Selo', sigla='LAB-SEL')
+        cls.portador = Portador.objects.create(
+            matricula='SEL-0001', nome='Eva', apelido='Pinto', posto='Agente'
+        )
+        cls.occurrence = _make_occurrence(cls.agent)
+        cls.ev1 = _make_evidence(cls.occurrence, cls.agent, 'SN-SEL-1')
+        cls.ev2 = _make_evidence(cls.occurrence, cls.agent, 'SN-SEL-2')
+        for ev in (cls.ev1, cls.ev2):
+            for et in (
+                ChainOfCustody.EventType.APREENSAO_OBJETO,
+                ChainOfCustody.EventType.VALIDACAO_APREENSAO,
+                ChainOfCustody.EventType.DESPACHO_PERICIA,
+            ):
+                ChainOfCustody.objects.create(
+                    evidence=ev, event_type=et,
+                    custodian_type=ChainOfCustody.CustodianType.OPC,
+                    agent=cls.agent, **_fill_authority(et, {}),
+                )
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                event_type=ChainOfCustody.EventType.ENCAMINHAMENTO_CUSTODIA,
+                custodian_type=ChainOfCustody.CustodianType.LAB_PUBLICO,
+                custodian_institution=cls.lab, bearer=cls.portador, agent=cls.agent,
+            )
+
+    def setUp(self):
+        self.client = APIClient(enforce_csrf_checks=False)
+        _login_cookie(self.client, self.expert)
+
+    def _url(self):
+        return f'/occurrences/{self.occurrence.id}/intake/'
+
+    def test_render_tem_campos_de_selo_por_item(self):
+        body = self.client.get(self._url()).content.decode()
+        self.assertIn(f'name="seal_condition_{self.ev1.id}"', body)
+        self.assertIn(f'name="new_seal_{self.ev1.id}"', body)
+        self.assertIn('value="VIOLADO"', body)   # option do enum, zero hardcode
+
+    def test_violado_sem_observacao_recusado_atomicamente(self):
+        r = self.client.post(self._url(), {
+            'evidence_ids': [str(self.ev1.id)],
+            f'seal_condition_{self.ev1.id}': 'VIOLADO',
+        })
+        self.assertEqual(r.status_code, 200)       # reapresenta com erro
+        self.assertIn('Selo violado exige observa', r.content.decode())
+        self.assertFalse(
+            ChainOfCustody.objects.filter(
+                evidence=self.ev1,
+                event_type=ChainOfCustody.EventType.RECEPCAO_CUSTODIA,
+            ).exists()
+        )
+
+    def test_selos_distintos_por_item_e_selo_em_vigor(self):
+        from core.utils import current_seal_of
+
+        r = self.client.post(self._url(), {
+            'evidence_ids': [str(self.ev1.id), str(self.ev2.id)],
+            f'seal_condition_{self.ev1.id}': 'VIOLADO',
+            f'new_seal_{self.ev1.id}': 'SEL-NOVO-1',
+            f'new_seal_{self.ev2.id}': 'SEL-NOVO-2',
+            'observations': 'Selo do item 1 violado em transito; re-selado.',
+        })
+        self.assertEqual(r.status_code, 302)
+        rec1 = ChainOfCustody.objects.get(
+            evidence=self.ev1,
+            event_type=ChainOfCustody.EventType.RECEPCAO_CUSTODIA,
+        )
+        rec2 = ChainOfCustody.objects.get(
+            evidence=self.ev2,
+            event_type=ChainOfCustody.EventType.RECEPCAO_CUSTODIA,
+        )
+        self.assertEqual(rec1.seal_condition_on_receipt, 'VIOLADO')
+        self.assertEqual(rec1.new_seal_number, 'SEL-NOVO-1')
+        self.assertTrue(rec1.sealed)
+        self.assertEqual(rec2.new_seal_number, 'SEL-NOVO-2')
+        ev1 = type(self.ev1).objects.prefetch_related('custody_chain').get(pk=self.ev1.pk)
+        self.assertEqual(current_seal_of(ev1), 'SEL-NOVO-1')

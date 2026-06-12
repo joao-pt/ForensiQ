@@ -245,6 +245,32 @@ class HashChainSealTest(TestCase):
             r2.compute_record_hash(previous_hash=r1.record_hash), r2.record_hash
         )
 
+    def test_selo_violado_exige_observacao(self):
+        # Guarda do clean() (parecer UX item 12): VIOLADO sem nota é recusado;
+        # com nota grava; PARTIDO não obriga (ocorrência normal de manuseamento).
+        from django.core.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError):
+            ChainOfCustody.objects.create(
+                evidence=self.ev, event_type=EventType.APREENSAO_OBJETO,
+                agent=self.agent,
+                seal_condition_on_receipt=Evidence.SealCondition.VIOLADO,
+            )
+        ok = ChainOfCustody.objects.create(
+            evidence=self.ev, event_type=EventType.APREENSAO_OBJETO,
+            agent=self.agent,
+            seal_condition_on_receipt=Evidence.SealCondition.VIOLADO,
+            observations='Selo rasgado no canto superior; embalagem íntegra.',
+        )
+        self.assertEqual(ok.seal_condition_on_receipt, Evidence.SealCondition.VIOLADO)
+        ev2 = _ev(_occ(self.agent, '2b'), self.agent)
+        partido = ChainOfCustody.objects.create(
+            evidence=ev2, event_type=EventType.APREENSAO_OBJETO,
+            agent=self.agent,
+            seal_condition_on_receipt=Evidence.SealCondition.PARTIDO,
+        )
+        self.assertEqual(partido.seal_condition_on_receipt, Evidence.SealCondition.PARTIDO)
+
 
 class IntegrityHashAcquisitionTest(TestCase):
     """Família 2b — integrity_hash inclui aquisição + selo inicial (ADR-0016 §6)."""

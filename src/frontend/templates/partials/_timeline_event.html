@@ -20,6 +20,7 @@
     {% if r.authority_label %}<span>Autoridade: <strong>{{ r.authority_label }}</strong></span>{% endif %}
     {% if r.act_declared_at %}<span>Ato de {{ r.act_declared_at|date:'Y-m-d H:i' }}</span>{% endif %}
     {% if r.act_deadline_days %}<span>Prazo da perícia: {{ r.act_deadline_days }} dia{{ r.act_deadline_days|pluralize }}{% if r.act_due %} — até {{ r.act_due|date:'Y-m-d' }}{% endif %}</span>{% endif %}
+    {% if r.seal_label %}<span>Selo: <strong>{{ r.seal_label }}</strong></span>{% endif %}
     {% if r.location_name %}<span>Local: {{ r.location_name }}</span>{% endif %}
     {% if r.storage_location %}<span>Armazenamento: {{ r.storage_location }}</span>{% endif %}
     {% if r.gps_lat is not None %}<span class="mono">{{ r.gps_lat|unlocalize }}, {{ r.gps_lng|unlocalize }}</span>{% endif %}

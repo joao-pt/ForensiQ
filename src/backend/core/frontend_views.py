@@ -2421,6 +2421,16 @@ def _decorate_events(events):
         # Data-limite da perícia derivada do prazo do despacho (fonte única da
         # fórmula na policy); None nos eventos sem prazo estruturado.
         r.act_due = pericia_due_date(r)
+        # Selo do evento (parecer UX item 12): o que se regista na receção
+        # ficava invisível — condição à chegada + re-selagem + selado.
+        seal_parts = []
+        if r.seal_condition_on_receipt:
+            seal_parts.append(r.get_seal_condition_on_receipt_display())
+        if r.new_seal_number:
+            seal_parts.append(f're-selado n.º {r.new_seal_number}')
+        if r.sealed and not seal_parts:
+            seal_parts.append('selado')
+        r.seal_label = ' · '.join(seal_parts)
 
 
 def _chain_points(events):
@@ -3135,6 +3145,9 @@ def occurrence_intake_view(request, occurrence_id):
             # itens em trânsito. O destino/coordenada vêm do encaminhamento.
             'intake_action_label': 'Receção de prova encaminhada',
             'target_state': EventType.RECEPCAO_CUSTODIA,
+            # Condições de selo POR ITEM — mesma fonte do formulário da
+            # timeline (Evidence.SealCondition).
+            'seal_conditions': Evidence.SealCondition.choices,
             # Destino(s) de receção — coordenada/morada herdadas da ficha (read-only).
             'reception_institutions': _reception_institutions(
                 evidences, state_by_evidence, eventos_por_ev
@@ -3216,6 +3229,16 @@ def _register_intake(request, evidences, state_by_evidence, eventos_por_ev, occu
             p['storage_location'] = storage
         if observations:
             p['observations'] = observations
+        # Selo POR ITEM (parecer UX item 12): condição à chegada + novo n.º de
+        # selo entram no hash do evento; re-selar implica selado (padrão do
+        # seed). A guarda «violado exige observação» vive no clean() do modelo.
+        cond = (request.POST.get(f'seal_condition_{ev.id}') or '').strip()
+        new_seal = (request.POST.get(f'new_seal_{ev.id}') or '').strip()
+        if cond:
+            p['seal_condition_on_receipt'] = cond
+        if new_seal:
+            p['new_seal_number'] = new_seal
+            p['sealed'] = True
         return p
 
     try:

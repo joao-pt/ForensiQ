@@ -35,6 +35,8 @@
             <th role="columnheader" scope="col">Código</th>
             <th role="columnheader" scope="col">Tipo</th>
             <th role="columnheader" scope="col">Estado atual</th>
+            <th role="columnheader" scope="col">Condição do selo</th>
+            <th role="columnheader" scope="col">Novo selo</th>
           </tr></thead>
           <tbody>
             {% for row in rows %}
@@ -63,6 +65,25 @@
                   <span class="state state--{{ row.current_state_css }}">{{ row.current_state_display }}</span>
                 {% endif %}
               </td>
+              {# Selo POR ITEM (parecer UX item 12): a condição à chegada e o n.º do novo selo são do invólucro de CADA item — entram no hash do evento. A validação (violado exige observação) vive no clean() do modelo, nunca aqui. #}
+              {% if row.in_transit %}
+              <td role="gridcell">
+                <select name="seal_condition_{{ row.evidence.id }}" aria-label="Condição do selo de {{ row.evidence.code }}">
+                  <option value="">—</option>
+                  {% for val, label in seal_conditions %}
+                  <option value="{{ val }}">{{ label }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td role="gridcell">
+                <input type="text" class="mono" name="new_seal_{{ row.evidence.id }}"
+                       placeholder="Ex.: SEL-2026-0123" autocomplete="off"
+                       aria-label="Novo número de selo de {{ row.evidence.code }}">
+              </td>
+              {% else %}
+              <td role="gridcell" class="grid__muted">—</td>
+              <td role="gridcell" class="grid__muted">—</td>
+              {% endif %}
             </tr>
             {% endfor %}
           </tbody>
