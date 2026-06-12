@@ -434,6 +434,16 @@ class PericiaPrazoTest(TestCase):
         self.assertIn(self.ev_due.code, body)
         self.assertNotIn(self.ev_late.code, body)
 
+    def test_stats_acionaveis(self):
+        # /stats/ deep-linka aos destinos canónicos: stock → ?state=, prazos
+        # → ?attn=; números mono ao lado das barras; janela junto ao Fluxo.
+        body = self._get('/stats/').content.decode()
+        self.assertIn('/evidences/?attn=pericia', body)
+        self.assertIn('/evidences/?attn=pericia_due', body)
+        self.assertIn('/evidences/?state=', body)
+        self.assertIn('stats-flow__n', body)
+        self.assertIn('stats-window--head', body)
+
     def test_grelha_ocorrencias_marca_prazos_em_atencao(self):
         """Marcador por linha SÓ nos processos com prazo vencido/a vencer (os
         itens estão todos validados — sem pontos do eixo da validação)."""

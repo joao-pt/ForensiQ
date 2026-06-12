@@ -21,6 +21,8 @@ lente ativa. O vocabulário processual vem de ``core.policy.event_states``.
 """
 
 
+from datetime import timedelta
+
 from django.conf import settings
 from django.db.models import Count
 from django.db.models.functions import TruncWeek
@@ -181,9 +183,12 @@ def bucket_counts(qs, field, since, trunc=TruncWeek):
         .annotate(n=Count('id'))
         .order_by('b')
     )
-    # TruncWeek devolve datetime (reduz-se ao dia); TruncDate já devolve date.
+    # TruncWeek devolve datetime aware (em UTC na ligação PG) — reduzir ao dia
+    # EM HORA LOCAL: um .date() cru dava DOMINGO no horário de verão (segunda
+    # 00:00 local = domingo 23:00 UTC) e desalinhava o eixo semanal canónico.
+    # TruncDate já devolve date.
     return {
-        (r['b'].date() if hasattr(r['b'], 'date') else r['b']): r['n']
+        (timezone.localtime(r['b']).date() if hasattr(r['b'], 'date') else r['b']): r['n']
         for r in rows
         if r['b']
     }
@@ -192,14 +197,29 @@ def bucket_counts(qs, field, since, trunc=TruncWeek):
 def throughput(occ_qs, evd_qs, cus_qs, since):
     """Fluxo por semana desde ``since``: processos abertos, itens registados e
     itens concluídos (disposição final). Séries alinhadas por semana (TruncWeek).
+
+    «Abertas» conta por data de REGISTO (``created_at`` — decisão UX n.º 5):
+    coerência com o título «Fluxo» e com as outras séries, que também são
+    datas de atos (apreensão, disposição), não dos factos. O eixo semanal é
+    CONTÍNUO de ``since`` até agora — semanas sem eventos entram a ZERO
+    (buracos silenciosos liam-se como semanas inexistentes).
     """
-    opened = bucket_counts(occ_qs, 'date_time', since)
+    opened = bucket_counts(occ_qs, 'created_at', since)
     registered = bucket_counts(evd_qs, 'timestamp_seizure', since)
     concluded = bucket_counts(
         cus_qs.filter(event_type__in=DISPOSAL_EVENTS), 'timestamp', since
     )
 
-    weeks = sorted(set(opened) | set(registered) | set(concluded))
+    # Eixo canónico de segundas-feiras em HORA LOCAL — a mesma redução de
+    # bucket_counts, senão os baldes desalinhavam ±1 dia (DST/meia-noite).
+    start = timezone.localtime(since).date()
+    start -= timedelta(days=start.weekday())
+    end = timezone.localdate()
+    end -= timedelta(days=end.weekday())
+    weeks, w = [], start
+    while w <= end:
+        weeks.append(w)
+        w += timedelta(days=7)
     series = [
         {
             'week': w,

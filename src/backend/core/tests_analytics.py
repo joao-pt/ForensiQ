@@ -291,6 +291,31 @@ class LedgerAnalyticsTest(TestCase):
         self.assertIsNone(vazio['longest_open_evidence_id'])
         self.assertIsNone(vazio['longest_open_code'])
 
+    def test_throughput_decisao5_created_at_e_semanas_a_zero(self):
+        """«Abertas» conta por data de REGISTO (created_at — decisão UX n.º 5)
+        e o eixo semanal é CONTÍNUO (semanas sem eventos entram a zero)."""
+        now = timezone.now()
+        since = now - timedelta(days=30)
+        # Factos ANTIGOS mas registo recente (dentro da janela) → conta.
+        # (mock de core.models.timezone.now == django.utils.timezone.now —
+        # mesmo módulo — logo o auto_now_add do created_at também congela.)
+        with mock.patch('core.models.timezone.now',
+                        return_value=now - timedelta(days=2)):
+            self._occ('TP-REG', now - timedelta(days=90))
+        # Registo ANTERIOR à janela → NÃO conta (factos antes do registo).
+        with mock.patch('core.models.timezone.now',
+                        return_value=now - timedelta(days=45)):
+            self._occ('TP-OLD', now - timedelta(days=50))
+
+        flow = analytics.throughput(
+            Occurrence.objects.all(), Evidence.objects.none(),
+            ChainOfCustody.objects.none(), since,
+        )
+        self.assertEqual(flow['opened'], 1)             # só o registo recente
+        # Eixo contínuo: ≥5 segundas-feiras numa janela de 30 dias, com zeros.
+        self.assertGreaterEqual(len(flow['series']), 5)
+        self.assertTrue(any(s['opened'] == 0 for s in flow['series']))
+
     def test_validacoes_a_vencer_eixo_preventivo(self):
         """O recorte preventivo [prazo-aviso, prazo[ é DISJUNTO do «em atraso»
         (gte/lt na fronteira) e extinto pelos mesmos eventos (validação)."""

@@ -3104,6 +3104,9 @@ def stats_view(request):
         'stats.html',
         {
             'lens': lens,
+            # Carimbo de âmbito na fonte única (access.lens_label) — o template
+            # re-exprimia a regra e perdia o mine_label da leitura total.
+            'lens_zone_label': access.lens_label(user, lens),
             'days': days,
             'window_choices': analytics.WINDOW_CHOICES,
             'stock': analytics.state_distribution(states_by_ev),

@@ -1511,7 +1511,12 @@ class Command(BaseCommand):
             date_time=when, gps_lat=lat, gps_lng=lng, address=address, agent=agent)
         if manual_priority:
             occ.priority_source = Occurrence.PrioritySource.MANUAL
-        occ.save()
+        # created_at (auto_now_add) retrodatado ao momento dos factos + 2h: o
+        # registo acontece pouco depois da ocorrência. Sem isto, a série
+        # «Abertas» do Fluxo (created_at — decisão UX n.º 5) esmagava a demo
+        # inteira na semana do reseed.
+        with _frozen(when + timedelta(hours=2)):
+            occ.save()
         self._occurrences.append(occ)
         return occ
 
