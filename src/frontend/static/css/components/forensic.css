@@ -96,6 +96,16 @@
     color: var(--text-muted);
     line-height: 1.5;
 }
+/* Link inline no lede: distinguido por SUBLINHADO, não só pela cor (regra
+   link-in-text-block); mesmo padrão de .stats-link/.feed__target. */
+.page-lead a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--text-placeholder);
+    text-underline-offset: 2px;
+}
+.page-lead a:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.page-lead a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Botão de ação primária (accent) */
 .btn-accent {
