@@ -1950,7 +1950,10 @@ def inbound_view(request):
             'encaminhamento_event',
         )
         .prefetch_related(_chain_prefetch('evidence__custody_chain'))
-        .order_by('-created_at', 'evidence__code')
+        # Tiebreak ESTÁVEL da fila por urgência (sort em memória abaixo) — o
+        # order_by explícito anula o Meta.ordering do modelo ('-created_at',
+        # resto da caixa «aviso mais recente», que invertia o 3.º critério).
+        .order_by('evidence__code')
     )
     _decorate_evidences([n.evidence for n in notices])
     for n in notices:
@@ -1964,7 +1967,8 @@ def inbound_view(request):
     # FILA por urgência (não por aviso mais recente): 1) prazo de perícia mais
     # apertado (days_left da decoração; sem prazo → fim), 2) processos
     # prioritários, 3) quem espera há mais tempo primeiro (timestamp do FACTO,
-    # ascendente). Em memória: a caixa não é paginada.
+    # ascendente); empates resolvem por código do item (order_by da queryset +
+    # sort estável). Em memória: a caixa não é paginada.
     def _urgency(n):
         pd = n.evidence.pericia_deadline
         return (
@@ -3131,31 +3135,39 @@ def occurrence_intake_view(request, occurrence_id):
     # escrita (can_append_custody no serializer) fica intacto.
     member_inst_ids = set(access._active_institution_ids(user))
 
-    def _preselect(ev, in_transit):
+    def _destino(ev, in_transit):
+        """Instituição de DESTINO do encaminhamento pendente (último evento do
+        item em trânsito; já em memória via ``related``) — ``None`` fora dele."""
         if not in_transit:
-            return False
-        if not member_inst_ids:
-            return True
+            return None
         last = eventos_por_ev.get(ev.id) or []
-        destino_id = last[-1].custodian_institution_id if last else None
-        return destino_id in member_inst_ids
+        return last[-1].custodian_institution if last else None
 
-    rows = [
-        {
+    rows = []
+    for ev in evidences:
+        in_transit = state_by_evidence[ev.id] == 'em_transito'
+        destino = _destino(ev, in_transit)
+        preselect = in_transit and (
+            not member_inst_ids
+            or (destino is not None and destino.id in member_inst_ids)
+        )
+        rows.append({
             'evidence': ev,
             'current_state': state_by_evidence[ev.id],
             'current_state_display': LEGAL_STATE_LABELS.get(state_by_evidence[ev.id])
             or 'Sem custódia',
             'current_state_css': LEGAL_STATE_CSS.get(state_by_evidence[ev.id], 'muted'),
             # Recebível = em trânsito (encaminhado, ainda por receber — ADR-0016 v2).
-            'in_transit': state_by_evidence[ev.id] == 'em_transito',
-            'preselect': _preselect(ev, state_by_evidence[ev.id] == 'em_transito'),
+            'in_transit': in_transit,
+            'preselect': preselect,
+            # Destino na linha SÓ quando dirigida a OUTRA instituição — explica
+            # porque chegou desmarcada (need-to-know intacto: o cartão «Recebido
+            # em» do mesmo destino já se mostra nesta página).
+            'destino_outra': destino if (in_transit and not preselect) else None,
             # «Já recebida» = já está (ou passou) no destino — fonte única na
             # policy (STATES_AT_OR_PAST_LAB); não volta a oferecer-se para receção.
             'already_received': state_by_evidence[ev.id] in STATES_AT_OR_PAST_LAB,
-        }
-        for ev in evidences
-    ]
+        })
 
     return render(
         request,

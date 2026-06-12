@@ -43,10 +43,10 @@
             <tr role="row">
               <td role="gridcell" class="grid__check">
                 {% if row.in_transit %}
-                  {# Pré-marcado SÓ se dirigido à instituição do operador (a prova de outro destino fica desmarcada, marcável de propósito). #}
-                  <label class="form-check grid__check-label" title="Receber {{ row.evidence.code }}">
+                  {# Pré-marcado SÓ se dirigido à instituição do operador; a prova de OUTRO destino fica desmarcada (marcável de propósito) e diz para onde vai. #}
+                  <label class="form-check grid__check-label" title="Receber {{ row.evidence.code }}{% if row.destino_outra %} — encaminhada para {{ row.destino_outra.short_label }}{% endif %}">
                     <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" {% if row.preselect %}checked{% endif %}
-                           aria-label="Receber {{ row.evidence.code }}">
+                           aria-label="Receber {{ row.evidence.code }}{% if row.destino_outra %} — encaminhada para {{ row.destino_outra.short_label }}{% endif %}">
                   </label>
                 {% elif row.already_received %}
                   <span aria-hidden="true" title="Já recebida no laboratório">✓</span>
@@ -62,7 +62,7 @@
                 {% if row.already_received %}
                   <span class="state state--ok">Já recebida</span>
                 {% else %}
-                  <span class="state state--{{ row.current_state_css }}">{{ row.current_state_display }}</span>
+                  <span class="state state--{{ row.current_state_css }}">{{ row.current_state_display }}</span>{% if row.destino_outra %} <span class="grid__muted mono" title="Encaminhada para {{ row.destino_outra.name }}">→ {{ row.destino_outra.short_label }}</span>{% endif %}
                 {% endif %}
               </td>
               {# Selo POR ITEM (parecer UX item 12): a condição à chegada e o n.º do novo selo são do invólucro de CADA item — entram no hash do evento. A validação (violado exige observação) vive no clean() do modelo, nunca aqui. #}

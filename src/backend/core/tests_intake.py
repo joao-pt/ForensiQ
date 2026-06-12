@@ -313,6 +313,15 @@ class IntakeFilaRececaoTest(TestCase):
         self.assertIn(f'value="{self.ev_y.id}"', body)              # selecionável...
         self.assertNotIn(f'value="{self.ev_y.id}" checked', body)  # ...mas desmarcada
 
+    def test_linha_para_outra_instituicao_mostra_destino(self):
+        # A linha desmarcada explica-se: destino do encaminhamento junto ao
+        # estado («→ SIGLA») + aria-label diferenciado; as linhas dirigidas
+        # ao operador não levam o hint.
+        body = self.client.get(f'/occurrences/{self.occurrence.id}/intake/').content.decode()
+        self.assertIn('→ OPC-YF', body)
+        self.assertIn('encaminhada para OPC-YF', body)
+        self.assertNotIn('encaminhada para OPC-XF', body)
+
     def test_pos_rececao_volta_a_fila_enquanto_houver_pendentes(self):
         r = self.client.post(
             f'/occurrences/{self.occurrence.id}/intake/',
