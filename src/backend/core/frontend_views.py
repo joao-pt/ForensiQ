@@ -775,16 +775,14 @@ def _occ_pri_code(o):
     return 0
 
 
-def _activity_feed(user, limit=20):
+def _activity_feed(user, limit=20, qs=None):
     """Últimos eventos do AuditLog (append-only) visíveis ao utilizador.
 
-    Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo de
-    auditoria; qualquer outro perfil (FIRST_RESPONDER, FORENSIC_EXPERT NORMAL,
-    CASE_AUTHORITY, EVIDENCE_CUSTODIAN…) vê APENAS os eventos que praticou —
-    *need-to-know* (ADR-0017; âmbito numa fonte única, ``access.scope_audit_logs``,
-    partilhada com :class:`core.views.ActivityFeedView`). É a fonte de verdade do
-    "que aconteceu": criação de prova (com hash), eventos de custódia,
-    exportações de PDF, alertas.
+    Por omissão o âmbito é ``access.scope_audit_logs`` (fonte única partilhada
+    com :class:`core.views.ActivityFeedView`): só leitura nacional (staff ou
+    credencial NACIONAL) vê TODO o registo; os restantes veem APENAS os eventos
+    que praticaram — *need-to-know* (ADR-0017). O painel pode passar um ``qs``
+    DERIVADO (:func:`_audit_feed_scope`, decisão 6) sem tocar na fronteira.
 
     A EXIBIÇÃO ordena por momento do evento (timestamp, com a sequência como
     desempate): por ``-sequence`` puro o feed mostrava timestamps baralhados
@@ -792,12 +790,69 @@ def _activity_feed(user, limit=20):
     registo probatório, datas fora de ordem leem-se como corrupção. A ordem de
     append continua VISÍVEL (nº de sequência em cada linha) e auditável.
     """
-    qs = access.scope_audit_logs(user).select_related('user').order_by('-timestamp', '-sequence')
-    logs = list(qs[:limit])
+    base = qs if qs is not None else access.scope_audit_logs(user)
+    logs = list(
+        base.select_related('user').order_by('-timestamp', '-sequence')[:limit]
+    )
+    _decorate_audit_rows(logs)
+    return logs
 
-    # Código real e rota de cada alvo, em lote por tipo — "Evidência #7" não
-    # identifica nada; o código hierárquico identifica e o link deixa agir.
-    # (Os destinos impõem as suas próprias permissões; o link não alarga nada.)
+
+def _audit_feed_scope(user, lens):
+    """Âmbito do FEED do painel (decisão 6) — DERIVAÇÃO de apresentação, nunca
+    fronteira de acesso: com leitura nacional, o registo completo
+    (``scope_audit_logs``, inalterado — também serve a API e o trilho de
+    /audit/); sem ela, os eventos das OCORRÊNCIAS DA LENTE (processo, itens e
+    custódias — resolvidos em lote por tipo de recurso), em vez de apenas os
+    atos próprios. Eventos SYSTEM/expurgos ficam fora (meta-auditoria de
+    âmbito nacional, sem alvo navegável)."""
+    if access.has_national_read(user):
+        return access.scope_audit_logs(user)
+    occ_ids = list(_lens_occurrences(user, lens).values_list('pk', flat=True))
+    ev_ids = list(
+        Evidence.objects.filter(occurrence_id__in=occ_ids).values_list('pk', flat=True)
+    )
+    cc_ids = list(
+        ChainOfCustody.objects.filter(
+            evidence__occurrence_id__in=occ_ids
+        ).values_list('pk', flat=True)
+    )
+    RT = AuditLog.ResourceType
+    return AuditLog.objects.filter(
+        Q(resource_type=RT.OCCURRENCE, resource_id__in=occ_ids)
+        | Q(resource_type__in=(RT.EVIDENCE, RT.DEVICE), resource_id__in=ev_ids)
+        | Q(resource_type=RT.CUSTODY, resource_id__in=cc_ids)
+    )
+
+
+def _collapse_bursts(logs):
+    """Rajadas no FEED do painel (parecer item 16): eventos CONSECUTIVOS do
+    mesmo autor+ação+tipo de recurso colapsam numa linha com contagem («×N»).
+    SÓ no painel — no trilho probatório de /audit/ é 1 linha por facto."""
+    out = []
+    for log in logs:
+        prev = out[-1] if out else None
+        if (
+            prev is not None
+            and prev.user_id == log.user_id
+            and prev.action == log.action
+            and prev.resource_type == log.resource_type
+        ):
+            prev.burst_count = getattr(prev, 'burst_count', 1) + 1
+            continue
+        out.append(log)
+    return out
+
+
+def _decorate_audit_rows(logs):
+    """Decoração de apresentação das linhas do AuditLog — fonte única do feed
+    do painel e da grelha do trilho de /audit/ (rótulos curtos, alvo com código
+    real + link, autor).
+
+    Código real e rota de cada alvo, em lote por tipo — "Evidência #7" não
+    identifica nada; o código hierárquico identifica e o link deixa agir.
+    (Os destinos impõem as suas próprias permissões; o link não alarga nada.)
+    """
     RT = AuditLog.ResourceType
     ids_by_type = {}
     for r in logs:
@@ -850,7 +905,6 @@ def _activity_feed(user, limit=20):
                 r.extra = d['event_type']
         else:
             r.extra = ''
-    return logs
 
 
 def _state_filter(states_getter, fk='id'):
@@ -1179,8 +1233,16 @@ def dashboard_view(request):
             'urgency_legend': URGENCY_LEGEND_OCCURRENCE,
             'pendency_legend': PENDENCY_LEGEND,
             'attn_filter': attn_filter,
-            'logs': _activity_feed(user, limit=20),
-            'feed_is_national': access.has_national_read(user),
+            # Feed por LENTE para quem não tem leitura nacional (decisão 6) —
+            # derivação de apresentação (_audit_feed_scope); rajadas colapsadas
+            # SÓ aqui (no trilho probatório é 1 linha por facto).
+            'logs': _collapse_bursts(
+                _activity_feed(user, limit=20, qs=_audit_feed_scope(user, lens))
+            ),
+            'feed_scope_label': (
+                'Registo nacional' if access.has_national_read(user)
+                else access.lens_label(user, lens)
+            ),
             'tiles': tiles,
             # Total de itens COM custódia (inclui terminais) — era 'total_active',
             # nome enganador (auditoria D45); o template mostra "N itens".
@@ -3156,6 +3218,14 @@ def custody_list_view(request):
     )
 
 
+# Sorts do trilho de auditoria — tiebreak por sequência (mesma razão da
+# docstring de _activity_feed: timestamps empatados leem-se como corrupção).
+_AUDIT_SORTS = {
+    'recent': ('-timestamp', '-sequence'),
+    'oldest': ('timestamp', 'sequence'),
+}
+
+
 @jwt_cookie_user
 def audit_console_view(request):
     """Consola de Auditoria & Integridade (UX 2026-06) — substitui o placeholder
@@ -3168,8 +3238,10 @@ def audit_console_view(request):
        (adulteração de campo ou elo partido). É a prova técnica de não-adulteração.
     2. **Anomalias de custódia** — :func:`core.integrity.detect_anomalies` (génese
        ausente, prova encaminhada por receber, custódio em falta).
-    3. **Trilho de auditoria** — feed do ``AuditLog`` (quem viu/criou/exportou),
-       reaproveitando :func:`_activity_feed` (mesma regra de acesso da API).
+    3. **Trilho de auditoria** — grelha do gerador único sobre o ``AuditLog``
+       (filtros ação/recurso/alvo/autor/data + paginação; 1 linha por facto),
+       no âmbito da fronteira única ``access.scope_audit_logs`` (a mesma da
+       API) — o item 16 mata o teto fixo de 30 linhas do feed antigo.
 
     O cálculo de integridade vive na fonte única ``core.integrity``; a fórmula do
     hash não é duplicada (chama ``compute_record_hash``). CSP-safe, server-rendered.
@@ -3177,14 +3249,64 @@ def audit_console_view(request):
     user = request.user
     lens = access.active_console_mode(request, user)
     evidence_ids = list(_lens_evidences(user, lens).values_list('id', flat=True))
-    return render(
+    qs = access.scope_audit_logs(user).select_related('user')
+
+    def _alvo_filter(qs_in, _request, value):
+        # resource_id é inteiro: input não-numérico devolve vazio (honesto),
+        # nunca um lookup ORM inválido (validação no fn — gate de texto do grid).
+        return qs_in.filter(resource_id=int(value)) if value.isdigit() else qs_in.none()
+
+    columns = [
+        GridColumn('sequence', 'Seq.', css='mono grid__muted', width=7),
+        GridColumn('timestamp', 'Data / hora', cell='date', time=True, width=14,
+                   filter=ColFilter('date', 'Data / hora', kind='date_range', field='timestamp')),
+        GridColumn('action_short', 'Ação', width=12,
+                   filter=ColFilter('action', 'Ação', kind='select', field='action',
+                                    choices=tuple(AuditLog.Action.choices))),
+        GridColumn('resource_label', 'Recurso', css='grid__muted col-reduce-hide', width=11,
+                   filter=ColFilter('rtype', 'Recurso', kind='select', field='resource_type',
+                                    choices=tuple(AuditLog.ResourceType.choices))),
+        GridColumn('target_label', 'Alvo', link_key='target_url', css='grid__ellipsis', width=18,
+                   filter=ColFilter('alvo', 'Alvo', kind='text', placeholder='ID do alvo')),
+        # Autor: filtro de TEXTO multi-campo (precedente q_agent) — nunca um
+        # select de utilizadores (não expor diretório; need-to-know).
+        GridColumn('user_label', 'Autor', css='grid__muted col-hide-sm', width=13,
+                   filter=ColFilter('autor', 'Autor', kind='text',
+                                    fields=('user__username', 'user__first_name',
+                                            'user__last_name'),
+                                    placeholder='Autor')),
+        GridColumn('ip_address', 'IP', css='mono grid__muted col-hide-md', width=10),
+        # Detalhe por linha (hash curto da criação / evento de custódia).
+        GridColumn('extra', 'Detalhe', css='mono grid__muted col-hide-md', width=15),
+    ]
+
+    return grid_list_response(
         request,
-        'audit_console.html',
-        {
+        queryset=qs,
+        columns=columns,
+        grid_key='aud',
+        endpoint='/audit/investigation/',
+        page_template='audit_console.html',
+        table_label='Trilho de auditoria',
+        count_noun='evento',
+        sorts=_AUDIT_SORTS,
+        default_sort='recent',
+        sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigos')),
+        search_placeholder='',
+        decorate=_decorate_audit_rows,
+        page_size=30,
+        lens=lens,
+        row_clickable=False,
+        empty_title='Sem eventos de auditoria',
+        empty_hint='— sem registos — nenhum evento do ledger neste âmbito',
+        computed_filters={'alvo': _alvo_filter},
+        extra_ctx={
             'lens': lens,
+            # Carimbo de âmbito na fonte única (o template re-exprimia a lente).
+            'lens_zone_label': access.lens_label(user, lens),
             'chain': integrity.verify_chains(evidence_ids),
             'anomalies': integrity.detect_anomalies(evidence_ids),
-            'logs': _activity_feed(user, limit=30),
+            # O trilho segue a CREDENCIAL (scope_audit_logs) — carimbo próprio.
             'feed_is_national': access.has_national_read(user),
         },
     )

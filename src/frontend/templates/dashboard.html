@@ -231,15 +231,14 @@
     </aside>
   </div>
 
-  <!-- Registo de atividade (AuditLog append-only). O âmbito segue a credencial
-       (has_national_read), não a lente: um perito NORMAL tem leitura total da
-       prova mas o seu feed são só os atos dele. -->
+  <!-- Registo de atividade (AuditLog append-only). Âmbito do PAINEL (decisão 6):
+       leitura nacional vê o registo completo; os restantes veem os eventos das
+       ocorrências da LENTE (derivação de apresentação — a fronteira de acesso,
+       scope_audit_logs, continua a reger a API e o trilho de /audit/). -->
   <section class="section">
     <header class="section__head">
       <h2 class="section__title">Registo de atividade</h2>
-      <span class="scope-badge" title="Âmbito do registo de auditoria">
-        {% if feed_is_national %}Registo nacional{% else %}Apenas as minhas ações{% endif %}
-      </span>
+      <span class="scope-badge" title="Âmbito do registo de atividade">{{ feed_scope_label }}</span>
     </header>
     <div class="section__body section__body--flush">
       {% include 'partials/_activity_feed.html' %}

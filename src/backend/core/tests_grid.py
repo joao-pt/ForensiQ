@@ -203,3 +203,80 @@ class ReportsListRenderTest(AuthenticatedFrontendTestCase):
         # Ação PDF + Código ligado ao detalhe.
         self.assertIn('/api/occurrences/', content)
         self.assertIn('grid__link', content)
+
+
+class AuditTrailGridTest(TestCase):
+    """Trilho de /audit/ no gerador único (parecer item 16): filtros +
+    paginação (matam o teto fixo de 30), carimbo da lente na régie, alvo
+    numérico validado no filtro derivado, achados clicáveis e need-to-know do
+    âmbito preservado; decisão 6 — feed do PAINEL por lente + rajadas ×N."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.models import AuditLog, EventType
+
+        cls.nacional = _user('aud_nac', User.Profile.FORENSIC_EXPERT,
+                             clearance=User.Clearance.NACIONAL)
+        cls.agente = _user('aud_agente', User.Profile.FIRST_RESPONDER)
+        # user_label = nome completo OU username: sem os nomes Faker da
+        # factory, as linhas mostram o username (asserts determinísticos).
+        User.objects.filter(pk__in=(cls.nacional.pk, cls.agente.pk)).update(
+            first_name='', last_name=''
+        )
+        cls.occ = _occ(cls.agente, 'AUD-1')
+        cls.ev = _evidence(cls.occ, cls.agente)
+        _event(cls.ev, cls.agente)   # génese
+        # Evento sem custódio → anomalia «custódio em falta» no universo do agente.
+        _event(cls.ev, cls.agente, event_type=EventType.TRANSFERENCIA_CUSTODIA)
+        # 35 leituras do perito NACIONAL sobre o item do agente: paginação a 30
+        # no trilho; rajada colapsada no painel (mesmo autor+ação+recurso).
+        for i in range(35):
+            AuditLog.objects.create(
+                user=cls.nacional, action=AuditLog.Action.VIEW,
+                resource_type=AuditLog.ResourceType.EVIDENCE,
+                resource_id=cls.ev.id, ip_address='127.0.0.1',
+                correlation_id=f'aud-{i:04d}', details={},
+            )
+        # Ato do próprio agente (o ÚNICO que ele vê no trilho probatório).
+        AuditLog.objects.create(
+            user=cls.agente, action=AuditLog.Action.CREATE,
+            resource_type=AuditLog.ResourceType.OCCURRENCE,
+            resource_id=cls.occ.id, ip_address='127.0.0.1',
+            correlation_id='aud-agente-1', details={},
+        )
+
+    def _get(self, user, url):
+        auth_cookie(self.client, user)
+        return self.client.get(url)
+
+    def test_trilho_em_grelha_com_filtros_e_paginacao(self):
+        body = self._get(self.nacional, '/audit/investigation/').content.decode()
+        self.assertIn('id="aud-grid"', body)
+        for param in ('name="action"', 'name="rtype"', 'name="alvo"',
+                      'name="autor"'):
+            self.assertIn(param, body)
+        self.assertIn('Registo nacional', body)
+        self.assertIn('page=2', body)            # 36 eventos > page_size 30
+
+    def test_filtro_de_alvo_valida_inteiro(self):
+        r = self._get(self.nacional, '/audit/investigation/?alvo=abc')
+        self.assertEqual(r.status_code, 200)     # nunca 500 (lookup validado)
+        self.assertIn('Nenhum resultado', r.content.decode())
+
+    def test_trilho_apenas_proprios_sem_leitura_nacional(self):
+        body = self._get(self.agente, '/audit/investigation/').content.decode()
+        self.assertIn('Apenas as minhas ações', body)
+        self.assertNotIn('aud_nac', body)        # atos de terceiros invisíveis
+
+    def test_anomalia_clicavel_para_o_item(self):
+        body = self._get(self.agente, '/audit/investigation/').content.decode()
+        self.assertIn(f'href="/evidences/{self.ev.id}/"', body)
+
+    def test_feed_do_painel_por_lente_com_rajada(self):
+        # Decisão 6: sem leitura nacional, o painel mostra os eventos das
+        # ocorrências da LENTE (o ato do perito sobre o caso do agente), com a
+        # rajada colapsada (×N) — o trilho probatório continua 1 linha/facto.
+        body = self._get(self.agente, '/dashboard/').content.decode()
+        self.assertIn('aud_nac', body)
+        self.assertIn('×19', body)               # 20 do feed = CREATE + 19 VIEW
+        self.assertIn('As minhas ocorrências', body)

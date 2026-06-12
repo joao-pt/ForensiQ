@@ -59,7 +59,7 @@ def app_pages(occ_id, ev_id):
         'custodies': {'path': '/custodies/', 'leaflet': True, 'htmx': True},
         'reports': {'path': '/reports/', 'htmx': True},
         'stats': {'path': '/stats/'},
-        'audit': {'path': '/audit/investigation/'},
+        'audit': {'path': '/audit/investigation/', 'htmx': True},
         'settings': {'path': '/settings/'},
         'verificacoes': {'path': '/verificacoes/', 'htmx': True},
     }

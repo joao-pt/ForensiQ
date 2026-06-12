@@ -1,4 +1,4 @@
-{% comment %}Feed do AuditLog (espera `logs` no contexto). Fonte ÚNICA — usado no Painel e na consola de Auditoria & Integridade; ambos passam o mesmo _activity_feed(user). Uma linha por evento, em ritmo de diário de bordo: nº de sequência (torna o append-only visível), timestamp, ação curta, alvo com código real e link, autor.{% endcomment %}
+{% comment %}Feed do AuditLog do PAINEL (espera `logs` decorados por _decorate_audit_rows). O trilho probatório de /audit/ usa a grelha do gerador único (1 linha por facto); aqui as rajadas vêm colapsadas (×N — _collapse_bursts). Uma linha por evento, em ritmo de diário de bordo: nº de sequência (torna o append-only visível), timestamp, ação curta, alvo com código real e link, autor.{% endcomment %}
 {% if logs %}
 <ul class="feed" aria-label="Últimos eventos do sistema">
   {% for r in logs %}
@@ -6,7 +6,7 @@
     <span class="feed__seq mono" title="N.º de sequência no registo append-only">#{{ r.sequence }}</span>
     <span class="feed__time">{{ r.timestamp|date:'Y-m-d H:i' }}</span>
     <span class="feed__action{% if r.action_css %} feed__action--{{ r.action_css }}{% endif %}" data-act="{{ r.action }}" title="{{ r.action_label }}">{{ r.action_short }}</span>
-    <span class="feed__what">{% if r.target_url %}<a class="feed__target" href="{{ r.target_url }}">{{ r.target_label }}</a>{% else %}{{ r.target_label }}{% endif %}{% if r.extra %} · <span class="mono">{{ r.extra }}</span>{% endif %}</span>
+    <span class="feed__what">{% if r.target_url %}<a class="feed__target" href="{{ r.target_url }}">{{ r.target_label }}</a>{% else %}{{ r.target_label }}{% endif %}{% if r.extra %} · <span class="mono">{{ r.extra }}</span>{% endif %}{% if r.burst_count %} <span class="grid__muted" title="Rajada: {{ r.burst_count }} eventos consecutivos do mesmo autor/ação">×{{ r.burst_count }}</span>{% endif %}</span>
     <span class="feed__who">{{ r.user_label }}</span>
   </li>
   {% endfor %}

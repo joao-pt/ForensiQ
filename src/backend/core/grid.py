@@ -98,11 +98,15 @@ def grid_list_response(request, *, queryset, columns, grid_key, endpoint,
     qs = apply_col_filters(queryset, request, field_spec)
 
     # 2) Filtros DERIVADOS (estado legal, is_active) — única extensão ao
-    #    list_filters; whitelist no predicado único (ColFilter.accepts — D48).
+    #    list_filters. Selects validam contra a whitelist (ColFilter.accepts —
+    #    D48); um filtro derivado de TEXTO valida no próprio fn (ex.: o alvo
+    #    numérico do trilho de auditoria devolve vazio a input inválido, em vez
+    #    de um lookup ORM a rebentar).
     for param, fn in computed_filters.items():
         col = next(c for c in columns if c.filter and c.filter.param == param)
         value = (request.GET.get(param) or '').strip()
-        if col.filter.accepts(value):
+        ok = col.filter.accepts(value) if col.filter.kind == 'select' else bool(value)
+        if ok:
             qs = fn(qs, request, value)
 
     # 2b) Filtros computados SEM coluna própria (ex.: ?attn= — eixo de atenção

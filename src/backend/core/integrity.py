@@ -66,6 +66,7 @@ def verify_chains(evidence_ids):
             if expected != rec.record_hash:
                 broken.append(
                     {
+                        'evidence_id': ev_id,   # alvo navegável (achado clicável)
                         'code': codes.get(ev_id) or str(ev_id),
                         'sequence': rec.sequence,
                         'event': rec.get_event_type_display(),
@@ -105,6 +106,7 @@ def detect_anomalies(evidence_ids):
         if first.event_type not in GENESIS_EVENTS:
             findings.append(
                 {
+                    'evidence_id': ev_id,
                     'code': code,
                     'severity': 'alta',
                     'msg': f'Primeiro evento não é génese ({first.get_event_type_display()}).',
@@ -113,6 +115,7 @@ def detect_anomalies(evidence_ids):
         if is_in_transit([r.event_type for r in chain]):
             findings.append(
                 {
+                    'evidence_id': ev_id,
                     'code': code,
                     'severity': 'media',
                     'msg': 'Encaminhada e ainda não recebida (em trânsito).',
@@ -125,6 +128,7 @@ def detect_anomalies(evidence_ids):
         if missing:
             findings.append(
                 {
+                    'evidence_id': ev_id,
                     'code': code,
                     'severity': 'media',
                     'msg': f'Evento sem custódio definido (sequência {missing.sequence}).',

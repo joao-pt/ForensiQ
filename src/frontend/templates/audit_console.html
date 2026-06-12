@@ -3,18 +3,16 @@
 
 {% block title %}Auditoria & Integridade — ForensiQ{% endblock %}
 
-{% block extra_css %}
-{% endblock %}
-
 {% block breadcrumb %}<span class="breadcrumb-current">Auditoria &amp; Integridade</span>{% endblock %}
 
 {% block content %}
 <div class="dash fullbleed">
 
-  <div class="dash__greet">
-    <h1>Auditoria &amp; Integridade</h1>
-    <p>Verificação da cadeia de hash, anomalias de custódia e trilho de acessos — {% if lens == 'institution' %}Instituição{% else %}as minhas ações{% endif %}</p>
-  </div>
+  {# Regie com o carimbo de âmbito na fonte única (access.lens_label) — antes o template re-exprimia a regra da lente; P3 clean: dash__greet → dash__regie. #}
+  <header class="dash__regie">
+    <h1 class="dash__regie-title">Auditoria &amp; Integridade</h1>
+    <span class="dash__regie-meta">{{ lens_zone_label }} · cadeia de hash, anomalias de custódia e trilho de acessos · consultado a {% now 'Y-m-d H:i' %}</span>
+  </header>
 
   {# 1) Integridade da cadeia de hash — recálculo do record_hash encadeado. #}
   <section class="section" aria-labelledby="audit-integrity-title">
@@ -24,7 +22,7 @@
         <span class="urgency-dot urgency-dot--{% if chain.intact %}ok{% else %}danger{% endif %}" aria-hidden="true"></span>
         <div>
           <p class="integrity-banner__title">{% if chain.intact %}Cadeia de hash íntegra{% else %}{{ chain.broken|length }} cadeia(s) comprometida(s){% endif %}</p>
-          <p class="integrity-banner__meta">{{ chain.verified }} de {{ chain.total_items }} item(s) verificado(s) · {{ chain.total_events }} evento(s) recalculado(s)</p>
+          <p class="integrity-banner__meta">{{ chain.verified }} de {{ chain.total_items }} item(s) verificado(s) · {{ chain.total_events }} evento(s) recalculado(s) · âmbito: {{ lens_zone_label }}</p>
         </div>
       </div>
       {% if chain.broken %}
@@ -32,7 +30,8 @@
         <thead><tr><th scope="col">Item</th><th scope="col">Sequência</th><th scope="col">Evento</th></tr></thead>
         <tbody>
           {% for b in chain.broken %}
-          <tr><td class="mono">{{ b.code }}</td><td class="mono">{{ b.sequence }}</td><td>{{ b.event }}</td></tr>
+          {# Achado clicável (item 16): o código liga ao item afetado. #}
+          <tr><td class="mono"><a class="grid__link" href="/evidences/{{ b.evidence_id }}/">{{ b.code }}</a></td><td class="mono">{{ b.sequence }}</td><td>{{ b.event }}</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -40,42 +39,45 @@
     </div>
   </section>
 
-  <div class="cols-2">
+  {# 2) Anomalias de custódia — génese ausente, em trânsito por receber, custódio em falta. #}
+  <section class="section" aria-labelledby="audit-anomalies-title">
+    <header class="section__head">
+      <h2 class="section__title" id="audit-anomalies-title">Anomalias de custódia</h2>
+      <span class="section__meta">{{ anomalies|length }} achado{{ anomalies|length|pluralize }}</span>
+    </header>
+    <div class="section__body">
+      {% if anomalies %}
+      <ul class="stats-alerts">
+        {% for a in anomalies %}
+        <li class="stats-alert{% if a.severity == 'alta' %} stats-alert--warn{% else %} stats-alert--info{% endif %}">
+          <span class="urgency-dot urgency-dot--{% if a.severity == 'alta' %}danger{% else %}warn{% endif %}" aria-hidden="true"></span>
+          {# Achado clicável (item 16): o código liga ao item afetado. #}
+          <span class="stats-alert__label"><a class="mono" href="/evidences/{{ a.evidence_id }}/">{{ a.code }}</a> — {{ a.msg }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <div class="empty"><p class="empty__hint">Sem anomalias detetadas no universo visível.</p></div>
+      {% endif %}
+    </div>
+  </section>
 
-    {# 2) Anomalias de custódia — génese ausente, em trânsito por receber, custódio em falta. #}
-    <section class="section" aria-labelledby="audit-anomalies-title">
-      <header class="section__head">
-        <h2 class="section__title" id="audit-anomalies-title">Anomalias de custódia</h2>
-        <span class="section__meta">{{ anomalies|length }} achado{{ anomalies|length|pluralize }}</span>
-      </header>
-      <div class="section__body">
-        {% if anomalies %}
-        <ul class="stats-alerts">
-          {% for a in anomalies %}
-          <li class="stats-alert{% if a.severity == 'alta' %} stats-alert--warn{% else %} stats-alert--info{% endif %}">
-            <span class="urgency-dot urgency-dot--{% if a.severity == 'alta' %}danger{% else %}warn{% endif %}" aria-hidden="true"></span>
-            <span class="stats-alert__label"><span class="mono">{{ a.code }}</span> — {{ a.msg }}</span>
-          </li>
-          {% endfor %}
-        </ul>
-        {% else %}
-        <div class="empty"><p class="empty__hint">Sem anomalias detetadas no universo visível.</p></div>
-        {% endif %}
-      </div>
-    </section>
-
-    {# 3) Trilho de auditoria — feed do AuditLog (fonte única, partilhado com o Painel). #}
-    <section class="section" aria-labelledby="audit-trail-title">
-      <header class="section__head">
-        <h2 class="section__title" id="audit-trail-title">Trilho de auditoria</h2>
-        <span class="scope-badge" title="Âmbito do registo de auditoria">{% if feed_is_national %}Registo nacional{% else %}Apenas as minhas ações{% endif %}</span>
-      </header>
-      <div class="section__body section__body--flush">
-        {% include 'partials/_activity_feed.html' %}
-      </div>
-    </section>
-
-  </div>
+  {# 3) Trilho de auditoria — grelha FULL-WIDTH do gerador único (filtros por coluna + paginação; 1 linha por facto — as rajadas só colapsam no feed do painel). O âmbito segue a CREDENCIAL (scope_audit_logs), não a lente. #}
+  <section class="section" aria-labelledby="{{ title_id }}">
+    <header class="section__head">
+      <h2 class="section__title" id="{{ title_id }}">Trilho de auditoria</h2>
+      <span class="page-head__count" id="{{ count_id }}" aria-live="polite">{% include 'partials/_grid_count.html' %}</span>
+      <span class="scope-badge" title="Âmbito do registo de auditoria">{% if feed_is_national %}Registo nacional{% else %}Apenas as minhas ações{% endif %}</span>
+    </header>
+    <div class="section__body section__body--flush">
+      {% include 'partials/_grid_toolbar.html' %}
+    </div>
+  </section>
 
 </div>
+{% endblock %}
+
+{% block extra_js %}
+  {# htmx + forensic-list (navegação/paginação da grelha) — fonte única. #}
+  {% include 'partials/_grid_scripts.html' %}
 {% endblock %}
