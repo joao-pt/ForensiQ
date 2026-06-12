@@ -12,7 +12,8 @@
  *   2. Preferência do sistema operativo (prefers-color-scheme).
  *   3. Default: dark (noite) — é a marca forense ForensiQ.
  *
- * Valores aceites: 'dark' | 'light'.
+ * Valores aceites: 'dark' | 'light' | 'auto' — o 'auto' (seletor das
+ * Definições) cai deliberadamente no passo 2 (segue o SO).
  */
 (function () {
     try {

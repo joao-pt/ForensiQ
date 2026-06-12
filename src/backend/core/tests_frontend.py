@@ -667,3 +667,41 @@ class EvidenceDetailChainTest(AuthenticatedFrontendTestCase):
         body = self._body()
         self.assertNotIn('timeline__item', body)
         self.assertNotIn('id="evt-1"', body)
+
+
+class SettingsLoteFTest(AuthenticatedFrontendTestCase):
+    """Definições úteis (parecer item 19): âmbito de acesso real, sessão real,
+    seletor de tema Claro/Escuro/Auto e edição dos contactos PRÓPRIOS com
+    trilho UPDATE."""
+
+    def test_pagina_tem_ambito_sessao_e_tema(self):
+        body = self.client.get('/settings/').content.decode()
+        self.assertIn('Âmbito', body)
+        self.assertIn('Zonas', body)
+        self.assertIn('Último login', body)
+        self.assertIn('data-theme-select', body)
+        self.assertIn('id="set-email"', body)
+        # A linha antiga «Alternar no cabeçalho» foi substituída pelo seletor.
+        self.assertNotIn('Alternar no cabeçalho', body)
+
+    def test_post_contactos_atualiza_e_audita(self):
+        from core.models import AuditLog
+
+        r = self.client.post('/settings/', {
+            'email': 'novo@forensiq.test', 'phone': '+351 210000000',
+        })
+        self.assertEqual(r.status_code, 302)
+        self.test_user.refresh_from_db()
+        self.assertEqual(self.test_user.email, 'novo@forensiq.test')
+        self.assertEqual(self.test_user.phone, '+351 210000000')
+        log = AuditLog.objects.filter(action=AuditLog.Action.UPDATE).last()
+        self.assertIsNotNone(log)
+        self.assertIn('email', log.details.get('fields', {}))
+
+    def test_post_email_invalido_nao_grava(self):
+        antes = self.test_user.email
+        r = self.client.post('/settings/', {'email': 'nao-e-email', 'phone': ''})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('Email inválido', r.content.decode())
+        self.test_user.refresh_from_db()
+        self.assertEqual(self.test_user.email, antes)

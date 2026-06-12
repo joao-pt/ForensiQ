@@ -3866,8 +3866,64 @@ def stats_view(request):
 
 @jwt_cookie_user
 def settings_view(request):
-    """Perfil/credencial do utilizador e preferências — server-rendered (Fase 3)."""
-    return render(request, 'settings.html', {'u': request.user})
+    """Perfil, âmbito de acesso REAL, sessão e preferências (item 19).
+
+    A página deixa de ser só-leitura: o utilizador edita os SEUS contactos
+    (email/telefone) — nunca via API de admin nem ``UserSerializer`` (que
+    exclui PII de propósito); validação mínima aqui e a edição fica no trilho
+    (UPDATE com antes/depois). A secção Sessão mostra factos reais (último
+    login + validades dos tokens, lidas das settings — zero hardcode) e o
+    âmbito de acesso deriva das fontes únicas de ``access``."""
+    from django.core.validators import validate_email
+
+    user = request.user
+    contact_errors = {}
+    if request.method == 'POST':
+        email = (request.POST.get('email') or '').strip()
+        phone = (request.POST.get('phone') or '').strip()
+        if email:
+            try:
+                validate_email(email)
+            except DjangoValidationError:
+                contact_errors['email'] = 'Email inválido.'
+        if len(phone) > 20:
+            contact_errors['phone'] = 'Telefone demasiado longo (máx. 20 caracteres).'
+        if not contact_errors:
+            antes = {'email': user.email, 'phone': user.phone}
+            user.email = email
+            user.phone = phone
+            user.save(update_fields=['email', 'phone'])
+            mudados = {
+                f: {'antes': antes[f], 'depois': getattr(user, f)}
+                for f in antes if antes[f] != getattr(user, f)
+            }
+            if mudados:
+                log_access(
+                    request=request,
+                    action=AuditLog.Action.UPDATE,
+                    resource_type=AuditLog.ResourceType.SYSTEM,
+                    resource_id=user.pk,
+                    details={'user': user.pk, 'fields': mudados},
+                )
+            messages.success(request, 'Contactos atualizados.')
+            return HttpResponseRedirect('/settings/')
+    return render(request, 'settings.html', {
+        'u': user,
+        'contact_errors': contact_errors,
+        # Âmbito de acesso real — fontes únicas de core.access (nunca
+        # re-exprimir as regras no template).
+        'scope_full_read': access.has_full_read(user),
+        'scope_zones': [
+            access.lens_label(user, z) for z in access.available_lenses(user)
+        ],
+        # Validades dos tokens de sessão, lidas das settings (env-configuráveis).
+        'jwt_access_minutes': int(
+            settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds() // 60
+        ),
+        'jwt_refresh_days': int(
+            settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds() // 86400
+        ),
+    })
 
 
 # ---------------------------------------------------------------------------

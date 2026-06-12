@@ -20,14 +20,31 @@
     var announcer   = document.getElementById('theme-announce');
     var iconSun     = btn.querySelector('.icon-sun');
     var iconMoon    = btn.querySelector('.icon-moon');
+    // Seletor Claro/Escuro/Auto das Definições (item 19) — só existe lá.
+    var select      = document.querySelector('[data-theme-select]');
 
     function current() {
         return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
     }
 
-    function apply(theme, announce) {
+    function saved() {
+        try { return localStorage.getItem(KEY); } catch (e) { return null; }
+    }
+
+    function autoTheme() {
+        return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+            ? 'light' : 'dark';
+    }
+
+    // `persist=false` aplica o VISUAL sem gravar — essencial para o modo
+    // 'auto' (gravar o tema resolvido destruiria a preferência) e para a
+    // chamada inicial (que antes re-gravava sempre e matava o 'auto').
+    function apply(theme, announce, persist) {
         document.documentElement.setAttribute('data-theme', theme);
-        try { localStorage.setItem(KEY, theme); } catch (e) { /* privado/quota */ }
+        if (persist) {
+            try { localStorage.setItem(KEY, theme); } catch (e) { /* privado/quota */ }
+            if (select) select.value = theme;
+        }
 
         if (metaTheme) metaTheme.content = META_COLORS[theme] || META_COLORS.dark;
 
@@ -60,8 +77,31 @@
     }
 
     btn.addEventListener('click', function () {
-        apply(current() === 'dark' ? 'light' : 'dark', true);
+        // O toggle do cabeçalho continua binário: escolhe um tema EXPLÍCITO
+        // (sai do modo 'auto', se ativo).
+        apply(current() === 'dark' ? 'light' : 'dark', true, true);
     });
 
-    apply(current(), false);
+    if (select) {
+        var pref = saved();
+        select.value = (pref === 'dark' || pref === 'light') ? pref : 'auto';
+        select.addEventListener('change', function () {
+            if (select.value === 'auto') {
+                try { localStorage.setItem(KEY, 'auto'); } catch (e) { /* privado/quota */ }
+                apply(autoTheme(), true, false);
+            } else {
+                apply(select.value, true, true);
+            }
+        });
+    }
+
+    // Em modo 'auto', re-resolve ao vivo quando o SO muda de claro/escuro.
+    if (window.matchMedia) {
+        var mq = window.matchMedia('(prefers-color-scheme: light)');
+        var onOsChange = function () { if (saved() === 'auto') apply(autoTheme(), false, false); };
+        if (mq.addEventListener) mq.addEventListener('change', onOsChange);
+        else if (mq.addListener) mq.addListener(onOsChange);
+    }
+
+    apply(current(), false, false);
 })();

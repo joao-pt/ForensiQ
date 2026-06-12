@@ -33,9 +33,30 @@
             </dd>
           </div>
           <div class="facts__row"><dt>Distintivo</dt><dd class="mono">{{ u.badge_number|default:'—' }}</dd></div>
-          <div class="facts__row"><dt>Email</dt><dd class="mono">{{ u.email|default:'—' }}</dd></div>
-          <div class="facts__row"><dt>Telefone</dt><dd class="mono">{{ u.phone|default:'—' }}</dd></div>
+          {# Âmbito de acesso REAL (item 19) — derivado das fontes únicas de core.access. #}
+          <div class="facts__row"><dt>Âmbito</dt><dd>{% if scope_full_read %}Leitura total da prova (por função/credencial){% else %}Need-to-know — casos próprios{% endif %}</dd></div>
+          <div class="facts__row"><dt>Zonas</dt><dd>{{ scope_zones|join:' · ' }}</dd></div>
         </dl>
+        {# Contactos PRÓPRIOS editáveis (item 19) — POST nesta página, com trilho UPDATE; o login é por username (mudar o email não afeta a autenticação). #}
+        <h3 class="subhead">Os meus contactos</h3>
+        <form method="post" action="/settings/" class="form-grid">
+          {% csrf_token %}
+          <div class="form-field">
+            <label for="set-email">Email</label>
+            <input type="email" id="set-email" name="email" value="{{ u.email }}"
+                   {% if contact_errors.email %}aria-invalid="true"{% endif %}>
+            {% if contact_errors.email %}<p class="form-error visible">{{ contact_errors.email }}</p>{% endif %}
+          </div>
+          <div class="form-field">
+            <label for="set-phone">Telefone</label>
+            <input class="mono" type="tel" id="set-phone" name="phone" value="{{ u.phone }}" maxlength="20"
+                   {% if contact_errors.phone %}aria-invalid="true"{% endif %}>
+            {% if contact_errors.phone %}<p class="form-error visible">{{ contact_errors.phone }}</p>{% endif %}
+          </div>
+          <div class="form-field form-field--full">
+            <button type="submit" class="btn-accent">Guardar contactos</button>
+          </div>
+        </form>
       </div>
     </section>
 
@@ -43,11 +64,21 @@
       <header class="section__head"><h2 class="section__title">Sessão / sistema</h2></header>
       <div class="section__body">
         <dl class="facts">
+          {# Sessão REAL (item 19): último login + validades lidas das settings (env-configuráveis). #}
+          <div class="facts__row"><dt>Último login</dt><dd class="mono">{{ u.last_login|date:'Y-m-d H:i'|default:'—' }}</dd></div>
+          <div class="facts__row"><dt>Sessão</dt><dd>acesso {{ jwt_access_minutes }} min · renovação {{ jwt_refresh_days }} dia{{ jwt_refresh_days|pluralize }}</dd></div>
           <div class="facts__row"><dt>Build</dt><dd class="mono">{{ app_build_label }}</dd></div>
           <div class="facts__row"><dt>Commit</dt><dd class="mono">{{ app_commit }}</dd></div>
           <div class="facts__row"><dt>Região</dt><dd class="mono">{{ app_region }}</dd></div>
           <div class="facts__row"><dt>Segurança</dt><dd class="mono">{{ app_csp_label }}</dd></div>
-          <div class="facts__row"><dt>Tema</dt><dd>Alternar no cabeçalho (sol / lua)</dd></div>
+          {# Tema Claro/Escuro/Auto (item 19): 'auto' segue o SO; o handler vive em theme-switch.js (fonte única FQTheme), CSP-safe. #}
+          <div class="facts__row"><dt>Tema</dt><dd>
+            <select data-theme-select aria-label="Tema da interface">
+              <option value="auto">Auto — segue o sistema</option>
+              <option value="dark">Escuro</option>
+              <option value="light">Claro</option>
+            </select>
+          </dd></div>
         </dl>
         <p class="detail__desc">A autenticação é por cookie de sessão JWT (HttpOnly). Termine a sessão pelo menu de utilizador.</p>
       </div>
