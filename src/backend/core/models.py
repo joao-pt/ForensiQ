@@ -2577,10 +2577,14 @@ class ChainOfCustody(AppendOnlyModel):
                         self.event_type == EventType.ENCAMINHAMENTO_CUSTODIA
                         and self.custodian_institution_id
                     ):
+                        # created_at = timestamp do FACTO (o evento certificado
+                        # do ledger) — não o relógio do insert: o aviso nascia
+                        # com a data do reseed e a fila lia datas erradas.
                         ProvaEmTransito.objects.create(
                             destino_institution_id=self.custodian_institution_id,
                             evidence_id=self.evidence_id,
                             encaminhamento_event=self,
+                            created_at=self.timestamp,
                         )
                     elif self.event_type == EventType.RECEPCAO_CUSTODIA:
                         ProvaEmTransito.objects.filter(

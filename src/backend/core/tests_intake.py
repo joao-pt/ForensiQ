@@ -262,3 +262,71 @@ class OccurrenceIntakeRenderTest(TestCase):
         # Coordenada não-localizada (ponto), como no resto da app e no hash.
         self.assertIn(b'38.7256000', body)
         self.assertIn(b'-9.1430000', body)
+
+
+class IntakeFilaRececaoTest(TestCase):
+    """Fila de receção (parecer UX item 11): pré-seleção SÓ da prova dirigida
+    à instituição do operador (a de outro destino fica desmarcada, marcável de
+    propósito) e redirect pós-receção a /inbound/ enquanto a caixa do operador
+    tiver avisos pendentes."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.models import InstitutionMembership
+
+        cls.agent = _make_user('agent_fila')
+        cls.opc_x = InstitutionFactory(name='OPC X Fila', sigla='OPC-XF')
+        cls.opc_y = InstitutionFactory(name='OPC Y Fila', sigla='OPC-YF')
+        cls.member = _make_user('membro_fila', profile='EVIDENCE_CUSTODIAN')
+        InstitutionMembership.objects.create(user=cls.member, institution=cls.opc_x)
+        cls.occurrence = _make_occurrence(cls.agent)
+        cls.portador = Portador.objects.create(
+            matricula='FIL-0001', nome='Rui', apelido='Melo', posto='Agente'
+        )
+        # Dois itens para a instituição do membro (OPC-XF) + um para OUTRA (OPC-YF).
+        cls.ev_x1 = _make_evidence(cls.occurrence, cls.agent, 'SN-FX-1')
+        cls.ev_x2 = _make_evidence(cls.occurrence, cls.agent, 'SN-FX-2')
+        cls.ev_y = _make_evidence(cls.occurrence, cls.agent, 'SN-FY-1')
+        for ev, inst in ((cls.ev_x1, cls.opc_x), (cls.ev_x2, cls.opc_x), (cls.ev_y, cls.opc_y)):
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+                custodian_type=ChainOfCustody.CustodianType.OPC,
+                agent=cls.agent,
+            )
+            ChainOfCustody.objects.create(
+                evidence=ev,
+                event_type=ChainOfCustody.EventType.ENCAMINHAMENTO_CUSTODIA,
+                custodian_type=ChainOfCustody.CustodianType.OPC,
+                custodian_institution=inst,
+                bearer=cls.portador,
+                agent=cls.agent,
+            )
+
+    def setUp(self):
+        self.client = APIClient(enforce_csrf_checks=False)
+        _login_cookie(self.client, self.member)
+
+    def test_preselecao_so_da_prova_dirigida_a_instituicao_do_operador(self):
+        body = self.client.get(f'/occurrences/{self.occurrence.id}/intake/').content.decode()
+        self.assertIn(f'value="{self.ev_x1.id}" checked', body)
+        self.assertIn(f'value="{self.ev_y.id}"', body)              # selecionável...
+        self.assertNotIn(f'value="{self.ev_y.id}" checked', body)  # ...mas desmarcada
+
+    def test_pos_rececao_volta_a_fila_enquanto_houver_pendentes(self):
+        r = self.client.post(
+            f'/occurrences/{self.occurrence.id}/intake/',
+            {'evidence_ids': [str(self.ev_x1.id)]},
+        )
+        # Resta o aviso de ev_x2 para a instituição do membro -> fila.
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r['Location'], '/inbound/')
+
+    def test_pos_rececao_sem_pendentes_volta_a_ocorrencia(self):
+        r = self.client.post(
+            f'/occurrences/{self.occurrence.id}/intake/',
+            {'evidence_ids': [str(self.ev_x1.id), str(self.ev_x2.id)]},
+        )
+        # ev_y e de OUTRA instituicao — nao conta na caixa do membro.
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r['Location'], f'/occurrences/{self.occurrence.id}/')

@@ -1936,6 +1936,22 @@ def inbound_view(request):
         nome = ' '.join(p for p in (evt.bearer_nome, evt.bearer_apelido) if p).strip()
         n.bearer_label = nome or evt.bearer_matricula or '—'
         n.bearer_mat = evt.bearer_matricula
+        # Prioridade do processo (sem query — occurrence em select_related).
+        n.evidence.pri = _priority_badge(n.evidence.occurrence)
+
+    # FILA por urgência (não por aviso mais recente): 1) prazo de perícia mais
+    # apertado (days_left da decoração; sem prazo → fim), 2) processos
+    # prioritários, 3) quem espera há mais tempo primeiro (timestamp do FACTO,
+    # ascendente). Em memória: a caixa não é paginada.
+    def _urgency(n):
+        pd = n.evidence.pericia_deadline
+        return (
+            pd['days_left'] if pd else float('inf'),
+            0 if n.evidence.pri else 1,
+            n.encaminhamento_event.timestamp,
+        )
+
+    notices.sort(key=_urgency)
     return render(request, 'inbound.html', {
         'notices': notices,
         'total': len(notices),
@@ -3066,7 +3082,28 @@ def occurrence_intake_view(request, occurrence_id):
         )
         if not intake_errors:
             messages.success(request, f'Receção registada: {received} item(ns).')
+            # Fila de receção: enquanto houver avisos por reconhecer na caixa
+            # do operador, volta a /inbound/ (a mensagem sobrevive ao redirect);
+            # caixa vazia → ocorrência, como antes.
+            if access.scope_inbound_transit(user).exists():
+                return HttpResponseRedirect('/inbound/')
             return HttpResponseRedirect(f'/occurrences/{occurrence.id}/')
+
+    # Pré-seleção: só a prova dirigida a uma instituição do OPERADOR entra
+    # marcada (o destino é a instituição do último evento — encaminhamento);
+    # sem pertenças (perito/staff de laboratório), pré-marca tudo em trânsito,
+    # como antes. O checkbox continua disponível desmarcado — o fail-closed da
+    # escrita (can_append_custody no serializer) fica intacto.
+    member_inst_ids = set(access._active_institution_ids(user))
+
+    def _preselect(ev, in_transit):
+        if not in_transit:
+            return False
+        if not member_inst_ids:
+            return True
+        last = eventos_por_ev.get(ev.id) or []
+        destino_id = last[-1].custodian_institution_id if last else None
+        return destino_id in member_inst_ids
 
     rows = [
         {
@@ -3077,6 +3114,7 @@ def occurrence_intake_view(request, occurrence_id):
             'current_state_css': LEGAL_STATE_CSS.get(state_by_evidence[ev.id], 'muted'),
             # Recebível = em trânsito (encaminhado, ainda por receber — ADR-0016 v2).
             'in_transit': state_by_evidence[ev.id] == 'em_transito',
+            'preselect': _preselect(ev, state_by_evidence[ev.id] == 'em_transito'),
             # «Já recebida» = já está (ou passou) no destino — fonte única na
             # policy (STATES_AT_OR_PAST_LAB); não volta a oferecer-se para receção.
             'already_received': state_by_evidence[ev.id] in STATES_AT_OR_PAST_LAB,

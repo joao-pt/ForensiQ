@@ -41,8 +41,9 @@
             <tr role="row">
               <td role="gridcell" class="grid__check">
                 {% if row.in_transit %}
+                  {# Pré-marcado SÓ se dirigido à instituição do operador (a prova de outro destino fica desmarcada, marcável de propósito). #}
                   <label class="form-check grid__check-label" title="Receber {{ row.evidence.code }}">
-                    <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" checked
+                    <input type="checkbox" name="evidence_ids" value="{{ row.evidence.id }}" {% if row.preselect %}checked{% endif %}
                            aria-label="Receber {{ row.evidence.code }}">
                   </label>
                 {% elif row.already_received %}
