@@ -9,6 +9,7 @@ não existe, sem INVOCAR callables (os rótulos são pré-computados no decorate
 view — coerente com ``type_label``/``state_badge`` e evita chamadas acidentais).
 """
 from django import template
+from django.utils.formats import number_format
 
 register = template.Library()
 
@@ -34,15 +35,18 @@ def cellattr(row, key):
 def human_hours(value):
     """Duração humana a partir de HORAS decimais (fonte única).
 
-    Até 48h mantém as horas tal como vêm de ``core.analytics`` (437.2 →
-    ``437.2h`` deixava de se ler; 10.5 → ``10.5h``); acima disso lê-se em dias
-    (``18 d``). Só para durações DECORRIDAS — as constantes legais (72h) e o
-    prazo de calendário da perícia têm semântica própria e não passam por aqui.
+    Até 48h mantém as horas tal como vêm de ``core.analytics`` (10.5 →
+    ``10,5h``, LOCALIZADO — um f-string cru escaparia ao L10N pt-pt do
+    template); acima disso lê-se em dias (437.2 → ``18d``; unidade colada ao
+    número como no resto do produto, ex. «72h»). Só para durações DECORRIDAS —
+    as constantes legais (72h) e o prazo de calendário da perícia têm
+    semântica própria e não passam por aqui.
     """
     try:
         hours = float(value)
     except (TypeError, ValueError):
         return ''
     if hours > 48:
-        return f'{round(hours / 24)} d'
-    return f'{value}h'
+        return f'{round(hours / 24)}d'
+    display = value if isinstance(value, (int, float)) else hours
+    return f'{number_format(display)}h'

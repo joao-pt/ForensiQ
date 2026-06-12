@@ -265,3 +265,10 @@ class ValidationVisibilityTest(TestCase):
             self.assertFalse(any('val-flag' in c for c in state_cells), url)
             self.assertIn('urgency-legend--always', body)
             self.assertIn('marcadores de pendência', body)
+
+    def test_painel_tambem_tem_legenda_de_pendencia(self):
+        # O painel mostra os MESMOS marcadores que as listas — não pode ser a
+        # única grelha sem a legenda (revisão do Lote A).
+        body = self._get('/dashboard/').content.decode()
+        self.assertIn('urgency-legend--always', body)
+        self.assertIn('marcadores de pendência', body)

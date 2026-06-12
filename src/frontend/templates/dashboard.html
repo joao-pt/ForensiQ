@@ -113,6 +113,8 @@
           <div class="gridwrap gridwrap--scroll">
             {% include 'partials/_grid.html' with columns=recent_columns page_obj=recent table_id='dash-recent-table' table_label='Últimas ocorrências' row_clickable=False mobile_reduce=True hide_filter_row=True urgency_legend=urgency_legend has_filters=False empty_hint='Ainda não há ocorrências.' empty_title='' empty_filtered='' is_htmx=False %}
           </div>
+          {# Legendas dos marcadores (pendência sempre; urgência só mobile) — o painel mostra os mesmos dots que as listas. #}
+          {% include 'partials/_urgency_legend.html' %}
         </div>
       </section>
 

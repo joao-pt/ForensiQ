@@ -5,7 +5,7 @@ Cobertura da view `/occurrences/<id>/intake/`:
 
 - Sem JWT cookie → redirect para /login/ com next=...
 - JWT inválido/expirado → redirect.
-- JWT válido + AGENT → 403 (template `403_intake.html`).
+- JWT válido + AGENT → 403 (handler403 único, `403.html` com casca).
 - JWT válido + EXPERT → 200 (template `occurrence_intake.html`).
 - JWT válido + staff/superuser → 200.
 - Ocorrência inexistente → 404.

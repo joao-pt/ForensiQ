@@ -995,9 +995,12 @@ def dashboard_view(request):
             'recent': recent,
             'recent_columns': recent_columns,
             # Liga a bolinha de urgência da célula do código (gate de
-            # _grid_cell.html: col.dot AND urgency_legend) — sem a faixa-legenda,
-            # que só entra via _grid_toolbar (o painel não o usa).
+            # _grid_cell.html: col.dot AND urgency_legend) e a faixa-legenda
+            # incluída sob a grelha do painel (o painel mostra os mesmos
+            # marcadores que as listas — não pode ser a única grelha sem
+            # legenda).
             'urgency_legend': URGENCY_LEGEND_OCCURRENCE,
+            'pendency_legend': PENDENCY_LEGEND,
             'attn_filter': attn_filter,
             'logs': _activity_feed(user, limit=20),
             'feed_is_national': access.has_national_read(user),
@@ -1807,7 +1810,14 @@ def inbound_view(request):
         nome = ' '.join(p for p in (evt.bearer_nome, evt.bearer_apelido) if p).strip()
         n.bearer_label = nome or evt.bearer_matricula or '—'
         n.bearer_mat = evt.bearer_matricula
-    return render(request, 'inbound.html', {'notices': notices, 'total': len(notices)})
+    return render(request, 'inbound.html', {
+        'notices': notices,
+        'total': len(notices),
+        # A LISTA é leitura legítima para qualquer membro do destino; o CTA
+        # «Receber» (escrita) não se oferece a papéis só-leitura — sem isto o
+        # clique era um beco de 403 no intake.
+        'can_receive': not access.is_read_only_profile(user),
+    })
 
 
 @jwt_cookie_user
@@ -2870,9 +2880,15 @@ def occurrence_intake_view(request, occurrence_id):
         or access.has_inbound_for_occurrence(user, occurrence)
     )
     if not can_receive:
-        return render(request, '403_intake.html', status=403)
+        # Caminho único de 403 (handler403 + 403.html) — o antigo 403_intake.html
+        # dizia «restrita a peritos forenses», o que deixou de descrever o gate.
+        raise PermissionDenied(
+            'A receção de prova regista escrita no ledger: está aberta a '
+            'perito/staff ou a membro da instituição de destino com prova a '
+            'chegar; os perfis só-leitura não registam receções.'
+        )
     if occurrence is None:
-        return render(request, '404.html', status=404)
+        raise Http404('Ocorrência não encontrada.')
 
     evidences, state_by_evidence, eventos_por_ev = _intake_world(occurrence)
 
