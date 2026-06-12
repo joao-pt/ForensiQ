@@ -258,10 +258,12 @@ STATES_AT_OR_PAST_LAB = (
 
 # Disposição FINAL do item ao nível de EVENTO (restituição, destruição, perda a
 # favor do Estado) — contraparte de TERMINAL_LEGAL_STATES no eixo dos eventos.
-# Fonte única de dois consumos: o critério de "concluído" do fluxo
-# (``core.analytics``) e a EXTINÇÃO de uma validação pendente — encerrada a
+# Fonte única de quatro consumos: o critério de "concluído" do fluxo
+# (``core.analytics``), a EXTINÇÃO de uma validação pendente — encerrada a
 # custódia ou decidido o destino legal, deixa de haver apreensão mantida para
-# validar (CPP art. 178.º).
+# validar (CPP art. 178.º) —, a extinção POSICIONAL do prazo da perícia
+# (``pericia_deadline``) e a extinção da paragem aberta do dwell
+# (``core.analytics.custody_dwell``).
 DISPOSAL_EVENTS = TERMINAL_EVENTS | {EventType.PERDA_FAVOR_ESTADO}
 
 

@@ -224,6 +224,45 @@ class LedgerAnalyticsTest(TestCase):
         self.assertEqual(flow['registered'], 3)                # 3 itens apreendidos
         self.assertEqual(flow['concluded'], 0)                 # nenhum terminal ainda
 
+    def test_dwell_paragem_aberta_extinta_por_disposicao(self):
+        """A disposição final (DISPOSAL_EVENTS — inclui a PERDA_FAVOR_ESTADO,
+        que NÃO fecha o ledger) extingue a paragem ABERTA do dwell; a extinção
+        é POSICIONAL (vale o ÚLTIMO evento): um ato posterior à perda reabre a
+        paragem, tal como reabre o prazo da perícia."""
+        now = timezone.now()
+        occ = self._occ('DW', now - timedelta(hours=200))
+
+        # A: perdido a favor do Estado há 60h (último evento) → paragem aberta
+        # extinta; o intervalo apreensão→perda (40h) conta como FECHADO.
+        ev_a = self._ev(occ, 'SN-DW-A', now - timedelta(hours=100))
+        self._save_at(ev_a, EventType.APREENSAO_OBJETO, now - timedelta(hours=100),
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev_a, EventType.PERDA_FAVOR_ESTADO, now - timedelta(hours=60),
+                      custodian_type=CustodianType.DEPOSITARIO)
+
+        # B: apreensão em aberto há 10h → paragem aberta normal.
+        ev_b = self._ev(occ, 'SN-DW-B', now - timedelta(hours=10))
+        self._save_at(ev_b, EventType.APREENSAO_OBJETO, now - timedelta(hours=10),
+                      custodian_type=CustodianType.OPC)
+
+        # C: despacho POSTERIOR à perda (decisão judicial legítima) reabre a
+        # paragem há 20h — vale o último evento, nunca a presença da perda.
+        ev_c = self._ev(occ, 'SN-DW-C', now - timedelta(hours=100))
+        self._save_at(ev_c, EventType.APREENSAO_OBJETO, now - timedelta(hours=100),
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev_c, EventType.VALIDACAO_APREENSAO, now - timedelta(hours=95),
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev_c, EventType.PERDA_FAVOR_ESTADO, now - timedelta(hours=90),
+                      custodian_type=CustodianType.DEPOSITARIO)
+        self._save_at(ev_c, EventType.DESPACHO_PERICIA, now - timedelta(hours=20),
+                      custodian_type=CustodianType.DEPOSITARIO, act_deadline_days=30)
+
+        dwell = analytics.custody_dwell(ChainOfCustody.objects.all(), now=now)
+        self.assertEqual(dwell['open_items'], 2)            # B (10h) + C reaberto (20h)
+        self.assertGreater(dwell['longest_open_hours'], 19)  # C ~20h…
+        self.assertLess(dwell['longest_open_hours'], 21)     # …nunca a perda de A (60h)
+        self.assertEqual(dwell['intervals'], 4)             # A:1 + C:3 fechados
+
     def _despachado(self, occ, sn, *, despacho_age, prazo_dias=30):
         """Item validado e despachado há ``despacho_age`` (prazo em dias, hv4)."""
         ev = self._ev(occ, sn, timezone.now() - despacho_age - timedelta(days=2))

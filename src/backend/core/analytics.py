@@ -32,7 +32,6 @@ from .policy.event_states import (
     DISPOSAL_EVENTS,
     LEGAL_STATES,
     SEIZURE_GENESIS_EVENTS,
-    TERMINAL_EVENTS,
     TERMINAL_LEGAL_STATES,
     VALIDATION_DEADLINE,
     EventType,
@@ -225,7 +224,9 @@ def custody_dwell(cus_qs, now=None):
     Dwell = horas que um item esteve sob um custódio ANTES do evento seguinte
     (diferença entre eventos consecutivos por evidência, ordenados por sequence).
     Devolve a média global das paragens fechadas e a paragem ATUAL mais longa
-    (último evento → agora, só para itens ainda não terminais).
+    (último evento → agora, só para itens sem disposição final — DISPOSAL_EVENTS
+    — como ÚLTIMO evento; um evento posterior à perda reabre a paragem, tal
+    como reabre o prazo da perícia).
     """
     now = now or timezone.now()
     rows = (
@@ -245,7 +246,7 @@ def custody_dwell(cus_qs, now=None):
     open_secs = [
         (now - ts).total_seconds()
         for et, ts in last_by_ev.values()
-        if ts is not None and et not in TERMINAL_EVENTS
+        if ts is not None and et not in DISPOSAL_EVENTS
     ]
     avg_h = (sum(closed_secs) / len(closed_secs) / 3600) if closed_secs else 0
     longest_open_h = (max(open_secs) / 3600) if open_secs else 0
