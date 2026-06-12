@@ -816,10 +816,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 
 /* Dashboard — linha de regie + faixa de métricas */
 .dash { padding: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-5); }
-/* Cabeçalho h1+subtítulo ainda usado por /stats/ e /audit/ (o painel migrou
-   para .dash__regie; estas regras ficam até essas páginas migrarem também). */
-.dash__greet h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-bold); letter-spacing: var(--tracking-tight); color: var(--text-emphasis); }
-.dash__greet p { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--text-muted); }
 /* Linha de regie: título + carimbo de âmbito/momento numa só banda mono densa
    (substitui o h1 de 28px que repetia a sidebar e o breadcrumb sem acrescentar
    nada). O h1 mantém-se para a estrutura do documento, em tamanho de carimbo. */

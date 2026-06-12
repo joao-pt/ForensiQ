@@ -11,10 +11,11 @@
 {% block content %}
 <div class="dash fullbleed">
 
-  <div class="dash__greet">
-    <h1>Estatísticas</h1>
-    <p>Fluxo e estado do universo visível ao seu perfil — {{ lens_zone_label }}</p>
-  </div>
+  {# Regie (P3 clean — dash__greet → dash__regie, padrão do Painel). #}
+  <header class="dash__regie">
+    <h1 class="dash__regie-title">Estatísticas</h1>
+    <span class="dash__regie-meta">{{ lens_zone_label }} · fluxo e estado do universo visível ao seu perfil · consultado a {% now 'Y-m-d H:i' %}</span>
+  </header>
 
   {# Zona A — Estado ATUAL dos itens (stock), derivado do ledger; ativo vs concluído. #}
   <section class="section" aria-labelledby="stats-stock-title">
