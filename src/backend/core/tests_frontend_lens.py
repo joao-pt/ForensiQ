@@ -156,6 +156,34 @@ class ConsoleFrontendTest(TestCase):
         self.assertIn('Último evento', body)
         self.assertIn('Lab C', body)            # instituição do último elo
 
+    def test_situacao_atual_sobrevive_a_ato_certificado(self):
+        # O ato certificado não desloca a prova (nunca transporta local):
+        # Local/Armazenamento vêm do último evento FÍSICO (current_location_of)
+        # — antes liam-se do último elo e desapareciam após validação/despacho.
+        ev = _evidence(self.occ_active, self.responder)
+        _event(ev, self.responder, inst=self.opc,
+               location_name='Esquadra Central', storage_location='Armário A3')
+        _event(ev, self.responder, event_type=EventType.VALIDACAO_APREENSAO, inst=self.opc)
+        body = self._get(self.responder, f'/evidences/{ev.id}/').content.decode()
+        self.assertIn('Esquadra Central', body)
+        self.assertIn('Armário A3', body)
+
+    def test_custodio_em_branco_cai_no_travessao(self):
+        # custodian_type em branco é alcançável (opção «— (não aplicável) —» do
+        # formulário da timeline): a linha Custódio mostra o '—' canónico.
+        ev = _evidence(self.occ_active, self.responder)
+        _event(ev, self.responder)               # APREENSAO sem custódio
+        body = self._get(self.responder, f'/evidences/{ev.id}/').content.decode()
+        self.assertIn('<dt>Custódio</dt><dd>—</dd>', body)
+
+    def test_ficha_sem_eventos_mantem_subhead_registo(self):
+        # Sem ledger não há «Situação atual», mas o outline de headings não
+        # muda de forma: a <dl> de registo mantém o seu h3.
+        ev = _evidence(self.occ_active, self.responder)
+        body = self._get(self.responder, f'/evidences/{ev.id}/').content.decode()
+        self.assertNotIn('Situação atual', body)
+        self.assertIn('<h3 class="subhead">Registo</h3>', body)
+
     def test_tabela_de_itens_tem_localizacao_atual(self):
         body = self._get(self.responder, f'/occurrences/{self.occ_active.id}/').content.decode()
         self.assertIn('Localização atual', body)

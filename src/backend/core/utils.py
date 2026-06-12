@@ -12,6 +12,7 @@ from django.utils import timezone
 
 from core.policy.custody_transitions import despacho_done
 from core.policy.event_states import (
+    CERTIFIED_ACT_EVENTS,
     derive_legal_state,
     pericia_deadline,
     validation_status,
@@ -104,3 +105,21 @@ def current_seal_of(evidence):
         if rec.new_seal_number:
             return rec.new_seal_number
     return evidence.initial_seal_number or ''
+
+
+def current_location_of(evidence):
+    """(local, armazenamento) ATUAIS de UMA evidência — derivados do ledger.
+
+    Local/armazenamento do último evento FÍSICO da cadeia ordenada: os atos
+    certificados (CERTIFIED_ACT_EVENTS — a prova não se desloca, o evento
+    nunca transporta local) são saltados no varrimento regressivo. NÃO se
+    procura o «último valor não-vazio» campo a campo — um item em trânsito
+    (encaminhamento sem local) mostraria o armazenamento antigo como atual.
+    Mesmo micro-fluxo de :func:`legal_state_of` (reaproveita o prefetch).
+    ``('', '')`` = sem eventos físicos.
+    """
+    eventos = sort_custody_chain(evidence.custody_chain.all())
+    for rec in reversed(eventos):
+        if rec.event_type not in CERTIFIED_ACT_EVENTS:
+            return (rec.location_name, rec.storage_location)
+    return ('', '')

@@ -74,6 +74,7 @@ from core.models import (
 )
 from core.policy import custody_transitions
 from core.utils import (
+    current_location_of,
     current_seal_of,
     get_user_display_name,
     has_despacho,
@@ -563,6 +564,15 @@ def _decorate_evidences(evidences):
         e.state_badge = {'css': e.state_css, 'label': e.state_label}
         e.dot = {'cls': e.state_css, 'title': e.state_label}   # bolinha mobile = estado legal
         e.holder_label, e.holder_title = _holder_label_of(last)
+        # Rótulo do CUSTÓDIO atual («Tipo — Nome») com os fallbacks canónicos
+        # ('—' com o custodian_type em branco — alcançável pelo formulário da
+        # timeline e pela cascata); o template não re-exprime a regra.
+        if last is not None:
+            tipo = _CTYPE_LABELS.get(last.custodian_type, '')
+            nome = get_user_display_name(last.custodian_user, default='')
+            e.custodio_label = f'{tipo} — {nome}' if tipo and nome else (tipo or nome or '—')
+        else:
+            e.custodio_label = '—'
         # Estatuto de VALIDAÇÃO da apreensão — eixo ortogonal ao estado (CPP
         # art. 178.º/6); None = não aplicável (sem badge). O val_dot é o
         # marcador compacto por linha, SÓ quando há trabalho pendente.
@@ -2473,9 +2483,12 @@ def evidence_detail_view(request, evidence_id):
     if ev is None:
         raise Http404('Evidência não encontrada.')
     _decorate_evidences([ev])
-    # Selo EM VIGOR (derivado do ledger — fonte única core.utils) para o bloco
-    # «Situação atual» da ficha.
+    # Selo EM VIGOR + local/armazenamento ATUAIS (derivados do ledger — fontes
+    # únicas core.utils) para o bloco «Situação atual» da ficha. O local NÃO
+    # vem do último elo: um ato certificado (validação/despacho) não desloca a
+    # prova e apagava Local/Armazenamento do bloco.
     ev.current_seal = current_seal_of(ev)
+    ev.current_location, ev.current_storage = current_location_of(ev)
     events = sort_custody_chain(ev.custody_chain.all())
     _decorate_events(events)
     # Espelho de _evidence_base_qs: a decoração deriva 4 eixos do ledger por
