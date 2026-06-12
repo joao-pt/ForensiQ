@@ -6,9 +6,7 @@
 {# Sem barra de lente: tem formulário de registo de evento (clicar um chip perderia o que está por submeter). #}
 {% block lens_bar %}{% endblock %}
 
-{% block extra_css %}
-  {% include '_leaflet_head.html' %}
-{% endblock %}
+{# Sem mapa nesta página (decisão 8, um papel por página): o trajeto vive no detalhe do item; aqui é o REGISTO (form + ledger oficial). #}
 
 {% block breadcrumb %}
   <a href="/evidences/">Itens de prova</a>
@@ -57,20 +55,6 @@
       </a>
     </div>
   </header>
-
-  <section class="section">
-    <header class="section__head"><h2 class="section__title">Trajeto da prova</h2></header>
-    <div class="section__body section__body--flush">
-      {% include 'partials/_geo_map.html' with lat=ev.gps_lat lng=ev.gps_lng label=ev.code chain=chain_json css_class='map-box map-box--tall' static=True nogeo_msg='Sem georreferência registada nos eventos desta evidência.' %}
-      {% if chain_json != '[]' or ev.gps_lat is not None %}
-      <ul class="map-legend" aria-label="Legenda do trajeto">
-        <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--first" aria-hidden="true">1</span>Origem</li>
-        <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--current" aria-hidden="true">N</span>Localização atual</li>
-        <li class="map-legend__item"><span class="map-legend__dash" aria-hidden="true"></span>Trajeto</li>
-      </ul>
-      {% endif %}
-    </div>
-  </section>
 
   {% if ledger_closed %}
   <section class="section" id="custody-register">

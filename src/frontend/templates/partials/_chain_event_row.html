@@ -1,0 +1,21 @@
+{% comment %}
+  Linha COMPACTA de evento da cadeia, no detalhe do item (consulta interativa:
+  clicar realça/centra o pin do evento no mapa — forensic-list.js trata
+  [data-chain-evt]). NÃO é o ledger oficial: esse vive em /custody/
+  (_timeline_event.html), com hash, observações e a âncora canónica #evt-N —
+  aqui só se LIGA a ela. Espera `r` (evento decorado por _decorate_events)
+  e `ev` (a evidência).
+{% endcomment %}
+<li class="chain-row">
+  <button type="button" class="chain-row__btn" data-chain-evt data-seq="{{ r.sequence }}"
+          {% if r.gps_lat is not None %}data-has-gps{% endif %}
+          aria-label="Evento {{ r.sequence }} — {{ r.event_label }}{% if r.gps_lat is not None %} (mostrar no mapa){% endif %}">
+    <span class="chain-row__seq mono">#{{ r.sequence }}</span>
+    <span class="chain-row__event">{{ r.event_label }}</span>
+    <span class="chain-row__time mono">{{ r.timestamp|date:'Y-m-d H:i' }}</span>
+    {% if r.location_name %}<span class="chain-row__loc">{{ r.location_name }}</span>{% endif %}
+    {% if r.gps_lat is None %}<span class="chain-row__nogps">sem georreferência neste evento</span>{% endif %}
+  </button>
+  <a class="chain-row__link" href="/evidences/{{ ev.id }}/custody/#evt-{{ r.sequence }}"
+     aria-label="Ver o evento {{ r.sequence }} no registo oficial">ver no registo</a>
+</li>

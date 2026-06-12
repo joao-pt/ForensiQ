@@ -38,9 +38,12 @@
 
     // Desenha uma cadeia de custódia num mapa: o trajeto (linha âmbar tracejada
     // sobre um casing escuro, para contrastar em qualquer tile) e marcadores
-    // NUMERADOS por ordem de passagem — a origem (1) e a localização ATUAL (N)
-    // ficam destacadas. A ordem dos eventos vem do servidor (antigo→recente).
-    function drawChainOn(map, raw) {
+    // numerados com o Nº do EVENTO no registo (p.seq — eventos sem GPS não
+    // criam pin, logo o índice do array divergia da sequência real). A origem
+    // e a localização ATUAL ficam destacadas (papéis posicionais). A ordem dos
+    // eventos vem do servidor (antigo→recente). `el` (opcional) recebe o
+    // registo seq→marker para a consulta interativa do detalhe ([data-chain-evt]).
+    function drawChainOn(map, raw, el) {
         if (!raw || !map) return false;
         var pts;
         try { pts = JSON.parse(raw); } catch (e) { return false; }
@@ -52,7 +55,7 @@
         pts.forEach(function (p) {
             var la = parseFloat(p.lat), ln = parseFloat(p.lng);
             if (isNaN(la) || isNaN(ln)) return;
-            valid.push({ ll: [la, ln], label: p.label || '' });
+            valid.push({ ll: [la, ln], label: p.label || '', seq: p.seq });
         });
         if (!valid.length) return false;
         var latlngs = valid.map(function (v) { return v.ll; });
@@ -65,27 +68,72 @@
                 dashArray: '8,7', lineJoin: 'round', lineCap: 'round' }).addTo(map);
         }
 
-        // Marcadores numerados (1 = origem; N = localização atual, maior).
+        // Marcadores numerados pelo Nº do evento (primeiro = origem; último =
+        // localização atual, maior).
         var last = valid.length - 1;
+        var pins = {};
         valid.forEach(function (v, i) {
             var role = (i === 0 ? ' fq-chain-pin--first' : '')
                      + (i === last ? ' fq-chain-pin--current' : '');
             var size = (i === last) ? 34 : 26;
             var icon = L.divIcon({
                 className: 'fq-chain-pin' + role,
-                html: '<span class="fq-chain-pin__num">' + (i + 1) + '</span>',
+                html: '<span class="fq-chain-pin__num">' + v.seq + '</span>',
                 iconSize: [size, size],
                 iconAnchor: [size / 2, size / 2],
             });
-            L.marker(v.ll, { icon: icon, riseOnHover: true })
+            var marker = L.marker(v.ll, { icon: icon, riseOnHover: true })
                 .addTo(map)
                 .bindTooltip(v.label, { permanent: false, direction: 'top', offset: [0, -size / 2] });
+            pins[v.seq] = marker;
         });
+        if (el) el._fqChainPins = pins;
 
         if (latlngs.length > 1) map.fitBounds(latlngs, { padding: [34, 34] });
         else map.setView(latlngs[0], FQMap.DEFAULT_ZOOM);
         return true;
     }
+
+    // Consulta interativa da cadeia (detalhe do item): clicar numa linha
+    // [data-chain-evt] centra e realça o pin do evento no mapa. Delegação em
+    // document.body (CSP-safe, mesmo padrão de [data-row]/[data-copy]); as
+    // linhas são <button> reais (Enter/Espaço nativos — suite de teclado).
+    var activeChainPin = null;
+    document.body.addEventListener('click', function (ev) {
+        var btn = ev.target.closest ? ev.target.closest('[data-chain-evt]') : null;
+        if (!btn) return;
+        var mapEl = document.querySelector('[data-static-map][data-chain]');
+        document.querySelectorAll('[data-chain-evt].is-active').forEach(function (b) {
+            b.classList.remove('is-active');
+        });
+        btn.classList.add('is-active');
+        // Sem GPS: nunca recentrar nem aproximar — a própria linha já diz
+        // «sem georreferência neste evento».
+        if (!btn.hasAttribute('data-has-gps')) return;
+        if (!mapEl || !mapEl._fqMap || !mapEl._fqChainPins) return;
+        var marker = mapEl._fqChainPins[btn.dataset.seq];
+        if (!marker) return;
+        // Mobile = breakpoint do .cols-2 (1023px, forensic.css) — NÃO o 767 de
+        // column-resize: com as colunas empilhadas o mapa pode estar fora do
+        // ecrã; trazê-lo à vista antes de abrir o tooltip.
+        if (window.matchMedia && window.matchMedia('(max-width: 1023px)').matches) {
+            mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        var m = mapEl._fqMap;
+        if (activeChainPin && activeChainPin !== marker) {
+            activeChainPin.setZIndexOffset(0);
+            if (activeChainPin.getElement()) {
+                activeChainPin.getElement().classList.remove('fq-chain-pin--active');
+            }
+        }
+        m.setView(marker.getLatLng(), Math.max(m.getZoom(), FQMap.DEFAULT_ZOOM));
+        // Pins coincidentes (ex.: vários eventos no laboratório): o escolhido
+        // sobe para o topo e abre o tooltip de imediato.
+        marker.setZIndexOffset(1000);
+        if (marker.getElement()) marker.getElement().classList.add('fq-chain-pin--active');
+        marker.openTooltip();
+        activeChainPin = marker;
+    });
 
     // Pontos de prioridade (cor classifica) — usado no mapa panorâmico do hero.
     // As cores vêm dos tokens de estado para terem variante de tema claro:
@@ -253,6 +301,9 @@
     // Mapas estáticos embebidos ([data-static-map]): pin único (data-lat/lng),
     // cadeia (data-chain), ou conjunto de pontos (data-points) com bounds fixos
     // (data-bounds) e opcionalmente sem interação (data-fixed, para insets).
+    // NOTA: init em DOMContentLoaded — as páginas com mapa são full-render. Se
+    // o mapa/timeline algum dia vier num fragmento htmx, re-chamar isto em
+    // htmx:afterSettle e FQMap.refreshSize/invalidateSize (gotcha Leaflet).
     function initStaticMaps() {
         if (typeof L === 'undefined') return;
         document.querySelectorAll('[data-static-map]').forEach(function (el) {
@@ -276,7 +327,7 @@
 
             var bounds = parseBounds(el.dataset.bounds);
             var drewPoints = drawPoints(m, el.dataset.points, !fixed);
-            var drewChain = !drewPoints && drawChainOn(m, el.dataset.chain);
+            var drewChain = !drewPoints && drawChainOn(m, el.dataset.chain, el);
 
             // Acessibilidade: role coerente com a interação (img nos fixos,
             // application no interativo) + resumo textual com prioridades.

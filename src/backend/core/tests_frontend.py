@@ -12,6 +12,7 @@ from django.test import TestCase
 from django.urls import reverse
 from rest_framework_simplejwt.tokens import AccessToken
 
+from core.models import ChainOfCustody
 from core.tests_factories import (
     ChainOfCustodyFactory,
     EvidenceMobileFactory,
@@ -599,3 +600,70 @@ class CustodyTimelinePageTest(AuthenticatedFrontendTestCase):
         self.client.cookies.clear()
         response = self.client.get(self._url())
         self.assertRedirects(response, '/login/', fetch_redirect_response=False)
+
+    def test_custody_timeline_sem_mapa_do_trajeto(self):
+        """/custody/ é o REGISTO (decisão 8, um papel por página): o mapa do
+        trajeto + legenda vivem no detalhe do item; aqui ficam o formulário e o
+        ledger oficial com as âncoras #evt-N."""
+        content = self.client.get(self._url()).content.decode('utf-8')
+        self.assertNotIn('data-static-map', content)
+        self.assertNotIn('map-legend', content)
+        self.assertIn('id="custody-register"', content)
+        self.assertIn('id="evt-1"', content)
+
+
+class EvidenceDetailChainTest(AuthenticatedFrontendTestCase):
+    """Consulta interativa da cadeia no DETALHE do item (parecer UX item 13,
+    decisão 8): mapa alto + lista compacta [data-chain-evt] ligada aos pins
+    pelo Nº do EVENTO (``seq`` no payload data-chain — eventos sem GPS não
+    criam pin, logo o índice do array não serve); o ledger oficial (timeline
+    com hash e âncoras #evt-N) vive SÓ em /custody/.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.occurrence = OccurrenceFactory(agent=cls.test_user)
+        cls.evidence = EvidenceMobileFactory(
+            occurrence=cls.occurrence, agent=cls.test_user
+        )
+        # Génese SEM GPS + transferência COM GPS: o único pin do mapa tem de
+        # numerar pelo evento real (2), não pelo índice do array filtrado (1).
+        ChainOfCustodyFactory(evidence=cls.evidence, agent=cls.test_user)
+        ChainOfCustodyFactory(
+            evidence=cls.evidence, agent=cls.test_user,
+            event_type=ChainOfCustody.EventType.TRANSFERENCIA_CUSTODIA,
+            gps_lat='38.7223', gps_lng='-9.1393',
+        )
+
+    def _body(self):
+        return self.client.get(
+            f'/evidences/{self.evidence.id}/'
+        ).content.decode('utf-8')
+
+    def test_payload_do_mapa_leva_a_sequencia_do_evento(self):
+        body = self._body()
+        self.assertIn('data-chain', body)
+        # JSON escapado pelo template; só o evento 2 tem GPS.
+        self.assertIn('&quot;seq&quot;: 2', body)
+        self.assertNotIn('&quot;seq&quot;: 1', body)
+
+    def test_lista_compacta_com_linhas_clicaveis(self):
+        body = self._body()
+        self.assertIn('data-chain-evt data-seq="1"', body)
+        self.assertIn('data-chain-evt data-seq="2"', body)
+        # Só o evento com GPS é candidato a foco no mapa.
+        self.assertEqual(body.count('data-has-gps'), 1)
+        self.assertIn('sem georreferência neste evento', body)
+
+    def test_linha_liga_a_ancora_canonica_do_registo(self):
+        body = self._body()
+        self.assertIn(f'/evidences/{self.evidence.id}/custody/#evt-1', body)
+        self.assertIn(f'/evidences/{self.evidence.id}/custody/#evt-2', body)
+
+    def test_detalhe_sem_ledger_oficial_duplicado(self):
+        """O ledger completo (hash + observações por evento) não se repete no
+        detalhe — um papel por página."""
+        body = self._body()
+        self.assertNotIn('timeline__item', body)
+        self.assertNotIn('id="evt-1"', body)

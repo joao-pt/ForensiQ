@@ -64,14 +64,15 @@
     </div>
   </header>
 
-  {% if ev.photo %}
-  <figure class="photo-hero">
-    <img class="photo-hero__img" src="{{ ev.photo.url }}"
-         alt="Fotografia da evidência {{ ev.code }}" fetchpriority="high">
-  </figure>
-  {% endif %}
-
   <div class="cols-2">
+    <div>
+      {# Foto DENTRO da coluna esquerda (decisão 8): em full-width empurrava as duas colunas para baixo do ecrã. #}
+      {% if ev.photo %}
+      <figure class="photo-hero">
+        <img class="photo-hero__img" src="{{ ev.photo.url }}"
+             alt="Fotografia da evidência {{ ev.code }}" fetchpriority="high">
+      </figure>
+      {% endif %}
     <section class="section">
       <header class="section__head"><h2 class="section__title">Ficha do item</h2></header>
       <div class="section__body">
@@ -183,15 +184,30 @@
         {% endif %}
       </div>
     </section>
+    </div>
 
     <section class="section">
       <header class="section__head">
-        <h2 class="section__title">{% if chain_json != '[]' %}Localização / Cadeia{% else %}Localização da apreensão{% endif %}</h2>
+        <h2 class="section__title">{% if events %}Localização / Cadeia{% else %}Localização da apreensão{% endif %}</h2>
       </header>
       <div class="section__body section__body--flush">
-        {% include 'partials/_geo_map.html' with lat=ev.gps_lat lng=ev.gps_lng label=ev.code chain=chain_json css_class='map-box' static=True nogeo_msg='Sem georreferência (nem na apreensão, nem nos eventos de custódia).' %}
-        {% if ev.gps_lat is not None and chain_json == '[]' %}
-        <p class="dd__nogeo">Sem georreferência nos eventos de custódia.</p>
+        {% include 'partials/_geo_map.html' with lat=ev.gps_lat lng=ev.gps_lng label=ev.code chain=chain_json css_class='map-box map-box--tall' map_id='chain-map' static=True nogeo_msg='Sem georreferência (nem na apreensão, nem nos eventos de custódia).' %}
+        {% if chain_json != '[]' or ev.gps_lat is not None %}
+        {# Legenda do trajeto (movida de /custody/ — decisão 8): o nº do pin é o nº do EVENTO no registo (eventos sem GPS não criam pin, logo a origem pode não ser «1»). #}
+        <ul class="map-legend" aria-label="Legenda do trajeto">
+          <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--first" aria-hidden="true">#</span>Origem georreferenciada</li>
+          <li class="map-legend__item"><span class="map-legend__pin map-legend__pin--current" aria-hidden="true">#</span>Localização atual</li>
+          <li class="map-legend__item"><span class="map-legend__dash" aria-hidden="true"></span>Trajeto</li>
+          <li class="map-legend__item">nº do pin = nº do evento</li>
+        </ul>
+        {% endif %}
+        {# Consulta INTERATIVA da cadeia (clicar → realça o pin do evento); o ledger oficial, com hashes e âncoras #evt-N, vive em /custody/ (um papel por página). #}
+        {% if events %}
+        <ol class="chain-list" aria-label="Eventos da cadeia de custódia">
+          {% for r in events %}{% include 'partials/_chain_event_row.html' %}{% endfor %}
+        </ol>
+        {% else %}
+        <div class="empty"><p class="empty__hint">Esta evidência ainda não tem eventos de custódia.</p></div>
         {% endif %}
       </div>
     </section>
@@ -205,19 +221,6 @@
     </div>
   </section>
   {% endif %}
-
-  <section class="section">
-    <header class="section__head"><h2 class="section__title">Cadeia de custódia · {{ events|length }} evento{{ events|length|pluralize }}</h2></header>
-    <div class="section__body">
-      {% if events %}
-      <ol class="timeline">
-        {% for r in events %}{% include 'partials/_timeline_event.html' %}{% endfor %}
-      </ol>
-      {% else %}
-      <div class="empty"><p class="empty__hint">Esta evidência ainda não tem eventos de custódia.</p></div>
-      {% endif %}
-    </div>
-  </section>
 
 </article>
 {% endblock %}

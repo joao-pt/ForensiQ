@@ -53,7 +53,7 @@ def app_pages(occ_id, ev_id):
         'intake': {'path': f'/occurrences/{occ_id}/intake/'},
         'evidences': {'path': '/evidences/', 'leaflet': True, 'htmx': True},
         'evidence_new': {'path': '/evidences/new/'},
-        'evidence_detail': {'path': f'/evidences/{ev_id}/', 'htmx': True},
+        'evidence_detail': {'path': f'/evidences/{ev_id}/', 'leaflet': True, 'htmx': True},
         'custody': {'path': f'/evidences/{ev_id}/custody/', 'htmx': True},
         'custodies': {'path': '/custodies/', 'leaflet': True, 'htmx': True},
         'reports': {'path': '/reports/', 'htmx': True},

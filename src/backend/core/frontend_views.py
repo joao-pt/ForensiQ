@@ -2463,7 +2463,10 @@ def _chain_points(events):
     """Pontos georreferenciados do ledger (para o mapa da cadeia, modo Cadeia).
 
     Coordenadas como float → json.dumps usa ponto decimal (nunca a vírgula
-    PT-PT que partiria o parseFloat no cliente).
+    PT-PT que partiria o parseFloat no cliente). ``seq`` é a chave de junção
+    com a lista de eventos do detalhe (linha [data-seq] → pin) e o número
+    pintado no pin — eventos sem GPS são SALTADOS (nunca aproximar), pelo que
+    o índice do array não corresponde à sequência do registo.
     """
     pts = []
     for r in events:
@@ -2475,7 +2478,10 @@ def _chain_points(events):
         label = f'M{r.sequence:02d} · {r.get_event_type_display()} · {local_ts:%d/%m %H:%M}'
         if r.gps_accuracy_m:
             label += f' · ±{r.gps_accuracy_m}m'
-        pts.append({'lat': float(r.gps_lat), 'lng': float(r.gps_lng), 'label': label})
+        pts.append({
+            'seq': r.sequence,
+            'lat': float(r.gps_lat), 'lng': float(r.gps_lng), 'label': label,
+        })
     return pts
 
 
@@ -2803,13 +2809,14 @@ def custody_timeline_view(request, evidence_id):
         EventType.DESPACHO_PERICIA.value in valid_values or can_validate
     )
     can_restitute = can_write and EventType.RESTITUICAO.value in valid_values
+    # Sem 'chain_json': o mapa do trajeto vive no DETALHE do item (decisão 8,
+    # um papel por página) — esta página é o REGISTO oficial (form + ledger).
     return render(
         request,
         'custody_timeline.html',
         {
             'ev': ev,
             'events': events,
-            'chain_json': json.dumps(_chain_points(events), ensure_ascii=False),
             'valid_events': register_events,
             'can_write': can_write,
             'can_validate': can_validate,

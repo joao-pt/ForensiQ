@@ -1,8 +1,8 @@
 {% comment %}
-  Item único do ledger de custódia (.timeline__item).
-  Reutilizado em custody_timeline.html e evidence_detail.html para garantir o
-  MESMO conjunto de metadados (local, armazenamento, GPS, copiar hash) nas duas
-  páginas. Espera a variável `r` (evento decorado por _decorate_events).
+  Item único do ledger OFICIAL de custódia (.timeline__item) — só em
+  custody_timeline.html (decisão 8, um papel por página; o detalhe do item usa
+  a linha compacta _chain_event_row.html, que liga à âncora #evt-N daqui).
+  Espera a variável `r` (evento decorado por _decorate_events).
 {% endcomment %}
 {% load l10n %}
 {# id ancorável: a lista de custódias liga a #evt-<seq> (realce via :target). #}

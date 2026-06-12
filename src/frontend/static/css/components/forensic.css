@@ -752,6 +752,27 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     width: 30px; height: 30px; font-size: 12px;
     box-shadow: 0 0 0 3px var(--accent-tint), 0 1px 6px rgba(0, 0, 0, 0.55);
 }
+/* Pin ATIVO (linha selecionada na lista do detalhe): anel âmbar cheio. */
+.fq-chain-pin--active .fq-chain-pin__num {
+    box-shadow: 0 0 0 3px var(--accent), 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+
+/* Lista COMPACTA de eventos da cadeia (detalhe do item, sob o mapa) — consulta
+   interativa [data-chain-evt]; o ledger oficial (hash + âncoras) é /custody/. */
+.chain-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.chain-row { display: flex; align-items: center; border-bottom: 1px solid var(--border); }
+.chain-row__btn {
+    flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--sp-2);
+    flex-wrap: wrap; padding: var(--sp-2) var(--sp-4);
+    background: none; border: 0; text-align: left; cursor: pointer;
+    font-size: var(--fs-sm); color: var(--text);
+}
+.chain-row__btn:hover, .chain-row__btn:focus-visible { background: var(--bg-subtle); }
+.chain-row__btn.is-active { background: var(--accent-tint); }
+.chain-row__seq { font-size: var(--fs-xs); color: var(--text-subtle); }
+.chain-row__time, .chain-row__loc { font-size: var(--fs-xs); color: var(--text-muted); }
+.chain-row__nogps { font-size: var(--fs-xs); color: var(--text-subtle); font-style: italic; }
+.chain-row__link { padding: 0 var(--sp-4) 0 var(--sp-2); font-size: var(--fs-xs); white-space: nowrap; }
 
 /* Legenda do trajeto (sob o mapa da cadeia). */
 .map-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: 0; padding: var(--sp-2) var(--sp-4); list-style: none; font-size: var(--fs-xs); color: var(--text-muted); }
