@@ -69,7 +69,7 @@
     padding: var(--sp-3) var(--sp-4);
     border-bottom: 1px solid var(--border);
 }
-.page-head__heading { display: flex; align-items: baseline; gap: var(--sp-3); min-width: 0; }
+.page-head__heading { display: flex; align-items: baseline; gap: var(--sp-3); min-width: 0; flex-wrap: wrap; }
 .page-head__title {
     margin: 0;
     font-size: var(--fs-xl);
@@ -686,7 +686,10 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    ============================================================ */
 .section { border: 1px solid var(--border); border-radius: var(--r-3); margin-bottom: var(--sp-4); overflow: hidden; }
 .section__head {
+    /* wrap: chips/navegação (filtro ativo, janela do fluxo) quebram linha em
+       vez de serem cortados pelo overflow:hidden da .section. */
     display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2);
+    flex-wrap: wrap;
     padding: var(--sp-2) var(--sp-3);
     background: var(--bg-subtle);
     border-bottom: 1px solid var(--border);
@@ -832,7 +835,7 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 
 /* Estatísticas (UX 2026-06) — seletor de janela, meta do cabeçalho, alertas de SLA. */
 .section__meta { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); }
-.stats-window { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-4); }
+.stats-window { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
 .stats-window__label { font-family: var(--font-mono); font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: var(--tracking-wide); color: var(--text-subtle); }
 .stats-window__opt {
     font-size: var(--fs-xs); font-family: var(--font-mono); color: var(--text-muted);
@@ -852,10 +855,16 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .stats-alert--info { border-left-color: var(--info); }
 .stats-alert__num { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: var(--fw-semi); color: var(--text-emphasis); font-feature-settings: "tnum" 1; min-width: 3ch; }
 .stats-alert__label { font-size: var(--fs-sm); color: var(--text-muted); line-height: 1.4; }
-/* Rótulo acionável de /stats/ (alertas E linhas do stock): vira âncora de
-   drill-down re-derivável sem mudar a pele — só o hover sinaliza o link. */
-.stats-link { color: inherit; text-decoration: none; }
-.stats-link:hover { color: var(--accent); text-decoration: underline; }
+/* Rótulo acionável de /stats/ (alertas E linhas do stock): âncora de
+   drill-down re-derivável com sublinhado DISCRETO persistente (padrão
+   .feed__target — affordance visível em repouso, não só no hover). */
+.stats-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--text-placeholder);
+    text-underline-offset: 2px;
+}
+.stats-link:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .stats-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Valor numérico visível ao lado da barra semanal (o title não chega em
    mobile/varrimento). A célula vira flex: o <meter> é width:100% e, sozinho,
@@ -863,8 +872,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .stats-flow__n { font-size: var(--fs-xs); color: var(--text-muted); font-feature-settings: "tnum" 1; }
 .stats-flow__table .grid__bar { display: flex; align-items: center; gap: var(--sp-2); }
 .stats-flow__table meter.bar { flex: 1; }
-/* Seletor de janela dentro do cabeçalho da secção Fluxo (flex próprio). */
-.stats-window--head { margin-bottom: 0; }
 
 /* Chip do filtro ativo no cabeçalho (clicar limpa) — partilhado pelo painel e
    pelas páginas de lista (grid_page; veio de geo-hero.css na auditoria UX B9). */

@@ -30,7 +30,7 @@
           {% for r in stock.rows %}
           <tr{% if r.terminal %} class="grid__muted"{% endif %}>
             {# Linha acionável: o número é re-derivável no clique (?state= usa a MESMA derivação do ledger). #}
-            <td><a class="stats-link" href="/evidences/?state={{ r.key }}" title="Abrir a lista de itens neste estado"><span class="urgency-dot urgency-dot--{{ r.css }}" aria-hidden="true"></span> {{ r.label }}</a></td>
+            <td><a class="stats-link" href="/evidences/?state={{ r.key }}&amp;lens={{ lens }}" title="Abrir a lista de itens neste estado"><span class="urgency-dot urgency-dot--{{ r.css }}" aria-hidden="true"></span> {{ r.label }}</a></td>
             <td class="grid__bar"><meter class="bar" min="0" max="{{ stock.peak }}" value="{{ r.n }}" aria-hidden="true"></meter></td>
             <td class="mono">{{ r.n }}</td>
           </tr>
@@ -48,7 +48,7 @@
       <header class="section__head">
         <h2 class="section__title" id="stats-flow-title">Fluxo nos últimos {{ days }} dias</h2>
         {# Janela temporal: server-side (links), sem JS. Vive JUNTO ao Fluxo — é a única secção que afeta. #}
-        <nav class="stats-window stats-window--head" aria-label="Janela temporal do fluxo">
+        <nav class="stats-window" aria-label="Janela temporal do fluxo">
           <span class="stats-window__label">Período:</span>
           {% for w in window_choices %}
             <a class="stats-window__opt{% if w == days %} is-active{% endif %}" href="?days={{ w }}"{% if w == days %} aria-current="true"{% endif %}>{{ w }} dias</a>
@@ -61,7 +61,8 @@
           <div class="stat"><div class="stat__num">{{ flow.registered }}</div><div class="stat__label">Itens registados</div></div>
           <div class="stat"><div class="stat__num">{{ flow.concluded }}</div><div class="stat__label">Itens concluídos</div></div>
         </div>
-        {% if flow.series %}
+        {# flow.peak == 0 ⇔ nenhum movimento no período (o eixo contínuo nunca deixa a série vazia). #}
+        {% if flow.peak %}
         <table class="grid grid--no-toolbar stats-flow__table" aria-label="Fluxo semanal">
           <thead><tr><th scope="col">Semana</th><th scope="col">Abertas</th><th scope="col">Registadas</th><th scope="col">Concluídas</th></tr></thead>
           <tbody>
@@ -87,23 +88,23 @@
           {# Prazos com contagem >0 deep-linkam ao destino canónico (/evidences/?attn=) — número re-derivável no clique, como no painel. #}
           <li class="stats-alert{% if sla.validations_overdue %} stats-alert--warn{% endif %}">
             <span class="stats-alert__num">{{ sla.validations_overdue }}</span>
-            {% if sla.validations_overdue %}<a class="stats-alert__label stats-link" href="/evidences/?attn=overdue" title="Abrir a lista de itens com validação em atraso">{% else %}<span class="stats-alert__label">{% endif %}Validaç{{ sla.validations_overdue|pluralize:"ão,ões" }} de apreensão em atraso (&gt; {{ sla.deadline_hours }}h — CPP art. 178.º/6){% if sla.validations_overdue %}</a>{% else %}</span>{% endif %}
+            {% if sla.validations_overdue %}<a class="stats-alert__label stats-link" href="/evidences/?attn=overdue&amp;lens={{ lens }}" title="Abrir a lista de itens com validação em atraso">{% else %}<span class="stats-alert__label">{% endif %}Validaç{{ sla.validations_overdue|pluralize:"ão,ões" }} de apreensão em atraso (&gt; {{ sla.deadline_hours }}h — CPP art. 178.º/6){% if sla.validations_overdue %}</a>{% else %}</span>{% endif %}
           </li>
           <li class="stats-alert{% if sla.validations_due %} stats-alert--info{% endif %}">
             <span class="stats-alert__num">{{ sla.validations_due }}</span>
-            {% if sla.validations_due %}<a class="stats-alert__label stats-link" href="/evidences/?attn=val_due" title="Abrir a lista de itens com validação a vencer">{% else %}<span class="stats-alert__label">{% endif %}Validaç{{ sla.validations_due|pluralize:"ão,ões" }} de apreensão a vencer (a ≤{{ sla.validation_warning_hours }}h do prazo de {{ sla.deadline_hours }}h){% if sla.validations_due %}</a>{% else %}</span>{% endif %}
+            {% if sla.validations_due %}<a class="stats-alert__label stats-link" href="/evidences/?attn=val_due&amp;lens={{ lens }}" title="Abrir a lista de itens com validação a vencer">{% else %}<span class="stats-alert__label">{% endif %}Validaç{{ sla.validations_due|pluralize:"ão,ões" }} de apreensão a vencer (a ≤{{ sla.validation_warning_hours }}h do prazo de {{ sla.deadline_hours }}h){% if sla.validations_due %}</a>{% else %}</span>{% endif %}
           </li>
           <li class="stats-alert{% if sla.pericias_overdue %} stats-alert--warn{% endif %}">
             <span class="stats-alert__num">{{ sla.pericias_overdue }}</span>
-            {% if sla.pericias_overdue %}<a class="stats-alert__label stats-link" href="/evidences/?attn=pericia" title="Abrir a lista de itens com prazo de perícia vencido">{% else %}<span class="stats-alert__label">{% endif %}Prazo{{ sla.pericias_overdue|pluralize }} de perícia vencido{{ sla.pericias_overdue|pluralize }} (data-limite fixada no despacho — CPP art. 154.º){% if sla.pericias_overdue %}</a>{% else %}</span>{% endif %}
+            {% if sla.pericias_overdue %}<a class="stats-alert__label stats-link" href="/evidences/?attn=pericia&amp;lens={{ lens }}" title="Abrir a lista de itens com prazo de perícia vencido">{% else %}<span class="stats-alert__label">{% endif %}Prazo{{ sla.pericias_overdue|pluralize }} de perícia vencido{{ sla.pericias_overdue|pluralize }} (data-limite fixada no despacho — CPP art. 154.º){% if sla.pericias_overdue %}</a>{% else %}</span>{% endif %}
           </li>
           <li class="stats-alert{% if sla.pericias_due %} stats-alert--info{% endif %}">
             <span class="stats-alert__num">{{ sla.pericias_due }}</span>
-            {% if sla.pericias_due %}<a class="stats-alert__label stats-link" href="/evidences/?attn=pericia_due" title="Abrir a lista de itens com perícia a vencer">{% else %}<span class="stats-alert__label">{% endif %}Perícia{{ sla.pericias_due|pluralize }} a vencer em ≤{{ sla.pericia_warning_days }} dias{% if sla.pericias_due %}</a>{% else %}</span>{% endif %}
+            {% if sla.pericias_due %}<a class="stats-alert__label stats-link" href="/evidences/?attn=pericia_due&amp;lens={{ lens }}" title="Abrir a lista de itens com perícia a vencer">{% else %}<span class="stats-alert__label">{% endif %}Perícia{{ sla.pericias_due|pluralize }} a vencer em ≤{{ sla.pericia_warning_days }} dias{% if sla.pericias_due %}</a>{% else %}</span>{% endif %}
           </li>
           <li class="stats-alert{% if sla.in_transit %} stats-alert--info{% endif %}">
             <span class="stats-alert__num">{{ sla.in_transit }}</span>
-            {% if sla.in_transit %}<a class="stats-alert__label stats-link" href="/evidences/?attn=transit" title="Abrir a lista de itens em trânsito por receber">{% else %}<span class="stats-alert__label">{% endif %}Prova em trânsito por receber{% if sla.oldest_transit_hours %} — mais antiga há {{ sla.oldest_transit_hours|human_hours }}{% endif %}{% if sla.in_transit %}</a>{% else %}</span>{% endif %}
+            {% if sla.in_transit %}<a class="stats-alert__label stats-link" href="/evidences/?attn=transit&amp;lens={{ lens }}" title="Abrir a lista de itens em trânsito por receber">{% else %}<span class="stats-alert__label">{% endif %}Prova em trânsito por receber{% if sla.oldest_transit_hours %} — mais antiga há {{ sla.oldest_transit_hours|human_hours }}{% endif %}{% if sla.in_transit %}</a>{% else %}</span>{% endif %}
           </li>
           <li class="stats-alert">
             <span class="stats-alert__num">{{ dwell.avg_dwell_hours|human_hours }}</span>

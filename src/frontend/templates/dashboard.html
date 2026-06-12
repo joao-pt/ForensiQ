@@ -125,11 +125,12 @@
           <h2 class="section__title">Últimas ocorrências</h2>
           {% if attn_filter %}
           <a class="attn-filter-chip" href="/dashboard/"
-             title="Limpar o filtro (mostrar todas)">
-            {{ attn_filter.label }} · {{ attn_filter.n_items }} ite{{ attn_filter.n_items|pluralize:"m,ns" }} em {{ attn_filter.n_occ }} ocorrência{{ attn_filter.n_occ|pluralize }} ✕
+             title="Limpar o filtro (mostrar todas)"
+             aria-label="Limpar o filtro {{ attn_filter.label }} (mostrar todas)">
+            {{ attn_filter.label }} · {{ attn_filter.n_items }} ite{{ attn_filter.n_items|pluralize:"m,ns" }} em {{ attn_filter.n_occ }} ocorrência{{ attn_filter.n_occ|pluralize }} <span aria-hidden="true">✕</span>
           </a>
           {# Destino canónico do drill-down: a lista de ITENS com o mesmo eixo (?attn=). #}
-          <a class="attn-filter-chip" href="/evidences/?attn={{ attn_filter.key }}"
+          <a class="attn-filter-chip" href="/evidences/?attn={{ attn_filter.key }}&amp;lens={{ lens }}"
              title="Abrir a lista de itens de prova com este filtro">
             ver ite{{ attn_filter.n_items|pluralize:"m,ns" }} →
           </a>
@@ -159,7 +160,7 @@
             <li>
               {# Tile de ATENÇÃO (t.attn): eixo da validação, não um estado — filtra a tabela local (?attn=), como os prazos. #}
               <a class="cs-tile{% if t.n == 0 %} cs-tile--zero{% endif %}{% if t.attn %} cs-tile--attn{% endif %}"
-                 href="{% if t.href %}{{ t.href }}{% else %}/evidences/?state={{ t.key }}{% endif %}"
+                 href="{% if t.href %}{{ t.href }}{% else %}/evidences/?state={{ t.key }}&amp;lens={{ lens }}{% endif %}"
                  title="{% if t.attn %}Filtrar a tabela pelas ocorrências com itens a aguardar validação{% else %}Ver itens no estado: {{ t.label }}{% endif %}">
                 <span class="cs-tile__num">{{ t.n }}</span>
                 <span class="cs-tile__label">{{ t.label }}</span>

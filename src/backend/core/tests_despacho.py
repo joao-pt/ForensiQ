@@ -442,7 +442,10 @@ class PericiaPrazoTest(TestCase):
         self.assertIn('/evidences/?attn=pericia_due', body)
         self.assertIn('/evidences/?state=', body)
         self.assertIn('stats-flow__n', body)
-        self.assertIn('stats-window--head', body)
+        # Janela DENTRO do cabeçalho da secção Fluxo (depois do título do
+        # Fluxo, antes da secção de prazos).
+        self.assertLess(body.index('stats-flow-title'), body.index('stats-window'))
+        self.assertLess(body.index('stats-window'), body.index('stats-sla-title'))
 
     def test_grelha_ocorrencias_marca_prazos_em_atencao(self):
         """Marcador por linha SÓ nos processos com prazo vencido/a vencer (os

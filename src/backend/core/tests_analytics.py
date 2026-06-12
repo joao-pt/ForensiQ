@@ -316,6 +316,23 @@ class LedgerAnalyticsTest(TestCase):
         self.assertGreaterEqual(len(flow['series']), 5)
         self.assertTrue(any(s['opened'] == 0 for s in flow['series']))
 
+    def test_bucket_counts_distinct_sob_joins_multiplicadores(self):
+        """REGRESSÃO: as lentes chegam com JOINs multiplicadores (custody_chain)
+        e o .distinct() não sobrevive ao GROUP BY — a contagem tem de ser por
+        registo DISTINTO, nunca por linha do join (o fluxo inflava 3-4×)."""
+        now = timezone.now()
+        occ = self._occ('BC-1', now - timedelta(days=2))
+        ev = self._ev(occ, 'SN-BC-1', now - timedelta(days=2))
+        self._save_at(ev, EventType.APREENSAO_OBJETO, now - timedelta(hours=48),
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev, EventType.VALIDACAO_APREENSAO, now - timedelta(hours=40),
+                      custodian_type=CustodianType.OPC)
+
+        # 1 ocorrência × 2 eventos no join → 2 linhas; a contagem tem de dar 1.
+        qs = Occurrence.objects.filter(evidences__custody_chain__isnull=False)
+        counts = analytics.bucket_counts(qs, 'created_at', now - timedelta(days=30))
+        self.assertEqual(sum(counts.values()), 1)
+
     def test_validacoes_a_vencer_eixo_preventivo(self):
         """O recorte preventivo [prazo-aviso, prazo[ é DISJUNTO do «em atraso»
         (gte/lt na fronteira) e extinto pelos mesmos eventos (validação)."""

@@ -180,7 +180,11 @@ def bucket_counts(qs, field, since, trunc=TruncWeek):
         qs.filter(**{field + '__gte': since})
         .annotate(b=trunc(field))
         .values('b')
-        .annotate(n=Count('id'))
+        # distinct=True: as lentes chegam com JOINs multiplicadores
+        # (custody_chain/evidences) e o .distinct() do queryset NÃO sobrevive
+        # ao GROUP BY — sem isto o fluxo inflava 3-4× (1 contagem por linha
+        # do join, não por registo).
+        .annotate(n=Count('id', distinct=True))
         .order_by('b')
     )
     # TruncWeek devolve datetime aware (em UTC na ligação PG) — reduzir ao dia
@@ -370,7 +374,10 @@ def aging_sla(evd_qs, cus_qs, now=None):
         'overdue_ids': overdue_ids,
         'validations_due': len(validation_due_ids),
         'validation_due_ids': validation_due_ids,
-        'validation_warning_hours': settings.VALIDATION_DEADLINE_WARNING_HOURS,
+        # Rótulo derivado da MESMA constante de policy usada no recorte —
+        # nunca de uma segunda leitura de settings (podiam divergir num
+        # override_settings parcial).
+        'validation_warning_hours': int(VALIDATION_DEADLINE_WARNING.total_seconds() // 3600),
         'in_transit': len(transit_ids),
         'transit_ids': transit_ids,
         'oldest_transit_hours': oldest_h,

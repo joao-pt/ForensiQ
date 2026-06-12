@@ -20,6 +20,7 @@ from core.models import (
     Institution,
     InstitutionMembership,
     InstitutionType,
+    ProvaEmTransito,
 )
 from core.tests_base import auth_cookie
 from core.tests_factories import (
@@ -344,3 +345,75 @@ class ValidationDueDashboardTest(TestCase):
         body = self._get('/evidences/?attn=val_due').content.decode()
         self.assertIn(self.ev_due.code, body)
         self.assertNotIn(self.ev_fresh.code, body)
+
+
+class AttnAxesSweepTest(TestCase):
+    """Varredura da fonte única dos eixos (?attn=): cada chave de
+    _ATTN_AXIS_LABELS tem de aparecer como destino de link no painel e — os
+    eixos do SLA — em /stats/. Um rename na fonte única sem atualizar os
+    templates degradaria SILENCIOSAMENTE para a lista completa (chave inválida
+    é ignorada por desenho)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.policy.event_states import (
+            VALIDATION_DEADLINE,
+            VALIDATION_DEADLINE_WARNING,
+        )
+
+        cls.opc = Institution.objects.create(name='PSP Swp', type=InstitutionType.OPC, sigla='PSP-SW')
+        cls.lab = Institution.objects.create(
+            name='Lab Swp', type=InstitutionType.LAB_PUBLICO, sigla='LAB-SW'
+        )
+        cls.agent = _user('swp_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+
+        def occ_ev(tag):
+            occ = _occ(cls.agent, tag)
+            return occ, _evidence(occ, cls.agent)
+
+        # overdue (e pending): apreensão há 100h sem validação.
+        _, ev1 = occ_ev('SW-OVD')
+        with mock.patch('core.models.timezone.now',
+                        return_value=timezone.now() - timedelta(hours=100)):
+            _event(ev1, cls.agent, inst=cls.opc)
+        # val_due: apreensão a meio da janela de aviso.
+        _, ev2 = occ_ev('SW-DUE')
+        with mock.patch('core.models.timezone.now',
+                        return_value=timezone.now()
+                        - (VALIDATION_DEADLINE - VALIDATION_DEADLINE_WARNING / 2)):
+            _event(ev2, cls.agent, inst=cls.opc)
+        # pericia (vencida, 40d) e pericia_due (26d) — prazo canónico 30d.
+        for tag, days in (('SW-PRZ', 40), ('SW-PRD', 26)):
+            _, ev = occ_ev(tag)
+            with mock.patch('core.models.timezone.now',
+                            return_value=timezone.now() - timedelta(days=days)):
+                _event(ev, cls.agent, inst=cls.opc)
+                _event(ev, cls.agent, event_type=EventType.VALIDACAO_APREENSAO, inst=cls.opc)
+                _event(ev, cls.agent, event_type=EventType.DESPACHO_PERICIA, inst=cls.opc)
+        # transit: aviso de prova em trânsito por confirmar.
+        _, ev5 = occ_ev('SW-TRS')
+        rec = _event(ev5, cls.agent, inst=cls.opc)
+        ProvaEmTransito.objects.create(
+            destino_institution=cls.lab, evidence=ev5, encaminhamento_event=rec
+        )
+
+    def _get(self, url):
+        auth_cookie(self.client, self.agent)
+        return self.client.get(url)
+
+    def test_painel_linka_todos_os_eixos(self):
+        from core.frontend_views import _ATTN_AXIS_LABELS
+
+        body = self._get('/dashboard/').content.decode()
+        for key in _ATTN_AXIS_LABELS:
+            self.assertIn(f'?attn={key}', body, key)
+
+    def test_stats_linka_os_eixos_do_sla(self):
+        from core.frontend_views import _ATTN_AXIS_LABELS
+
+        body = self._get('/stats/').content.decode()
+        for key in _ATTN_AXIS_LABELS:
+            if key == 'pending':    # eixo do tile do painel; sem linha em /stats/
+                continue
+            self.assertIn(f'/evidences/?attn={key}', body, key)
