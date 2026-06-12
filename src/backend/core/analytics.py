@@ -34,6 +34,7 @@ from .policy.event_states import (
     SEIZURE_GENESIS_EVENTS,
     TERMINAL_LEGAL_STATES,
     VALIDATION_DEADLINE,
+    VALIDATION_DEADLINE_WARNING,
     EventType,
     derive_legal_state,
     pericia_deadline,
@@ -263,6 +264,9 @@ def aging_sla(evd_qs, cus_qs, now=None):
 
     - **Validações em atraso**: itens com génese de APREENSÃO há mais de 72h
       (``VALIDATION_DEADLINE``, CPP art. 178.º/6) SEM evento de validação no ledger.
+    - **Validações a vencer**: idem, mas com a génese a ≤
+      ``VALIDATION_DEADLINE_WARNING`` do prazo (eixo PREVENTIVO; disjunto do
+      «em atraso» — gte/lt na fronteira).
     - **Em trânsito por receber**: ``ProvaEmTransito`` (handoff em dois tempos) por
       confirmar, restringido ao universo de itens visível, e a paragem mais antiga.
     - **Prazos de perícia**: itens com despacho cuja data-limite (data declarada
@@ -270,16 +274,25 @@ def aging_sla(evd_qs, cus_qs, now=None):
       ou vence em ≤ ``PERICIA_DEADLINE_WARNING_DAYS`` dias sem CONCLUSAO_PERICIA.
 
     Devolve também os IDS de evidência de cada conjunto (``overdue_ids``/
-    ``transit_ids``/``pericia_overdue_ids``/``pericia_due_ids``): os números do
-    painel têm de ser RE-DERIVÁVEIS — quem clica num prazo vê exatamente os
-    itens que o contam, não um conjunto parecido (princípio de
-    re-verificabilidade).
+    ``validation_due_ids``/``transit_ids``/``pericia_overdue_ids``/
+    ``pericia_due_ids``): os números do painel têm de ser RE-DERIVÁVEIS — quem
+    clica num prazo vê exatamente os itens que o contam, não um conjunto
+    parecido (princípio de re-verificabilidade).
     """
     now = now or timezone.now()
     seized = set(
         cus_qs.filter(
             event_type__in=SEIZURE_GENESIS_EVENTS,
             timestamp__lt=now - VALIDATION_DEADLINE,
+        ).values_list('evidence_id', flat=True)
+    )
+    # Janela preventiva [prazo-aviso, prazo[: gte/lt espelham o lt estrito do
+    # «em atraso» — um item na fronteira nunca conta duas vezes nem desaparece.
+    due_seized = set(
+        cus_qs.filter(
+            event_type__in=SEIZURE_GENESIS_EVENTS,
+            timestamp__gte=now - VALIDATION_DEADLINE,
+            timestamp__lt=now - (VALIDATION_DEADLINE - VALIDATION_DEADLINE_WARNING),
         ).values_list('evidence_id', flat=True)
     )
     validated = set(
@@ -295,6 +308,7 @@ def aging_sla(evd_qs, cus_qs, now=None):
         )
     )
     overdue_ids = seized - validated - closed
+    validation_due_ids = due_seized - validated - closed
 
     in_transit = ProvaEmTransito.objects.filter(
         evidence__in=evd_qs, acknowledged_at__isnull=True
@@ -315,6 +329,9 @@ def aging_sla(evd_qs, cus_qs, now=None):
     return {
         'validations_overdue': len(overdue_ids),
         'overdue_ids': overdue_ids,
+        'validations_due': len(validation_due_ids),
+        'validation_due_ids': validation_due_ids,
+        'validation_warning_hours': settings.VALIDATION_DEADLINE_WARNING_HOURS,
         'in_transit': len(transit_ids),
         'transit_ids': transit_ids,
         'oldest_transit_hours': oldest_h,

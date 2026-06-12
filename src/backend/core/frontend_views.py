@@ -909,18 +909,30 @@ def _pri_counts(points):
     }
 
 
-def _attn_scope(request, occ_qs, sla, pending_ids):
-    """Filtro local "Prazos & atenção" (?attn=): clicar num prazo mostra na
-    PRÓPRIA tabela as ocorrências cujos itens o contam — o número do painel é
-    re-derivável no clique (antes ligava a uma lista mais lata, N≠número).
-    Devolve ``(recent_qs, attn_filter)``."""
-    attn = {
+def _attn_axes(sla, pending_ids):
+    """Eixos canónicos de atenção (``?attn=``) — fonte ÚNICA chave→(rótulo, ids).
+
+    Partilhada pelo filtro local do painel (:func:`_attn_scope`) e pelo destino
+    canónico do drill-down ``/evidences/?attn=`` — um eixo novo entra AQUI e
+    propaga-se a todas as superfícies. Os ids vêm dos mapas re-deriváveis de
+    ``analytics.aging_sla`` + pendência de validação.
+    """
+    return {
         'overdue': ('validações em atraso', sla['overdue_ids']),
+        'val_due': ('validações a vencer', sla['validation_due_ids']),
         'transit': ('em trânsito por receber', sla['transit_ids']),
         'pending': ('a aguardar validação', pending_ids),
         'pericia': ('prazos de perícia vencidos', sla['pericia_overdue_ids']),
         'pericia_due': ('perícias a vencer', sla['pericia_due_ids']),
     }
+
+
+def _attn_scope(request, occ_qs, sla, pending_ids):
+    """Filtro local "Prazos & atenção" (?attn=): clicar num prazo mostra na
+    PRÓPRIA tabela as ocorrências cujos itens o contam — o número do painel é
+    re-derivável no clique (antes ligava a uma lista mais lata, N≠número).
+    Devolve ``(recent_qs, attn_filter)``."""
+    attn = _attn_axes(sla, pending_ids)
     attn_key = (request.GET.get('attn') or '').strip()
     if attn_key not in attn:
         return occ_qs, None

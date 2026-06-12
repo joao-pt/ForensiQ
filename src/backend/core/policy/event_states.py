@@ -30,6 +30,13 @@ from django.utils import timezone
 # daqui em vez de redefinirem a constante.
 VALIDATION_DEADLINE = timedelta(hours=settings.VALIDATION_DEADLINE_HOURS)
 
+# Antecedência do AVISO «validação a vencer» (parâmetro operacional em
+# settings, como PERICIA_DEADLINE_WARNING_DAYS). O «a vencer» é um recorte
+# etário do 'por_validar' — NUNCA um estatuto novo de validation_status (o
+# vocabulário é contrato da API e dos badges); o recorte de IDs vive em
+# core.analytics.aging_sla, como o «em atraso» já vive.
+VALIDATION_DEADLINE_WARNING = timedelta(hours=settings.VALIDATION_DEADLINE_WARNING_HOURS)
+
 
 class EventType(models.TextChoices):
     """Acto processual registado em cada evento do ledger (ADR-0015/0016, CPP).

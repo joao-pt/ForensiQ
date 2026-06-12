@@ -9,6 +9,7 @@ de custódia não muda (eixo ortogonal — ``validation_status``).
 """
 
 from datetime import timedelta
+from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.test import TestCase
@@ -272,3 +273,52 @@ class ValidationVisibilityTest(TestCase):
         body = self._get('/dashboard/').content.decode()
         self.assertIn('urgency-legend--always', body)
         self.assertIn('marcadores de pendência', body)
+
+
+class ValidationDueDashboardTest(TestCase):
+    """Eixo PREVENTIVO das 72h (?attn=val_due) — espelho do par da perícia:
+    apreensão por validar dentro da janela de aviso aparece como «a vencer»
+    no painel e filtra a tabela local; fora da janela não conta."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.policy.event_states import (
+            VALIDATION_DEADLINE,
+            VALIDATION_DEADLINE_WARNING,
+        )
+
+        cls.opc = Institution.objects.create(name='PSP Due', type=InstitutionType.OPC, sigla='PSP-DU')
+        cls.agent = _user('due_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        # occ_due: apreensão a meio da janela de aviso (retrodatar = freeze-time;
+        # os triggers PG de imutabilidade impedem retrodatar por UPDATE).
+        cls.occ_due = _occ(cls.agent, 'DUE-W')
+        ev_due = _evidence(cls.occ_due, cls.agent)
+        with mock.patch(
+            'core.models.timezone.now',
+            return_value=timezone.now()
+            - (VALIDATION_DEADLINE - VALIDATION_DEADLINE_WARNING / 2),
+        ):
+            _event(ev_due, cls.agent, inst=cls.opc)
+        # occ_fresh: apreensão de agora — pendente mas FORA da janela.
+        cls.occ_fresh = _occ(cls.agent, 'DUE-F')
+        ev_fresh = _evidence(cls.occ_fresh, cls.agent)
+        _event(ev_fresh, cls.agent, inst=cls.opc)
+
+    def _get(self, url):
+        auth_cookie(self.client, self.agent)
+        return self.client.get(url)
+
+    def test_dashboard_mostra_linha_a_vencer(self):
+        body = self._get('/dashboard/').content.decode()
+        self.assertIn('href="?attn=val_due"', body)
+        self.assertIn('a vencer em ≤', body)
+
+    def test_attn_val_due_filtra_tabela_local(self):
+        body = self._get('/dashboard/?attn=val_due').content.decode()
+        self.assertIn(self.occ_due.number, body)
+        self.assertNotIn(self.occ_fresh.number, body)
+
+    def test_stats_mostra_linha_a_vencer(self):
+        body = self._get('/stats/').content.decode()
+        self.assertIn('a vencer (a ≤', body)

@@ -45,6 +45,19 @@
               <span class="attn-row__label">validações {{ sla.deadline_hours }}h em atraso</span>
             </div>
             {% endif %}
+            {% if sla.validations_due %}
+            <a class="attn-row attn-row--warn{% if attn_filter.key == 'val_due' %} attn-row--active{% endif %}"
+               href="?attn=val_due" title="Filtrar a tabela pelas ocorrências com validações a vencer"
+               {% if attn_filter.key == 'val_due' %}aria-current="true"{% endif %}>
+              <span class="attn-row__num">{{ sla.validations_due }}</span>
+              <span class="attn-row__label">validaç{{ sla.validations_due|pluralize:"ão,ões" }} a vencer em ≤{{ sla.validation_warning_hours }}h</span>
+            </a>
+            {% else %}
+            <div class="attn-row">
+              <span class="attn-row__num">0</span>
+              <span class="attn-row__label">validações a vencer em ≤{{ sla.validation_warning_hours }}h</span>
+            </div>
+            {% endif %}
             {% if sla.pericias_overdue %}
             <a class="attn-row attn-row--hot{% if attn_filter.key == 'pericia' %} attn-row--active{% endif %}"
                href="?attn=pericia" title="Filtrar a tabela pelas ocorrências com prazos de perícia vencidos"

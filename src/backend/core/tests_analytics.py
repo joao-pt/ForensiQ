@@ -263,6 +263,48 @@ class LedgerAnalyticsTest(TestCase):
         self.assertLess(dwell['longest_open_hours'], 21)     # …nunca a perda de A (60h)
         self.assertEqual(dwell['intervals'], 4)             # A:1 + C:3 fechados
 
+    def test_validacoes_a_vencer_eixo_preventivo(self):
+        """O recorte preventivo [prazo-aviso, prazo[ é DISJUNTO do «em atraso»
+        (gte/lt na fronteira) e extinto pelos mesmos eventos (validação)."""
+        from core.policy.event_states import (
+            VALIDATION_DEADLINE,
+            VALIDATION_DEADLINE_WARNING,
+        )
+
+        now = timezone.now()
+        occ = self._occ('VD', now - timedelta(days=5))
+        in_window = now - (VALIDATION_DEADLINE - VALIDATION_DEADLINE_WARNING / 2)
+        fresh = now - (VALIDATION_DEADLINE - VALIDATION_DEADLINE_WARNING
+                       - timedelta(hours=12))
+        late = now - (VALIDATION_DEADLINE + timedelta(hours=12))
+
+        ev_due = self._ev(occ, 'SN-VD-1', in_window)        # a meio da janela
+        self._save_at(ev_due, EventType.APREENSAO_OBJETO, in_window,
+                      custodian_type=CustodianType.OPC)
+        ev_fresh = self._ev(occ, 'SN-VD-2', fresh)          # antes da janela
+        self._save_at(ev_fresh, EventType.APREENSAO_OBJETO, fresh,
+                      custodian_type=CustodianType.OPC)
+        ev_late = self._ev(occ, 'SN-VD-3', late)            # já em atraso
+        self._save_at(ev_late, EventType.APREENSAO_OBJETO, late,
+                      custodian_type=CustodianType.OPC)
+        ev_ok = self._ev(occ, 'SN-VD-4', in_window)         # na janela, validada
+        self._save_at(ev_ok, EventType.APREENSAO_OBJETO, in_window,
+                      custodian_type=CustodianType.OPC)
+        self._save_at(ev_ok, EventType.VALIDACAO_APREENSAO, now - timedelta(hours=1),
+                      custodian_type=CustodianType.OPC)
+
+        sla = analytics.aging_sla(
+            Evidence.objects.all(), ChainOfCustody.objects.all(), now=now
+        )
+        self.assertEqual(sla['validation_due_ids'], {ev_due.id})
+        self.assertEqual(sla['validations_due'], 1)
+        self.assertEqual(sla['overdue_ids'], {ev_late.id})
+        self.assertEqual(sla['validation_due_ids'] & sla['overdue_ids'], set())
+        self.assertEqual(
+            sla['validation_warning_hours'],
+            int(VALIDATION_DEADLINE_WARNING.total_seconds() // 3600),
+        )
+
     def _despachado(self, occ, sn, *, despacho_age, prazo_dias=30):
         """Item validado e despachado há ``despacho_age`` (prazo em dias, hv4)."""
         ev = self._ev(occ, sn, timezone.now() - despacho_age - timedelta(days=2))

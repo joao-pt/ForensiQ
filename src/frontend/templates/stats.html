@@ -86,6 +86,10 @@
             <span class="stats-alert__num">{{ sla.validations_overdue }}</span>
             <span class="stats-alert__label">Validaç{{ sla.validations_overdue|pluralize:"ão,ões" }} de apreensão em atraso (&gt; {{ sla.deadline_hours }}h — CPP art. 178.º/6)</span>
           </li>
+          <li class="stats-alert{% if sla.validations_due %} stats-alert--info{% endif %}">
+            <span class="stats-alert__num">{{ sla.validations_due }}</span>
+            <span class="stats-alert__label">Validaç{{ sla.validations_due|pluralize:"ão,ões" }} de apreensão a vencer (a ≤{{ sla.validation_warning_hours }}h do prazo de {{ sla.deadline_hours }}h)</span>
+          </li>
           <li class="stats-alert{% if sla.pericias_overdue %} stats-alert--warn{% endif %}">
             <span class="stats-alert__num">{{ sla.pericias_overdue }}</span>
             <span class="stats-alert__label">Prazo{{ sla.pericias_overdue|pluralize }} de perícia vencido{{ sla.pericias_overdue|pluralize }} (data-limite fixada no despacho — CPP art. 154.º)</span>
