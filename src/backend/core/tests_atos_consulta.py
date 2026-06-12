@@ -300,8 +300,15 @@ class AtosGlobaisGridTest(TestCase):
     def test_acao_consultar_abre_modal(self):
         r, _ = self._rows()
         body = r.content.decode()
-        self.assertIn(f'href="/evidences/{self.ev.id}/atos/"', body)
-        self.assertIn('data-modal-open', body)
+        # Âncora COMPLETA da ação (atributos adjacentes da célula 'action' do
+        # gerador): um assert solto de 'data-modal-open' era vácuo — a string
+        # existe num comentário HTML do base.html em qualquer página.
+        self.assertIn(
+            f'href="/evidences/{self.ev.id}/atos/" '
+            f'aria-label="Consultar os atos de {self.ev.code}" '
+            f'data-modal-open data-modal-title="Atos de autoridade · {self.ev.code}"',
+            body,
+        )
 
     def test_despacho_anterior_fica_substituido(self):
         # Art. 158.º: vale o ÚLTIMO despacho (2.ª perícia) — o anterior deixa
@@ -365,9 +372,32 @@ class AtosGlobaisGridTest(TestCase):
             all(r.event_type == EventType.DESPACHO_PERICIA for r in rows)
         )
 
-    def test_filtro_autoridade_por_nome_ou_cargo(self):
-        _, rows = self._rows('?autoridade=Procuradora')
+    def test_filtro_autoridade_discrimina_por_nome_ou_cargo(self):
+        # 2.ª autoridade noutro ato — o filtro tem de DISCRIMINAR (excluir as
+        # linhas não-correspondentes), e os ramos NOME e CARGO do OR
+        # multi-campo exercem-se em separado (a busca global idem).
+        ev = _evidence(self.occ, self.agent)
+        make_chain(
+            ev,
+            (EventType.APREENSAO_OBJETO, {'custodian_institution': self.opc}),
+            (EventType.VALIDACAO_APREENSAO,
+             {'authority_nome': 'Rui Pires Andrade',
+              'authority_cargo': 'Juiz de Instrução Criminal'}),
+        )
+        # Ramo do NOME: só os 2 atos da autoridade canónica correspondem.
+        _, rows = self._rows('?autoridade=Helena')
+        self.assertEqual(
+            [r.authority_nome for r in rows],
+            [AUTHORITY_KWARGS['authority_nome']] * 2,
+        )
+        # Ramo do CARGO: só o ato da 2.ª autoridade corresponde.
+        _, rows = self._rows('?autoridade=Juiz')
+        self.assertEqual([r.authority_nome for r in rows], ['Rui Pires Andrade'])
+        # Busca global ?q= cobre o MESMO par nome/cargo do filtro de coluna.
+        _, rows = self._rows('?q=Sousa Martins')
         self.assertEqual(len(rows), 2)
+        _, rows = self._rows('?q=Juiz de Instrução')
+        self.assertEqual([r.authority_nome for r in rows], ['Rui Pires Andrade'])
         _, rows = self._rows('?autoridade=ninguém-com-este-nome')
         self.assertEqual(rows, [])
 
@@ -393,6 +423,19 @@ class AtosGlobaisGridTest(TestCase):
         InstitutionMembership.objects.create(user=estranho, institution=outra)
         _, rows = self._rows(user=estranho)
         self.assertEqual(rows, [])
+
+    def test_lente_institucional_da_acesso_ao_colega(self):
+        # Colega da MESMA instituição (não titular): a zona pessoal não mostra
+        # nada; a zona Instituição mostra os atos do processo em que a PSP-AG
+        # teve custódia. Exercita as DUAS lentes — ancora a escolha da lente
+        # na view (um âmbito fixo em qualquer das direções rebenta aqui).
+        colega = _user('atos_grid_colega', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=colega, institution=self.opc)
+        _, rows = self._rows(user=colega)
+        self.assertEqual(rows, [])
+        _, rows = self._rows('?lens=institution', user=colega)
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({r.evidence_id for r in rows}, {self.ev.id})
 
     def test_entrada_na_sidebar(self):
         auth_cookie(self.client, self.agent)

@@ -3711,15 +3711,6 @@ def custody_list_view(request):
 # instituições) e a célula do item navega para a ficha.
 # ---------------------------------------------------------------------------
 
-# Sorts da grelha dos atos — registo do ledger com tiebreak por sequência
-# (mesma razão de _CUSTODY_SORTS: timestamps empatados baralham páginas).
-_ATOS_SORTS = {
-    'recent': ('-timestamp', '-sequence'),
-    'oldest': ('timestamp', 'sequence'),
-    'evidence': ('evidence__code', 'sequence'),
-}
-
-
 def _prazo_badge_of(rec, eventos, deadlines):
     """Badge compacto da coluna «Prazo» de uma linha dos atos (None → '—').
 
@@ -3820,12 +3811,15 @@ def authority_acts_view(request):
                    link_key='item_url',
                    filter=ColFilter('item', 'Item', kind='text',
                                     field='evidence__code', placeholder='Código do item')),
-        GridColumn('ato_badge', 'Ato', cell='state', width=9,
+        # width=11: o pill («Validação»/«Despacho» + bolinha + padding) não
+        # cabe a 9% e o clip pintava reticências a meio do badge.
+        GridColumn('ato_badge', 'Ato', cell='state', width=11,
                    filter=ColFilter('ato', 'Ato', kind='select', field='event_type',
                                     choices=ato_choices)),
         # Autoridade estruturada (hv4): nome (cargo) — filtro de TEXTO
         # multi-campo (nunca um select/diretório de autoridades; need-to-know).
-        GridColumn('authority_label', 'Autoridade', css='grid__ellipsis col-hide-sm', width=17,
+        # width=16: a escala de classes grid__col--wN não tem w17 (16→18).
+        GridColumn('authority_label', 'Autoridade', css='grid__ellipsis col-hide-sm', width=16,
                    filter=ColFilter('autoridade', 'Autoridade', kind='text',
                                     fields=('authority_nome', 'authority_cargo'),
                                     placeholder='Nome ou cargo')),
@@ -3838,8 +3832,10 @@ def authority_acts_view(request):
                    filter=ColFilter('declared', 'Data declarada', kind='date_range',
                                     field='act_declared_at')),
         GridColumn('prazo_badge', 'Prazo', cell='state', css='col-reduce-hide', width=18),
+        # width=8 como o hash de /custodies/ (prefixo curto; o registo
+        # completo está no modal).
         GridColumn('hash_short', 'Registo', suffix='…', css='mono grid__muted col-hide-md',
-                   width=9),
+                   width=8),
         GridColumn('consultar', 'Consulta', cell='action', width=10),
     ]
 
@@ -3852,12 +3848,16 @@ def authority_acts_view(request):
         page_template='atos.html',
         table_label='Atos de autoridade',
         count_noun='ato',
-        sorts=_ATOS_SORTS,
+        # Mesmos sorts do ledger (fonte única _CUSTODY_SORTS — as linhas SÃO
+        # eventos de custódia; tiebreak por sequência pela mesma razão).
+        sorts=_CUSTODY_SORTS,
         default_sort='recent',
         sorts_ui=(('recent', 'Mais recentes'), ('oldest', 'Mais antigos'),
                   ('evidence', 'Por item')),
+        # Busca global cobre o mesmo par do filtro de coluna «Autoridade»
+        # (nome OU cargo) — a coluna anuncia os dois, a busca não pode menos.
         search_fields=('evidence__code', 'evidence__occurrence__number',
-                       'authority_nome'),
+                       'authority_nome', 'authority_cargo'),
         search_placeholder='Pesquisar item, NUIPC, autoridade…',
         decorate=_decorate_act_rows,
         row_clickable=False,
