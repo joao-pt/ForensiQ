@@ -12,6 +12,7 @@ sensíveis só sejam carregados via API.
 
 import json
 import logging
+import re
 from datetime import timedelta
 from functools import wraps
 
@@ -713,17 +714,75 @@ def public_verify_view(request, short_hash):
     )
 
 
+# Formatos canónicos do input tolerante de /verificacoes/ (parecer item 17):
+# short-hash de QR = 12 hex; hashes de integridade (item/elo) = 64 hex; o URL
+# público embute o short-hash em /v/<hash>/ (extrai-se pelo padrão, nunca por
+# prefixo de domínio — SITE_URL difere entre dev e prod).
+_HEX12_RE = re.compile(r'^[0-9a-f]{12}$')
+_HEX64_RE = re.compile(r'^[0-9a-f]{64}$')
+_V_PATH_RE = re.compile(r'/v/([0-9a-fA-F]{12})/?')
+
+
+def _resolve_verification_query(user, query):
+    """``(ocorrência, item)`` para um input TOLERANTE de /verificacoes/.
+
+    Ordem DETERMINÍSTICA: URL com /v/ → short-hash; 12 hex → short-hash do QR;
+    64 hex → ``integrity_hash`` de um item, senão ``record_hash`` de um elo do
+    ledger (``acquisition_hash`` fica fora — comprimento/algoritmo variáveis);
+    código com '.' → código de ITEM; OC- puro → código de ocorrência. TODOS os
+    lookups filtram pelo âmbito do operador ANTES de confirmar existência
+    («sem correspondência» é indistinto de fora-de-âmbito — nunca um oráculo).
+    Hex normalizado a minúsculas; códigos comparados com ``__iexact``.
+    Devolve ``(None, None)`` sem correspondência."""
+    from core.qr_verify import resolve_occurrence
+
+    scope = _scope_occurrences(user)
+    m = _V_PATH_RE.search(query)
+    token = m.group(1).lower() if m else query.lower()
+    if _HEX12_RE.match(token):
+        cand = resolve_occurrence(token)
+        if cand is not None and scope.filter(pk=cand.id).exists():
+            return cand, None
+        return None, None
+    if _HEX64_RE.match(token):
+        ev = (
+            Evidence.objects.filter(integrity_hash__iexact=token, occurrence__in=scope)
+            .select_related('occurrence').first()
+        )
+        if ev is not None:
+            return ev.occurrence, ev
+        rec = (
+            ChainOfCustody.objects
+            .filter(record_hash__iexact=token, evidence__occurrence__in=scope)
+            .select_related('evidence__occurrence', 'evidence').first()
+        )
+        if rec is not None:
+            return rec.evidence.occurrence, rec.evidence
+        return None, None
+    if query.upper().startswith('OC-') and '.' in query:
+        ev = (
+            Evidence.objects.filter(code__iexact=query, occurrence__in=scope)
+            .select_related('occurrence').first()
+        )
+        return (ev.occurrence, ev) if ev is not None else (None, None)
+    if query.upper().startswith('OC-'):
+        return scope.filter(code__iexact=query).first(), None
+    return None, None
+
+
 @jwt_cookie_user
 def verifications_view(request):
-    """Centro de verificação / QR (operador EXPERT/staff).
+    """Centro de verificação / QR (operador EXPERT/staff) — decisão 7: a página
+    passa a VERIFICAR de facto.
 
-    Resolve um ``short_hash`` de QR OU um código de ocorrência (OC-…) para o
-    caso correspondente, mostra o URL canónico do QR (para reimpressão da guia)
-    e documenta o fluxo guia-de-transporte e as suas mitigações. NÃO é entrada
-    de dados por código nem pesquisa pública — é ferramenta interna de
-    gestão/auditoria, pelo que respeita o ADR-0012 §6. Só resolve casos dentro
-    do âmbito do operador (need-to-know)."""
-    from core.qr_verify import resolve_occurrence, short_hash_for, verify_url_for
+    Input tolerante (:func:`_resolve_verification_query` — URL /v/, short-hash,
+    hash SHA-256 de item/elo, código de item ou de ocorrência) resolve o CASO
+    dentro do âmbito do operador e calcula o VEREDICTO de integridade por caso:
+    recálculo da cadeia de hash de todos os itens (fonte única
+    ``core.integrity.verify_chains`` — nunca re-exprimir a fórmula). Mantém o
+    URL canónico do QR (reimpressão da guia) e as mitigações documentadas; NÃO
+    é pesquisa pública (ADR-0012 §6)."""
+    from core.qr_verify import short_hash_for, verify_url_for
 
     user = request.user
     if not access.is_expert_or_staff(user):
@@ -732,15 +791,16 @@ def verifications_view(request):
     query = (request.GET.get('q') or '').strip()
     result = None
     not_found = False
+    chain = None
+    matched_item = None
     if query:
-        occ = None
-        if query.upper().startswith('OC-'):
-            occ = _scope_occurrences(user).filter(code__iexact=query).first()
-        else:
-            cand = resolve_occurrence(query.lower())
-            if cand is not None and _scope_occurrences(user).filter(pk=cand.id).exists():
-                occ = cand
+        occ, matched_item = _resolve_verification_query(user, query)
         if occ is not None:
+            # Veredicto SÓ com caso resolvido (verify_chains recalcula o ledger
+            # inteiro do caso — nunca em GET sem q).
+            chain = integrity.verify_chains(
+                list(occ.evidences.values_list('id', flat=True))
+            )
             result = {
                 'id': occ.id,
                 'code': occ.code or f'#{occ.id}',
@@ -755,7 +815,13 @@ def verifications_view(request):
     return render(
         request,
         'verifications.html',
-        {'q': query, 'result': result, 'not_found': not_found},
+        {
+            'q': query,
+            'result': result,
+            'not_found': not_found,
+            'chain': chain,
+            'matched_item': matched_item,
+        },
     )
 
 

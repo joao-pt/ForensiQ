@@ -154,3 +154,49 @@ class PublicVerifyEndpointTest(TestCase):
         # 200 (vista pública) e não 302 — não vaza o detalhe (IDOR-safe).
         self.assertEqual(response.status_code, 200)
         self.assertIn('Verificação pública de integridade'.encode(), response.content)
+
+
+class VerificationsToleranteTest(TestCase):
+    """/verificacoes/ com input tolerante + veredicto por caso (item 17,
+    decisão 7): URL /v/, hash de 64 hex (elo do ledger), código de ITEM e
+    código de ocorrência resolvem o caso DENTRO do âmbito; o resultado traz o
+    banner do veredicto (verify_chains recalculado); sem correspondência é
+    indistinto."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from core.tests_factories import make_event
+
+        cls.expert = _make_user('vf_expert', 'FORENSIC_EXPERT')
+        cls.agent = _make_user('vf_agente')
+        cls.occ = _make_occurrence(cls.agent, number='OCC-VF-001')
+        cls.ev = _make_evidence(cls.occ, cls.agent)
+        cls.genese = make_event(cls.ev, cls.agent)
+
+    def _get(self, q):
+        _login_cookie(self.client, self.expert)
+        return self.client.get('/verificacoes/', {'q': q}).content.decode()
+
+    def test_codigo_de_item_resolve_caso_e_item(self):
+        body = self._get(self.ev.code)
+        self.assertIn(self.occ.code, body)
+        self.assertIn('Item correspondente', body)
+        self.assertIn(f'/evidences/{self.ev.id}/', body)
+
+    def test_hash_de_64_do_ledger_resolve(self):
+        body = self._get(self.genese.record_hash)
+        self.assertIn(self.occ.code, body)
+        self.assertIn('Item correspondente', body)
+
+    def test_url_de_verificacao_resolve(self):
+        body = self._get(f'http://localhost:8000/v/{short_hash_for(self.occ.id)}/')
+        self.assertIn(self.occ.code, body)
+
+    def test_resultado_tem_veredicto_de_integridade(self):
+        body = self._get(self.occ.code)
+        self.assertIn('Cadeia de hash íntegra', body)
+        self.assertIn('Guia PDF', body)
+
+    def test_sem_correspondencia_indistinta(self):
+        body = self._get('0' * 64)
+        self.assertIn('Sem correspondência', body)

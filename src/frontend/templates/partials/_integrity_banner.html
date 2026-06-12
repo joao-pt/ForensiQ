@@ -1,0 +1,24 @@
+{% comment %}
+  Banner do VEREDICTO de integridade + tabela de quebras clicável — fonte
+  ÚNICA consumida pela consola de auditoria e por /verificacoes/ (decisão 7).
+  Espera `chain` (dict de core.integrity.verify_chains); `banner_scope`
+  (opcional) carimba o âmbito na linha de contagens.
+{% endcomment %}
+<div class="integrity-banner integrity-banner--{% if chain.intact %}ok{% else %}broken{% endif %}">
+  <span class="urgency-dot urgency-dot--{% if chain.intact %}ok{% else %}danger{% endif %}" aria-hidden="true"></span>
+  <div>
+    <p class="integrity-banner__title">{% if chain.intact %}Cadeia de hash íntegra{% else %}{{ chain.broken|length }} cadeia(s) comprometida(s){% endif %}</p>
+    <p class="integrity-banner__meta">{{ chain.verified }} de {{ chain.total_items }} item(s) verificado(s) · {{ chain.total_events }} evento(s) recalculado(s){% if banner_scope %} · âmbito: {{ banner_scope }}{% endif %}</p>
+  </div>
+</div>
+{% if chain.broken %}
+<table class="grid grid--no-toolbar integrity-breaks" aria-label="Cadeias comprometidas">
+  <thead><tr><th scope="col">Item</th><th scope="col">Sequência</th><th scope="col">Evento</th></tr></thead>
+  <tbody>
+    {% for b in chain.broken %}
+    {# Achado clicável: o código liga ao item afetado. #}
+    <tr><td class="mono"><a class="grid__link" href="/evidences/{{ b.evidence_id }}/">{{ b.code }}</a></td><td class="mono">{{ b.sequence }}</td><td>{{ b.event }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}

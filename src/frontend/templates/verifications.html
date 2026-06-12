@@ -14,7 +14,7 @@
   <header class="page-head">
     <div class="page-head__heading">
       <h1 class="page-head__title" id="vf-title">Verificações</h1>
-      <span class="page-head__count">Centro de gestão das guias de transporte (QR)</span>
+      <span class="page-head__count">Veredicto de integridade por caso + gestão das guias (QR)</span>
     </div>
   </header>
 
@@ -22,24 +22,38 @@
     <div class="toolbar__search">
       {% include 'partials/icons/_search.html' with icon_class='toolbar__search-icon' %}
       <input type="search" name="q" value="{{ q }}" inputmode="latin"
-             placeholder="Hash do QR ou código (ex.: OC-2026-0001)…"
-             autocomplete="off" aria-label="Hash do QR ou código da ocorrência">
+             placeholder="Hash SHA-256, URL /v/…, código de item ou de ocorrência…"
+             autocomplete="off" aria-label="Hash SHA-256, URL de verificação, código de item ou de ocorrência">
     </div>
-    <button type="submit" class="btn-accent">Resolver</button>
+    <button type="submit" class="btn-accent">Verificar</button>
   </form>
 
   {% if result %}
   <section class="section">
     <header class="section__head"><h2 class="section__title">Ocorrência resolvida</h2></header>
     <div class="section__body">
+      {# Veredicto POR CASO (decisão 7): recálculo da cadeia de hash de todos os itens — fonte única core.integrity. #}
+      {% include 'partials/_integrity_banner.html' %}
       <dl class="facts">
         <div class="facts__row"><dt>Código</dt><dd class="mono">{{ result.code }}</dd></div>
         <div class="facts__row"><dt>NUIPC</dt><dd class="mono">{{ result.number }}</dd></div>
         <div class="facts__row"><dt>Hash do QR</dt><dd class="mono">{{ result.short_hash }}</dd></div>
         {% include 'partials/_fact_hash.html' with label='URL de verificação' value=result.verify_url copy_title='Copiar URL' %}
+        {% if matched_item %}
+        {# O input resolveu um ITEM: mostra-o com o hash copiável e o caminho para a ficha. #}
+        <div class="facts__row"><dt>Item correspondente</dt><dd class="mono"><a class="dd__full" href="/evidences/{{ matched_item.id }}/">{{ matched_item.code }}</a></dd></div>
+        {% if matched_item.integrity_hash %}
+        {% include 'partials/_fact_hash.html' with label='Hash do item' value=matched_item.integrity_hash copy_title='Copiar hash SHA-256 do item' %}
+        {% endif %}
+        {% endif %}
       </dl>
       <div class="form-actions">
         <a class="btn-accent" href="/occurrences/{{ result.id }}/">Abrir ocorrência</a>
+        {# Rota nomeada do router DRF — fonte única do caminho (D103); o resolvido é uma OCORRÊNCIA. #}
+        <a class="btn-ghost" href="{% url 'core:occurrence-export-pdf' result.id %}">
+          {% include 'partials/icons/_file.html' %}
+          Guia PDF
+        </a>
       </div>
     </div>
   </section>
@@ -48,7 +62,7 @@
     <div class="section__body">
       <div class="empty">
         <p class="empty__title">Sem correspondência</p>
-        <p class="empty__hint">Nenhuma ocorrência no teu âmbito corresponde a «<span class="mono">{{ q }}</span>».</p>
+        <p class="empty__hint">Nada no teu âmbito corresponde a «<span class="mono">{{ q }}</span>» — aceita-se hash SHA-256 (item ou elo), URL /v/…, código de item ou código de ocorrência.</p>
       </div>
     </div>
   </section>
@@ -58,6 +72,7 @@
     <header class="section__head"><h2 class="section__title">Como funciona</h2></header>
     <div class="section__body">
       <div class="detail__desc">
+        <p>A verificação aceita <strong>hash SHA-256</strong> (de um item ou de um elo do ledger), o <strong>URL de verificação</strong> <span class="mono">/v/&lt;hash&gt;/</span>, o hash curto do QR, ou um <strong>código</strong> de item/ocorrência — e dá o <strong>veredicto de integridade do caso</strong>: a cadeia de hash de todos os itens é <strong>recalculada</strong> no momento (nunca lida de um estado guardado).</p>
         <p>Cada guia de transporte (PDF) leva um <strong>QR code</strong> que aponta para <span class="mono">/v/&lt;hash&gt;/</span>. O hash é derivado por <strong>HMAC-SHA256</strong> do identificador da ocorrência (48 bits, <strong>não-enumerável</strong> sem o segredo) — não revela o ID nem é adivinhável por contagem.</p>
         <p>Ao ser lido, mostra uma <strong>vista adaptativa</strong>: a quem não está autenticado, apenas o código e os hashes de integridade dos itens (para confirmar que recebeu o talão certo, sem expor descrições/GPS/agente); a perito/staff, abre a ocorrência completa.</p>
         <p>O PDF é uma <strong>guia de transporte</strong>, não uma prova autónoma (ADR-0012). Mitigações do endpoint público: <strong>throttle</strong> de 30 pedidos/minuto por IP, <strong>lockout</strong> de 15&nbsp;min após 20 tentativas falhadas (anti-brute-force), e a resposta de «não encontrado» não distingue inexistente de segredo rodado.</p>
