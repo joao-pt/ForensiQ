@@ -159,18 +159,13 @@
     --info-tint:       rgba(96, 165, 250, 0.14);
 
     /* ---- Prioridade processual (P1 lei / P2 manual / normal) ----------
-       Fonte ÚNICA da cor de prioridade (auditoria D91): .pri/.urgency-dot,
-       as legendas dos mapas e o JS (priColors via token()) leem daqui. Os 28
-       tokens de estado (e tints) do FSM antigo foram removidos — o mapa
-       estado→cor canónico do ledger vive em core/labels.py → .state--*.
-       NOTA: nunca escrever um glob com asterisco-barra num comentário CSS —
-       fecha o comentário a meio e o parser engolia a declaração seguinte
-       (--pri-p1 esteve MESES morta por isso: pinos P1 no fallback do JS e
-       ponto da legenda transparente). */
-    --pri-p1:     var(--danger);   /* vermelho — prioritária por lei */
-    --pri-p2:     var(--warning);  /* âmbar — prioritária manual */
-    --pri-p2-ink: var(--warning);  /* texto do badge P2 (no claro, escurecido p/ AA) */
-    --pri-normal: var(--info);     /* azul — normal (pontos de mapa) */
+       A prioridade NÃO usa cor: o hue é exclusivo da família ESTADO
+       (core/labels.py → .state--*). Distingue-se por PESO — .pri/.urgency-dot
+       (cheio P1 / contorno P2 / nada) e os pinos do mapa (priStyle() em
+       forensic-list.js: cheio âmbar / anel / ponto esmaecido). Por isso não há
+       tokens de cor de prioridade. NOTA: nunca escrever um glob com
+       asterisco-barra num comentário CSS — fecha o comentário a meio e o
+       parser engole a declaração seguinte. */
 
     /* Zona "Instituição" da consola — aço dessaturado PRÓPRIO, distinto de
        --info: o azul vivo ficava com 3 significados na mesma página (âmbito
@@ -246,7 +241,7 @@
     --accent-on-tint:  #92400E;
 
     /* Warning destacado do accent (amber-600 #D97706) para que P2/aviso não
-       colida com botões/marca (--accent #B45309) nem com --pri-p2. */
+       colida com botões/marca (--accent #B45309). */
     --warning:         #D97706;
     --warning-strong:  #B45309;
     --warning-tint:    rgba(217, 119, 6, 0.12);
@@ -261,13 +256,6 @@
 
     --info:            #1D4ED8;
     --info-tint:       rgba(29, 78, 216, 0.08);
-
-    /* Prioridade — variante clara: P2 usa o amber-700 (--warning-strong) para
-       manter o valor WCAG AA que o token antigo tinha sobre #FAFAF9. O texto
-       do badge P2 desce a amber-800 (#92400E): sobre --warning-tint composta
-       o #B45309 ficava a ~4.2:1, abaixo de AA para texto de 12px. */
-    --pri-p2:     var(--warning-strong);
-    --pri-p2-ink: #92400E;
 
     --scope-institution:      #475569;
     --scope-institution-tint: rgba(71, 85, 105, 0.10);

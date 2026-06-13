@@ -542,17 +542,20 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
     font-weight: var(--fw-semi); letter-spacing: 0.02em;
     border-radius: var(--r-1); border: 1px solid transparent;
 }
-/* Cor de prioridade pelos tokens únicos --pri-* (auditoria D91). */
-.pri--p1 { color: var(--pri-p1); background: var(--danger-tint); border-color: var(--danger-tint); }
-.pri--p2 { color: var(--pri-p2-ink); background: var(--warning-tint); border-color: var(--warning-tint); }
+/* Prioridade por PESO, não por cor — o hue é da família ESTADO. P1 = chip
+   cheio (tinta forte invertida), P2 = chip de contorno, Normal = nada.
+   O texto «P1»/«P2» já identifica; o preenchimento dá a hierarquia. */
+.pri--p1 { color: var(--text-inverse); background: var(--text-emphasis); border-color: var(--text-emphasis); }
+.pri--p2 { color: var(--text); background: transparent; border-color: var(--border-strong); }
 .pri--none { color: var(--text-placeholder); background: transparent; }
 
 /* Bolinha de urgência (componente REUTILIZÁVEL — todas as tabelas). Nas vistas
    mobile reduzidas substitui a coluna própria escondida (aqui: prioridade das
-   ocorrências). Cores semânticas reaproveitadas de .pri (danger/warning). */
-.urgency-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
-.urgency-dot--p1 { background: var(--pri-p1); }
-.urgency-dot--p2 { background: var(--pri-p2); }
+   ocorrências). A PRIORIDADE distingue-se por peso (cheio/anel), não por cor;
+   os tons de ESTADO (ok/warn/…) é que reaproveitam o hue, mais abaixo. */
+.urgency-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; box-sizing: border-box; }
+.urgency-dot--p1 { background: var(--text-emphasis); }
+.urgency-dot--p2 { background: transparent; border: 1.5px solid var(--text-muted); }
 .urgency-dot--none { background: var(--border-strong); }
 /* Mapa tom→cor ÚNICO (auditoria D88): a bolinha de urgência e o ponto do badge
    .state consomem a mesma regra (os NOMES de tom vêm de core/labels.py). */
@@ -1042,7 +1045,9 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-error { font-size: var(--fs-xs); color: var(--danger); min-height: 0; display: none; }
 .form-error.visible { display: block; }
 .form-hint { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-subtle); margin-top: 2px; }
-.pri-hint--p1 { color: var(--pri-p1); }
+/* Aviso de FORMULÁRIO (crime-cascade.js): a tipologia torna a ocorrência
+   prioritária por lei — alerta, não badge de prioridade, daí cor de estado. */
+.pri-hint--p1 { color: var(--danger); }
 .form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
 /* Modo terreno: a barra de ações acompanha o teclado virtual no telemóvel
    (queixa do João: o teclado tapava os botões). --kb é medido por

@@ -12,7 +12,7 @@
 (function () {
     'use strict';
 
-    // Lê um token de cor do tema (--accent / --pri-*) via getComputedStyle,
+    // Lê um token de cor do tema (--accent / --text-subtle) via getComputedStyle,
     // para os marcadores Leaflet acompanharem dia/noite em vez de hex fixo.
     // O fallback cobre o caso de o CSS ainda não ter resolvido a variável.
     function token(name, fallback) {
@@ -135,16 +135,16 @@
         activeChainPin = marker;
     });
 
-    // Pontos de prioridade (cor classifica) — usado no mapa panorâmico do hero.
-    // As cores vêm dos tokens de estado para terem variante de tema claro:
-    //   prioridade alta → vermelho (destruída), média → âmbar (em transporte),
-    //   normal → azul (apreendida).
-    function priColors() {
-        return {
-            1: token('--pri-p1', '#F87171'),
-            2: token('--pri-p2', '#F59E0B'),
-            0: token('--pri-normal', '#60A5FA'),
-        };
+    // Estilo do pino por prioridade — usado no mapa panorâmico do hero. A
+    // prioridade NÃO usa cor (o hue é da família estado): distingue-se por
+    // PESO — P1 cheio âmbar, P2 anel âmbar (contorno), normal ponto esmaecido.
+    // O âmbar é a cor de marca («é uma ocorrência»), não um tom de estado.
+    function priStyle(pri) {
+        var accent = token('--accent', '#F6AD55');
+        var muted = token('--text-subtle', '#8A8F98');
+        if (pri === 1) return { fillColor: accent, fillOpacity: 0.92, color: '#fff', weight: 2 };   // P1 — cheio
+        if (pri === 2) return { fillColor: accent, fillOpacity: 0.16, color: accent, weight: 2.5 }; // P2 — anel
+        return { fillColor: muted, fillOpacity: 0.85, color: '#fff', weight: 1.5 };                 // normal — ponto
     }
     // Severidade visual da prioridade: P1 (lei) > P2 (manual) > normal.
     var PRI_RANK = { 1: 2, 2: 1, 0: 0 };
@@ -160,7 +160,6 @@
         var pts;
         try { pts = JSON.parse(raw); } catch (e) { return false; }
         if (!pts || !pts.length) return false;
-        var colors = priColors();
 
         // Agrega pontos coincidentes (≈1km a zoom nacional): num painel a zoom
         // baixo, N ocorrências na mesma cidade viravam UMA mancha indistinguível.
@@ -182,14 +181,15 @@
             var top = g.items.reduce(function (a, b) {
                 return (PRI_RANK[b.pri] || 0) > (PRI_RANK[a.pri] || 0) ? b : a;
             });
-            var col = colors[top.pri] || colors[0];
+            var st = priStyle(+top.pri);
             var n = g.items.length;
-            // Halo claro (casing) para o pino destacar do basemap em qualquer
-            // tema — mesmo padrão da polyline da cadeia; raio cresce com √n.
+            // Peso do pino = prioridade (cheio âmbar P1 / anel P2 / ponto
+            // esmaecido normal); o raio cresce com √n (nº de ocorrências no
+            // grupo) e o casing destaca-o do basemap em qualquer tema.
             var marker = L.circleMarker(g.ll, {
                 pane: 'fq-points',
                 radius: n === 1 ? 6 : 6 + 2.5 * Math.sqrt(n),
-                color: '#fff', weight: 2, fillColor: col, fillOpacity: 0.9,
+                color: st.color, weight: st.weight, fillColor: st.fillColor, fillOpacity: st.fillOpacity,
             }).addTo(map);
             var labels = g.items.map(function (p) { return p.label || ''; }).filter(Boolean);
             if (interactive && g.items.some(function (p) { return p.id; })) {
@@ -259,7 +259,7 @@
     }
 
     // Resumo textual de um payload [data-points], com a distribuição de
-    // prioridade que a cor dos pinos codifica (silencioso em caso de erro).
+    // prioridade que o peso dos pinos codifica (silencioso em caso de erro).
     // Ex.: '8 ocorrências neste mapa: 3 P1, 1 P2, 4 normais'.
     function summarizePoints(raw) {
         var pts = [];

@@ -126,8 +126,8 @@
 .geo-hero__map-reset:hover { background: var(--surface-hover); }
 
 /* Legenda de prioridade — chips que mapeiam 1:1 para os pinos do mapa
-   (priColors() em forensic-list.js): ambos leem os tokens únicos
-   --pri-p1/--pri-p2/--pri-normal (auditoria D91). Cor só semântica. */
+   (priStyle() em forensic-list.js): a prioridade não usa cor, distingue-se
+   por PESO — P1 cheio âmbar, P2 anel âmbar, Normal ponto esmaecido. */
 .geo-hero__legend {
     flex-shrink: 0;
     display: flex;
@@ -149,9 +149,9 @@
     border-radius: 50%;
     flex-shrink: 0;
 }
-.geo-hero__legend-dot--p1     { background: var(--pri-p1); }
-.geo-hero__legend-dot--p2     { background: var(--pri-p2); }
-.geo-hero__legend-dot--normal { background: var(--pri-normal); }
+.geo-hero__legend-dot--p1     { background: var(--accent); }
+.geo-hero__legend-dot--p2     { background: transparent; border: 1.5px solid var(--accent); box-sizing: border-box; }
+.geo-hero__legend-dot--normal { background: var(--text-subtle); }
 .geo-hero__legend-label {
     font-family: var(--font-mono);
     font-size: var(--fs-2xs);
