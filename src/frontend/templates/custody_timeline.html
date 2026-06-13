@@ -200,11 +200,11 @@
             <input class="mono" type="text" id="r-newseal" name="new_seal_number" value="{{ register_data.new_seal_number }}" placeholder="Ex.: SEL-2026-0123" autocomplete="off">
           </div>
 
-          {% if sub_components %}
+          {% if cascade_descendants %}
           <div class="form-field form-field--full">
             <label class="form-check">
               <input type="checkbox" name="apply_subcomponents" value="1" {% if register_data.apply_subcomponents %}checked{% endif %}>
-              Aplicar também aos {{ sub_components|length }} sub-componente{{ sub_components|length|pluralize }} (mesmo evento, cadeia atómica)
+              Aplicar também {% if cascade_descendants|length == 1 %}ao sub-componente{% else %}aos {{ cascade_descendants|length }} sub-componentes{% endif %} da sub-árvore (mesmo evento, cadeia atómica)
             </label>
           </div>
           {% endif %}

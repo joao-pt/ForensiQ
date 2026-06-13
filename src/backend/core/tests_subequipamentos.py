@@ -5,7 +5,10 @@ profundidade/ciclo do modelo e ordem de ÁRVORE das listas por ocorrência
 no PostgreSQL; a ordenação lexicográfica punha .10 antes de .2); génese
 DERIVACAO_ITEM automática no registo do filho, com custódio HERDADO do
 custódio atual do pai (Lote 2 — decisão §6: uma apreensão validável, a do
-pai; a sub-árvore herda a base legal).
+pai; a sub-árvore herda a base legal); cascata da timeline à sub-árvore
+COMPLETA — filhos + netos, sem os de ledger fechado, com contagem honesta
+(Lote 4 — decisão §6/D4: o conjunto move-se junto, o neto deixava de seguir
+em silêncio).
 """
 
 from django.contrib.auth import get_user_model
@@ -13,7 +16,12 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from core.frontend_views import _intake_world, _occurrence_items, _tree_sort_key
+from core.frontend_views import (
+    _intake_world,
+    _occurrence_items,
+    _subtree_descendants,
+    _tree_sort_key,
+)
 from core.models import (
     ChainOfCustody,
     CustodianType,
@@ -597,3 +605,249 @@ class GuardasDaRevisaoTest(TestCase):
         r = self.client.get(r['Location'])
         self.assertContains(r, 'autonomizado do item-pai e registado')
         self.assertNotContains(r, 'apreendido e registado')
+
+
+class CascataSubArvoreTest(TestCase):
+    """Lote 4 — a cascata da timeline («Aplicar também aos N sub-componentes»)
+    abrange a sub-árvore COMPLETA (filhos + netos), não só a FK reversa de 1
+    nível, excluindo os de ledger fechado, com contagem HONESTA no checkbox
+    (decisão §6/D4: o conjunto apreendido junto move-se junto)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.opc = Institution.objects.create(
+            name='PSP Cascata', type=InstitutionType.OPC, sigla='PSP-CAS'
+        )
+        cls.agent = make_user('cas_agent', User.Profile.FIRST_RESPONDER)
+        InstitutionMembership.objects.create(user=cls.agent, institution=cls.opc)
+        cls.occ = _occ(cls.agent, 'C1')
+
+    def _opc_genese(self, etype):
+        return EventType(etype), {
+            'custodian_type': CustodianType.OPC,
+            'custodian_institution': self.opc,
+        }
+
+    def _arvore(self):
+        """Computador (raiz) → disco (filho) → ficheiro (neto) — todos abertos,
+        à guarda do OPC (génese de apreensão na raiz, derivação na sub-árvore —
+        o exemplo canónico da docstring do modelo)."""
+        raiz = _ev(self.occ, self.agent, Evidence.EvidenceType.COMPUTER)
+        make_chain(
+            raiz, self._opc_genese(EventType.APREENSAO_OBJETO), agent=self.agent
+        )
+        filho = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.STORAGE_MEDIA, parent=raiz
+        )
+        make_chain(
+            filho, self._opc_genese(EventType.DERIVACAO_ITEM), agent=self.agent
+        )
+        neto = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.DIGITAL_FILE, parent=filho
+        )
+        make_chain(
+            neto, self._opc_genese(EventType.DERIVACAO_ITEM), agent=self.agent
+        )
+        return raiz, filho, neto
+
+    @staticmethod
+    def _tem(ev, event_type):
+        return ChainOfCustody.objects.filter(
+            evidence=ev, event_type=event_type
+        ).exists()
+
+    # --- Helper _subtree_descendants -------------------------------------
+
+    def test_helper_inclui_filhos_e_netos_em_ordem_de_arvore(self):
+        raiz, filho, neto = self._arvore()
+        self.assertEqual(
+            [e.id for e in _subtree_descendants(raiz)], [filho.id, neto.id]
+        )
+        # A partir de um nó intermédio, só a SUA sub-árvore (o neto).
+        self.assertEqual([e.id for e in _subtree_descendants(filho)], [neto.id])
+
+    def test_helper_exclui_descendente_de_ledger_fechado(self):
+        raiz, filho, neto = self._arvore()
+        make_chain(neto, EventType.DESTRUICAO, agent=self.agent)
+        # O neto destruído divergiu — fica fora (não pode receber mais eventos).
+        self.assertEqual([e.id for e in _subtree_descendants(raiz)], [filho.id])
+
+    def test_helper_vazio_para_folha(self):
+        _raiz, _filho, neto = self._arvore()
+        self.assertEqual(_subtree_descendants(neto), [])
+
+    def test_helper_nao_apanha_irmao_de_prefixo_proximo(self):
+        # Regressão do prefixo: o irmão «.10» não pode colar-se ao «.1».
+        raiz = _ev(self.occ, self.agent, Evidence.EvidenceType.COMPUTER)
+        filhos = [
+            _ev(self.occ, self.agent, Evidence.EvidenceType.SIM_CARD, parent=raiz)
+            for _ in range(10)
+        ]
+        primeiro = filhos[0]  # código «{raiz}.1»
+        decimo = filhos[9]  # código «{raiz}.10»
+        # A sub-árvore do «.1» é vazia (folha) — NÃO inclui o «.10».
+        desc = _subtree_descendants(primeiro)
+        self.assertEqual(desc, [])
+        self.assertNotIn(decimo.id, [e.id for e in desc])
+
+    # --- Timeline: contagem honesta + aplicação ---------------------------
+
+    def test_timeline_conta_subarvore_honestamente(self):
+        raiz, _filho, _neto = self._arvore()
+        auth_cookie(self.client, self.agent)
+        r = self.client.get(f'/evidences/{raiz.id}/custody/')
+        # Filho + neto = 2 (antes contava só o filho direto).
+        self.assertContains(r, 'aos 2 sub-componentes da sub-árvore')
+
+    def test_cascata_aplica_a_subarvore_inteira(self):
+        raiz, filho, neto = self._arvore()
+        auth_cookie(self.client, self.agent)
+        r = self.client.post(
+            f'/evidences/{raiz.id}/custody/',
+            {
+                'event_type': EventType.PERDA_FAVOR_ESTADO,
+                'apply_subcomponents': '1',
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        # O neto — antes excluído em silêncio — recebe agora o mesmo evento.
+        for ev in (raiz, filho, neto):
+            self.assertTrue(
+                self._tem(ev, EventType.PERDA_FAVOR_ESTADO),
+                f'{ev.code} devia ter recebido o evento em cascata',
+            )
+
+    def test_sem_checkbox_so_o_item_pai(self):
+        raiz, filho, neto = self._arvore()
+        auth_cookie(self.client, self.agent)
+        r = self.client.post(
+            f'/evidences/{raiz.id}/custody/',
+            {'event_type': EventType.PERDA_FAVOR_ESTADO},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self._tem(raiz, EventType.PERDA_FAVOR_ESTADO))
+        self.assertFalse(self._tem(filho, EventType.PERDA_FAVOR_ESTADO))
+        self.assertFalse(self._tem(neto, EventType.PERDA_FAVOR_ESTADO))
+
+    def test_descendente_fechado_fica_de_fora_da_contagem_e_da_cascata(self):
+        raiz, filho, neto = self._arvore()
+        make_chain(neto, EventType.DESTRUICAO, agent=self.agent)
+        auth_cookie(self.client, self.agent)
+        # Contagem honesta: o neto fechado não conta (resta 1 — copy singular,
+        # sem o «aos 1» agramatical).
+        r = self.client.get(f'/evidences/{raiz.id}/custody/')
+        self.assertContains(r, 'ao sub-componente da sub-árvore')
+        self.assertNotContains(r, 'sub-componentes da sub-árvore')
+        # Cascata: aplica à raiz e ao filho; o neto destruído fica intacto.
+        r = self.client.post(
+            f'/evidences/{raiz.id}/custody/',
+            {
+                'event_type': EventType.PERDA_FAVOR_ESTADO,
+                'apply_subcomponents': '1',
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self._tem(raiz, EventType.PERDA_FAVOR_ESTADO))
+        self.assertTrue(self._tem(filho, EventType.PERDA_FAVOR_ESTADO))
+        self.assertFalse(self._tem(neto, EventType.PERDA_FAVOR_ESTADO))
+
+    def test_cascata_e_atomica_um_descendente_que_recusa_reverte_tudo(self):
+        # Raiz com despacho próprio passa o gate de laboratório; o filho
+        # derivado (sem despacho próprio) recusa o encaminhamento para LAB
+        # (CPP Art. 154.º) — a cascata atómica reverte por completo.
+        raiz = _ev(self.occ, self.agent, Evidence.EvidenceType.COMPUTER)
+        make_chain(
+            raiz,
+            self._opc_genese(EventType.APREENSAO_OBJETO),
+            self._opc_genese(EventType.VALIDACAO_APREENSAO),
+            self._opc_genese(EventType.DESPACHO_PERICIA),
+            agent=self.agent,
+        )
+        filho = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.STORAGE_MEDIA, parent=raiz
+        )
+        make_chain(
+            filho, self._opc_genese(EventType.DERIVACAO_ITEM), agent=self.agent
+        )
+        lab = InstitutionFactory(name='LPC Cascata', sigla='LPC-CAS')
+        portador = Portador.objects.create(
+            matricula='CAS-001', nome='Rui', apelido='Pires', posto='Agente'
+        )
+        payload = {
+            'event_type': EventType.ENCAMINHAMENTO_CUSTODIA,
+            'custodian_type': CustodianType.LAB_PUBLICO,
+            'custodian_institution': lab.id,
+            'bearer': portador.id,
+        }
+        auth_cookie(self.client, self.agent)
+        r = self.client.post(
+            f'/evidences/{raiz.id}/custody/',
+            dict(payload, apply_subcomponents='1'),
+        )
+        # Re-render com erros (não há redireção) e NADA gravado — nem na raiz.
+        # O erro identifica a CAUSA (o gate de laboratório do filho), não uma
+        # recusa qualquer.
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'DESPACHO_PERICIA')
+        self.assertFalse(self._tem(raiz, EventType.ENCAMINHAMENTO_CUSTODIA))
+        self.assertFalse(self._tem(filho, EventType.ENCAMINHAMENTO_CUSTODIA))
+        # Controlo positivo: a MESMA submissão sem a cascata passa — prova que
+        # a recusa veio do descendente, não do próprio item-pai.
+        r = self.client.post(f'/evidences/{raiz.id}/custody/', payload)
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(self._tem(raiz, EventType.ENCAMINHAMENTO_CUSTODIA))
+        self.assertFalse(self._tem(filho, EventType.ENCAMINHAMENTO_CUSTODIA))
+
+    def test_descendente_em_transito_conta_e_a_cascata_falha_alto(self):
+        # Um descendente EM TRÂNSITO (não terminal) CONTA — a contagem promete
+        # o que o POST vai tentar — mas o detentor dele já é o DESTINO do
+        # encaminhamento (current_holder lê o último evento), pelo que o gate
+        # de escrita por item recusa o agente da origem e a cascata atómica
+        # falha ALTO e reverte por completo: o conjunto move-se junto ou não
+        # se move (nada de deixar o componente para trás em silêncio, que é o
+        # que o Lote 4 corrige).
+        raiz = _ev(self.occ, self.agent, Evidence.EvidenceType.COMPUTER)
+        make_chain(
+            raiz, self._opc_genese(EventType.APREENSAO_OBJETO), agent=self.agent
+        )
+        filho = _ev(
+            self.occ, self.agent, Evidence.EvidenceType.STORAGE_MEDIA, parent=raiz
+        )
+        mp = Institution.objects.create(
+            name='DIAP Cascata', type=InstitutionType.MP, sigla='MP-CAS'
+        )
+        portador = Portador.objects.create(
+            matricula='CAS-002', nome='Ana', apelido='Lopes', posto='Agente'
+        )
+        make_chain(
+            filho,
+            self._opc_genese(EventType.DERIVACAO_ITEM),
+            (
+                EventType.ENCAMINHAMENTO_CUSTODIA,
+                {'custodian_institution': mp, 'bearer': portador},
+            ),
+            agent=self.agent,
+        )
+        auth_cookie(self.client, self.agent)
+        r = self.client.get(f'/evidences/{raiz.id}/custody/')
+        self.assertContains(r, 'ao sub-componente da sub-árvore')
+        r = self.client.post(
+            f'/evidences/{raiz.id}/custody/',
+            {
+                'event_type': EventType.ENCAMINHAMENTO_CUSTODIA,
+                'custodian_institution': mp.id,
+                'bearer': portador.id,
+                'apply_subcomponents': '1',
+            },
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(
+            r, 'Não tem permissão para registar eventos de custódia neste item'
+        )
+        self.assertFalse(self._tem(raiz, EventType.ENCAMINHAMENTO_CUSTODIA))
+        self.assertEqual(
+            ChainOfCustody.objects.filter(
+                evidence=filho, event_type=EventType.ENCAMINHAMENTO_CUSTODIA
+            ).count(),
+            1,
+        )

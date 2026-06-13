@@ -451,6 +451,34 @@ def _occurrence_items(occ):
     return itens
 
 
+def _subtree_descendants(ev):
+    """Descendentes de ``ev`` (filhos, netos…) em ordem de árvore, com o ledger
+    pré-carregado e EXCLUINDO os de ledger fechado (terminal — restituídos ou
+    destruídos). Alvos da cascata da timeline (decisão §6/D4): a sub-árvore
+    INTEIRA segue o item-pai, não só os filhos diretos — antes o neto deixava de
+    seguir em silêncio (``ev.sub_components`` é só a FK reversa de 1 nível).
+
+    Um sub-componente já restituído/destruído divergiu legitimamente do conjunto
+    e não pode receber mais eventos (as guardas do ledger recusá-lo-iam, partindo
+    a cascata atómica): fica de fora da contagem E da aplicação — a exclusão não
+    depende do evento escolhido, logo o número do checkbox é HONESTO já no GET.
+
+    Uma só query: todos os descendentes partilham o prefixo do código
+    hierárquico do pai (``{ev.code}.`` — ADR-0016 §1; o ponto final impede que o
+    irmão ``X.10`` colida com ``X.1``), na mesma ocorrência (a árvore nunca
+    atravessa processos); o ``_evidence_base_qs`` traz o ledger em prefetch, pelo
+    que o teste terminal não custa uma query por item."""
+    descendentes = _evidence_base_qs().filter(
+        occurrence_id=ev.occurrence_id, code__startswith=f'{ev.code}.'
+    )
+    abertos = []
+    for d in sorted(descendentes, key=_tree_sort_key):
+        if any(e.event_type in TERMINAL_EVENTS for e in d.custody_chain.all()):
+            continue
+        abertos.append(d)
+    return abertos
+
+
 def _crime_categories():
     return CrimeCategoria.objects.order_by('codigo')
 
@@ -3459,12 +3487,14 @@ def custody_timeline_view(request, evidence_id):
     if ev is None:
         raise Http404('Evidência não encontrada.')
 
-    sub_components = list(ev.sub_components.order_by('id'))
+    # Cascata da timeline (§6/D4): a sub-árvore INTEIRA (filhos + netos) segue o
+    # item-pai, sem os de ledger fechado — não só a FK reversa de 1 nível.
+    cascade_descendants = _subtree_descendants(ev)
     register_errors = []
     if request.method == 'POST':
         targets = [ev]
         if request.POST.get('apply_subcomponents'):
-            targets += sub_components
+            targets += cascade_descendants
         register_errors = _register_custody_event(request, ev, targets)
         if not register_errors:
             messages.success(request, 'Evento de custódia registado.')
@@ -3521,7 +3551,7 @@ def custody_timeline_view(request, evidence_id):
             # Portadores ativos para o select do ENCAMINHAMENTO (ADR-0016 v2).
             'portadores': _active_portadores(),
             'seal_conditions': Evidence.SealCondition.choices,
-            'sub_components': sub_components,
+            'cascade_descendants': cascade_descendants,
             'ledger_closed': not valid_events,
             'register_errors': register_errors,
             'register_data': request.POST if request.method == 'POST' else {},
