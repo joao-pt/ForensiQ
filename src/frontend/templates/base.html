@@ -82,9 +82,15 @@
 
         <div class="app-top__spacer"></div>
 
-        <span class="app-top__date" id="app-date" aria-label="Data actual">{% now "Y-m-d" %}</span>
-        <time class="app-top__clock" id="app-clock"
-              aria-label="Hora actual" datetime="">--<span class="app-top__clock-sep">:</span>--:--</time>
+        <!-- Carimbo temporal — data + relógio. Em <768px empilham (data sobre a
+             hora), ocupando a largura de uma só linha; em ≥768px o wrapper é
+             display:contents e ambos ficam lado a lado, como antes. Ver
+             app-shell.css §app-top. -->
+        <div class="app-top__stamp">
+            <span class="app-top__date" id="app-date" aria-label="Data actual">{% now "Y-m-d" %}</span>
+            <time class="app-top__clock" id="app-clock"
+                  aria-label="Hora actual" datetime="">--<span class="app-top__clock-sep">:</span>--<span class="app-top__clock-sep">:</span>--</time>
+        </div>
 
         <!-- Alternar tema (dia / noite) -->
         <button type="button" class="icon-btn" id="theme-toggle"
@@ -338,10 +344,10 @@
         <span class="app-bottom__sep" aria-hidden="true">·</span>
         <span class="app-bottom__item" title="Etiqueta de build">{{ app_build_label }}</span>
         <span class="app-bottom__sep" aria-hidden="true">·</span>
-        <span class="app-bottom__item" title="Commit de origem">commit {{ app_commit }}</span>
-        <span class="app-bottom__sep" aria-hidden="true">·</span>
-        <span class="app-bottom__item" title="Região Fly.io">fly {{ app_region }}</span>
-        <span class="app-bottom__sep" aria-hidden="true">·</span>
+        <span class="app-bottom__item app-bottom__item--optional" title="Commit de origem">commit {{ app_commit }}</span>
+        <span class="app-bottom__sep app-bottom__sep--optional" aria-hidden="true">·</span>
+        <span class="app-bottom__item app-bottom__item--optional" title="Região Fly.io">fly {{ app_region }}</span>
+        <span class="app-bottom__sep app-bottom__sep--optional" aria-hidden="true">·</span>
         <span class="app-bottom__item" title="Content Security Policy estrito">{{ app_csp_label }}</span>
     </footer>
     {% endblock %}

@@ -78,6 +78,28 @@ def test_no_csp_violations(page, seed, auth_as, csp_violations):
     )
 
 
+def test_header_clock_both_separators_blink(page, seed, auth_as):
+    """Os DOIS ':' do relógio são <span class="app-top__clock-sep"> — logo piscam
+    juntos via [data-blink]. Regressão: o 2.º ':' era texto estático (escrito
+    como parte de "MM:SS" num nó de texto) e ficava fixo enquanto o 1.º piscava.
+    Ver app-shell.js (startClock) + app-shell.css §app-top__clock."""
+    import re
+
+    auth_as(seed["expert"])
+    page.goto("/dashboard/", wait_until="load")  # startClock corre uma vez ao iniciar
+    info = page.evaluate(
+        """() => {
+            const el = document.getElementById('app-clock');
+            return {
+                sepCount: el.querySelectorAll('.app-top__clock-sep').length,
+                text: el.textContent,
+            };
+        }"""
+    )
+    assert info["sepCount"] == 2, info
+    assert re.fullmatch(r"\d\d:\d\d:\d\d", info["text"]), info
+
+
 def test_gps_capture_fills_coordinates(page, seed, auth_as):
     """O botão 'Usar a minha localização' (geo-field) preenche lat/lng com a
     geolocalização injetada. (A captura migrou de [data-geo-capture] para o

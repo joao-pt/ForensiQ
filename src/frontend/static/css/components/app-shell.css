@@ -71,6 +71,14 @@ body.app-body {
     }
 }
 
+/* <1024px (móvel/tablet, sidebar em off-canvas): aperta o gap do header para
+   dar mais folga ao cluster da direita (carimbo · tema · sessão). */
+@media (max-width: 1023px) {
+    .app-top {
+        gap: var(--sp-2);
+    }
+}
+
 .app-top__brand {
     display: inline-flex;
     align-items: center;
@@ -134,13 +142,6 @@ body.app-body {
     text-overflow: ellipsis;
 }
 
-/* Em <480px o chip de nome encolhe ainda mais, mantendo o papel legível. */
-@media (max-width: 479px) {
-    #ctx-name {
-        max-width: 12ch;
-    }
-}
-
 .app-top__chip[data-variant="role"] {
     color: var(--accent-on-tint);
     border-color: var(--accent-tint);
@@ -173,6 +174,15 @@ body.app-body {
     padding: 2px 0 2px var(--sp-2);
     white-space: nowrap;
 }
+
+/* Carimbo temporal (data + relógio). Em ≥768px é transparente
+   (display:contents): a data e o relógio são filhos diretos do flex do header e
+   ficam lado a lado, exatamente como antes. Em <768px (bloco mais abaixo) passa
+   a coluna e empilha-os, ocupando a largura de uma só linha. */
+.app-top__stamp {
+    display: contents;
+}
+
 .app-top__clock-sep {
     transition: opacity var(--t-base);
 }
@@ -182,9 +192,32 @@ body.app-body {
     }
 }
 
-/* Em < 768px, esconde chips secundárias (mantém role + name) */
+/* <768px: esconde o nome da marca (fica só o aro) e EMPILHA o carimbo temporal
+   — a data sobre o relógio, alinhados à direita. O par passa a ocupar a largura
+   de uma linha (~metade do que data+hora lado a lado ocupavam): é o espaço que
+   empurrava o "Terminar sessão" para fora do ecrã. */
 @media (max-width: 767px) {
     .app-top__brand-name {
+        display: none;
+    }
+    .app-top__stamp {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 0;
+        line-height: 1.2;
+    }
+    .app-top__date,
+    .app-top__clock {
+        font-size: var(--fs-micro);
+        padding: 0;
+    }
+    /* Chips de contexto (papel · nome) clipavam a meio da palavra no telemóvel
+       ("PERIT", "P") — o avatar das iniciais e o aria-label do "Terminar sessão"
+       já identificam a sessão. Saem com o separador; reaparecem na íntegra
+       ≥768px (tablet/desktop), onde há largura para eles. */
+    .app-top__sep,
+    .app-top__chips {
         display: none;
     }
 }
@@ -464,6 +497,16 @@ body.app-body {
 .app-bottom__sep {
     color: var(--text-placeholder);
     user-select: none;
+}
+
+/* <768px: o rodapé não cabe numa linha e ganhava scroll lateral. Os itens menos
+   críticos (commit, região) e os respetivos separadores saem — fica
+   "online · build · CSP". Marcados no template com a variante --optional. */
+@media (max-width: 767px) {
+    .app-bottom__item--optional,
+    .app-bottom__sep--optional {
+        display: none;
+    }
 }
 
 /* Ponto "vivo" do rodapé: componente único .live-dot em main.css (auditoria

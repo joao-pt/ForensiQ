@@ -40,12 +40,13 @@
                 const iso = y + '-' + mo + '-' + d;
                 if (dateEl.textContent !== iso) dateEl.textContent = iso;
             }
-            // Renderiza dígitos preservando o nó do separador para animação.
-            // O <span> separador fornece o ':' entre horas e minutos (pisca),
-            // por isso o primeiro nó não leva ':' (evitar HH::MM:SS).
+            // Renderiza só os dígitos, preservando os DOIS <span> separadores
+            // (HH<sep>MM<sep>SS) para animação. Ambos os ':' são spans e piscam
+            // juntos via [data-blink], por isso nenhum nó de texto leva ':'.
             if (sep) {
                 el.firstChild.nodeValue = hh;
-                if (el.childNodes[2]) el.childNodes[2].nodeValue = mm + ':' + ss;
+                if (el.childNodes[2]) el.childNodes[2].nodeValue = mm;
+                if (el.childNodes[4]) el.childNodes[4].nodeValue = ss;
                 blink = blink === 'on' ? 'off' : 'on';
                 el.dataset.blink = blink;
             } else {
