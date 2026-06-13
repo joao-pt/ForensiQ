@@ -674,6 +674,11 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 }
 .facts__row dd { margin: 0; font-size: var(--fs-sm); color: var(--text); }
 .facts__row dd.mono { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+/* Controlo embutido numa linha de factos (ex.: select do tema em /settings/):
+   a ficha .form-input dá fundo/tinta dos tokens — o fundo UA do <select> sem
+   classe varia por plataforma e reprovava contraste AA no axe (CI Linux).
+   Largura ao conteúdo, não à coluna inteira. */
+.facts__row dd > .form-input { width: auto; }
 .facts__src { color: var(--text-subtle); font-size: var(--fs-xs); }
 
 /* ============================================================
