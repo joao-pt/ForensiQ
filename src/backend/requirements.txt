@@ -3,11 +3,11 @@
 #   pip install -r requirements.txt -r requirements-dev.txt
 
 # Django + REST Framework
-django>=6.0.5,<7.0
+django>=6.0.6,<7.0
 djangorestframework>=3.17.1,<4.0
 djangorestframework-simplejwt>=5.5.1,<6.0
 drf-spectacular>=0.29.0,<1.0
-drf-spectacular-sidecar>=2026.5.1,<2027
+drf-spectacular-sidecar>=2026.6.1,<2027
 
 # Base de dados
 dj-database-url>=3.1.2,<4.0
@@ -28,7 +28,7 @@ whitenoise>=6.12.0,<7.0
 # PDF export (ReportLab — ISO/IEC 27037; PDF é guia de transporte — ADR-0012)
 reportlab>=4.5.1,<5.0
 # QR codes embebidos no PDF + endpoint público de verificação (ADR-0012 Vaga 1)
-qrcode[pil]>=7.4,<8.0
+qrcode[pil]>=8.2,<9.0
 
 # HTTP client para consultas externas (imeidb.xyz) — ADR-0010
 httpx>=0.27,<1.0
