@@ -4,6 +4,32 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 14 · 9–13 jun 2026 (consolidação "fonte única" + actos certificados + polimento UX)
+
+**Feito:**
+- refactor(duplicação): **grande campanha "fonte única"** (lotes 1–11, ~70 commits) na sequência da auditoria de duplicação `2026-06-10`. Política de domínio (génese, em-trânsito, terminais), controlo de acesso (IP de origem, âmbito do trilho, portões de papel), derivação de estado legal, GPS (campos/quantização/precisão/limiar), geo-JS (pin-picker, captura, teardown), *plumbing* das vistas frontend e da API DRF, templates (lotes 8a–8f: runtime, rodapé, factos copiáveis, contrato modal, casca de listas `grid_page.html` e de formulários `form_page.html`, tabela de itens clicável), CSS (lotes 9a–9c: primitivas, marca, tokens de prioridade, controlos densos), modelos (lote 10a: imutabilidade, retry, hash-semente, Luhn, custódios, prazos) e infra-estrutura de teste (lotes 11a–11d) — tudo consolidado em fontes únicas, matando *contract drift*
+- feat(grelha): **gerador único de tabelas** (`core.grid`) — ocorrências, evidências, custódias, instituições, relatórios e arquivo passam todos pelo mesmo gerador (`partials/_grid*.html`), com bolinha de urgência por linha + legenda
+- feat(custódia): **validação da apreensão** passa a eixo próprio (fora do estado legal), validável em lote, com *badge* dedicado — CPP art. 178.º/5-6
+- feat(custódia): **despacho para perícia vira acto certificado** unificado com o validar; exige apreensão **VALIDADA**; autoridade **estruturada** (nome/cargo) + prazo da perícia entram no `record_hash` (**hv4**); *badge* "Com despacho judicial" no detalhe, timeline e itens; prazo → data-limite da perícia + alertas
+- feat(custódia): **restituição com identidade do recetor** registada no ledger (**hv3**)
+- feat(subequip): **génese `DERIVACAO_ITEM` automática** no registo do filho; fluxo encadeado de registo pai+filhos; cascata da timeline abrange a sub-árvore completa (Lotes 1–4, ADR-0016)
+- feat(actos): consulta global "Actos de autoridade" no grupo Análise + consulta a partir dos *badges* (Lote 5)
+- feat(access): perfis **só-leitura** (CHEFE_SERVICO/AUDITOR) — *gating* de escrita no render + 403 com casca (ADR-0017)
+- feat(painel): redesign do *dashboard* — métricas de fluxo (estado actual, *throughput*, SLA, *dwell*), máscara do território PT, prazos clicáveis que filtram a tabela; consola de **auditoria forense** (integridade da cadeia + anomalias + trilho)
+- feat(SLA/analytics): eixo preventivo das **72h** (validações a vencer, `?attn=val_due`); paragem mais longa identificada e clicável; *drill-down* `?attn=` como destino canónico
+- feat(inbound/intake): prova a chegar como **fila de receção**; condição do **selo** estruturada por item na receção
+- feat: verificações que verificam (item 17), relatórios com *export* CSV genérico da grelha (item 18), edição de instituições em modal (item 19a), definições úteis (19b)
+- fix(a11y): correcções de contraste WCAG AA (axe) em vários ecrãs; *select* do tema com contraste determinístico
+- chore(pre-commit): *hooks* utilizáveis no Windows e alinhados ao CI
+- chore(deps): onda Dependabot — Django 6.0.6, drf-spectacular-sidecar 2026.6.1, qrcode 8.x, Playwright 1.60, pytest-playwright 0.8
+- **Processo:** múltiplas **revisões adversariais** sistemáticas por lote (achados confirmados e corrigidos). **117 commits** na semana; PRs #38–#41
+
+**Bloqueou:** Nada de crítico. Nota: a concentração de *commits* desta semana materializou o risco **R07** (ver `risks.md`) — mitigado pela cadência regular ao longo do semestre e por mensagens Conventional Commits descritivas que evidenciam trabalho contínuo, não um *dump* final.
+
+**Próxima semana (Sem. 15–16):** Concluir o relatório final (Cap. 1 revisto, Cap. 2 revisto/completo, Cap. 3 completo, Cap. 4 Testes, Cap. 5 Conclusões); confirmar a contagem de testes com `pytest` local; congelar o repositório para *fixes*; reunião de preparação para a defesa; submissão a 24 jun.
+
+---
+
 ## Sem. 13 · 3–8 jun 2026 (refactor de fundo — Fase 2/3)
 
 **Feito:**

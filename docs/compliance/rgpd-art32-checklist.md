@@ -121,7 +121,7 @@ A ForensiQ trata **dados pessoais sensíveis** enquanto sistema de gestão de pr
 
 | # | Requisito | Implementação | Evidência | Estado |
 |---|---|---|---|---|
-| d.1 | Suite de testes automatizados | Suite distribuída por 22 ficheiros `tests_*.py` em `core/` (`tests_api.py` ~1600 linhas, mais `access`, `pdf`, `modelo_v2`, `public_verify`, `taxonomy`, etc.); gate de cobertura em CI; `pytest-django` | `src/backend/core/tests_*.py` | ✅ Cobertura quantitativa boa (`AUDIT#T1`) |
+| d.1 | Suite de testes automatizados | Suite distribuída por 43 ficheiros `tests*.py` em `core/` (≈967 métodos + 36 E2E Playwright; `tests_api.py`, `access`, `pdf`, `modelo_v2`, `public_verify`, `taxonomy`, `despacho`, `validar`, `subequipamentos`, etc.); gate de cobertura em CI; `pytest-django` | `src/backend/core/tests*.py` | ✅ Cobertura quantitativa boa (`AUDIT#T1`) |
 | d.2 | Testes de regressão de segurança | Testes de need-to-know/authz item-level (`tests_access.py:111-188`), CSP e rate-limit de auth (`tests_api.py:1387+`); falta DAST/fuzzing | `src/backend/core/tests_access.py`; `src/backend/core/tests_api.py` | ✅ Parcial |
 | d.3 | Auditoria de código periódica | Sim — `docs/AUDIT_2026-04-16.md`, `docs/code-review-2026-04-11.md` | `docs/` | ✅ (ad-hoc; falta cadência fixa) |
 | d.4 | *Pentest* externo | **Não realizado** | — | ❌ Lacuna |

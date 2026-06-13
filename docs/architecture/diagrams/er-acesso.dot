@@ -1,0 +1,56 @@
+digraph ER2 {
+  rankdir=LR; bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=13, nodesep=0.5, ranksep=1.0];
+  node  [shape=plaintext, fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10, color="#5b6770"];
+
+  User [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>User</B> (AbstractUser)</FONT></TD></TR>
+   <TR><TD ALIGN="LEFT"><B>username</B> UK · badge_number</TD></TR>
+   <TR><TD ALIGN="LEFT">profile (6 funções)</TD></TR>
+   <TR><TD ALIGN="LEFT">clearance (NORMAL / NACIONAL)</TD></TR>
+   </TABLE>>];
+
+  Inst [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>Institution</B></FONT></TD></TR>
+   <TR><TD ALIGN="LEFT"><B>name</B> · institution_type</TD></TR>
+   <TR><TD ALIGN="LEFT">location_name · gps_lat/lng</TD></TR>
+   </TABLE>>];
+
+  Memb [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#eef1f4"><B>InstitutionMembership</B></TD></TR>
+   <TR><TD ALIGN="LEFT">user → · institution →</TD></TR>
+   <TR><TD ALIGN="LEFT">is_active</TD></TR>
+   </TABLE>>];
+
+  Port [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#fff6e6"><B>Portador</B> (transportador)</TD></TR>
+   <TR><TD ALIGN="LEFT">name · carrier_type</TD></TR>
+   <TR><TD ALIGN="LEFT">id_type · id_value · contact</TD></TR>
+   </TABLE>>];
+
+  Trans [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#fff6e6"><B>ProvaEmTransito</B> (snapshot)</TD></TR>
+   <TR><TD ALIGN="LEFT">custody_event → ChainOfCustody</TD></TR>
+   <TR><TD ALIGN="LEFT">portador → · snapshot_json</TD></TR>
+   </TABLE>>];
+
+  CoCref [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#2e7d32"><FONT COLOR="white"><B>ChainOfCustody</B> (ver Fig. núcleo)</FONT></TD></TR>
+   <TR><TD ALIGN="LEFT">custodian_institution → Institution</TD></TR>
+   <TR><TD ALIGN="LEFT">custodian_user → User</TD></TR>
+   </TABLE>>];
+
+  User -> Memb [label="1..*", arrowhead=crow];
+  Inst -> Memb [label="1..*", arrowhead=crow];
+  CoCref -> Inst [label="detém (institucional)"];
+  CoCref -> User [label="assina (pessoal)"];
+  CoCref -> Trans [label="encaminhamento 0..1", arrowhead=crow, dir=back];
+  Trans -> Port [label="snapshot"];
+}

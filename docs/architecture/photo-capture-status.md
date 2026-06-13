@@ -15,7 +15,7 @@
   Remover/Saltar foram removidos na reconstrução do frontend (branch
   `refactor/frontend-rebuild`)
 - **Tamanho máximo 25 MB**, validado no backend em `validate_image_max_size`
-  (`core/models.py:109`), que também confirma o formato real via `Pillow.verify()`
+  (`core/models.py:209`), que também confirma o formato real via `Pillow.verify()`
   (whitelist JPEG/PNG/WEBP, anti-polyglot)
 - **Remove EXIF/IPTC/XMP** no `Evidence.save()` via helper `_strip_exif()`
   em `core/models.py` (auditoria 2026-05-18 §2 S9). Postura revista em
@@ -31,10 +31,10 @@
 `core/frontend_views.py` — vista `evidences_new_view` (POST `/evidences/new/`)
 - Recebe multipart/form-data com `photo` (`request.FILES.get("photo")`,
   `core/frontend_views.py:814-815`), reusa o `EvidenceSerializer` e guarda via
-  `Evidence.photo` (`upload_to=evidence_photo_path`, `core/models.py:737`). A API
+  `Evidence.photo` (`upload_to=evidence_photo_path`, `core/models.py:934`). A API
   DRF `/api/evidences/` mantém-se para consulta, PDF e lookups.
 - Guarda em `MEDIA_ROOT/evidencias/<codigo_da_ocorrencia>/<uuid8>_<ficheiro>`
-  (`core/models.py:737` `evidence_photo_path`). Sem segmento `<volume>`, sem
+  (`core/models.py:934` `evidence_photo_path`). Sem segmento `<volume>`, sem
   `YYYY/MM`; a pasta chama-se `evidencias` (com a).
 - O hash SHA-256 da evidência **inclui os bytes da fotografia** (S6 da
   auditoria 2026-04-16) — qualquer alteração ao ficheiro detecta-se na

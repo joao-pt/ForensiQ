@@ -20,7 +20,7 @@ ficaram pelo caminho. Pensado para ser consultado em trabalho futuro.
      /------\     Unidade (modelos, validadores, serviços)        ~rápido
 ```
 
-A base já existia e é forte (≈520 testes em `core/`, gate de cobertura a 80%).
+A base já existia e é forte (≈967 testes em `core/`, gate de cobertura a 80%).
 Este trabalho acrescentou o **topo** — a camada que valida o que o utilizador
 vê e faz no browser, que nenhum teste de unidade consegue cobrir (CSP, HTMX,
 GPS, cascatas JS, drawers, upload de ficheiros, acessibilidade, rapidez
@@ -144,17 +144,18 @@ Playwright (ver `pyproject.toml` → `testpaths = ["core"]`).
 
 ---
 
-## 5. Cobertura atual (32 testes E2E)
+## 5. Cobertura atual (36 testes E2E)
 
 | Módulo | Testes | O que cobre |
 |---|---:|---|
 | `test_smoke.py` | 4 | Login pela UI real; **todas** as páginas autenticadas renderizam (CSS servido, sem erros JS); **zero violações de CSP**; captura de GPS preenche coordenadas. |
 | `test_auth.py` | 4 | Redireccionamento de página protegida → login; erro de credenciais visível; portão de perfil ADR-0017 (agente bloqueado da receção = 403; perito = 200). |
 | `test_occurrences.py` | 4 | Criação completa com **cascata de crime N1→N2→N3**; dica de prioridade; validação nativa de campos; **erro server-side renderizado visível** (regressão do bug crítico anterior). |
-| `test_evidences.py` | 3 | Campos específicos por tipo (mostrar/ativar só os do tipo escolhido); **upload de fotografia** (o fluxo que deu 500 em produção); required. |
-| `test_lists.py` | 3 | Pesquisa filtra a grelha **por HTMX sem recarregar**; filtro por select; clique na linha abre o **drawer** de detalhe. |
+| `test_evidences.py` | 4 | Campos específicos por tipo (mostrar/ativar só os do tipo escolhido); **upload de fotografia** (o fluxo que deu 500 em produção); required. |
+| `test_lists.py` | 3 | Pesquisa filtra a grelha **por HTMX sem recarregar**; filtro por select; clique na linha abre o detalhe. |
 | `test_custody.py` | 1 | Registo de evento no **ledger** de custódia (transição válida). |
 | `test_intake.py` | 1 | **Receção** no laboratório (transferência para LAB_PUBLICO, perito-only). |
+| `test_institutions.py` | 3 | CRUD de instituições (criar, editar, alternar estado) com guard-rail de perfil. |
 | `test_public_verify.py` | 2 | Verificação pública por QR (sem login): hash válido = 200; inválido = 404. |
 | `test_accessibility.py` | 2 | **Zero** violações graves/críticas de a11y (incl. contraste WCAG AA) — testado no tema **claro E escuro** (parametrizado); login. |
 | `test_performance.py` | 3 | Orçamento de render do servidor; latência da cascata; latência do filtro HTMX. |

@@ -1,37 +1,50 @@
-%% ForensiQ — C4 Nível 2 (Containers)
-%% Renderizar: npx -p @mermaid-js/mermaid-cli mmdc -i c4-container.mmd -o c4-container.png -b transparent -w 2000
+%% ForensiQ — C4 Nível 2 (Containers) — actualizado 2026-06-13 (estado pós-refactor Fase 2/3)
+%% NOTA: o PNG versionado (c4-container.png) foi gerado nesta sessão via Graphviz
+%%       (ver c4-container.dot) por indisponibilidade offline do mermaid-cli.
+%%       Este .mmd mantém-se como fonte alternativa; reflecte o mesmo conteúdo.
+%% Renderizar (mermaid): npx -p @mermaid-js/mermaid-cli mmdc -i c4-container.mmd -o c4-container.png -b transparent -w 2000
 
 flowchart TB
-    User("Agente / Perito<br/>(browser)")
+    User("Agente / Perito / Custódio / MP<br/>(browser — mobile/desktop)")
 
     subgraph Edge["Fly.io · Frankfurt"]
-        Gunicorn["Gunicorn (WSGI)<br/>+ WhiteNoise (estáticos)<br/>HTTPS A+ (Let's Encrypt)"]
+        Gunicorn["Gunicorn (WSGI) + WhiteNoise<br/>HTTPS A+ (Let's Encrypt) · HSTS preload"]
     end
 
-    subgraph App["Django 6.0 · forensiq_project"]
-        Frontend["Frontend<br/>(templates Django + JS vanilla)<br/>Leaflet · NoOpenStreetMap"]
-        DRF["DRF API<br/>(ViewSets + Serializers)<br/>JWT cookies + CSRF"]
-        Middleware["Middleware<br/>CorrelationID · CSP nonce<br/>JWTCookieAuth · ContentSecurityPolicy"]
-        Models["Models + Triggers PG<br/>Evidence (immutable)<br/>ChainOfCustody (append-only)<br/>SHA-256 signatures"]
-        Cache["DatabaseCache<br/>(table forensiq_cache)<br/>throttle · stats"]
-        PDFGen["PDF Forense<br/>ReportLab + ISO/IEC 27037"]
+    subgraph App["Django 6.0 · forensiq_project (app core)"]
+        Frontend["Frontend server-rendered<br/>Templates Django + HTMX + Leaflet<br/>gerador único de grelha (core.grid)"]
+        DRF["API REST (DRF)<br/>ViewSets + Serializers<br/>JWT cookies HttpOnly + CSRF"]
+        Middleware["Middleware<br/>CorrelationID · CSP nonce"]
+        Policy["Camada de política (core/policy)<br/>event_states · custody_transitions<br/>(pura, sem ORM — ADR-0019)"]
+        Access["Acesso need-to-know (core/access)<br/>papéis + credencial + instituição (ADR-0017)"]
+        Models["Modelos + triggers PG (append-only)<br/>Evidence (imutável) · ChainOfCustody (ledger)<br/>AuditLog · Institution · taxonomia de crimes<br/>SHA-256 encadeado (hv4) — ADR-0013/0015"]
+        Cache["DatabaseCache<br/>throttle · lookups · stats"]
+        PDFGen["PDF + QR (guia de transporte)<br/>ReportLab + qrcode — ADR-0012"]
+        Services["Serviços externos<br/>imei_lookup · vin_lookup · reverse-geocode · nearby-pois"]
     end
 
-    Neon[("PostgreSQL · Neon.tech<br/>(Frankfurt, PgBouncer)")]
-    OSM[/"OpenStreetMap<br/>Nominatim · tile.osm.org"/]
-    IMEI[/"IMEIDB.xyz<br/>(API key)"/]
-    Volume[("Fly Volume /data/media<br/>fotografias")]
+    Neon[("PostgreSQL · Neon.tech<br/>(Frankfurt · PgBouncer · PITR 7d)")]
+    Volume[("Fly Volume /data/media<br/>fotografias (EXIF removido)")]
+    OSM[/"OpenStreetMap<br/>Nominatim · Overpass · tiles"/]
+    IMEI[/"IMEIDB.xyz"/]
+    VIN[/"vindecoder.eu"/]
 
     User -->|"HTTPS"| Gunicorn
     Gunicorn --> Frontend
     Gunicorn --> DRF
-    Frontend --> DRF
+    Frontend -->|"HTMX / fetch"| DRF
     DRF --> Middleware
+    DRF --> Access
+    DRF --> Policy
     Middleware --> Models
+    Access --> Models
+    Policy --> Models
     Models --> Neon
     DRF --> Cache --> Neon
     DRF --> PDFGen
-    Frontend -.->|"reverse geocoding"| OSM
-    DRF -.->|"lookup IMEI"| IMEI
+    DRF --> Services
+    Services -.->|"geocoding/POIs"| OSM
+    Services -.->|"lookup IMEI"| IMEI
+    Services -.->|"redirect VIN"| VIN
     PDFGen -.->|"lê fotos"| Volume
-    DRF -.->|"upload fotos"| Volume
+    Models -.->|"grava fotos"| Volume

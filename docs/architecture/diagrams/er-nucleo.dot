@@ -1,0 +1,51 @@
+digraph ER1 {
+  rankdir=LR; bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=13, nodesep=0.5, ranksep=1.1];
+  node  [shape=plaintext, fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10, color="#5b6770"];
+
+  Occurrence [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>Occurrence</B> (imutável)</FONT></TD></TR>
+   <TR><TD ALIGN="LEFT"><B>code</B> UK · OC-YYYY-NNNN</TD></TR>
+   <TR><TD ALIGN="LEFT">number (NUIPC)</TD></TR>
+   <TR><TD ALIGN="LEFT">occurrence_datetime, gps_lat/lng</TD></TR>
+   <TR><TD ALIGN="LEFT">crime_tipo → (Fig. taxonomia)</TD></TR>
+   <TR><TD ALIGN="LEFT">creator → User (Fig. acesso)</TD></TR>
+   </TABLE>>];
+
+  Evidence [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>Evidence</B> (imutável / append-only)</FONT></TD></TR>
+   <TR><TD ALIGN="LEFT"><B>code</B> UK · hierárquico (OC-…​.1.2)</TD></TR>
+   <TR><TD ALIGN="LEFT">type (18 tipos digital-first)</TD></TR>
+   <TR><TD ALIGN="LEFT">parent_evidence → self (máx. 3 níveis)</TD></TR>
+   <TR><TD ALIGN="LEFT">integrity_hash (SHA-256)</TD></TR>
+   <TR><TD ALIGN="LEFT">type_specific_data (JSON), photo, gps</TD></TR>
+   <TR><TD ALIGN="LEFT">timestamp_seizure, acquisition_hash</TD></TR>
+   </TABLE>>];
+
+  CoC [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#2e7d32"><FONT COLOR="white"><B>ChainOfCustody</B> — LEDGER (append-only)</FONT></TD></TR>
+   <TR><TD ALIGN="LEFT"><B>code</B> · sequence (ordinal)</TD></TR>
+   <TR><TD ALIGN="LEFT">event_type (génese, actos, terminais)</TD></TR>
+   <TR><TD ALIGN="LEFT">custodian_type / custodian_institution →</TD></TR>
+   <TR><TD ALIGN="LEFT">record_hash + hash_version (hv4)</TD></TR>
+   <TR><TD ALIGN="LEFT">authority_nome/cargo (actos certificados)</TD></TR>
+   <TR><TD ALIGN="LEFT">timestamp, gps (na receção)</TD></TR>
+   </TABLE>>];
+
+  AuditLog [label=<
+   <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5">
+   <TR><TD BGCOLOR="#6a1b9a"><FONT COLOR="white"><B>AuditLog</B> (append-only)</FONT></TD></TR>
+   <TR><TD ALIGN="LEFT">action · sequence (global)</TD></TR>
+   <TR><TD ALIGN="LEFT">user → · correlation_id · ip_address</TD></TR>
+   <TR><TD ALIGN="LEFT">timestamp · payload</TD></TR>
+   </TABLE>>];
+
+  Occurrence -> Evidence [label="contém 1..*", arrowhead=crow];
+  Evidence   -> Evidence [label="sub-componentes\n(parent_evidence)", arrowhead=crow];
+  Evidence   -> CoC      [label="ledger 1..*", arrowhead=crow];
+  CoC        -> AuditLog [style=dotted, label="regista", dir=back];
+}

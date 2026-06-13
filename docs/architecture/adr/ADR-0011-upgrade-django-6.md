@@ -65,6 +65,12 @@ A migração foi proposta por Dependabot (PR #8) no dia 17 mai 2026 às 03:54 UT
 - **`README.md`** — badge actualizado para "Django 6" (`README.md:7`, concluído).
 - **`.github/workflows/ci.yml`** — sem alterações (a versão Django vem do `requirements.txt`); o fix de `requirements-dev.txt` em `e2e9a54` é tratado como bug-fix de CI, não como decisão arquitectural.
 
+> **Nota de actualização (13 jun 2026).** O pin-floor evoluiu de `django>=6.0.5,<7.0`
+> para **`django>=6.0.6,<7.0`** (`src/backend/requirements.txt`), aplicado pelo Dependabot
+> como patch update — exactamente o comportamento previsto na alternativa "Pin exacto"
+> rejeitada acima. A decisão deste ADR (salto 5→6 LTS, range `<7.0` com gate manual no
+> próximo major) mantém-se inalterada.
+
 ## Referências
 - Django 6.0.5 release notes — <https://docs.djangoproject.com/en/6.0/releases/6.0.5/>
 - CVE-2026-6907 — Django Vary header caching (PyPA advisory)

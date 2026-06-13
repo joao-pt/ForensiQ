@@ -6,7 +6,7 @@
 - `src/frontend/static/js/pages/login.js`
 
 **Data:** 2026-04-18
-**Autor da integração:** José Rodrigues (TFM — UC 21184, Universidade Aberta)
+**Autor da integração:** João M. M. Rodrigues (Projeto — UC 21184, Licenciatura em Engenharia Informática, Universidade Aberta)
 
 ---
 

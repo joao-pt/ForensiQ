@@ -133,7 +133,7 @@ fly logs
 
 # Abrir consola SSH para depuração
 fly ssh console
-cd backend
+cd src/backend
 python manage.py check
 python manage.py showmigrations
 ```

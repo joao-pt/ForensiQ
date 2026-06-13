@@ -1,0 +1,45 @@
+digraph C4Context {
+  rankdir=LR;
+  bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=12, nodesep=0.35, ranksep=1.0];
+  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", color="#9aa7b2", penwidth=1.2];
+  edge  [fontname="Helvetica", fontsize=9, color="#5b6770"];
+
+  // Atores (RBAC ADR-0017: 6 funcoes + staff)
+  subgraph cluster_users {
+    label="Utilizadores (RBAC — ADR-0017)"; style="rounded,dashed"; color="#9aa7b2"; fontsize=11;
+    Agent   [label="Agente OPC\n(FIRST_RESPONDER)\nterreno · mobile", fillcolor="#e8f0fe"];
+    Expert  [label="Perito Forense\n(FORENSIC_EXPERT)\nlaboratório", fillcolor="#e8f0fe"];
+    Custod  [label="Custódio\n(EVIDENCE_CUSTODIAN)", fillcolor="#e8f0fe"];
+    MP      [label="Autoridade Judiciária\n(CASE_AUTHORITY — MP)\nactos certificados", fillcolor="#e8f0fe"];
+    Chefe   [label="Chefe de Serviço\n(só-leitura, cred. nacional)", fillcolor="#eef1f4"];
+    Auditor [label="Auditor\n(só-leitura)", fillcolor="#eef1f4"];
+  }
+
+  ForensiQ [label="ForensiQ\nPlataforma de Gestão de Prova Digital\n(Django 6 + DRF · server-rendered + HTMX · API REST)\nintegridade SHA-256 · ledger de custódia append-only", shape=box, style="rounded,filled", fillcolor="#1565c0", fontcolor="white", penwidth=0, fontsize=12];
+
+  // Sistemas externos
+  subgraph cluster_ext {
+    label="Sistemas externos"; style="rounded,dashed"; color="#9aa7b2"; fontsize=11;
+    OSM   [label="OpenStreetMap\nNominatim · Overpass · tiles", fillcolor="#f3eafe"];
+    IMEI  [label="IMEIDB.xyz\nlookup IMEI", fillcolor="#f3eafe"];
+    VIN   [label="vindecoder.eu\nlookup VIN", fillcolor="#f3eafe"];
+    Neon  [label="Neon.tech\nPostgreSQL gerido (fra)", fillcolor="#eafaf0"];
+    Fly   [label="Fly.io\ndeploy + HTTPS A+", fillcolor="#eafaf0"];
+  }
+  Court [label="Tribunal / Investigador\n(verifica guia PDF + QR público)", fillcolor="#fff6e6"];
+
+  Agent   -> ForensiQ [label="regista ocorrências, itens,\napreensão + GPS + foto"];
+  Expert  -> ForensiQ [label="recebe · perícia ·\nPDF · timeline"];
+  Custod  -> ForensiQ [label="armazena ·\nencaminha/recebe"];
+  MP      -> ForensiQ [label="valida apreensão ·\ndespacho de perícia"];
+  Chefe   -> ForensiQ [label="consulta nacional"];
+  Auditor -> ForensiQ [label="audita integridade"];
+
+  ForensiQ -> OSM  [label="geocoding · POIs · tiles"];
+  ForensiQ -> IMEI [label="metadados IMEI"];
+  ForensiQ -> VIN  [label="redirect VIN"];
+  ForensiQ -> Neon [label="persistência"];
+  ForensiQ -> Fly  [label="alojamento", style=dashed];
+  ForensiQ -> Court [label="guia de transporte\nPDF (ISO/IEC 27037) + QR"];
+}

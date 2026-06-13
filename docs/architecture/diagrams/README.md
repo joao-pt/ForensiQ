@@ -1,19 +1,26 @@
 # Diagramas — ForensiQ
 
-Fontes Mermaid (`.mmd`) e renders correspondentes (`.png` / `.svg`).
-Os PNGs em `src_latex/figures/` são utilizados pelo `intercalar.tex`.
+Fontes em Mermaid (`.mmd`) e/ou Graphviz (`.dot`) e renders correspondentes (`.png`).
+Os C4 e os ER divididos do **relatório final** (`relatorio_final.tex`) foram, a 13 jun 2026,
+renderizados via Graphviz (`.dot`) por indisponibilidade offline do `mermaid-cli`; os `.mmd`
+mantêm-se como fonte alternativa com o mesmo conteúdo.
 
 ## Lista
 
 | Ficheiro | Diagrama | Usado em |
 |---|---|---|
-| `c4-context.mmd` | C4 Nível 1 — Contexto (actores + sistemas externos) | `intercalar.tex` Fig. 1 |
-| `c4-container.mmd` | C4 Nível 2 — Containers (Django, BD, deploy) | `intercalar.tex` Fig. 2 |
-| `er-forensiq.mmd` | Modelo Entidade-Relação (User, Institution/InstitutionMembership, Occurrence, taxonomia de crimes, Evidence, ChainOfCustody, AuditLog) | `intercalar.tex` Fig. 3 |
-| `state-machine-custody.mmd` | OBSOLETO (ADR-0015) — a custódia é um ledger de eventos append-only, não uma máquina de estados; o estado legal é derivado por `derive_legal_state()` (`core/models.py`). Mantido apenas como artefacto histórico do intercalar. | (histórico) |
-| `sequence-evidence-creation.mmd` | Sequência: criação de uma evidência por agente no terreno | `intercalar.tex` Fig. 5 |
-| `hash-chain-flow.mmd` | Encadeamento de hashes do ledger de custódia (`record_hash`) | `cap2-desenho.tex` § sec:hash-chain (linha 332) |
-| `immutability-3-layers.mmd` | Imutabilidade em 3 camadas (ORM / DRF / triggers PostgreSQL) | `cap2-desenho.tex` linha 443 |
+| `c4-context.mmd` / `.dot` | C4 Nível 1 — Contexto (6 perfis + sistemas externos) | `relatorio_final.tex` Fig. 1 (rodado) |
+| `c4-container.mmd` / `.dot` | C4 Nível 2 — Containers (Django, política, BD, deploy) | `relatorio_final.tex` Fig. 2 (rodado) |
+| `c4-container-hibrido.mmd` / `.png` | Variante híbrida do C4 de containers | (apoio) |
+| `er-forensiq.mmd` / `.png` | Modelo Entidade-Relação integral (alta resolução) | referência integral |
+| `er-nucleo.dot` / `.png` | ER — núcleo de prova e custódia (ledger) | `relatorio_final.tex` Fig. 3 |
+| `er-acesso.dot` / `.png` | ER — acesso (RBAC), instituições e transporte | `relatorio_final.tex` Fig. 4 |
+| `er-crimes.dot` / `.png` | ER — taxonomia de crimes e prioridade | `relatorio_final.tex` Fig. 5 |
+| `state-machine-custody.mmd` | OBSOLETO (ADR-0015) — a custódia é um ledger de eventos append-only, não uma máquina de estados; o estado legal é derivado por `derive_legal_state()` (`core/policy/event_states.py`). Mantido apenas como artefacto histórico do intercalar. | (histórico) |
+| `sequence-evidence-creation.mmd` | Sequência: criação de uma evidência no terreno | (apoio) |
+| `hash-chain-flow.mmd` / `.png` | Encadeamento de hashes do ledger (`record_hash`) | `relatorio_final.tex` § hash-chain |
+| `immutability-3-layers.mmd` / `.png` | Imutabilidade em 3 camadas (ORM / DRF / triggers PostgreSQL) | `relatorio_final.tex` § imutabilidade |
+| `*.pre-refactor.png` | Versões pré-refactor dos C4 (registo histórico) | (histórico) |
 
 ## Renderizar
 
@@ -24,10 +31,13 @@ cd docs/architecture/diagrams
 # render individual
 npx -p @mermaid-js/mermaid-cli mmdc -i c4-context.mmd -o c4-context.png -b transparent -w 1600
 
-# render todos
+# render todos (mermaid)
 for f in *.mmd; do
     npx -p @mermaid-js/mermaid-cli mmdc -i "$f" -o "${f%.mmd}.png" -b transparent -w 1600
 done
+
+# Graphviz (fontes .dot — C4 e ER do relatório final)
+for f in *.dot; do dot -Tpng -Gdpi=150 "$f" -o "${f%.dot}.png"; done
 ```
 
 ## Convenções

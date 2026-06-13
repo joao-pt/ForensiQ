@@ -18,15 +18,16 @@
 
 ## Estado actual
 
-🟢 **MVP funcional em produção · Sem. 9 (janela de revisão alargada) · Relatório Intercalar aprovado em 5 mai 2026.**
+🟢 **MVP funcional em produção · Sem. 14 (recta final do relatório) · Relatório Intercalar aprovado em 5 mai 2026.** Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019) — ver `docs/scope/reconciliacao-2026-06-13.md`.
 
-- Backend Django 6 + DRF com **≈537 testes** (531 a passar + 6 skip de triggers só-PostgreSQL, exercitados no job postgres do CI) e cobertura **~84%** (gate CI a 80%).
+- Backend Django 6 + DRF com **≈967 métodos de teste** na suite `core/` + **36 testes E2E** (Playwright), com *gate* de cobertura CI a 80% (confirmar contagem exacta com `pytest` local antes da entrega final).
+- **19 ADRs**; RBAC de **6 perfis + 2 credenciais** com acesso *need-to-know* por instituição (ADR-0017); custódia como **ledger de eventos** *append-only* (ADR-0015).
 - Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
 - Frontend server-rendered (Django templates + HTMX + Leaflet), mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
-- Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com 5 ocorrências PT realistas e fotos placeholder.
+- Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com **18 ocorrências** realistas em várias cidades portuguesas (Lisboa, Porto, Coimbra, Braga, Faro, Funchal, Sintra, …) e fotos placeholder.
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
-- Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03).
+- Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03, delta de segurança 2026-05-18, duplicação/"fonte única" 2026-06-10) + revisões adversariais por lote em Junho.
 
 ### Demonstração
 
@@ -85,13 +86,13 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
   - `/login/` — autenticação JWT (cookie) com fallback de erro e Caps Lock detect
   - `/dashboard/` — saudação, **acções rápidas (Nova Ocorrência / Novo Item proeminentes em mobile)**, últimas ocorrências, stats por estado de custódia (Em perícia, Em trânsito), breakdown por tipo
   - `/occurrences/` — lista + mapa Leaflet com toggle, pesquisa client-side, paginação
-  - `/occurrences/new/` — wizard 6-step com GPS automático + reverse geocoding (Nominatim)
+  - `/occurrences/new/` — formulário de registo com GPS automático + reverse geocoding (Nominatim)
   - `/occurrences/<id>/` — hub do caso (resumo, mapa multi-marker com GPS por item, custody summary, lista de itens)
   - `/occurrences/<id>/intake/` — intake/receção formal do caso
   - `/evidences/` — lista com badges por tipo, GPS/foto/sub indicators
-  - `/evidences/new/` — wizard com type selector visual, captura de foto (câmara nativa + upload), GPS, lookup IMEI/VIN, sub-componentes recursivos
+  - `/evidences/new/` — formulário com selector de tipo visual, captura de foto (câmara nativa + upload), GPS, lookup IMEI/VIN, sub-componentes recursivos
   - `/evidences/<id>/` — detalhe com hash SHA-256, foto, metadados, sub-componentes integrantes, custódia actual
-  - `/evidences/<id>/custody/` — timeline cronológica com state progress, modal de transição (apenas AGENT, próximo estado válido), hashes encadeados
+  - `/evidences/<id>/custody/` — timeline cronológica do ledger de eventos, modais de acto (génese, validação, despacho, encaminhamento/receção, restituição) restritos por função e pelas guardas de transição (`core/policy`), com hashes encadeados
   - `/custodies/` — todas as transições com filtros (mobile compacto, desktop completo)
   - `/stats/` — dashboard agregado
   - `/reports/` — guias de transporte (PDF, ADR-0012)
@@ -115,9 +116,9 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 | **Autenticação** | JWT em HttpOnly + Secure + SameSite=Strict; rotação de refresh; blacklist |
 | **CSRF** | Token por sessão (não-HttpOnly), validado em todos os métodos não-safe |
 | **CSP Level 3** | `script-src 'self' 'nonce-{nonce}'`; `style-src 'self' 'nonce-{nonce}'` (sem `unsafe-inline`); `frame-ancestors 'none'`; `upgrade-insecure-requests` |
-| **OWASP Top 10** | Audit limpo (Semgrep p/owasp-top-ten + p/security-audit) |
+| **OWASP Top 10** | Pipeline `security.yml` (semanal): SAST (bandit) + SCA (pip-audit) + segredos (gitleaks) + scan de filesystem (trivy) |
 | **Imutabilidade** | Trigger PostgreSQL bloqueia UPDATE/DELETE em Evidence/ChainOfCustody |
-| **Integridade** | SHA-256 com nonce determinístico (verificável); hash encadeado em ChainOfCustody |
+| **Integridade** | SHA-256 determinístico **sem nonce** (verificável por recálculo independente); hash encadeado e versionado (hv4) em ChainOfCustody |
 | **IDOR** | `get_queryset()` filtra por `request.user`; ownership validado em writes |
 | **Rate limiting** | DRF throttling 5/min em login/refresh/logout |
 | **Logging seguro** | Sem PII; correlation_id por request via middleware |
@@ -133,7 +134,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (≈537 · cobertura ~84%, gate CI 80%)
+### Testes (≈967 unidade/integração + 36 E2E · gate CI 80%)
 
 Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real corre `pytest -q`.
 
@@ -158,9 +159,9 @@ Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real cor
 ```bash
 cd src/backend
 ../../.venv/Scripts/python.exe -m pytest -q
-# 531 passed, 6 skipped (triggers só-PostgreSQL)
+# ~967 testes recolhidos (confirmar com pytest); o job postgres do CI exercita os triggers
 ../../.venv/Scripts/python.exe -m pytest --cov=core --cov-report=term-missing
-# Cobertura ~84% global (gate CI: fail_under=80)
+# Gate de cobertura CI: fail_under=80 (pyproject.toml); confirmar a % exacta com a execução local
 ```
 
 ### Conformidade
@@ -180,13 +181,13 @@ ForensiQ/
 │   │   ├── proposta.md              # Sinopse, MVP, critérios de aceitação
 │   │   ├── requirements.md          # MoSCoW (RF01-17, RNF01-06)
 │   │   ├── risks.md                 # R01-R10 + matriz de controlos forenses
-│   │   ├── changelog.md             # Uma entrada por semana (Sem 1-7)
+│   │   ├── changelog.md             # Uma entrada por semana (Sem 1-14)
 │   │   └── iso27037-traceability.pdf      # Mapeamento à norma
 │   ├── architecture/                # § 5 do guia: design
 │   │   ├── c4-context.png           # C4 nv 1
 │   │   ├── c4-containers.png        # C4 nv 2
 │   │   ├── data-model.png           # ER PostgreSQL
-│   │   ├── adr/                     # ADRs 0001-0017
+│   │   ├── adr/                     # ADRs 0001-0019
 │   │   └── diagrams/                # C4 + ER + custody event ledger + hash-chain-flow + immutability-3-layers (Mermaid)
 │   ├── design/                      # § 5 do guia: interface
 │   │   ├── wireframes.pdf           # Protótipo de navegação (pós-implementação, abordagem code-first justificada via § 7)
@@ -194,7 +195,7 @@ ForensiQ/
 │   │   └── screens/                 # Capturas usadas no wireframes.pdf
 │   ├── compliance/external-tests/   # Qualys SSL Labs, HSTS Preload, Mozilla Observatory
 │   ├── deployment/                  # Guia Fly.io
-│   └── report/                      # PDFs entregáveis (proposta.pdf, intercalar.pdf)
+│   └── report/                      # PDFs entregáveis (proposta.pdf, intercalar.pdf, final.pdf)
 ├── src/
 │   ├── backend/                     # Django 6 + DRF
 │   │   ├── core/                    # App principal (models, views, serializers, tests)
@@ -260,7 +261,7 @@ python manage.py runserver
 
 ```bash
 cd src/backend
-python -m pytest -q                   # ≈537 testes (531 a passar + 6 skip de triggers só-PostgreSQL)
+python -m pytest -q                   # ≈967 testes de unidade/integração (confirmar contagem exacta com pytest)
 python -m pytest --cov=core           # com coverage
 ```
 
@@ -287,8 +288,10 @@ python -m pytest --cov=core           # com coverage
 | 0015 | Custódia ledger | Ledger de eventos append-only — substitui a máquina de estados |
 | 0016 | IDs hierárquicos | Identificação hierárquica + génese por proveniência (aquisição/extração) |
 | 0017 | Papéis e acesso | Função + credencial; papéis, instituições e acesso à custódia |
+| 0018 | Catálogo de tipos | `EvidenceTypeRef` editável em BD, fora do ledger imutável; snapshot no evento |
+| 0019 | Política de domínio | Vocabulário, guardas e derivação de estado numa fonte única (`core/policy/`, sem ORM) |
 
-Detalhe completo em `docs/architecture/adr/`.
+Detalhe completo em `docs/architecture/adr/` (19 ADRs).
 
 ---
 
@@ -326,4 +329,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 4 jun 2026 · sincronização da documentação com o código · **≈537 testes** (531 a passar + 6 skip de triggers PG) · cobertura ~84% (gate CI 80%)*
+*Última actualização: 13 jun 2026 · reconciliação documentação↔código (Sem. 14) · **≈967 testes** de unidade/integração + 36 E2E (confirmar contagem exacta com `pytest` local) · gate de cobertura CI 80% · ver `docs/scope/auditoria-documentacao-2026-06-13.md`*

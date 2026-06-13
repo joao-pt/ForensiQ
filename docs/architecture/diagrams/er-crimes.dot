@@ -1,0 +1,19 @@
+digraph ER3 {
+  rankdir=LR; bgcolor="transparent";
+  graph [fontname="Helvetica", fontsize=13, nodesep=0.5, ranksep=1.0];
+  node  [shape=plaintext, fontname="Helvetica", fontsize=11];
+  edge  [fontname="Helvetica", fontsize=10, color="#5b6770"];
+
+  Cat  [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>CrimeCategoria</B> (N1)</FONT></TD></TR><TR><TD ALIGN="LEFT">name · order</TD></TR></TABLE>>];
+  Sub  [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>CrimeSubcategoria</B> (N2)</FONT></TD></TR><TR><TD ALIGN="LEFT">categoria → · name</TD></TR></TABLE>>];
+  Tipo [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#1565c0"><FONT COLOR="white"><B>CrimeTipo</B> (N3)</FONT></TD></TR><TR><TD ALIGN="LEFT">subcategoria → · name</TD></TR></TABLE>>];
+  Pol  [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#fff6e6"><B>PoliticaCriminal</B><BR/><B>Prioridade</B></TD></TR><TR><TD ALIGN="LEFT">name · priority_level</TD></TR></TABLE>>];
+  PCT  [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#eef1f4"><B>PrioridadeCrimeTipo</B></TD></TR><TR><TD ALIGN="LEFT">crime_tipo → · politica →</TD></TR><TR><TD ALIGN="LEFT">priority_level</TD></TR></TABLE>>];
+  Occ  [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5"><TR><TD BGCOLOR="#9aa7b2"><B>Occurrence</B> (ver Fig. núcleo)</TD></TR><TR><TD ALIGN="LEFT">crime_tipo → · priority_level</TD></TR></TABLE>>];
+
+  Cat -> Sub [label="1..*", arrowhead=crow];
+  Sub -> Tipo [label="1..*", arrowhead=crow];
+  Tipo -> Occ [label="classifica", arrowhead=crow];
+  Tipo -> PCT [label="1..*", arrowhead=crow];
+  Pol  -> PCT [label="1..*", arrowhead=crow];
+}
