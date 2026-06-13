@@ -5,9 +5,9 @@
 #           coverage report --rcfile=.coveragerc
 #
 # NOTA: ``fail_under`` em [report] é enforçado por ``coverage report``
-# (mesmo sem flag CLI). Valor actual alinhado com a cobertura real
-# (~68 %) mais uma margem mínima. Subir gradualmente com cada wave
-# que adicionar testes.
+# (mesmo sem flag CLI). Alinhado com o gate único do projecto —
+# ``pyproject.toml`` [tool.coverage.report], que o CI lê e enforça.
+# A cobertura real (mesmo source + branch) ronda os ~84 %.
 
 [run]
 branch = True
@@ -28,9 +28,10 @@ omit =
     */venv/*
 
 [report]
-# Limiar enforçado. Cobertura real ronda os 68 %. Subir conforme
-# cada wave introduz testes; target final aspiracional 85 %.
-fail_under = 65
+# Limiar enforçado, igual ao gate único em ``pyproject.toml``
+# [tool.coverage.report] (lido pelo CI). Cobertura real ~84 %;
+# target final aspiracional 85 %.
+fail_under = 80
 show_missing = True
 skip_covered = False
 skip_empty = True
