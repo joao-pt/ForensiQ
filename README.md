@@ -18,20 +18,20 @@
 
 ## Estado actual
 
-🟢 **MVP funcional em produção · Sem. 14 (recta final do relatório) · Relatório Intercalar aprovado em 5 mai 2026.** Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019) — ver `docs/scope/reconciliacao-2026-06-13.md`.
+🟢 **Estado: verde.** MVP funcional em produção · Sem. 14 (recta final do relatório). Relatório Intercalar aprovado em 5 mai 2026. Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019).
 
-- Backend Django 6 + DRF com **≈967 métodos de teste** na suite `core/` + **36 testes E2E** (Playwright), com *gate* de cobertura CI a 80% (confirmar contagem exacta com `pytest` local antes da entrega final).
-- **19 ADRs**; RBAC de **6 perfis + 2 credenciais** com acesso *need-to-know* por instituição (ADR-0017); custódia como **ledger de eventos** *append-only* (ADR-0015).
-- Cadeia de custódia imutável com hash SHA-256 encadeado (blockchain-like) + *cascade endpoint* para transições atómicas.
+- Backend Django 6 + DRF com ≈967 métodos de teste na suite `core/` + 37 testes E2E (Playwright); *gate* de cobertura CI a 80%.
+- 19 ADRs; RBAC de 6 perfis + 2 credenciais com acesso *need-to-know* por instituição (ADR-0017); custódia como ledger de eventos *append-only* (ADR-0015).
+- Cadeia de custódia imutável com hash SHA-256 encadeado + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
-- Frontend server-rendered (Django templates + HTMX + Leaflet), mobile-first + **modo tabela densa em desktop** (PR #1+#2) com multi-select.
+- Frontend server-rendered (Django templates + HTMX + Leaflet), mobile-first + modo tabela densa em desktop (PR #1+#2) com multi-select.
 - Mapa Leaflet/OpenStreetMap; PDF export ReportLab; **demo seed** (`manage.py seed_demo`) com **18 ocorrências** realistas em várias cidades portuguesas (Lisboa, Porto, Coimbra, Braga, Faro, Funchal, Sintra, …) e fotos placeholder.
 - HTTPS A+ no SSL Labs, HSTS preload submetido, Mozilla Observatory A+, CSP nível 3 com nonce por request.
 - Auditorias completas (segurança 2026-04-16, design 2026-04-18, taxonomia 2026-04-19, *sweep* UX 2026-05-02, redesign *dashboard*+*custody timeline* 2026-05-03, delta de segurança 2026-05-18, duplicação/"fonte única" 2026-06-10) + revisões adversariais por lote em Junho.
 
 ### Demonstração
 
-A instância em <https://forensiq.pt> está pré-populada para fins de avaliação académica. **As credenciais para o orientador foram partilhadas por canal privado** — não constam neste repositório por princípio de segurança (ISO/IEC 27037 §5.4 e OWASP A07:2021 *Identification and Authentication Failures*).
+A instância em <https://forensiq.pt> está pré-populada para fins de avaliação académica. As credenciais do orientador foram partilhadas por canal privado; não constam neste repositório por princípio de segurança (ISO/IEC 27037 §5.4 e OWASP A07:2021 *Identification and Authentication Failures*).
 
 Para correr uma instância local com dados realistas, há um único comando interactivo:
 
@@ -52,7 +52,7 @@ python manage.py seed_demo --reset --no-input \
 
 O `--reset` apaga TODOS os dados em `core_*` (com `--wipe-media` apaga também as fotos). Sem flags, o comando comporta-se como `--reset` se a base estiver vazia, ou falha com instruções claras se já houver dados (evita destruição acidental).
 
-Para um superuser administrativo (acesso ao `/admin/`), corre o built-in do Django em separado: `python manage.py createsuperuser`. O `seed_demo` nunca cria nem promove superusers — responsabilidades dissociadas por design.
+Para um superuser administrativo (acesso ao `/admin/`), corre o built-in do Django em separado: `python manage.py createsuperuser`. O `seed_demo` nunca cria nem promove superusers: responsabilidades dissociadas por design.
 
 Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no admin mesmo para superusers, preservando o argumento ISO/IEC 27037 sobre imutabilidade da prova.
 
@@ -134,7 +134,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (≈967 unidade/integração + 36 E2E · gate CI 80%)
+### Testes (≈967 unidade/integração + 37 E2E · gate CI 80%)
 
 Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real corre `pytest -q`.
 
@@ -261,7 +261,7 @@ python manage.py runserver
 
 ```bash
 cd src/backend
-python -m pytest -q                   # ≈967 testes de unidade/integração (confirmar contagem exacta com pytest)
+python -m pytest -q                   # ≈967 testes de unidade/integração
 python -m pytest --cov=core           # com coverage
 ```
 
@@ -297,7 +297,7 @@ Detalhe completo em `docs/architecture/adr/` (19 ADRs).
 
 ## Contribuir
 
-Projecto académico individual (UC 21184). Os commits seguem Conventional Commits em PT-PT. Reportar vulnerabilidades via [`SECURITY.md`](SECURITY.md) — GitHub Security Advisory privado, não *issue* público.
+Projecto académico individual (UC 21184). Os commits seguem Conventional Commits em PT-PT. Reportar vulnerabilidades via [`SECURITY.md`](SECURITY.md): GitHub Security Advisory privado, não *issue* público.
 
 ## Roadmap pós-entrega final
 
@@ -329,4 +329,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 13 jun 2026 · reconciliação documentação↔código (Sem. 14) · **≈967 testes** de unidade/integração + 36 E2E (confirmar contagem exacta com `pytest` local) · gate de cobertura CI 80% · ver `docs/scope/auditoria-documentacao-2026-06-13.md`*
+*Última actualização: 13 jun 2026 (Sem. 14) · ≈967 testes de unidade/integração + 37 E2E (confirmar contagem exacta com `pytest` local) · gate de cobertura CI 80%*
