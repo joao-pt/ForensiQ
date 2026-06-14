@@ -327,6 +327,18 @@ TIME_ZONE = 'Europe/Lisbon'
 USE_I18N = True
 USE_TZ = True
 
+# Catálogo de tradução do projeto. Tem precedência sobre os catálogos das
+# bibliotecas (Django REST Framework, SimpleJWT), permitindo localizar em
+# pt-PT mensagens que essas libs só trazem em inglês (SimpleJWT não tem
+# catálogo pt) ou em português do Brasil (o catálogo `pt` da DRF). Sem isto,
+# o erro de login do SimpleJWT, p. ex., sairia em inglês.
+#
+# O `.po` é a fonte de verdade (legível, versionada); o `.mo` é o artefacto
+# compilado que o Django lê em runtime (também versionado, para nenhum
+# ambiente depender das GNU gettext-tools). Recompilar após editar o `.po`:
+#     python manage.py compilemessages_pure
+LOCALE_PATHS = [BASE_DIR / 'locale']
+
 # --- Ficheiros estáticos e media ---
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'

@@ -27,7 +27,11 @@ def enforce_csrf(request):
     check.process_request(request)
     reason = check.process_view(request, None, (), {})
     if reason:
-        raise exceptions.PermissionDenied(f'CSRF Failed: {reason}')
+        # `reason` vem do middleware CSRF do Django em inglês; não o
+        # expomos ao utilizador — mensagem própria em pt-PT.
+        raise exceptions.PermissionDenied(
+            'Validação de segurança (CSRF) falhou. Atualize a página e tente novamente.'
+        )
 
 
 class JWTCookieAuthentication(JWTAuthentication):
