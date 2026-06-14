@@ -104,6 +104,57 @@ def validate_type_specific_data(evidence_type: str, data: dict | None) -> list[s
     return problems
 
 
+def fields_by_type() -> dict[str, list]:
+    """TODOS os campos ativos agrupados por ``evidence_type`` (``''`` = transversal),
+    num ÚNICO query enxuto (sem ``options`` — a exibição mostra o valor gravado, não
+    a lista de opções). Catálogo para laços que resolvem muitos itens sem N+1:
+    construir uma vez e passar a :func:`display_fields_for` por cada item.
+    """
+    from core.models import EvidenceFieldDef
+
+    grouped: dict[str, list] = {}
+    qs = (
+        EvidenceFieldDef.objects.filter(is_active=True)
+        .order_by('evidence_type', 'order', 'key')
+        .only('evidence_type', 'key', 'label', 'sensitive', 'is_identifier')
+    )
+    for field in qs:
+        grouped.setdefault(field.evidence_type, []).append(field)
+    return grouped
+
+
+def display_fields_for(
+    evidence, catalog: dict[str, list] | None = None, *, identifiers_only: bool = False
+) -> list[dict]:
+    """Pares ``{key, label, value}`` RESOLVIDOS de ``type_specific_data`` para
+    EXIBIÇÃO (guia de transporte, detalhe do item).
+
+    Junta os campos TRANSVERSAIS (marca/modelo/…) + os do TIPO do item, pela ordem
+    da config (fonte única ``EvidenceFieldDef``), traduzindo cada ``key`` para o seu
+    rótulo. OMITE sempre os campos ``sensitive`` (passcode/PIN) e os SEM valor — a
+    guia identifica o dispositivo, não expõe segredos nem linhas vazias.
+
+    ``identifiers_only``: só os campos marcados como IDENTIFICADOR (``is_identifier``)
+    — marca/modelo/IMEI/VIN/…; exclui metadados forenses (sistema operativo, operador,
+    capacidade). É o subconjunto que a guia de transporte mostra.
+    ``catalog``: passar :func:`fields_by_type` (uma vez) quando se resolvem muitos
+    itens, para evitar N+1; omisso, é obtido aqui (custo de 1 query).
+    """
+    catalog = catalog if catalog is not None else fields_by_type()
+    data = evidence.type_specific_data or {}
+    out: list[dict] = []
+    for field in [*catalog.get('', []), *catalog.get(evidence.type, [])]:
+        if field.sensitive:
+            continue
+        if identifiers_only and not field.is_identifier:
+            continue
+        value = data.get(field.key)
+        if value in (None, '', [], {}):
+            continue
+        out.append({'key': field.key, 'label': field.label, 'value': value})
+    return out
+
+
 def all_keys() -> set[str]:
     """Todas as chaves conhecidas de ``type_specific_data`` (transversais + tipos)."""
     from core.models import EvidenceFieldDef

@@ -4,6 +4,16 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 15 · 14 jun 2026 (guia de transporte redesenhada — por movimento)
+
+**Feito:**
+- feat(guia): **guia de transporte redesenhada de raiz** — passa a ser o manifesto de uma **REMESSA** (movimento), não um relatório por item/processo. Camada reutilizável `core/documents/` (casca `chrome` + `DocumentBuilder` + conteúdo `guia_transporte`); identidade de documento monocromática (formulário oficial), distinta da app. Conteúdo: **REMESSA** (origem→destino, portador, remetente, receção) · **ITENS** (só identificadores inequívocos — marca/modelo/série/IMEI/VIN, via flag `EvidenceFieldDef.is_identifier`) · **PROCESSO** mínimo · **PERCURSO** físico. Sem morada/GPS/descrição, sem *hashes* no corpo, sem declaração
+- feat(guia): modelo **`GuiaTransporte`** (companheira do ledger, **fora da cadeia de custódia** — histórico operacional, re-gerável, apagável no admin) criado no encaminhamento em lote; nº `GT-YYYY-NNNN`; servida em `/guias/<code>/pdf/`. Listada no detalhe da ocorrência e em `/reports/` (repurposado)
+- feat(guia): **QR de verificação por remessa** (`/v/g/<hash>/`) — à chegada confirma os itens DAQUELA remessa (códigos + *hashes* SHA-256) e o destino, sem expor o resto do caso
+- refactor(guia): removidos os geradores e *endpoints* antigos (`generate_evidence_pdf`/`generate_occurrence_pdf`, `/api/.../pdf/`, botões «Guia PDF»); `core/pdf_export.py` eliminado; `ADR-0012` atualizado (secção «Atualização»)
+
+---
+
 ## Sem. 14 · 9–13 jun 2026 (consolidação "fonte única" + actos certificados + polimento UX)
 
 **Feito:**

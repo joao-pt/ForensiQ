@@ -1576,6 +1576,15 @@ class EvidenceFieldDef(models.Model):
         verbose_name='Sensível',
         help_text='Mascarar na UI/PDF e cifrar (ex.: passcode/PIN).',
     )
+    is_identifier = models.BooleanField(
+        default=False,
+        verbose_name='Identificador',
+        help_text=(
+            'Identifica inequivocamente o item e entra na guia de transporte '
+            '(marca, modelo, IMEI, VIN, IMSI, …). Distinto de metadados forenses '
+            '(sistema operativo, capacidade, operador) que não vão na guia.'
+        ),
+    )
     order = models.PositiveSmallIntegerField(default=0, verbose_name='Ordem')
     is_active = models.BooleanField(default=True, verbose_name='Ativo')
 
@@ -2700,6 +2709,69 @@ class ProvaEmTransito(models.Model):
     def __str__(self):
         estado = 'recebida' if self.acknowledged_at else 'a chegar'
         return f'{self.evidence_id} → {self.destino_institution_id} ({estado})'
+
+
+class GuiaTransporte(models.Model):
+    """Guia de transporte de uma REMESSA — lote de itens encaminhados juntos.
+
+    Companheira MUTÁVEL do ledger (como :class:`ProvaEmTransito`): criada no mesmo
+    ``atomic()`` do encaminhamento em lote, AGRUPA os eventos ENCAMINHAMENTO_CUSTODIA
+    desse handoff. Os factos forenses (destino, portador, data, remetente) vivem nos
+    eventos imutáveis e encadeados — a guia só lhes dá um número e um ponto de
+    entrada; o PDF é sempre RE-GERADO a partir dos eventos (ADR-0012: a guia não é
+    prova, é re-verificável).
+    """
+
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        blank=True,
+        default='',
+        db_index=True,
+        verbose_name='Número da guia',
+        help_text='Gerado automaticamente: GT-YYYY-NNNN.',
+    )
+    occurrence = models.ForeignKey(
+        Occurrence,
+        on_delete=models.PROTECT,
+        related_name='guias_transporte',
+        verbose_name='Ocorrência',
+    )
+    events = models.ManyToManyField(
+        ChainOfCustody,
+        related_name='guias',
+        verbose_name='Eventos de encaminhamento da remessa',
+    )
+    created_at = models.DateTimeField(default=timezone.now, verbose_name='Emitida em')
+
+    class Meta:
+        verbose_name = 'Guia de transporte'
+        verbose_name_plural = 'Guias de transporte'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.code or f'GT#{self.pk}'
+
+    @property
+    def anchor_event(self):
+        """Evento representativo da remessa (todos partilham destino/portador/data)."""
+        return self.events.order_by('evidence_id').first()
+
+    def save(self, *args, **kwargs):
+        if self.pk is None and not self.code:
+            year = timezone.now().year
+            for _ in range(CODE_MAX_ATTEMPTS):
+                self.code = _next_yearly_code('GT', type(self), year=year, width=4)
+                try:
+                    with transaction.atomic():
+                        super().save(*args, **kwargs)
+                    return
+                except IntegrityError as exc:
+                    if 'code' not in str(exc).lower():
+                        raise
+                    self.code = ''
+            raise RuntimeError('Não foi possível gerar um código GT-YYYY-NNNN único.')
+        super().save(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------

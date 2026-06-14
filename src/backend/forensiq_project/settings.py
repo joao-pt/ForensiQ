@@ -146,7 +146,6 @@ REST_FRAMEWORK = {
         'user': '60/minute',
         'auth': '5/minute',
         'evidence_upload': '20/minute',
-        'pdf_export': '30/minute',
         'schema': '30/minute',
         'reverse_geocode': '10/minute',
         # 5/min é deliberadamente apertado: cada chamada consome saldo

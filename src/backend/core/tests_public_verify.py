@@ -195,7 +195,6 @@ class VerificationsToleranteTest(TestCase):
     def test_resultado_tem_veredicto_de_integridade(self):
         body = self._get(self.occ.code)
         self.assertIn('Cadeia de hash íntegra', body)
-        self.assertIn('Guia PDF', body)
 
     def test_sem_correspondencia_indistinta(self):
         body = self._get('0' * 64)

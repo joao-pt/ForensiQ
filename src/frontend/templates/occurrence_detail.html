@@ -26,11 +26,6 @@
       <p class="detail__sub">{{ occ.crime_label }}{% if archived_badge %} · <span class="state state--{{ archived_badge.css }}">{{ archived_badge.label }}</span>{% endif %}</p>
     </div>
     <div class="detail__actions">
-      {# Rota nomeada do router DRF — fonte única do caminho (auditoria D103). #}
-      <a class="btn-ghost" href="{% url 'core:occurrence-export-pdf' occ.id %}">
-        {% include 'partials/icons/_file.html' %}
-        Guia PDF
-      </a>
       {% if can_validate %}
       {# Ação in-place: validar a apreensão em lote (CPP 178.º) — ato jurídico, sem GPS. #}
       <a class="btn-ghost" href="/occurrences/{{ occ.id }}/validar/"
@@ -85,6 +80,11 @@
           <div class="facts__row"><dt>Data/hora</dt><dd class="mono">{{ occ.date_time|date:'Y-m-d H:i' }}</dd></div>
           <div class="facts__row"><dt>Agente</dt><dd>{{ occ.agent_label }}</dd></div>
           <div class="facts__row"><dt>Itens</dt><dd class="mono">{{ occ.evidence_count }}</dd></div>
+          {% if guias %}
+          {# Guias de transporte (remessas) emitidas no processo — PDF re-gerado a pedido. #}
+          <div class="facts__row"><dt>Guias de transporte</dt>
+            <dd>{% for g in guias %}<a class="mono" href="/guias/{{ g.code }}/pdf/">{{ g.code }}</a>{% if not forloop.last %} · {% endif %}{% endfor %}</dd></div>
+          {% endif %}
           <div class="facts__row"><dt>Local</dt><dd>{{ occ.address|default:'—' }}</dd></div>
           {% if occ.gps_lat is not None %}
           {% include 'partials/_fact_gps.html' with lat=occ.gps_lat lng=occ.gps_lng %}

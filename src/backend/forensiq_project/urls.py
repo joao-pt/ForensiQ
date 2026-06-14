@@ -49,6 +49,7 @@ from core.frontend_views import (
     evidence_singular_redirect,
     evidences_new_view,
     evidences_view,
+    guia_transporte_pdf_view,
     inbound_view,
     institution_edit_view,
     institution_new_view,
@@ -64,6 +65,7 @@ from core.frontend_views import (
     occurrence_validar_view,
     occurrences_new_view,
     occurrences_view,
+    public_verify_guia_view,
     public_verify_view,
     reports_view,
     settings_view,
@@ -192,6 +194,9 @@ urlpatterns = [
     path('institutions/<int:institution_id>/edit/', institution_edit_view,
          name='institution_edit'),
 
+    # Guia de transporte (PDF) de uma remessa — gerada no encaminhamento (lote).
+    path('guias/<str:code>/pdf/', guia_transporte_pdf_view, name='guia_pdf'),
+
     # Relatórios PDF, estatísticas e definições
     path('reports/', reports_view, name='reports'),
     path('stats/', stats_view, name='stats'),
@@ -206,7 +211,8 @@ urlpatterns = [
     path('verificacoes/', verifications_view, name='verifications'),
 
     # Verificação pública via QR (ADR-0012 Vaga 1) — sem auth.
-    # URL curta `/v/<hash>/` para QR codes denso (texto curto).
+    # `/v/g/<hash>/` (remessa, antes do genérico) e `/v/<hash>/` (ocorrência).
+    path('v/g/<str:short_hash>/', public_verify_guia_view, name='public_verify_guia'),
     path('v/<str:short_hash>/', public_verify_view, name='public_verify'),
 
     # Media (fotos de evidência) — view autenticada com ownership + audit log.

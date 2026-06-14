@@ -3,7 +3,8 @@ ForensiQ — Rótulos e variantes de apresentação do estado legal derivado.
 
 Fonte ÚNICA dos rótulos PT e da classe de cor (badge) dos estados legais
 produzidos por :func:`core.models.derive_legal_state` (ADR-0015). Consumida pelo
-render server-side (``frontend_views``) e pelo PDF (``pdf_export``) — antes estava
+render server-side (``frontend_views``) e pela guia de transporte
+(``core.documents``) — antes estava
 duplicada byte-a-byte nos dois. São dados de APRESENTAÇÃO (não comportamento): a
 máquina de estados e os tipos de evento ficam em ``core.models``; aqui só o texto
 e a cor. Editar um rótulo/cor (ou acrescentar o de um novo estado) faz-se SÓ aqui.

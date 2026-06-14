@@ -182,52 +182,6 @@ class CascadeErrorShapeTest(TestCase):
 
 
 # ---------------------------------------------------------------------------
-# T17 — Contrato de erro: falha de PDF usa `detail`
-# ---------------------------------------------------------------------------
-
-
-class PdfExportErrorShapeTest(TestCase):
-    """Falhas de geração de PDF devolvem `detail` (não `error`)."""
-
-    def setUp(self):
-        self.client = APIClient()
-        self.agent = User.objects.create_user(
-            username='agent_pdf_shape',
-            password=TEST_PASSWORD,
-            profile=User.Profile.FIRST_RESPONDER,
-            badge_number='AGT-PDF-01',
-        )
-        self.occurrence = Occurrence.objects.create(
-            crime_type=CrimeTipoFactory(),
-            number='OCC-PDF-001',
-            description='Caso PDF shape',
-            agent=self.agent,
-        )
-        self.evidence = Evidence.objects.create(
-            occurrence=self.occurrence,
-            type='MOBILE_DEVICE',
-            description='Telemóvel',
-            agent=self.agent,
-        )
-
-    def test_evidence_pdf_falha_devolve_detail(self):
-        self.client.force_authenticate(self.agent)
-        with mock.patch('core.views.generate_evidence_pdf', side_effect=RuntimeError('boom')):
-            resp = self.client.get(f'/api/evidences/{self.evidence.id}/pdf/')
-        self.assertEqual(resp.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertIn('detail', resp.data)
-        self.assertNotIn('error', resp.data)
-
-    def test_occurrence_pdf_falha_devolve_detail(self):
-        self.client.force_authenticate(self.agent)
-        with mock.patch('core.views.generate_occurrence_pdf', side_effect=RuntimeError('boom')):
-            resp = self.client.get(f'/api/occurrences/{self.occurrence.id}/pdf/')
-        self.assertEqual(resp.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-        self.assertIn('detail', resp.data)
-        self.assertNotIn('error', resp.data)
-
-
-# ---------------------------------------------------------------------------
 # correlation-id — validação do header fornecido pelo cliente
 # ---------------------------------------------------------------------------
 

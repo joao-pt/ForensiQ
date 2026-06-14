@@ -15,7 +15,6 @@ import logging
 import re
 from datetime import timedelta
 from functools import wraps
-from urllib.parse import quote as urlquote
 
 from django.conf import settings
 from django.contrib import messages
@@ -28,7 +27,6 @@ from django.http import (
     HttpResponseRedirect,
 )
 from django.shortcuts import render
-from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.html import format_html
@@ -80,6 +78,7 @@ from core.models import (
     CustodianType,
     EventType,
     Evidence,
+    GuiaTransporte,
     Institution,
     InstitutionType,
     Occurrence,
@@ -782,6 +781,57 @@ def public_verify_view(request, short_hash):
             'occurrence_number': occurrence.number,
             'evidence_count': len(evidences),
             'evidences': evidences,
+        },
+    )
+
+
+def public_verify_guia_view(request, short_hash):
+    """Verificação pública de uma REMESSA (guia de transporte) — ``/v/g/<hash>/``.
+
+    O QR da guia aponta aqui. Confirma o que vem na remessa sem expor o caso inteiro:
+    número da guia, destino e os itens transportados (código, tipo, hash de integridade).
+    Com login + acesso à ocorrência, encaminha para a ocorrência. Mesmas defesas da
+    verificação de ocorrência (lockout por IP + rate-limit antes de resolver)."""
+    from core.qr_verify import resolve_guia
+
+    ip = get_client_ip(request)
+    if _verify_is_locked(ip):
+        return HttpResponse(
+            'Demasiadas tentativas. Tente novamente mais tarde.',
+            status=429,
+            content_type='text/plain; charset=utf-8',
+        )
+    if not _throttle_public_verify(request):
+        return HttpResponse(
+            'Demasiados pedidos. Tente novamente mais tarde.',
+            status=429,
+            content_type='text/plain; charset=utf-8',
+        )
+
+    guia = resolve_guia(short_hash)
+    if guia is None:
+        _verify_register_fail(ip)
+        return render(request, 'public_verify_notfound.html', status=404)
+    _verify_clear_fails(ip)
+
+    occ = guia.occurrence
+    user = _user_from_jwt_cookie(request)
+    if user and user.is_authenticated and access.can_access_occurrence(user, occ):
+        return HttpResponseRedirect(f'/occurrences/{occ.id}/')
+
+    events = list(
+        guia.events.select_related('evidence', 'custodian_institution').order_by('evidence__code')
+    )
+    destino = events[0].custodian_institution if events else None
+    return render(
+        request,
+        'public_verify_guia.html',
+        {
+            'guia_code': guia.code,
+            'occurrence_number': occ.number,
+            'destino': destino.short_label if destino else '',
+            'evidence_count': len(events),
+            'evidences': [e.evidence for e in events],
         },
     )
 
@@ -1661,6 +1711,9 @@ def occurrence_detail_view(request, occurrence_id):
             'can_validate': can_validate,
             'can_despachar': can_despachar,
             'can_restitute': can_restitute,
+            # Guias de transporte emitidas neste processo (remessas) — cada uma
+            # descarrega o PDF re-gerado em /guias/<code>/pdf/.
+            'guias': occ.guias_transporte.order_by('-created_at'),
         },
     )
 
@@ -1749,14 +1802,17 @@ def _receiver_fields_from_post(request):
     return fields, None
 
 
-def _register_handoff(request, evidences, bearer_fields, destino):
+def _register_handoff(request, evidences, bearer_fields, destino, occurrence):
     """Regista ENCAMINHAMENTO_CUSTODIA em cada item (1 evento/item), numa transação
     atómica: portador + destino, custódio promovido pelo tipo do destino, SEM GPS (a
     coordenada regista-se na receção). Reusa o ``ChainOfCustodySerializer`` (guardas
     do ledger, ownership, gate de laboratório, hash, criação da ProvaEmTransito).
     ``bearer_fields``: payload de :func:`_bearer_fields_from_post` (portador
     registado ou pontual — em ambos os casos o snapshot entra na cadeia hv2).
-    Devolve lista de erros (vazia = sucesso); qualquer falha reverte tudo."""
+
+    No MESMO atomic, agrupa a remessa numa :class:`GuiaTransporte` (número + ponto
+    de entrada da guia de transporte). Devolve ``(erros, guia)``: erros vazios =
+    sucesso (``guia`` é a GuiaTransporte criada); qualquer falha reverte tudo."""
     base = {
         'event_type': EventType.ENCAMINHAMENTO_CUSTODIA.value,
         'custodian_institution': destino.id,
@@ -1766,9 +1822,18 @@ def _register_handoff(request, evidences, bearer_fields, destino):
     ctype = custody_transitions.CUSTODIAN_TYPE_BY_INSTITUTION.get(destino.type)
     if ctype:
         base['custodian_type'] = ctype
-    return _append_custody_events(
-        request, base, evidences, extra_details={'destino': destino.id}
+
+    box = {}
+
+    def _emit_guia(records):
+        guia = GuiaTransporte.objects.create(occurrence=occurrence)
+        guia.events.set(records)
+        box['guia'] = guia
+
+    errors = _append_custody_events(
+        request, base, evidences, extra_details={'destino': destino.id}, on_records=_emit_guia
     )
+    return errors, box.get('guia')
 
 
 @jwt_cookie_user
@@ -1825,17 +1890,45 @@ def occurrence_encaminhar_view(request, occurrence_id):
             errs.append(bearer_err)
         if destino is None:
             errs.append('Indique uma instituição de destino válida.')
+        guia = None
         if not errs:
-            errs = _register_handoff(request, sel, bearer_fields, destino)
+            errs, guia = _register_handoff(request, sel, bearer_fields, destino, occ)
         if not errs:
-            messages.success(
-                request,
-                f'{len(sel)} item(ns) encaminhado(s) para {destino.short_label}.',
-            )
+            msg = f'{len(sel)} item(ns) encaminhado(s) para {destino.short_label}.'
+            if guia:
+                msg += f' Guia de transporte {guia.code}.'
+            messages.success(request, msg)
             return _form_success_response(modal, f'/occurrences/{occ.id}/')
         return render(request, template, _ctx({'geral': errs}, request.POST), status=400)
 
     return render(request, template, _ctx({}, {}))
+
+
+@jwt_cookie_user
+def guia_transporte_pdf_view(request, code):
+    """Serve o PDF da guia de transporte de uma remessa (:class:`GuiaTransporte`).
+
+    Acesso: quem pode ver a ocorrência da guia (titular / leitura total / autoridade
+    do caso). Auditado como EXPORT_PDF; 404 indistinto se não existe ou sem acesso.
+    """
+    from core.documents import generate_guia_transporte
+
+    guia = GuiaTransporte.objects.select_related('occurrence').filter(code=code).first()
+    if guia is None or not access.can_access_occurrence(request.user, guia.occurrence):
+        raise Http404('Guia de transporte não encontrada.')
+
+    pdf_bytes = generate_guia_transporte(guia)
+    log_access(
+        request=request,
+        action=AuditLog.Action.EXPORT_PDF,
+        resource_type=AuditLog.ResourceType.CUSTODY,
+        resource_id=guia.pk,
+        details={'guia': guia.code},
+    )
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="ForensiQ_Guia_{code}.pdf"'
+    response['Content-Length'] = len(pdf_bytes)
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -3360,7 +3453,9 @@ def _flatten_validation_error(exc):
     return msgs
 
 
-def _append_custody_events(request, base_payload, targets, *, extra_details=None, propagate=False):
+def _append_custody_events(
+    request, base_payload, targets, *, extra_details=None, propagate=False, on_records=None
+):
     """Regista UM evento de custódia por alvo via ``ChainOfCustodySerializer``,
     em transação atómica com auditoria por registo — esqueleto ÚNICO do registo
     em lote (handoff, formulário da timeline, génese no registo do item, receção
@@ -3383,6 +3478,7 @@ def _append_custody_events(request, base_payload, targets, *, extra_details=None
     from core.serializers import ChainOfCustodySerializer
 
     def _run():
+        created = []
         for tgt in targets:
             payload = (
                 base_payload(tgt) if callable(base_payload)
@@ -3391,6 +3487,7 @@ def _append_custody_events(request, base_payload, targets, *, extra_details=None
             serializer = ChainOfCustodySerializer(data=payload, context={'request': request})
             serializer.is_valid(raise_exception=True)
             record = serializer.save(agent=request.user)
+            created.append(record)
             details = {'evidence_id': record.evidence_id, 'event_type': record.event_type}
             if extra_details:
                 details.update(
@@ -3403,6 +3500,9 @@ def _append_custody_events(request, base_payload, targets, *, extra_details=None
                 resource_id=record.pk,
                 details=details,
             )
+        # Gancho no MESMO atomic (ex.: agrupar a remessa numa GuiaTransporte).
+        if on_records:
+            on_records(created)
 
     if propagate:
         _run()
@@ -3995,96 +4095,62 @@ def audit_console_view(request):
 
 @jwt_cookie_user
 def reports_view(request):
-    """Guias de transporte (PDF por ocorrência) — server-rendered (Fase 3) via
-    gerador único. Linhas NÃO-clicáveis: o Código liga ao detalhe da ocorrência e
-    a coluna Guia descarrega o PDF; filtros por coluna iguais às ocorrências."""
+    """Guias de transporte (REMESSAS) — lista server-rendered via gerador único.
+    Cada linha descarrega o PDF re-gerado em ``/guias/<code>/pdf/``; o Processo liga
+    ao detalhe da ocorrência. Âmbito = guias das ocorrências visíveis na consola
+    ativa. As guias são histórico operacional (fora da cadeia de custódia)."""
     user = request.user
     lens = access.active_console_mode(request, user)
-    # distinct=True: o join multi-valor da lente institucional multiplicava a
-    # contagem por evento de custódia (mesmo defeito corrigido no painel).
-    qs = _lens_occurrences(user, lens).annotate(n_ev=Count('evidences', distinct=True))
+    qs = (
+        GuiaTransporte.objects.filter(occurrence__in=_lens_occurrences(user, lens))
+        .select_related('occurrence')
+        .prefetch_related('events__custodian_institution')
+        .annotate(n_itens=Count('events', distinct=True))
+    )
 
-    cat_choices = _crime_cat_choices()
-
-    def decorate_reports(items):
-        _decorate_occurrences(items)
-        # «Em trânsito» por processo (parecer item 18) — 1 passagem do ledger
-        # só sobre a página (espelho de _decorate_occurrences_where); o estado
-        # vem da fonte única (legal_states_by_evidence), nunca re-derivado.
-        ids = [o.id for o in items]
-        states = analytics.legal_states_by_evidence(
-            ChainOfCustody.objects.filter(evidence__occurrence_id__in=ids)
-        )
-        occ_by_ev = dict(
-            Evidence.objects.filter(occurrence_id__in=ids).values_list('id', 'occurrence_id')
-        )
-        transit = {}
-        for ev_id, st in states.items():
-            if st == 'em_transito':
-                occ_id = occ_by_ev.get(ev_id)
-                transit[occ_id] = transit.get(occ_id, 0) + 1
-        for o in items:
-            o.detail_href = f'/occurrences/{o.id}/'
-            o.n_transit = transit.get(o.id, 0)
-            # Célula Itens → lista de evidências FILTRADA pelo NUIPC (param
-            # canónico 'occ' de /evidences/) — caminho para a guia POR ITEM.
-            # O NUIPC contém '/': urlencode obrigatório.
-            o.items_href = (
-                f'/evidences/?occ={urlquote(o.number, safe="")}'
-                + (f'&lens={lens}' if lens else '')
-                if o.number else ''
-            )
-            # Caminho do PDF pela rota nomeada do router (fonte única — D103).
-            o.guia = {'href': reverse('core:occurrence-export-pdf', args=[o.id]), 'label': 'PDF',
-                      'aria': f'Descarregar guia PDF de {o.code}'}
-
-    def reports_split(filtered_qs, req):
-        # Por omissão SÓ processos ativos (coerente com /occurrences/); o
-        # ?arch=1 pegajoso (computed_params identidade) inclui os arquivados.
-        if (req.GET.get('arch') or '').strip() == '1':
-            return filtered_qs
-        return filtered_qs.exclude(pk__in=_archived_occurrence_ids(filtered_qs))
+    def decorate_guias(items):
+        for g in items:
+            g.occ_label = g.occurrence.number or g.occurrence.code or f'#{g.occurrence_id}'
+            g.occ_href = f'/occurrences/{g.occurrence_id}/'
+            g.pdf_href = f'/guias/{g.code}/pdf/'
+            evs = list(g.events.all())
+            destino = evs[0].custodian_institution if evs else None
+            g.destino_label = destino.short_label if destino else '—'
+            g.pdf = {'href': g.pdf_href, 'label': 'PDF',
+                     'aria': f'Descarregar guia de transporte {g.code}'}
 
     columns = [
-        GridColumn('pri', 'Pri.', cell='pri', css='col-reduce-hide', width=6),
-        GridColumn('code', 'Código', cell='code', width=14, dot=True, link_key='detail_href',
-                   filter=ColFilter('code', 'Código', kind='text', field='code', placeholder='Código')),
-        GridColumn('number', 'NUIPC', css='mono', width=16,
-                   filter=ColFilter('number', 'NUIPC', kind='text', field='number', placeholder='NUIPC')),
-        GridColumn('crime_label', 'Tipo de crime', css='grid__ellipsis col-hide-md', width=21,
-                   filter=ColFilter('cat', 'Tipo de crime', kind='select',
-                                    field='crime_type__subcategoria__categoria_id', choices=cat_choices)),
-        GridColumn('n_ev', 'Itens', cell='num', css='col-hide-sm', width=9,
-                   link_key='items_href'),
-        GridColumn('n_transit', 'Em trânsito', cell='num', css='col-hide-sm', width=10),
-        GridColumn('date_time', 'Data', cell='date', time=False, css='col-hide-sm', width=12,
-                   filter=ColFilter('date', 'Data', kind='date_range', field='date_time')),
-        GridColumn('guia', 'Guia', cell='action', width=12),
+        GridColumn('code', 'Guia', cell='code', css='mono', width=15, link_key='pdf_href',
+                   filter=ColFilter('guia', 'Guia', kind='text', field='code', placeholder='GT-…')),
+        GridColumn('occ_label', 'Processo', css='mono', width=18, link_key='occ_href',
+                   filter=ColFilter('occ', 'Processo', kind='text', field='occurrence__number',
+                                    placeholder='NUIPC')),
+        GridColumn('destino_label', 'Destino', css='grid__ellipsis col-hide-md', width=22),
+        GridColumn('n_itens', 'Itens', cell='num', css='col-hide-sm', width=9),
+        GridColumn('created_at', 'Emitida', cell='date', time=True, css='col-hide-sm', width=14,
+                   filter=ColFilter('date', 'Emitida', kind='date_range', field='created_at')),
+        GridColumn('pdf', 'PDF', cell='action', width=10),
     ]
 
     return grid_list_response(
         request,
         queryset=qs,
         columns=columns,
-        grid_key='rpt',
+        grid_key='guias',
         endpoint='/reports/',
         page_template='reports.html',
         table_label='Guias de transporte',
-        count_noun='ocorrência',
-        sorts={'recent': '-date_time'},
+        count_noun='guia',
+        sorts={'recent': '-created_at'},
         default_sort='recent',
-        search_fields=('number', 'code', 'address'),
-        search_placeholder='Pesquisar código, NUIPC, morada…',
-        decorate=decorate_reports,
-        legend=URGENCY_LEGEND_OCCURRENCE,
+        search_fields=('code', 'occurrence__number', 'occurrence__code'),
+        search_placeholder='Pesquisar guia, NUIPC, processo…',
+        decorate=decorate_guias,
         row_clickable=False,
         page_size=30,
         lens=lens,
-        empty_title='Sem ocorrências',
-        empty_hint='Ainda não há ocorrências para gerar guias.',
-        post_filter=reports_split,
-        # 'arch' pegajoso: fn identidade — a divisão real vive no post_filter.
-        computed_params={'arch': ({'1'}, lambda q, r, v: q)},
+        empty_title='Sem guias de transporte',
+        empty_hint='As guias são emitidas ao encaminhar prova (remessa).',
         csv_export=True,
     )
 

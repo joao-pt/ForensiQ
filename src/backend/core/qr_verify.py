@@ -26,21 +26,29 @@ import hmac
 
 from django.conf import settings
 
-from core.models import Occurrence
+from core.models import GuiaTransporte, Occurrence
 
 
-def short_hash_for(occurrence_id: int) -> str:
-    """Hash curto não-enumerável a partir do `Occurrence.id`.
-
-    Determinístico (mesma occurrence_id + mesmo secret → mesmo hash).
-    Resistente a enumeração casual via 48 bits de entropia + HMAC.
-    """
+def _short_hash(message: str) -> str:
+    """HMAC-SHA256(secret, message) truncado — base dos tokens públicos curtos.
+    48 bits de entropia (12 hex), não-enumerável; rotacionável via
+    ``QR_VERIFY_SECRET`` sem invalidar JWT/sessões."""
     secret = getattr(settings, 'QR_VERIFY_SECRET', settings.SECRET_KEY)
     length = getattr(settings, 'QR_VERIFY_HASH_LEN', 12)
     if isinstance(secret, str):
         secret = secret.encode('utf-8')
-    digest = hmac.new(secret, str(occurrence_id).encode('utf-8'), hashlib.sha256).hexdigest()
-    return digest[:length]
+    return hmac.new(secret, message.encode('utf-8'), hashlib.sha256).hexdigest()[:length]
+
+
+def short_hash_for(occurrence_id: int) -> str:
+    """Hash curto não-enumerável de um `Occurrence` (mensagem = ``str(id)``)."""
+    return _short_hash(str(occurrence_id))
+
+
+def short_hash_for_guia(guia_id: int) -> str:
+    """Hash curto de uma `GuiaTransporte` (mensagem ``guia:<id>`` — espaço de nomes
+    separado do das ocorrências, sem colisão de tokens)."""
+    return _short_hash(f'guia:{guia_id}')
 
 
 def verify_url_for(occurrence_id: int) -> str:
@@ -52,6 +60,13 @@ def verify_url_for(occurrence_id: int) -> str:
     """
     base = getattr(settings, 'SITE_URL', 'https://forensiq.pt').rstrip('/')
     return f'{base}/v/{short_hash_for(occurrence_id)}/'
+
+
+def verify_url_for_guia(guia_id: int) -> str:
+    """URL pública ABSOLUTA de verificação de uma REMESSA ``/v/g/<short_hash>/`` — o
+    destino do QR da guia de transporte (confirma o que vem na remessa)."""
+    base = getattr(settings, 'SITE_URL', 'https://forensiq.pt').rstrip('/')
+    return f'{base}/v/g/{short_hash_for_guia(guia_id)}/'
 
 
 def resolve_occurrence(short_hash: str) -> Occurrence | None:
@@ -69,4 +84,15 @@ def resolve_occurrence(short_hash: str) -> Occurrence | None:
     for occ in Occurrence.objects.only('id').iterator():
         if hmac.compare_digest(short_hash_for(occ.id), short_hash):
             return Occurrence.objects.get(pk=occ.id)
+    return None
+
+
+def resolve_guia(short_hash: str) -> GuiaTransporte | None:
+    """Resolve um `short_hash` para a GuiaTransporte correspondente (mesmo método
+    O(n) de :func:`resolve_occurrence` — aceitável no volume académico)."""
+    if not short_hash or len(short_hash) != getattr(settings, 'QR_VERIFY_HASH_LEN', 12):
+        return None
+    for guia in GuiaTransporte.objects.only('id').iterator():
+        if hmac.compare_digest(short_hash_for_guia(guia.id), short_hash):
+            return GuiaTransporte.objects.get(pk=guia.id)
     return None

@@ -800,14 +800,6 @@ class EndToEndFlowTest(BaseAPITestCase):
         self.assertEqual(custody_response_3.data['legal_state'], 'em_pericia')
         self.assertEqual(len(custody_response_3.data['record_hash']), 64)
 
-        # --- STEP 8-9: Exportar PDF da evidência e verificar ---
-        pdf_url = reverse('core:evidence-export-pdf', kwargs={'pk': evidence_id})
-        pdf_response = self.client.get(pdf_url)
-        self.assertEqual(pdf_response.status_code, status.HTTP_200_OK)
-        self.assertEqual(pdf_response['Content-Type'], 'application/pdf')
-        # PDF deve começar com %PDF
-        self.assertTrue(pdf_response.content.startswith(b'%PDF'))
-
         # --- STEP 10: Consultar timeline de custódia ---
         timeline_url = reverse('core:custody-list') + f'?evidence={evidence_id}'
         timeline_response = self.client.get(timeline_url)

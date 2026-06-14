@@ -49,11 +49,6 @@
       </dl>
       <div class="form-actions">
         <a class="btn-accent" href="/occurrences/{{ result.id }}/">Abrir ocorrência</a>
-        {# Rota nomeada do router DRF — fonte única do caminho (D103); o resolvido é uma OCORRÊNCIA. #}
-        <a class="btn-ghost" href="{% url 'core:occurrence-export-pdf' result.id %}">
-          {% include 'partials/icons/_file.html' %}
-          Guia PDF
-        </a>
       </div>
     </div>
   </section>

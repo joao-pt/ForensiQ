@@ -13,6 +13,7 @@ from .models import (
     EvidenceFieldDef,
     EvidenceTypeRef,
     FieldOption,
+    GuiaTransporte,
     Institution,
     InstitutionMembership,
     Occurrence,
@@ -194,6 +195,19 @@ class ProvaEmTransitoAdmin(admin.ModelAdmin):
     search_fields = ('evidence__code',)
     raw_id_fields = ('evidence', 'encaminhamento_event', 'destino_institution')
     readonly_fields = ('encaminhamento_event', 'created_at')
+
+
+@admin.register(GuiaTransporte)
+class GuiaTransporteAdmin(admin.ModelAdmin):
+    """Guia de transporte (remessa) — histórico NÃO-certificado, fora da cadeia de
+    custódia. O PDF é re-gerado a pedido (não há ficheiro guardado). Apagável aqui
+    quando deixar de ser útil; apagar a guia não toca no ledger (os eventos ficam)."""
+
+    list_display = ('code', 'occurrence', 'created_at')
+    search_fields = ('code', 'occurrence__code', 'occurrence__number')
+    raw_id_fields = ('occurrence', 'events')
+    readonly_fields = ('created_at',)
+    ordering = ('-created_at',)
 
 
 # ---------------------------------------------------------------------------

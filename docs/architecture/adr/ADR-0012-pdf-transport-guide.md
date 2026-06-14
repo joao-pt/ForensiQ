@@ -2,7 +2,9 @@
 
 ## Estado
 
-Aceite — 2026-05-27.
+Aceite — 2026-05-27. **Atualizado — 2026-06-14**: a guia passa a ser por MOVIMENTO
+(remessa) e o QR por remessa — ver a secção «Atualização» no fim. A doutrina central
+(PDF = guia de transporte, não prova) mantém-se.
 
 ## Contexto
 
@@ -86,3 +88,31 @@ documento que prova a verdade; é o que conduz a prova de um ponto de controlo a
 - ADR-0010 — taxonomia da prova e estrutura de `Evidence` e `ChainOfCustody`.
 - ADR-0015 — ledger de custódia e estado legal derivado da sequência de eventos.
 - ReportLab e a biblioteca `qrcode` — geração do PDF e dos QR codes.
+
+## Atualização — guia por MOVIMENTO (2026-06-14)
+
+A doutrina mantém-se (o PDF é guia de transporte, não prova; QR + verificação pública;
+sem assinatura/X.509/PDF-A/*timestamping*). Evoluiu o seguinte, com a Fase 3:
+
+- **Granularidade — por remessa, não por item/processo.** A guia deixa de ser «por
+  evidência» ou «por ocorrência» e passa a ser o **manifesto de uma REMESSA** (o lote de
+  itens encaminhados juntos). É gerada no encaminhamento em lote e agrupada por
+  `GuiaTransporte` — companheira MUTÁVEL do ledger (como `ProvaEmTransito`), **fora da cadeia
+  de custódia**: histórico operacional, re-gerável a pedido (não há ficheiro guardado) e
+  apagável no admin. Número próprio `GT-YYYY-NNNN`; servida em `/guias/<code>/pdf/`.
+- **Ponto 2 revisto — QR por remessa.** O QR aponta agora à **remessa**
+  (`/v/g/<short_hash>/`), não à ocorrência nem um por evidência. A verificação pública mostra
+  os itens DAQUELA remessa (código + tipo + hash SHA-256) e o destino — menos divulgação e
+  conferência precisa à chegada.
+- **Conteúdo — só identificadores.** A guia identifica o equipamento por marca/modelo/série
+  e pelo identificador do tipo (IMEI/VIN/IMSI/ICCID/MAC/UID), via a flag
+  `EvidenceFieldDef.is_identifier` (fonte única); exclui metadados forenses (SO, capacidade,
+  operador). Sem morada/GPS/descrição da ocorrência, **sem hashes no corpo** (a integridade
+  verifica-se pelo QR) e sem declaração de integridade.
+- **Ponto 4 mantém-se.** A conferência de receção continua a registar `RECEPCAO_CUSTODIA` no
+  ledger; recebida a remessa, a guia mostra «Recebido por / Receção».
+- **Identidade visual própria.** Documento monocromático de formulário oficial (não a
+  identidade da aplicação), denso e legível.
+- **Código.** Geração reutilizável em `core/documents/` (casca `chrome` + `DocumentBuilder` +
+  conteúdo `guia_transporte`); `core/pdf_export.py` e os endpoints `/api/.../pdf/` foram
+  removidos.

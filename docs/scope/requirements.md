@@ -111,7 +111,7 @@ Verificação detalhada por requisito está no Capítulo 3 do [Relatório Interc
 | RF03 | ✅ | `Evidence.integrity_hash` SHA-256 (inclui *bytes* da foto, EXIF removido); `core/models.py` |
 | RF04 | ✅ (modelo alterado) | `DigitalDevice` **removido** na Sem. 13 (migration 0020) e subsumido por `Evidence` + `type_specific_data`: 18 tipos digitais + catálogo editável `EvidenceTypeRef` (ADR-0010/0018). IMEI/VIN/marca/modelo vivem na evidência digital-first |
 | RF05 | ✅ (modelo evoluído) | `ChainOfCustody` deixou de ser máquina de estados linear e passou a **ledger de eventos** *append-only* com estado legal derivado (ADR-0015); *hash* SHA-256 encadeado (hv4) + *triggers* PostgreSQL |
-| RF06 | ✅ | `core/pdf_export.py` (ReportLab); PDF re-classificado como guia de transporte + QR e verificação pública (ADR-0012) |
+| RF06 | ✅ | `core/documents/guia_transporte.py` (ReportLab); guia de transporte por **movimento** (remessa, `GuiaTransporte`) + QR por remessa e verificação pública (ADR-0012) |
 | RF07 | ✅ | 4 *ViewSets* REST (CRUD/append-only) + 11 *endpoints* funcionais (`core/urls.py`); OpenAPI em `/api/docs/` (drf-spectacular) |
 | RF08 | ✅ | `/dashboard/` com métricas de fluxo (estado, *throughput*, SLA, *dwell*) + mapa do território |
 | RF09 | ✅ | Modo tabela densa (gerador único `core.grid`) com filtros, *multi-select* e *drill-down* `?attn=` |

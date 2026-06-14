@@ -31,7 +31,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import connection, transaction
 from django.db.models import Count
 from django.db.models.functions import TruncDate
-from django.http import FileResponse, Http404, HttpResponse
+from django.http import FileResponse, Http404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import (
@@ -71,7 +71,6 @@ from .models import (
     PoliticaCriminalPrioridade,
     PrioridadeCrimeTipo,
 )
-from .pdf_export import generate_evidence_pdf, generate_occurrence_pdf
 from .permissions import CanAccessCustodyApi, IsAgent, IsAgentOrExpert, IsOwnerOrReadOnly
 from .serializers import (
     ActivityFeedSerializer,
@@ -197,68 +196,7 @@ class UserViewSet(viewsets.ModelViewSet):
 # ---------------------------------------------------------------------------
 
 
-class PdfExportMixin:
-    """Ação ``GET <recurso>/<id>/pdf/`` partilhada pelos ViewSets exportáveis
-    (auditoria D16): throttle de scope ``pdf_export``, queryset com ownership
-    (anti-IDOR: filtra ``get_queryset()`` e otimiza por cima — fix 2026-04-19),
-    auditoria ``EXPORT_PDF`` e resposta com headers canónicos. Cada ViewSet
-    declara só o gerador, o tipo de recurso, o prefixo do ficheiro e os hooks
-    de prefetch/detalhes."""
-
-    pdf_resource_type = None      # AuditLog.ResourceType.*
-    pdf_filename_prefix = 'ForensiQ'
-
-    def get_throttles(self):
-        if self.action == 'export_pdf':
-            self.throttle_scope = 'pdf_export'
-            return [ScopedRateThrottle()]
-        return super().get_throttles()
-
-    def _pdf_optimized_qs(self, base_qs):
-        """Hook por recurso: prefetch alinhado com o que o gerador itera
-        (Audit 2026-05-18 §3 N12)."""
-        return base_qs
-
-    def _pdf_audit_details(self, obj):
-        """Hook por recurso: detalhes extra do AuditLog (ex.: hash)."""
-        return None
-
-    def _generate_pdf(self, obj):
-        """Hook por recurso: chama o gerador (resolvido em runtime, para os
-        testes poderem fazer patch a ``core.views.generate_*_pdf``)."""
-        raise NotImplementedError
-
-    @action(detail=True, methods=['get'], url_path='pdf')
-    def export_pdf(self, request, pk=None):
-        """Gera e devolve o PDF do recurso (ver docstring da classe)."""
-        self.queryset = self._pdf_optimized_qs(self.get_queryset().filter(pk=pk))
-        obj = self.get_object()
-
-        log_access(
-            request=request,
-            action=AuditLog.Action.EXPORT_PDF,
-            resource_type=self.pdf_resource_type,
-            resource_id=obj.pk,
-            details=self._pdf_audit_details(obj),
-        )
-
-        try:
-            pdf_bytes = self._generate_pdf(obj)
-        except Exception as exc:  # noqa: BLE001 — erro claro no cliente
-            return Response(
-                # Chave `detail` — contrato de erro canónico (handler global).
-                {'detail': f'Erro ao gerar PDF: {exc}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-        filename = f'{self.pdf_filename_prefix}_{obj.pk:04d}.pdf'
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        response['Content-Length'] = len(pdf_bytes)
-        return response
-
-
-class OccurrenceViewSet(PdfExportMixin, viewsets.ModelViewSet):
+class OccurrenceViewSet(viewsets.ModelViewSet):
     """
     API de ocorrências.
 
@@ -322,36 +260,13 @@ class OccurrenceViewSet(PdfExportMixin, viewsets.ModelViewSet):
             resource_id=occurrence.pk,
         )
 
-    # GET /api/occurrences/<id>/pdf/ — resumo consolidado do caso (descrição,
-    # inventário raiz+sub-componentes, estado de custódia). Ação no PdfExportMixin.
-    pdf_resource_type = AuditLog.ResourceType.OCCURRENCE
-    pdf_filename_prefix = 'ForensiQ_Caso'
-
-    def _generate_pdf(self, obj):
-        return generate_occurrence_pdf(obj)
-
-    def _pdf_optimized_qs(self, base_qs):
-        # Prefetch alinhado com generate_occurrence_pdf: para cada evidência o
-        # custody_chain (ordenado por -sequence para _current_custody_state
-        # apanhar o último) e o dos sub-componentes.
-        from django.db.models import Prefetch
-
-        custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
-        return base_qs.select_related('agent').prefetch_related(
-            'evidences__agent',
-            'evidences__parent_evidence',
-            'evidences__sub_components',
-            Prefetch('evidences__custody_chain', queryset=custody_qs),
-            Prefetch('evidences__sub_components__custody_chain', queryset=custody_qs),
-        )
-
 
 # ---------------------------------------------------------------------------
 # Evidence
 # ---------------------------------------------------------------------------
 
 
-class EvidenceViewSet(PdfExportMixin, viewsets.ModelViewSet):
+class EvidenceViewSet(viewsets.ModelViewSet):
     """
     API de evidências.
 
@@ -384,34 +299,11 @@ class EvidenceViewSet(PdfExportMixin, viewsets.ModelViewSet):
     ordering_fields = ['timestamp_seizure', 'created_at', 'code', 'type']
     ordering = ['-timestamp_seizure']
 
-    # GET /api/evidences/<id>/pdf/ — relatório forense do item (ISO/IEC 27037:
-    # hash SHA-256, timestamp UTC, cadeia completa). Ação no PdfExportMixin.
-    pdf_resource_type = AuditLog.ResourceType.EVIDENCE
-    pdf_filename_prefix = 'ForensiQ_Evidencia'
-
-    def _generate_pdf(self, obj):
-        return generate_evidence_pdf(obj)
-
     def get_throttles(self):
         if self.action == 'create':
             self.throttle_scope = 'evidence_upload'
             return [ScopedRateThrottle()]
-        return super().get_throttles()  # o mixin trata o ramo export_pdf
-
-    def _pdf_optimized_qs(self, base_qs):
-        # Prefetch alinhado com generate_evidence_pdf: sub_components (+ os seus
-        # custody_chain) e o próprio custody_chain ordenado por -sequence.
-        from django.db.models import Prefetch
-
-        custody_qs = ChainOfCustody.objects.select_related('agent').order_by('-sequence')
-        return base_qs.select_related('occurrence__agent', 'agent').prefetch_related(
-            'sub_components',
-            Prefetch('custody_chain', queryset=custody_qs),
-            Prefetch('sub_components__custody_chain', queryset=custody_qs),
-        )
-
-    def _pdf_audit_details(self, obj):
-        return {'hash': obj.integrity_hash}
+        return super().get_throttles()
 
     def get_queryset(self):
         """Aplica sempre o filtro de ownership antes do filtro por query param.

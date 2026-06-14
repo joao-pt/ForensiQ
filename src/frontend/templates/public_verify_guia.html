@@ -1,0 +1,73 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-PT" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% include 'partials/_head_meta.html' %}
+  <meta name="robots" content="noindex">
+  <title>Verificação · Guia {{ guia_code }} — ForensiQ</title>
+  <link rel="stylesheet" href="{% static 'css/fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="stylesheet" href="{% static 'css/components/forensic.css' %}">
+</head>
+<body>
+  <main class="pubdoc">
+    <div class="pubdoc__brand">
+      {% include 'partials/_brand.html' with mask_id='pub-interlock' %}
+      ForensiQ
+    </div>
+
+    <span class="state state--info">Verificação pública da remessa</span>
+    <h1 class="pubdoc__title">Guia {{ guia_code }}</h1>
+    <p class="pubdoc__sub">
+      {% if occurrence_number %}NUIPC {{ occurrence_number }} · {% endif %}{% if destino %}destino {{ destino }} · {% endif %}{{ evidence_count }} {{ evidence_count|pluralize:"item,itens" }} em remessa
+    </p>
+
+    <section class="section">
+      <header class="section__head"><h2 class="section__title">Itens da remessa e integridade (SHA-256)</h2></header>
+      <div class="section__body section__body--flush">
+        {% if evidences %}
+        <div class="gridwrap">
+        <table class="grid" role="table" aria-label="Itens da remessa e hashes de integridade">
+          <thead>
+            <tr role="row">
+              <th scope="col">Código</th>
+              <th scope="col">Tipo</th>
+              <th scope="col">Hash SHA-256</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for e in evidences %}
+            <tr role="row">
+              <td class="mono grid__code">{{ e.code }}</td>
+              <td>{{ e.get_type_display }}</td>
+              <td class="mono">
+                {% if e.integrity_hash %}
+                <span class="dd__hash">{{ e.integrity_hash }}</span>
+                <button type="button" class="copy-btn" data-copy="{{ e.integrity_hash }}" aria-label="Copiar hash" title="Copiar hash">⧉</button>
+                {% else %}
+                <span class="state state--warning">Hash por calcular</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="empty"><p class="empty__hint">Sem itens nesta remessa.</p></div>
+        {% endif %}
+      </div>
+    </section>
+
+    <p class="pubdoc__note">
+      Confirme à chegada os itens listados nesta remessa. Cada hash SHA-256 identifica univocamente
+      os metadados e a fotografia de cada item à data do registo (ISO/IEC 27037). A guia de transporte
+      acompanha a prova; o conteúdo forense completo está reservado a utilizadores autenticados.
+    </p>
+  </main>
+
+  <script src="{% static 'js/components/forensic-list.js' %}"></script>
+</body>
+</html>

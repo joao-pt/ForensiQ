@@ -6,6 +6,6 @@
 {% block page_title %}Guias de transporte{% endblock %}
 
 {% block page_lede %}
-{# Propósito numa linha (item 18) + toggle de arquivados (?arch=1 pegajoso — o estado sobrevive a busca/ordenação via hidden input do toolbar). #}
-<p class="page-lead">Guia de transporte (PDF) por processo — o PDF é guia, não prova autónoma; a célula «Itens» abre a lista de evidências do processo. {% if sticky_params.arch %}<a href="/reports/{% if lens %}?lens={{ lens }}{% endif %}">Ocultar processos arquivados</a>{% else %}<a href="/reports/?arch=1{% if lens %}&amp;lens={{ lens }}{% endif %}">Incluir processos arquivados</a>{% endif %}</p>
+{# Propósito numa linha: a guia é o talão da remessa, não prova autónoma (ADR-0012). #}
+<p class="page-lead">Guias de transporte emitidas ao encaminhar prova (remessas). Cada guia descarrega o PDF, re-gerado a pedido — acompanha a prova e não é prova autónoma; é histórico operacional, fora da cadeia de custódia.</p>
 {% endblock %}

@@ -306,7 +306,7 @@ Trabalho assumido como *future work* no relatório, a executar após avaliação
 - **RGPD Art. 32 alínea c)** — migrar `media/` para object storage com SSE-KMS, snapshots automáticos da base de dados Neon e teste de restauro trimestral. Plano mínimo viável documentado em [`docs/operations/disaster-recovery.md`](docs/operations/disaster-recovery.md) (Sem.12); a evolução para object storage + exercício de DR validado fica pós-entrega
 - **RGPD Art. 32 alínea d)** — DAST automatizado em CI (OWASP ZAP weekly); SAST/SCA já cobertos por `.github/workflows/security.yml` (pip-audit, bandit, gitleaks, trivy)
 - **Pentest externo** de caixa-preta (estudante MIEI ou empresa parceira da UAb)
-- **Cobertura ≥85%** — módulos prioritários: `core/serializers.py`, `core/pdf_export.py`
+- **Cobertura ≥85%** — módulos prioritários: `core/serializers.py`, `core/documents/`
 - **i18n** — `gettext` em Django + JSON catalog no frontend; pt-PT por defeito + en-US adicional
 - **Novos papéis** — coordenador (visão multi-NUIPC) e magistrado (acesso *read-only* a casos arquivados com justificação)
 - **Réguas e multi-foto** em captura de evidência fotográfica (ver `docs/architecture/photo-capture-status.md`)

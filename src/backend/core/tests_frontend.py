@@ -483,18 +483,14 @@ class OccurrenceDetailPageTest(AuthenticatedFrontendTestCase):
         self.assertIn('map-box', content)
         self.assertIn('data-static-map', content)
 
-    def test_occurrence_detail_contains_pdf_action(self):
-        """A página de detalhe deve oferecer a guia de transporte (PDF).
-
-        Fase 3: o detalhe deixou de ter um bloco ``custody-summary`` dedicado
-        (o estado de custódia é mostrado por item, na própria tabela).
-        A acção transversal do caso é a guia PDF, ligada ao endpoint
-        de exportação — é esse o substituto que se assere aqui.
-        """
+    def test_occurrence_detail_sem_guia_por_processo_antiga(self):
+        """A guia por-processo antiga saiu: a guia é por REMESSA (lista no Ficha
+        quando há remessas; PDF em /guias/<code>/pdf/). O detalhe não deve manter
+        a ação/endpoint antigos."""
         response = self.client.get(self._url())
         content = response.content.decode('utf-8')
-        self.assertIn(f'/api/occurrences/{self.occurrence.id}/pdf/', content)
-        self.assertIn('Guia PDF', content)
+        self.assertNotIn(f'/api/occurrences/{self.occurrence.id}/pdf/', content)
+        self.assertNotIn('Guia PDF', content)
 
     def test_occurrence_detail_loads_leaflet(self):
         """A página de detalhe deve carregar o Leaflet.js."""

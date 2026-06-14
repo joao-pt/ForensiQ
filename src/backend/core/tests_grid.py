@@ -186,23 +186,32 @@ class CustodyListRenderTest(TestCase):
 
 
 class ReportsListRenderTest(AuthenticatedFrontendTestCase):
-    """Smoke da lista de Guias de transporte: linhas NÃO-clicáveis, ação PDF e
-    ligação do Código ao detalhe (mesma grelha, dados diferentes)."""
+    """Smoke da lista de Guias de transporte (remessas): grelha não-clicável + CSV."""
 
-    def test_reports_list_renders_non_clickable_with_pdf(self):
-        OccurrenceFactory(agent=self.test_user)
+    def test_reports_list_renders_guias_grid(self):
         response = self.client.get('/reports/')
         self.assertEqual(response.status_code, 200)
         content = response.content.decode('utf-8')
-        self.assertIn('id="rpt-grid"', content)
+        self.assertIn('id="guias-grid"', content)
         self.assertIn('aria-label="Guias de transporte"', content)
-        self.assertIn('grid--mobile-reduce', content)
-        # Linhas NÃO clicáveis (sem gaveta de detalhe).
+        # Linhas NÃO clicáveis (cada guia descarrega o PDF pela ação).
         self.assertNotIn('grid--clickable', content)
         self.assertNotIn('?drawer=', content)
-        # Ação PDF + Código ligado ao detalhe.
-        self.assertIn('/api/occurrences/', content)
-        self.assertIn('grid__link', content)
+
+    def test_reports_csv_export(self):
+        r = self.client.get('/reports/?export=csv')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('text/csv', r['Content-Type'])
+        self.assertIn('Guia', r.content.decode('utf-8'))  # cabeçalho da coluna 'Guia'
+
+    def test_export_csv_so_nas_grelhas_opt_in(self):
+        # /custodies/ exporta CSV; /occurrences/ ignora o parâmetro (sem opt-in).
+        occ = _occ(self.test_user, 'RPT-CC')
+        _event(_evidence(occ, self.test_user), self.test_user)
+        cc = self.client.get('/custodies/?export=csv')
+        self.assertIn('text/csv', cc['Content-Type'])
+        occs = self.client.get('/occurrences/?export=csv')
+        self.assertIn('text/html', occs['Content-Type'])
 
 
 class AuditTrailGridTest(TestCase):
@@ -303,60 +312,34 @@ class CsvFormulaInjectionTest(SimpleTestCase):
         self.assertEqual(self._cell(''), '')
 
 
-class ReportsLoteFTest(AuthenticatedFrontendTestCase):
-    """Item 18: coluna «Em trânsito», célula Itens com link, lede com toggle de
-    arquivados (?arch=1 pegajoso) e EXPORT CSV genérico da grelha filtrada
-    (auditado por EXPORT_CSV; só nas grelhas opt-in)."""
-
-    def test_reports_lede_em_transito_e_link_itens(self):
-        OccurrenceFactory(agent=self.test_user)
-        content = self.client.get('/reports/').content.decode('utf-8')
-        self.assertIn('Em trânsito', content)
-        self.assertIn('o PDF é guia, não prova autónoma', content)
-        self.assertIn('Incluir processos arquivados', content)
-        self.assertIn('/evidences/?occ=', content)
-
-    def test_reports_toggle_arquivados(self):
-        from core.models import EventType
-
-        occ = _occ(self.test_user, 'RPT-ARQ')
-        ev = _evidence(occ, self.test_user)
-        _event(ev, self.test_user)
-        _event(ev, self.test_user, event_type=EventType.RESTITUICAO)
-        base = self.client.get('/reports/').content.decode('utf-8')
-        self.assertNotIn(occ.code, base)
-        com_arquivados = self.client.get('/reports/?arch=1').content.decode('utf-8')
-        self.assertIn(occ.code, com_arquivados)
-
-    def test_export_csv_filtrado_e_auditado(self):
-        from core.models import AuditLog
-
-        occ = _occ(self.test_user, 'RPT-CSV')
-        _event(_evidence(occ, self.test_user), self.test_user)
-        r = self.client.get('/reports/?export=csv')
-        self.assertEqual(r.status_code, 200)
-        self.assertIn('text/csv', r['Content-Type'])
-        body = r.content.decode('utf-8')
-        self.assertIn('Código', body)        # cabeçalho da spec
-        self.assertIn(occ.code, body)
-        log = AuditLog.objects.filter(action=AuditLog.Action.EXPORT_CSV).last()
-        self.assertIsNotNone(log)
-        self.assertEqual(log.details.get('grid'), 'rpt')
-
-    def test_export_csv_tambem_nas_custodias_e_so_opt_in(self):
-        occ = _occ(self.test_user, 'RPT-CC')
-        _event(_evidence(occ, self.test_user), self.test_user)
-        cc = self.client.get('/custodies/?export=csv')
-        self.assertIn('text/csv', cc['Content-Type'])
-        self.assertIn('-M01', cc.content.decode('utf-8'))
-        # Grelhas sem opt-in ignoram o parametro (resposta HTML normal).
-        occs = self.client.get('/occurrences/?export=csv')
-        self.assertIn('text/html', occs['Content-Type'])
+class ReportsCsvInjectionTest(AuthenticatedFrontendTestCase):
+    """Defesa OWASP contra injeção de fórmula no export CSV das guias: um valor
+    iniciado por '=' (ex.: NUIPC do processo) sai prefixado com aspa simples."""
 
     def test_export_csv_neutraliza_injecao_de_formula(self):
-        # NUIPC controlado pelo utilizador iniciado por '=' não pode sair do
-        # CSV como fórmula executável (OWASP CSV injection).
+        from core.models import (
+            ChainOfCustody,
+            EventType,
+            GuiaTransporte,
+            Institution,
+            InstitutionType,
+        )
+
         occ = OccurrenceFactory(agent=self.test_user, number='=2+5')
-        _event(_evidence(occ, self.test_user), self.test_user)
+        ev = _evidence(occ, self.test_user)
+        _event(ev, self.test_user)  # apreensão
+        dest = Institution.objects.create(name='OPC Z', type=InstitutionType.OPC, sigla='OPC-Z')
+        enc = ChainOfCustody.objects.create(
+            evidence=ev,
+            event_type=EventType.ENCAMINHAMENTO_CUSTODIA,
+            custodian_institution=dest,
+            custodian_type='OPC',
+            agent=self.test_user,
+            bearer_nome='Rui',
+            bearer_apelido='Costa',
+            bearer_matricula='M-1',
+        )
+        guia = GuiaTransporte.objects.create(occurrence=occ)
+        guia.events.set([enc])
         body = self.client.get('/reports/?export=csv').content.decode('utf-8')
         self.assertIn("'=2+5", body)        # prefixado com aspa simples
