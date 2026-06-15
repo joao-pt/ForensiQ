@@ -102,7 +102,7 @@ Verificação detalhada por requisito está no Capítulo 3 do [Relatório Interc
 > **Nota de actualização (Sem. 14).** A tabela da secção 4 é o instantâneo de 3 mai (data do
 > intercalar) e preserva-se inalterada como registo histórico. O instantâneo abaixo reflecte o
 > estado **real do código a 13 jun 2026**, após o *refactor* de fundo da Fase 2/3 (ADR-0015 a
-> ADR-0019) e os lotes de Junho. Ver `reconciliacao-2026-06-13.md` para o método e as métricas.
+> ADR-0019) e os lotes de Junho.
 
 | Requisito | Estado (13 jun) | Evidência / nota de actualização |
 |---|---|---|

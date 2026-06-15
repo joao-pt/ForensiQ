@@ -191,7 +191,6 @@ ForensiQ/
 │   │   └── diagrams/                # C4 + ER + custody event ledger + hash-chain-flow + immutability-3-layers (Mermaid)
 │   ├── design/                      # § 5 do guia: interface
 │   │   ├── wireframes.pdf           # Protótipo de navegação (pós-implementação, abordagem code-first justificada via § 7)
-│   │   ├── auditoria-de-design.html # Auditoria estruturada (34 achados, 18 abr 2026)
 │   │   └── screens/                 # Capturas usadas no wireframes.pdf
 │   ├── compliance/external-tests/   # Qualys SSL Labs, HSTS Preload, Mozilla Observatory
 │   ├── deployment/                  # Guia Fly.io
