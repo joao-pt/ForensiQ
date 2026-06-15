@@ -1,32 +1,4 @@
-# Contexto privado local — NUNCA entra no GitHub
-about-me.md
-project-context.md
-github-workflow.md
-tarefas-agendadas.md
-
-# Pasta privada com correspondência do orientador / propostas / ficheiros UAb
-# (contém PDFs de email, candidaturas e materiais administrativos da UC)
-21184 - Projeto de Engenharia Informática/
-
-
-# Reports / outputs temporários (gerados ad-hoc, não fazem parte do repo)
-.tmp-audit/
-.remember/
-.playwright-mcp/
-semgrep-report.json
-semgrep-stderr.txt
-precommit-scan-*.md
-# Screenshots de verificação manual (Playwright/Chrome DevTools)
-mobile-cards.png
-occurrence-detail-*.png
-
-# Fontes LaTeX (mantidas localmente; só o PDF final em docs/report/ é versionado)
-src_latex/
-
-# Materiais externos com direitos de autor (não distribuir no repo)
-ACPO_Good_Practice_Guide_for_Digital_Evidence_v5.pdf
-
-# Python
+# Python / venv
 __pycache__/
 *.pyc
 *.py[cod]
@@ -39,13 +11,12 @@ venv/
 .venv/
 env/
 
-# Django
+# Django (runtime)
 *.sqlite3
-db.sqlite3
 media/
 staticfiles/
 
-# Coverage / Testing
+# Testes / cobertura
 .coverage
 .coverage.*
 htmlcov/
@@ -53,11 +24,19 @@ coverage.xml
 .pytest_cache/
 .tox/
 
-# Environment
+# Ambiente / segredos (podem existir dentro do repo)
 .env
 *.env
 .env.local
 .env.production
+*.pem
+*.key
+credentials.json
+.git-credentials
+
+# Logs / saídas temporárias
+*.log
+*.out
 
 # IDE
 .vscode/
@@ -70,37 +49,5 @@ coverage.xml
 .DS_Store
 Thumbs.db
 
-# LaTeX (auxiliares em src_latex/ e docs/report/)
-*.aux
-*.log
-*.out
-*.toc
-*.bbl
-*.blg
-*.fdb_latexmk
-*.fls
-*.synctex.gz
-docs/report/bibliography.bib
-
-# Node (se necessário no futuro)
-node_modules/
-
-# Credentials
-*.pem
-*.key
-credentials.json
-.git-credentials
-*.git-credentials
-
-# Pasta de trabalho interna local (notas, credenciais) — NUNCA versionar
-_cowork/
-
-# Materiais de referência / consulta externa (páginas HTML guardadas, PDFs) — não distribuir
-*Belkasoft*
-Lei n*Agosto*
-*51_2023*
-tabela-crimes.pdf
-
-# Relatórios Lighthouse — regeneráveis via scripts/run_lighthouse.ps1; as
-# métricas-chave ficam em docs/testing/resultados-*.md (não versionar os HTML/JSON).
+# Relatórios Lighthouse — regeneráveis via scripts/run_lighthouse.ps1
 docs/testing/reports/

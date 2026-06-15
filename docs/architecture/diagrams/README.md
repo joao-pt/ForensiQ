@@ -49,4 +49,5 @@ for f in *.dot; do dot -Tpng -Gdpi=150 "$f" -o "${f%.dot}.png"; done
 - **Sem emojis** no Mermaid (incompatibilidade com alguns renderers).
 
 Sempre que o modelo de dados ou a arquitectura mudem, actualizar `.mmd`,
-re-renderizar o PNG e copiar para `src_latex/figures/`.
+re-renderizar o PNG e copiar para `_arquivo_latex/src_latex/figures/` (as
+fontes LaTeX vivem fora do repositório do código).

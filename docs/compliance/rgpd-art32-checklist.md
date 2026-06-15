@@ -125,7 +125,7 @@ A ForensiQ trata **dados pessoais sensíveis** enquanto sistema de gestão de pr
 | d.2 | Testes de regressão de segurança | Testes de need-to-know/authz item-level (`tests_access.py:111-188`), CSP e rate-limit de auth (`tests_api.py:1387+`); falta DAST/fuzzing | `src/backend/core/tests_access.py`; `src/backend/core/tests_api.py` | ✅ Parcial |
 | d.3 | Auditoria de código periódica | Sim — `docs/AUDIT_2026-04-16.md`, `docs/code-review-2026-04-11.md` | `docs/` | ✅ (ad-hoc; falta cadência fixa) |
 | d.4 | *Pentest* externo | **Não realizado** | — | ❌ Lacuna |
-| d.5 | *SAST/DAST* em CI | CI de segurança (`security.yml`): bandit (SAST) + semgrep no pre-commit (`p/owasp-top-ten`, `p/django`), gitleaks, trivy, com cron semanal | `.github/workflows/security.yml`; `.pre-commit-config.yaml` | ✅ |
+| d.5 | *SAST/DAST* em CI | CI de segurança (`security.yml`): bandit (SAST), gitleaks (segredos) e trivy (filesystem), em cada PR/push e cron semanal; semgrep corre só à mão (removido do pre-commit — rebenta no Windows e não é gate de CI) | `.github/workflows/security.yml` | ✅ |
 | d.6 | Varredura de dependências (SCA) | `pip-audit` em CI (`security.yml`) + trivy (CVEs em deps/OS packages), em cada PR/push e cron semanal | `.github/workflows/security.yml` | ✅ |
 | d.7 | Revisão trimestral dos controlos | **Não formalizado** | — | ❌ Lacuna |
 

@@ -9,13 +9,9 @@ __pycache__
 *.egg-info
 .venv
 venv
-node_modules
-
-# Contexto privado local
 
 # Documentação (não necessária no container)
 docs/
-src_latex/
 README.md
 LICENSE
 
