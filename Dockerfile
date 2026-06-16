@@ -58,16 +58,17 @@ ENV PYTHONUNBUFFERED=1 \
 
 # Recolher ficheiros estáticos (executado no build, não no runtime).
 # Durante o `collectstatic` o Django importa o settings.py, que com
-# DEBUG=False exige SECRET_KEY, DATABASE_URL e JWT_SIGNING_KEY (este
-# último por causa do guard fail-closed da assinatura de tokens). Os
-# valores abaixo são efémeros, usados apenas pelo build — nunca aterram
-# no filesystem da imagem final nem são válidos para
-# autenticação/assinatura; os reais são injectados em runtime via
-# `fly secrets set`.
+# DEBUG=False exige SECRET_KEY, DATABASE_URL, JWT_SIGNING_KEY e
+# QR_VERIFY_SECRET (os dois últimos por causa dos guards fail-closed da
+# assinatura de tokens e da verificação de QR codes). Os valores abaixo são
+# efémeros, usados apenas pelo build — nunca aterram no filesystem da imagem
+# final nem são válidos para autenticação/assinatura/verificação; os reais
+# são injectados em runtime via `fly secrets set`.
 WORKDIR /home/forensiq/app/backend
 RUN DATABASE_URL="sqlite:///tmp/build-dummy.db" \
     SECRET_KEY="build-time-only-not-a-real-secret-$(date +%s)" \
     JWT_SIGNING_KEY="build-time-only-not-a-real-jwt-$(date +%s)" \
+    QR_VERIFY_SECRET="build-time-only-not-a-real-qr-$(date +%s)" \
     DEBUG="False" \
     ALLOWED_HOSTS="localhost" \
     python manage.py collectstatic --noinput
