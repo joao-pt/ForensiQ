@@ -10,11 +10,14 @@ aplicação seja servido a utilizadores não autenticados, mesmo que os dados
 sensíveis só sejam carregados via API.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
 from datetime import timedelta
 from functools import wraps
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.contrib import messages
@@ -107,6 +110,17 @@ from core.utils import (
     validation_status_of,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+    from datetime import datetime
+
+    from django.contrib.auth.base_user import AbstractBaseUser
+    from django.contrib.auth.models import AnonymousUser
+    from django.db.models import Model, QuerySet
+    from django.http import HttpRequest
+
+    UserOrAnon = AbstractBaseUser | AnonymousUser
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,11 +132,11 @@ class _ScopeView:
     shim em vez de uma APIView.
     """
 
-    def __init__(self, scope):
+    def __init__(self, scope: str) -> None:
         self.throttle_scope = scope
 
 
-def _throttle_public_verify(request):
+def _throttle_public_verify(request: HttpRequest) -> bool:
     """Aplica o rate-limit do scope ``verify_public`` a uma vista Django pura.
 
     Reusa o ``ScopedRateThrottle`` do DRF (mesma família dos endpoints da API —
@@ -142,13 +156,13 @@ _VERIFY_FAIL_LIMIT = 20
 _VERIFY_LOCK_SECONDS = 900  # 15 min
 
 
-def _verify_is_locked(ip):
+def _verify_is_locked(ip: str) -> bool:
     from django.core.cache import cache
 
     return bool(ip) and bool(cache.get(f'verify_lock:{ip}'))
 
 
-def _verify_register_fail(ip):
+def _verify_register_fail(ip: str) -> None:
     from django.core.cache import cache
 
     if not ip:
@@ -159,14 +173,14 @@ def _verify_register_fail(ip):
         cache.set(f'verify_lock:{ip}', True, _VERIFY_LOCK_SECONDS)
 
 
-def _verify_clear_fails(ip):
+def _verify_clear_fails(ip: str) -> None:
     from django.core.cache import cache
 
     if ip:
         cache.delete(f'verify_fail:{ip}')
 
 
-def _user_from_jwt_cookie(request):
+def _user_from_jwt_cookie(request: HttpRequest) -> AbstractBaseUser | None:
     """Utilizador autenticado pelo cookie JWT, ou ``None`` (token ausente,
     inválido ou expirado). Fonte única da descodificação —
     :class:`core.auth.JWTCookieAuthentication` — consumida pelo decorator
@@ -179,7 +193,7 @@ def _user_from_jwt_cookie(request):
     return result[0] if result else None
 
 
-def jwt_cookie_user(view_func):
+def jwt_cookie_user(view_func: Callable[..., HttpResponse]) -> Callable[..., HttpResponse]:
     """Resolve ``request.user`` a partir do cookie JWT, para páginas
     server-rendered (Fase 3 — Django + HTMX).
 
@@ -191,7 +205,7 @@ def jwt_cookie_user(view_func):
     """
 
     @wraps(view_func)
-    def wrapper(request, *args, **kwargs):
+    def wrapper(request: HttpRequest, *args: object, **kwargs: object) -> HttpResponse:
         user = _user_from_jwt_cookie(request)
         if user is None:
             return HttpResponseRedirect('/login/')
@@ -201,7 +215,7 @@ def jwt_cookie_user(view_func):
     return wrapper
 
 
-def _priority_badge(occurrence):
+def _priority_badge(occurrence: Occurrence) -> dict[str, str] | None:
     """Mapeia o domínio binário (PRIORITARIA/NORMAL + LEI/MANUAL) na linguagem
     visual P1/P2 (decisão de produto, Fase 3). NORMAL não recebe badge."""
     if occurrence.priority != Occurrence.Priority.PRIORITARIA:
@@ -242,7 +256,7 @@ PENDENCY_LEGEND = (
 )
 
 
-def _decorate_occurrences_validation(occurrences):
+def _decorate_occurrences_validation(occurrences: list[Occurrence]) -> None:
     """Anota ``occ.val_dot`` e ``occ.pericia_dot`` quando a ocorrência tem itens
     com trabalho pendente nos eixos dos ATOS (síntese por processo):
 
@@ -304,7 +318,7 @@ def _decorate_occurrences_validation(occurrences):
             }
 
 
-def _decorate_occurrences_page(occurrences):
+def _decorate_occurrences_page(occurrences: list[Occurrence]) -> None:
     """Decoração das LISTAS paginadas de ocorrências (grelha + painel do
     dashboard): apresentação base + marcador de validação pendente por processo
     (bulk — só sobre a página, nunca o queryset todo)."""
@@ -317,7 +331,7 @@ def _decorate_occurrences_page(occurrences):
 _CTYPE_LABELS = dict(CustodianType.choices)
 
 
-def _holder_display(inst_label, ctype):
+def _holder_display(inst_label: str | None, ctype: str | None) -> str:
     """Rótulo do detentor de um item — regra ÚNICA de composição, per-item
     (:func:`_holder_label_of`) e bulk (:func:`_decorate_occurrences_where`):
     instituição (``Institution.short_label``) → senão rótulo do
@@ -325,7 +339,7 @@ def _holder_display(inst_label, ctype):
     return inst_label or _CTYPE_LABELS.get(ctype, '—')
 
 
-def _decorate_occurrences_where(occurrences):
+def _decorate_occurrences_where(occurrences: list[Occurrence]) -> None:
     """Anota ``occ.where_label`` — síntese «onde está a prova agora» por
     processo (Nota A camada 2): sigla quando os itens estão TODOS num local
     único / «N locais» / «—» sem itens. O local de um item compõe-se por
@@ -367,7 +381,7 @@ def _decorate_occurrences_where(occurrences):
         )
 
 
-def _decorate_occurrences(occurrences):
+def _decorate_occurrences(occurrences: list[Occurrence]) -> None:
     """Anota cada ocorrência com campos de apresentação (sem tocar no modelo)."""
     for occ in occurrences:
         occ.pri = _priority_badge(occ)
@@ -396,11 +410,11 @@ _OCC_SORTS = {
 # ---------------------------------------------------------------------------
 
 
-def _occurrence_base_qs():
+def _occurrence_base_qs() -> QuerySet[Occurrence]:
     return Occurrence.objects.select_related('agent', 'crime_type')
 
 
-def _chain_prefetch(lookup='custody_chain'):
+def _chain_prefetch(lookup: str = 'custody_chain') -> Prefetch:
     """Prefetch ÚNICO do ledger com os FKs do custódio resolvidos — sem o
     ``select_related``, ler ``last.custodian_institution`` numa lista custava
     1 query por linha (a «situação atual» deriva do último elo)."""
@@ -408,17 +422,17 @@ def _chain_prefetch(lookup='custody_chain'):
         'custodian_institution', 'custodian_user'))
 
 
-def _evidence_base_qs():
+def _evidence_base_qs() -> QuerySet[Evidence]:
     return Evidence.objects.select_related(
         'occurrence', 'agent', 'parent_evidence'
     ).prefetch_related(_chain_prefetch())
 
 
-def _custody_base_qs():
+def _custody_base_qs() -> QuerySet[ChainOfCustody]:
     return ChainOfCustody.objects.select_related('evidence', 'evidence__occurrence', 'agent')
 
 
-def _tree_sort_key(ev):
+def _tree_sort_key(ev: Evidence) -> tuple[int | float, ...]:
     """Chave de ordem de ÁRVORE de um item: os segmentos NUMÉRICOS do sufixo do
     código hierárquico (ADR-0016 — o código da ocorrência não tem pontos). A
     comparação de tuplos põe a raiz antes dos filhos e cada filho adjacente ao
@@ -430,7 +444,7 @@ def _tree_sort_key(ev):
         return (float('inf'),)
 
 
-def _tree_depth(ev):
+def _tree_depth(ev: Evidence) -> int:
     """Nível do item na árvore (1=raiz), contado pelos pontos do código
     hierárquico materializado (ADR-0016 — o código da ocorrência não tem
     pontos). Não sobe ``parent_evidence``: fora do ``select_related`` cada
@@ -438,7 +452,7 @@ def _tree_depth(ev):
     return max(1, ev.code.count('.'))
 
 
-def _occurrence_items(occ):
+def _occurrence_items(occ: Occurrence) -> list[Evidence]:
     """Itens do processo em ordem de árvore, com ``tree_depth`` anotado (1=raiz,
     contado pelos pontos do código) — partilhado pelo detalhe da ocorrência e
     pelos modais de lote. A ordenação é em Python: em SQL,
@@ -450,7 +464,7 @@ def _occurrence_items(occ):
     return itens
 
 
-def _subtree_descendants(ev):
+def _subtree_descendants(ev: Evidence) -> list[Evidence]:
     """Descendentes de ``ev`` (filhos, netos…) em ordem de árvore, com o ledger
     pré-carregado e EXCLUINDO os de ledger fechado (terminal — restituídos ou
     destruídos). Alvos da cascata da timeline (decisão §6/D4): a sub-árvore
@@ -478,31 +492,31 @@ def _subtree_descendants(ev):
     return abertos
 
 
-def _crime_categories():
+def _crime_categories() -> QuerySet[CrimeCategoria]:
     return CrimeCategoria.objects.order_by('codigo')
 
 
-def _crime_cat_choices():
+def _crime_cat_choices() -> tuple[tuple[int, str], ...]:
     """(id, rótulo) das categorias de crime — o rótulo vem de
     ``CrimeCategoria.__str__`` ('{codigo} — {nome}', fonte única do formato)."""
     return tuple((c.id, str(c)) for c in _crime_categories())
 
 
-def _active_institutions():
+def _active_institutions() -> QuerySet[Institution]:
     return Institution.objects.filter(is_active=True).order_by('name')
 
 
-def _institution_choices():
+def _institution_choices() -> tuple[tuple[int, str], ...]:
     """(id, short_label) das instituições ativas — fonte única dos selects
     «Instituição» (custódias) e «Onde está» (evidências)."""
     return tuple((i.id, i.short_label) for i in _active_institutions())
 
 
-def _active_portadores():
+def _active_portadores() -> QuerySet[Portador]:
     return Portador.objects.filter(is_active=True).order_by('apelido', 'nome')
 
 
-def _readable(base_qs, pk, *predicates):
+def _readable(base_qs: QuerySet, pk: object, *predicates: Callable[[Model], bool]) -> Model | None:
     """Objeto por ``pk`` se ALGUM dos predicados autorizar a leitura; ``None`` se
     não existe ou está fora de acesso — esqueleto único das portas de
     detalhe por recurso (auditoria D2)."""
@@ -513,7 +527,7 @@ def _readable(base_qs, pk, *predicates):
     return obj if any(p(obj) for p in predicates) else None
 
 
-def _drawer_redirect(request, resolve):
+def _drawer_redirect(request: HttpRequest, resolve: Callable[[int], str | None]) -> HttpResponseRedirect | None:
     """Cortesia de migração: o painel lateral (``?drawer=<id>``) foi REMOVIDO —
     as linhas das grelhas navegam diretamente para a página de detalhe. Um
     pedido antigo com o parâmetro é redirecionado para o destino equivalente
@@ -525,13 +539,13 @@ def _drawer_redirect(request, resolve):
     return HttpResponseRedirect(url) if url else None
 
 
-def _scope_occurrences(user):
+def _scope_occurrences(user: UserOrAnon) -> QuerySet[Occurrence]:
     """Ocorrências legíveis pelo utilizador — *need-to-know* derivado do ledger
     (ADR-0017; fonte única em :mod:`core.access`)."""
     return access.scope_occurrences(user, base_qs=_occurrence_base_qs())
 
 
-def _readable_occurrence(user, pk):
+def _readable_occurrence(user: UserOrAnon, pk: object) -> Occurrence | None:
     """Ocorrência por ``pk`` se o utilizador a pode LER na consola server-rendered;
     ``None`` se não existe ou está fora de acesso. É a porta de DETALHE:
     mais ampla que a LISTA pessoal (``scope_occurrences``) — abre por acesso global
@@ -560,20 +574,20 @@ _EVD_SORTS = {
 }
 
 
-def _scope_evidences(user):
+def _scope_evidences(user: UserOrAnon) -> QuerySet[Evidence]:
     """Evidências legíveis pelo utilizador — *need-to-know* item-level
     (ADR-0017; fonte única em :mod:`core.access`)."""
     return access.scope_evidences(user, base_qs=_evidence_base_qs())
 
 
-def _evidence_state(st):
+def _evidence_state(st: str | None) -> tuple[str, str]:
     """(label, css) de um estado legal já derivado (``None`` = sem custódia)."""
     if st is None:
         return ('Sem custódia', 'muted')
     return (LEGAL_STATE_LABELS.get(st, st), LEGAL_STATE_CSS.get(st, 'muted'))
 
 
-def _holder_label_of(last):
+def _holder_label_of(last: ChainOfCustody | None) -> tuple[str, str]:
     """(rótulo, tooltip) do detentor ATUAL a partir do último elo do ledger.
 
     Composição única em :func:`_holder_display` (instituição → tipo de
@@ -589,7 +603,7 @@ def _holder_label_of(last):
     return (label, label if label != '—' else '')
 
 
-def _pericia_rel(days_left):
+def _pericia_rel(days_left: int) -> str:
     """Urgência relativa da data-limite («hoje»/«amanhã»/«em N dias») — preenche
     o ``{rel}`` de PERICIA_DEADLINE_LABELS."""
     if days_left <= 0:
@@ -599,7 +613,7 @@ def _pericia_rel(days_left):
     return f'em {days_left} dias'
 
 
-def _pericia_badge(pd):
+def _pericia_badge(pd: dict[str, object] | None) -> dict[str, str] | None:
     """Badge do prazo da perícia a partir da derivação da policy
     (:func:`core.utils.pericia_deadline_of` / bulk de ``core.analytics``).
     Fonte única do format dos rótulos PERICIA_DEADLINE_LABELS (data-limite,
@@ -615,7 +629,7 @@ def _pericia_badge(pd):
     return {'css': PERICIA_DEADLINE_CSS[status], 'label': label, 'status': status}
 
 
-def _pericia_dot(badge):
+def _pericia_dot(badge: dict[str, str] | None) -> dict[str, str] | None:
     """Marcador compacto por linha do prazo da perícia — SÓ quando o estatuto
     pede atenção (a vencer/vencida), como os pontos de validação pendente."""
     if not badge or badge['status'] not in PERICIA_ATTENTION_STATUSES:
@@ -623,7 +637,7 @@ def _pericia_dot(badge):
     return {'cls': badge['css'], 'title': badge['label']}
 
 
-def _decorate_evidences(evidences):
+def _decorate_evidences(evidences: list[Evidence]) -> None:
     # labels() uma vez (evita N+1 com o choices-callable de Evidence.type — ADR-0018).
     type_labels = evidence_type_config.labels()
     for e in evidences:
@@ -690,7 +704,7 @@ def _decorate_evidences(evidences):
         e.equipamento = ' '.join(p for p in (e.marca, e.modelo) if p)
 
 
-def _readable_evidence(user, pk):
+def _readable_evidence(user: UserOrAnon, pk: object) -> Evidence | None:
     """Evidência por ``pk`` se o utilizador a pode LER na consola server-rendered;
     ``None`` caso contrário. Item-level need-to-know (``can_view_evidence``) OU o
     item pertence a uma ocorrência que o utilizador lê por pertença institucional
@@ -705,12 +719,12 @@ def _readable_evidence(user, pk):
     )
 
 
-def login_view(request):
+def login_view(request: HttpRequest) -> HttpResponse:
     """Página de login (pública)."""
     return render(request, 'login.html')
 
 
-def public_verify_view(request, short_hash):
+def public_verify_view(request: HttpRequest, short_hash: str) -> HttpResponse:
     """Vista adaptativa de verificação pública de ocorrência (ADR-0012).
 
     URL: ``/v/<short_hash>/`` — destino dos QR codes do PDF de
@@ -785,7 +799,7 @@ def public_verify_view(request, short_hash):
     )
 
 
-def public_verify_guia_view(request, short_hash):
+def public_verify_guia_view(request: HttpRequest, short_hash: str) -> HttpResponse:
     """Verificação pública de uma REMESSA (guia de transporte) — ``/v/g/<hash>/``.
 
     O QR da guia aponta aqui. Confirma o que vem na remessa sem expor o caso inteiro:
@@ -845,7 +859,7 @@ _HEX64_RE = re.compile(r'^[0-9a-f]{64}$')
 _V_PATH_RE = re.compile(r'/v/([0-9a-fA-F]{12})/?')
 
 
-def _resolve_verification_query(user, query):
+def _resolve_verification_query(user: UserOrAnon, query: str) -> tuple[Occurrence | None, Evidence | None]:
     """``(ocorrência, item)`` para um input TOLERANTE de /verificacoes/.
 
     Ordem DETERMINÍSTICA: URL com /v/ → short-hash; 12 hex → short-hash do QR;
@@ -893,7 +907,7 @@ def _resolve_verification_query(user, query):
 
 
 @jwt_cookie_user
-def verifications_view(request):
+def verifications_view(request: HttpRequest) -> HttpResponse:
     """Centro de verificação / QR (operador EXPERT/staff) — decisão 7: a página
     passa a VERIFICAR de facto.
 
@@ -956,14 +970,14 @@ _HERO_BOUNDS = {
 }
 
 
-def _occ_pri_code(o):
+def _occ_pri_code(o: Occurrence) -> int:
     """Código numérico de prioridade para o mapa (1=P1 lei, 2=P2 manual, 0=normal)."""
     if o.priority == Occurrence.Priority.PRIORITARIA:
         return 1 if o.priority_source == Occurrence.PrioritySource.LEI else 2
     return 0
 
 
-def _activity_feed(user, limit=20, qs=None):
+def _activity_feed(user: UserOrAnon, limit: int = 20, qs: QuerySet[AuditLog] | None = None) -> list[AuditLog]:
     """Últimos eventos do AuditLog (append-only) visíveis ao utilizador.
 
     Por omissão o âmbito é ``access.scope_audit_logs`` (fonte única partilhada
@@ -986,7 +1000,7 @@ def _activity_feed(user, limit=20, qs=None):
     return logs
 
 
-def _audit_feed_scope(user, lens):
+def _audit_feed_scope(user: UserOrAnon, lens: access.Lens) -> QuerySet[AuditLog]:
     """Âmbito do FEED do painel (decisão 6) — DERIVAÇÃO de apresentação, nunca
     fronteira de acesso: com leitura nacional, o registo completo
     (``scope_audit_logs``, inalterado — também serve a API e o trilho de
@@ -1013,7 +1027,7 @@ def _audit_feed_scope(user, lens):
     )
 
 
-def _collapse_bursts(logs):
+def _collapse_bursts(logs: list[AuditLog]) -> list[AuditLog]:
     """Rajadas no FEED do painel (parecer item 16): eventos CONSECUTIVOS do
     mesmo autor+ação+tipo de recurso colapsam numa linha com contagem («×N»).
     SÓ no painel — no trilho probatório de /audit/ é 1 linha por facto."""
@@ -1032,7 +1046,7 @@ def _collapse_bursts(logs):
     return out
 
 
-def _decorate_audit_rows(logs):
+def _decorate_audit_rows(logs: list[AuditLog]) -> None:
     """Decoração de apresentação das linhas do AuditLog — fonte única do feed
     do painel e da grelha do trilho de /audit/ (rótulos curtos, alvo com código
     real + link, autor).
@@ -1095,7 +1109,7 @@ def _decorate_audit_rows(logs):
             r.extra = ''
 
 
-def _state_filter(states_getter, fk='id'):
+def _state_filter(states_getter: Callable[[], dict[int, str]], fk: str = 'id') -> Callable[..., QuerySet]:
     """Filtro computado do grid por estado legal DERIVADO (uma closure única
     para evidências e custódias — só muda a FK contra o dict de estados).
 
@@ -1104,7 +1118,7 @@ def _state_filter(states_getter, fk='id'):
     filtro é mesmo aplicado (e memoizável pelo chamador).
     """
 
-    def _apply(filtered_qs, _request, value):
+    def _apply(filtered_qs: QuerySet, _request: HttpRequest, value: str) -> QuerySet:
         matching = [ev_id for ev_id, st in states_getter().items() if st == value]
         return filtered_qs.filter(**{f'{fk}__in': matching})
 
@@ -1121,7 +1135,7 @@ def _state_filter(states_getter, fk='id'):
 # ---------------------------------------------------------------------------
 
 
-def _lens_occurrences(user, lens):
+def _lens_occurrences(user: UserOrAnon, lens: access.Lens) -> QuerySet[Occurrence]:
     """Ocorrências para a zona ativa: ``MINE`` = âmbito de caso pessoal;
     ``INSTITUTION`` = ocorrências da instituição (processo inteiro, sem item)."""
     if lens == access.Lens.INSTITUTION:
@@ -1129,7 +1143,7 @@ def _lens_occurrences(user, lens):
     return _scope_occurrences(user)
 
 
-def _lens_evidences(user, lens):
+def _lens_evidences(user: UserOrAnon, lens: access.Lens) -> QuerySet[Evidence]:
     """Itens para a zona ativa (case-axis, nunca por item).
 
     ``INSTITUTION`` mostra TODOS os itens das ocorrências da instituição (processo
@@ -1146,7 +1160,7 @@ def _lens_evidences(user, lens):
     )
 
 
-def _lens_custody(user, lens):
+def _lens_custody(user: UserOrAnon, lens: access.Lens) -> QuerySet[ChainOfCustody]:
     """Eventos de custódia para a zona ativa (mesma lógica case-axis)."""
     qs = _custody_base_qs()
     if lens == access.Lens.INSTITUTION:
@@ -1166,7 +1180,7 @@ def _lens_custody(user, lens):
 # ---------------------------------------------------------------------------
 
 
-def _archived_occurrence_ids(occ_qs):
+def _archived_occurrence_ids(occ_qs: QuerySet[Occurrence]) -> set[int]:
     """``set`` de IDs ARQUIVADOS no âmbito ``occ_qs``: ocorrências com ≥1 item e
     TODOS os itens em estado legal terminal (restituída/perdida a favor do
     Estado/destruída). Itens SEM eventos (estado por abrir) impedem o arquivo — o
@@ -1205,14 +1219,14 @@ def _archived_occurrence_ids(occ_qs):
     }
 
 
-def _occurrence_archived(occ):
+def _occurrence_archived(occ: Occurrence) -> bool:
     """O processo está CONCLUÍDO (no Arquivo)? Mesma fonte única da lista
     (:func:`_archived_occurrence_ids`) sobre UMA ocorrência — barato: o
     pré-filtro SQL descarta logo os não-candidatos. 1 chamada por request."""
     return occ.id in _archived_occurrence_ids(Occurrence.objects.filter(pk=occ.pk))
 
 
-def _desfechos_by_occurrence(occ_ids):
+def _desfechos_by_occurrence(occ_ids: list[int]) -> dict[int, str]:
     """{occ_id: desfecho} no âmbito dado — o estado legal partilhado por TODOS
     os itens quando é um só (``'restituida'``/``'perdida_favor_estado'``/
     ``'destruida'``…), senão ``'misto'``. Fonte ÚNICA da síntese «Desfecho» do
@@ -1235,7 +1249,7 @@ def _desfechos_by_occurrence(occ_ids):
     return out
 
 
-def _decorate_occurrences_desfecho(occurrences):
+def _decorate_occurrences_desfecho(occurrences: list[Occurrence]) -> None:
     """Anota ``occ.desfecho_badge`` (coluna «Desfecho» do Arquivo): rótulo/cor
     do estado terminal único (fonte única LEGAL_STATE_LABELS/CSS), ou «Misto»
     quando os itens tiveram desfechos diferentes. Bulk, só sobre a página."""
@@ -1249,7 +1263,7 @@ def _decorate_occurrences_desfecho(occurrences):
             o.desfecho_badge = {'css': 'muted', 'label': DESFECHO_MISTO_LABEL}
 
 
-def _dashboard_tiles(cus_qs):
+def _dashboard_tiles(cus_qs: QuerySet[ChainOfCustody]) -> tuple[list[dict[str, object]], dict[str, int], set[int]]:
     """Tiles do estado da cadeia (contagem por estado legal DERIVADO do ledger,
     fonte única core.analytics) + tile de ATENÇÃO "A aguardar validação" — EIXO
     próprio (a validação é ato jurídico, não um estado de custódia); o clique
@@ -1270,12 +1284,12 @@ def _dashboard_tiles(cus_qs):
     return tiles, tile_counts, pending_ids
 
 
-def _hero_within(b, p):
+def _hero_within(b: list[list[float]], p: dict[str, float]) -> bool:
     """O ponto ``p`` cai dentro da caixa ``b`` ([[lat,lng],[lat,lng]])?"""
     return b[0][0] <= p['lat'] <= b[1][0] and b[0][1] <= p['lng'] <= b[1][1]
 
 
-def _hero_points(occ_qs):
+def _hero_points(occ_qs: QuerySet[Occurrence]) -> tuple[list[dict[str, object]], dict[str, list[dict[str, object]]], int]:
     """Pontos georreferenciados do hero, agrupados por região (_HERO_BOUNDS).
 
     O ``id`` permite o drill-down (popup com link) no mapa interativo. Pontos
@@ -1294,7 +1308,7 @@ def _hero_points(occ_qs):
     return pts, regions, n_fora_mapa
 
 
-def _pri_counts(points):
+def _pri_counts(points: list[dict[str, object]]) -> dict[str, int]:
     """Distribuição de prioridade dos pontos desenhados (legenda do hero)."""
     return {
         'p1': sum(1 for p in points if p['pri'] == 1),
@@ -1316,7 +1330,7 @@ _ATTN_AXIS_LABELS = {
 }
 
 
-def _attn_axes(sla, pending_ids):
+def _attn_axes(sla: dict[str, object], pending_ids: set[int]) -> dict[str, tuple[str, set[int]]]:
     """Eixos canónicos de atenção — chave→(rótulo, ids re-deriváveis).
 
     Partilhada pelo filtro local do painel (:func:`_attn_scope`) e pelo destino
@@ -1334,7 +1348,7 @@ def _attn_axes(sla, pending_ids):
     return {key: (label, ids[key]) for key, label in _ATTN_AXIS_LABELS.items()}
 
 
-def _attn_scope(request, occ_qs, sla, pending_ids):
+def _attn_scope(request: HttpRequest, occ_qs: QuerySet[Occurrence], sla: dict[str, object], pending_ids: set[int]) -> tuple[QuerySet[Occurrence], dict[str, object] | None]:
     """Filtro local "Prazos & atenção" (?attn=): clicar num prazo mostra na
     PRÓPRIA tabela as ocorrências cujos itens o contam — o número do painel é
     re-derivável no clique (antes ligava a uma lista mais lata, N≠número).
@@ -1371,7 +1385,7 @@ _DASH_RECENT_COLUMNS = [
 
 
 @jwt_cookie_user
-def dashboard_view(request):
+def dashboard_view(request: HttpRequest) -> HttpResponse:
     """Painel — hero geo + últimas ocorrências + registo de atividade, TUDO
     server-rendered (Fase 3). Sem o JS antigo do hero (drift eliminado)."""
     user = request.user
@@ -1460,7 +1474,7 @@ def dashboard_view(request):
     )
 
 
-def _occurrences_list_response(request, archived=False):
+def _occurrences_list_response(request: HttpRequest, archived: bool = False) -> HttpResponse:
     """Corpo PARTILHADO das listas de ocorrências ativas (``/occurrences/``) e do
     Arquivo (``/arquivo/``): mesmo dispatch por zona de consola, colunas, filtros,
     ordenação e paginação — só diferem na divisão arquivado/ativo e no template.
@@ -1546,14 +1560,14 @@ def _occurrences_list_response(request, archived=False):
             last_column,
         ]
 
-    def decorate_page(occurrences):
+    def decorate_page(occurrences: list[Occurrence]) -> None:
         _decorate_occurrences_page(occurrences)
         if personal_zone:
             _decorate_occurrences_where(occurrences)
         if archived:
             _decorate_occurrences_desfecho(occurrences)
 
-    def archived_split(filtered_qs, _request):
+    def archived_split(filtered_qs: QuerySet[Occurrence], _request: HttpRequest) -> QuerySet[Occurrence]:
         # Processo CONCLUÍDO = todos os itens em estado legal terminal. Deriva-se
         # sobre o âmbito já filtrado e divide-se (sem coluna nova). No Arquivo,
         # anota-se «Concluído em» = último evento de DISPOSIÇÃO (bulk SQL,
@@ -1568,7 +1582,7 @@ def _occurrences_list_response(request, archived=False):
             )
         return filtered_qs.exclude(pk__in=archived_ids)
 
-    def _desfecho_filter(qs_in, _request, value):
+    def _desfecho_filter(qs_in: QuerySet[Occurrence], _request: HttpRequest, value: str) -> QuerySet[Occurrence]:
         # Filtro DERIVADO (whitelist em ColFilter.accepts): processos cuja
         # síntese de desfecho casa com o valor. Corre antes do archived_split,
         # mas um processo «todos os itens no desfecho X» é arquivado por
@@ -1636,7 +1650,7 @@ def _occurrences_list_response(request, archived=False):
 
 
 @jwt_cookie_user
-def occurrences_view(request):
+def occurrences_view(request: HttpRequest) -> HttpResponse:
     """Lista de ocorrências ATIVAS — server-rendered (Fase 3, Django + HTMX).
 
     Lê o ORM com o working-set da zona de consola ativa. Os processos CONCLUÍDOS
@@ -1647,7 +1661,7 @@ def occurrences_view(request):
 
 
 @jwt_cookie_user
-def arquivo_view(request):
+def arquivo_view(request: HttpRequest) -> HttpResponse:
     """Arquivo de processos CONCLUÍDOS — ocorrências cujos itens estão TODOS em
     estado legal terminal (restituído/perdido a favor do Estado/destruído). Mesma
     grelha e zona de consola da lista ativa, restrita aos arquivados."""
@@ -1655,7 +1669,7 @@ def arquivo_view(request):
 
 
 @jwt_cookie_user
-def occurrence_detail_view(request, occurrence_id):
+def occurrence_detail_view(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Detalhe de uma ocorrência — hub do caso, server-rendered (Fase 3)."""
     user = request.user
     occ = _readable_occurrence(user, occurrence_id)
@@ -1718,7 +1732,7 @@ def occurrence_detail_view(request, occurrence_id):
     )
 
 
-def _itens_com_proximo_evento(user, occ, event_type):
+def _itens_com_proximo_evento(user: UserOrAnon, occ: Occurrence, event_type: EventType) -> list[Evidence]:
     """Itens da ocorrência para os quais ``event_type`` é um PRÓXIMO evento
     válido (guardas da policy via ``_valid_next_events``) E o utilizador tem
     escrita no ledger (``can_append_custody``). Esqueleto único da seleção das
@@ -1733,21 +1747,21 @@ def _itens_com_proximo_evento(user, occ, event_type):
     return itens
 
 
-def _encaminhaveis(user, occ):
+def _encaminhaveis(user: UserOrAnon, occ: Occurrence) -> list[Evidence]:
     """Itens da ocorrência que o utilizador pode ENCAMINHAR agora: génese feita,
     não terminais nem já em trânsito (ENCAMINHAMENTO é próximo evento válido).
     Anota-se ``ev.checked`` na view (omissão: todos — encaminha-se a prova junta)."""
     return _itens_com_proximo_evento(user, occ, EventType.ENCAMINHAMENTO_CUSTODIA)
 
 
-def _restituiveis(user, occ):
+def _restituiveis(user: UserOrAnon, occ: Occurrence) -> list[Evidence]:
     """Itens da ocorrência que podem ser RESTITUÍDOS agora (CPP art. 186.º):
     RESTITUICAO é próximo evento válido segundo as guardas (génese feita,
     ledger aberto, não em trânsito)."""
     return _itens_com_proximo_evento(user, occ, EventType.RESTITUICAO)
 
 
-def _bearer_fields_from_post(request):
+def _bearer_fields_from_post(request: HttpRequest) -> tuple[dict[str, str] | None, str | None]:
     """Lê do POST a identificação do portador (fonte única encaminhar/timeline):
     portador REGISTADO (``bearer``, FK — o save() copia o snapshot da ficha) OU
     PONTUAL (``bearer_nome``/``bearer_apelido``/``bearer_matricula``[+``bearer_posto``],
@@ -1781,7 +1795,7 @@ def _bearer_fields_from_post(request):
     )
 
 
-def _receiver_fields_from_post(request):
+def _receiver_fields_from_post(request: HttpRequest) -> tuple[dict[str, str] | None, str | None]:
     """Lê do POST a identidade de quem RECEBE a prova (fonte única do termo de
     entrega — CPP art. 186.º): ``receiver_nome`` + ``receiver_doc_tipo`` +
     ``receiver_doc_numero``, snapshot direto sem ficha (a pessoa não é
@@ -1802,7 +1816,7 @@ def _receiver_fields_from_post(request):
     return fields, None
 
 
-def _register_handoff(request, evidences, bearer_fields, destino, occurrence):
+def _register_handoff(request: HttpRequest, evidences: list[Evidence], bearer_fields: dict[str, str], destino: Institution, occurrence: Occurrence) -> tuple[list[str], GuiaTransporte | None]:
     """Regista ENCAMINHAMENTO_CUSTODIA em cada item (1 evento/item), numa transação
     atómica: portador + destino, custódio promovido pelo tipo do destino, SEM GPS (a
     coordenada regista-se na receção). Reusa o ``ChainOfCustodySerializer`` (guardas
@@ -1825,7 +1839,7 @@ def _register_handoff(request, evidences, bearer_fields, destino, occurrence):
 
     box = {}
 
-    def _emit_guia(records):
+    def _emit_guia(records: list[ChainOfCustody]) -> None:
         guia = GuiaTransporte.objects.create(occurrence=occurrence)
         guia.events.set(records)
         box['guia'] = guia
@@ -1837,7 +1851,7 @@ def _register_handoff(request, evidences, bearer_fields, destino, occurrence):
 
 
 @jwt_cookie_user
-def occurrence_encaminhar_view(request, occurrence_id):
+def occurrence_encaminhar_view(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Encaminhar prova da ocorrência (handoff em LOTE, ADR-0016 v2): entregar
     vários itens a um portador, com destino a uma instituição — 1 evento
     ENCAMINHAMENTO_CUSTODIA por item, SEM GPS (a prova fica em trânsito; a
@@ -1864,7 +1878,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
         # GET: tudo selecionado; re-render por erro: mantém a escolha do utilizador.
         ev.checked = submitted is None or str(ev.id) in submitted
 
-    def _ctx(errors, data):
+    def _ctx(errors: dict[str, object], data: object) -> dict[str, object]:
         return {
             'occ': occ,
             'itens': itens,
@@ -1905,7 +1919,7 @@ def occurrence_encaminhar_view(request, occurrence_id):
 
 
 @jwt_cookie_user
-def guia_transporte_pdf_view(request, code):
+def guia_transporte_pdf_view(request: HttpRequest, code: str) -> HttpResponse:
     """Serve o PDF da guia de transporte de uma remessa (:class:`GuiaTransporte`).
 
     Acesso: quem pode ver a ocorrência da guia (titular / leitura total / autoridade
@@ -2044,8 +2058,8 @@ _CERTIFIED_ACT_SPECS = {
 }
 
 
-def _register_certified_act(request, evidences, act, autoridade, cargo,
-                            justificacao, ts, prazo=None, *, propagate=False):
+def _register_certified_act(request: HttpRequest, evidences: list[Evidence], act: dict[str, object], autoridade: str, cargo: str,
+                            justificacao: str, ts: datetime, prazo: int | None = None, *, propagate: bool = False) -> list[str]:
     """Regista o ATO certificado em cada item: sem GPS nem local (a prova não
     se desloca) e custódio HERDADO do último evento do ledger (um ato de
     autoridade não muda quem detém a prova).
@@ -2059,7 +2073,7 @@ def _register_certified_act(request, evidences, act, autoridade, cargo,
     ``propagate=True`` deixa a exceção subir (caso do despacho que INCLUI a
     validação: dois atos na mesma transação envolvente)."""
 
-    def _payload(ev):
+    def _payload(ev: Evidence) -> dict[str, object]:
         last = sort_custody_chain(ev.custody_chain.all())[-1]
         p = {
             'evidence': ev.id,
@@ -2086,7 +2100,7 @@ def _register_certified_act(request, evidences, act, autoridade, cargo,
     )
 
 
-def _despachaveis_com_pendentes(user, occ):
+def _despachaveis_com_pendentes(user: UserOrAnon, occ: Occurrence) -> list[Evidence]:
     """Elegibilidade ALARGADA do despacho: itens despacháveis JÁ (apreensão
     validada — ou sem apreensão própria) + itens com apreensão POR VALIDAR,
     que só entram se o despacho INCLUIR a validação (CPP 178.º/5-6). Os
@@ -2100,8 +2114,8 @@ def _despachaveis_com_pendentes(user, occ):
     return prontos + pendentes
 
 
-def _register_despacho(request, evidences, act, autoridade, cargo, justificacao,
-                       ts, prazo=None):
+def _register_despacho(request: HttpRequest, evidences: list[Evidence], act: dict[str, object], autoridade: str, cargo: str, justificacao: str,
+                       ts: datetime, prazo: int | None = None) -> list[str]:
     """Registo do DESPACHO com a guarda da validação (CPP 178.º/5-6).
 
     Itens com apreensão POR VALIDAR só avançam se o operador marcar "o
@@ -2147,7 +2161,7 @@ _CERTIFIED_ACT_SPECS['despachar'].update(
 )
 
 
-def _occurrence_certified_act_view(request, occurrence_id, act):
+def _occurrence_certified_act_view(request: HttpRequest, occurrence_id: int, act: dict[str, object]) -> HttpResponse:
     """Vista ÚNICA dos atos certificados em LOTE — ação in-place (modal).
 
     Um evento por item selecionado; os itens elegíveis (o ato é próximo evento
@@ -2184,7 +2198,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
     # legítimo (ex.: despacho sobre item perdido), mas deve ser deliberado.
     reopen_hint = ARQUIVO_REOPEN_HINT if _occurrence_archived(occ) else ''
 
-    def _ctx(errors, data):
+    def _ctx(errors: dict[str, object], data: object) -> dict[str, object]:
         return {
             'occ': occ,
             'itens': itens,
@@ -2255,7 +2269,7 @@ def _occurrence_certified_act_view(request, occurrence_id, act):
 
 
 @jwt_cookie_user
-def occurrence_validar_view(request, occurrence_id):
+def occurrence_validar_view(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Validar a apreensão em LOTE (CPP art. 178.º/6) — spec ``validar`` do
     modal único dos atos certificados."""
     return _occurrence_certified_act_view(
@@ -2264,7 +2278,7 @@ def occurrence_validar_view(request, occurrence_id):
 
 
 @jwt_cookie_user
-def occurrence_despachar_view(request, occurrence_id):
+def occurrence_despachar_view(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Despacho para perícia em LOTE (CPP art. 154.º) — spec ``despachar`` do
     modal único dos atos certificados."""
     return _occurrence_certified_act_view(
@@ -2272,7 +2286,7 @@ def occurrence_despachar_view(request, occurrence_id):
     )
 
 
-def _register_restituicao(request, evidences, receiver_fields, fundamento):
+def _register_restituicao(request: HttpRequest, evidences: list[Evidence], receiver_fields: dict[str, str], fundamento: str) -> list[str]:
     """Regista RESTITUICAO em cada item (terminal — CPP art. 186.º, termo de
     entrega): custódio passa a PROPRIETARIO e a identidade do recetor entra
     estruturada no evento (e na cadeia de hash, hv3). Sem GPS — a entrega
@@ -2293,7 +2307,7 @@ def _register_restituicao(request, evidences, receiver_fields, fundamento):
 
 
 @jwt_cookie_user
-def occurrence_restituir_view(request, occurrence_id):
+def occurrence_restituir_view(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Restituir prova em LOTE (CPP art. 186.º — termo de entrega) — ação
     in-place (modal).
 
@@ -2323,7 +2337,7 @@ def occurrence_restituir_view(request, occurrence_id):
     # legítimo por excelência — o aviso só dá o contexto do Arquivo.
     reopen_hint = ARQUIVO_REOPEN_HINT if _occurrence_archived(occ) else ''
 
-    def _ctx(errors, data):
+    def _ctx(errors: dict[str, object], data: object) -> dict[str, object]:
         return {
             'occ': occ,
             'itens': itens,
@@ -2359,7 +2373,7 @@ def occurrence_restituir_view(request, occurrence_id):
 
 
 @jwt_cookie_user
-def inbound_view(request):
+def inbound_view(request: HttpRequest) -> HttpResponse:
     """Caixa "prova a chegar" — provas encaminhadas para a(s) instituição(ões) do
     utilizador, ainda por receber (ADR-0016 v2, 2.ª metade do handoff).
 
@@ -2398,7 +2412,7 @@ def inbound_view(request):
     # prioritários, 3) quem espera há mais tempo primeiro (timestamp do FACTO,
     # ascendente); empates resolvem por código do item (order_by da queryset +
     # sort estável). Em memória: a caixa não é paginada.
-    def _urgency(n):
+    def _urgency(n: ProvaEmTransito) -> tuple[int | float, int, datetime]:
         pd = n.evidence.pericia_deadline
         return (
             pd['days_left'] if pd else float('inf'),
@@ -2418,7 +2432,7 @@ def inbound_view(request):
 
 
 @jwt_cookie_user
-def occurrences_new_view(request):
+def occurrences_new_view(request: HttpRequest) -> HttpResponse:
     """Registo de nova ocorrência — server-rendered + POST via serializer (Fase 3).
 
     A escrita reusa o ``OccurrenceSerializer`` (validação + derivação de
@@ -2435,7 +2449,7 @@ def occurrences_new_view(request):
     # → redireciona para a ocorrência criada; erro → re-render com os erros.
     template = 'occurrences_new.html'
 
-    def _ctx(errors, data):
+    def _ctx(errors: dict[str, object], data: object) -> dict[str, object]:
         """Contexto da página, com a ascendência N1/N2 do crime escolhido
         pré-resolvida para a cascata se re-renderizar após erro."""
         sel_type = (data.get('crime_type') or '') if data else ''
@@ -2489,19 +2503,19 @@ def occurrences_new_view(request):
     return render(request, template, _ctx({}, initial))
 
 
-def _wants_modal(request):
+def _wants_modal(request: HttpRequest) -> bool:
     """Pedido em modo modal (ação-in-place)? GET ``?modal=1`` (abrir) ou o
     campo escondido ``modal`` no POST (submeter)."""
     return request.GET.get('modal') == '1' or request.POST.get('modal') == '1'
 
 
-def _modal_template(modal, partial, page):
+def _modal_template(modal: bool, partial: str, page: str) -> str:
     """Template do contrato modal (F7): fragmento para a ação-in-place, página
     completa para o fallback sem-JS/navegação direta (auditoria D5)."""
     return partial if modal else page
 
 
-def _form_success_response(modal, redirect_url):
+def _form_success_response(modal: bool, redirect_url: str) -> HttpResponse:
     """Sucesso de um formulário com contrato modal (F7): ``204 + HX-Redirect``
     (o HTMX navega e fecha o modal) ou redirect clássico (auditoria D5)."""
     if modal:
@@ -2512,7 +2526,7 @@ def _form_success_response(modal, redirect_url):
 
 
 @jwt_cookie_user
-def institutions_view(request):
+def institutions_view(request: HttpRequest) -> HttpResponse:
     """Lista de instituições (pontos de controlo fixos) — gestão (staff/NACIONAL).
 
     As instituições são dados de referência da custódia (não são prova). Esta é a
@@ -2525,10 +2539,10 @@ def institutions_view(request):
     if not access.can_manage_institutions(user):
         raise PermissionDenied('Sem permissão para gerir instituições.')
 
-    def apply_inst_state(filtered_qs, _request, value):
+    def apply_inst_state(filtered_qs: QuerySet[Institution], _request: HttpRequest, value: str) -> QuerySet[Institution]:
         return filtered_qs.filter(is_active=(value == 'active'))
 
-    def decorate_inst(items):
+    def decorate_inst(items: list[Institution]) -> None:
         for inst in items:
             inst.type_label = inst.get_type_display()
             if inst.gps_lat is not None and inst.gps_lng is not None:
@@ -2590,7 +2604,7 @@ def institutions_view(request):
 
 
 @jwt_cookie_user
-def institution_new_view(request):
+def institution_new_view(request: HttpRequest) -> HttpResponse:
     """Criação manual de instituição (ponto de controlo) — ADR-0016 Fase 1.
 
     Reusa o ``InstitutionSerializer`` (obrigatórios nome+tipo+morada+GPS, coerência
@@ -2608,7 +2622,7 @@ def institution_new_view(request):
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_institution_form.html', 'institution_new.html')
 
-    def _ctx(errors, data):
+    def _ctx(errors: dict[str, object], data: object) -> dict[str, object]:
         return {
             'errors': errors,
             'data': data or {},
@@ -2647,7 +2661,7 @@ _INSTITUTION_FIELDS = ('name', 'type', 'sigla', 'address', 'gps_lat', 'gps_lng',
                        'email', 'phone')
 
 
-def _institution_edit_warning(inst):
+def _institution_edit_warning(inst: Institution) -> str:
     """Aviso INFORMATIVO do toggle de atividade (item 19 — guard-rail que nunca
     bloqueia): inativar tira a instituição dos destinos/selects, mas não revoga
     custódia nem pertenças — se ela DETÉM prova agora (derivado do ledger,
@@ -2676,7 +2690,7 @@ def _institution_edit_warning(inst):
 
 
 @jwt_cookie_user
-def institution_edit_view(request, institution_id):
+def institution_edit_view(request: HttpRequest, institution_id: int) -> HttpResponse:
     """Edição de instituição — espelho do modal de criação (item 19): mesmo
     gate, mesmo partial (parametrizado) e o ``update()`` do
     ``InstitutionSerializer``, que existia sem chamador.
@@ -2698,12 +2712,12 @@ def institution_edit_view(request, institution_id):
     modal = _wants_modal(request)
     template = _modal_template(modal, 'partials/_institution_form.html', 'institution_edit.html')
 
-    def _initial():
+    def _initial() -> dict[str, object]:
         vals = {f: getattr(inst, f) or '' for f in _INSTITUTION_FIELDS}
         vals['is_active'] = inst.is_active
         return vals
 
-    def _ctx(errors, data):
+    def _ctx(errors: dict[str, object], data: object) -> dict[str, object]:
         return {
             'errors': errors,
             'data': data if data is not None else _initial(),
@@ -2752,7 +2766,7 @@ def institution_edit_view(request, institution_id):
 
 
 @jwt_cookie_user
-def evidences_view(request):
+def evidences_view(request: HttpRequest) -> HttpResponse:
     """Lista de evidências — server-rendered (Fase 3) via gerador único de grelhas.
 
     Ownership espelha o EvidenceViewSet (AGENTE vê as suas via occurrence;
@@ -2772,7 +2786,7 @@ def evidences_view(request):
 
     # Filtro derivado «Onde está» (detentor ATUAL do ledger — sem caminho ORM
     # direto): avaliado LAZY como o ?state=, sobre a lente do utilizador.
-    def _inst_filter(filtered_qs, _request, value):
+    def _inst_filter(filtered_qs: QuerySet[Evidence], _request: HttpRequest, value: str) -> QuerySet[Evidence]:
         holders = analytics.current_holders_by_evidence(_lens_custody(user, lens))
         matching = [ev_id for ev_id, (inst_id, _ct) in holders.items()
                     if inst_id is not None and str(inst_id) == value]
@@ -2782,7 +2796,7 @@ def evidences_view(request):
     # antes da montagem do contexto) e chega ao template via extra_ctx.
     attn_ctx = {}
 
-    def _attn_evidence_filter(filtered_qs, _request, value):
+    def _attn_evidence_filter(filtered_qs: QuerySet[Evidence], _request: HttpRequest, value: str) -> QuerySet[Evidence]:
         sla = analytics.aging_sla(_lens_evidences(user, lens), _lens_custody(user, lens))
         statuses = analytics.validation_statuses_by_evidence(_lens_custody(user, lens))
         pending_ids = {
@@ -2866,11 +2880,11 @@ def evidences_view(request):
     )
 
 
-def _evd_field_ctx(post):
+def _evd_field_ctx(post: object) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     """(transversais, por-tipo) para o formulário de evidência, cada campo com o
     valor atual (re-preenche após erro). A lista por-tipo é plana, marcada com o
     tipo para o JS mostrar/esconder; os transversais aparecem sempre."""
-    def _v(field):
+    def _v(field: dict[str, object]) -> str:
         return (post.get(field['key']) or '').strip() if hasattr(post, 'get') else ''
 
     transversal = [{**f, 'value': _v(f)} for f in evidence_field_config.transversal_fields()]
@@ -2879,7 +2893,7 @@ def _evd_field_ctx(post):
     return transversal, type_fields
 
 
-def _sub_blocked_reason(ev, eventos):
+def _sub_blocked_reason(ev: Evidence, eventos: list[ChainOfCustody]) -> str | None:
     """Razão (PT) pela qual ``ev`` NÃO pode receber um sub-componente agora,
     ou ``None``. FONTE ÚNICA das 4 superfícies do fluxo encadeado (selector de
     pai, gate do ``?parent=``, botão da ficha, página de continuação): não se
@@ -2902,7 +2916,7 @@ def _sub_blocked_reason(ev, eventos):
     return None
 
 
-def _parent_options(user):
+def _parent_options(user: UserOrAnon) -> list[Evidence]:
     """Candidatos a PAI no selector do registo: âmbito do utilizador SEM os
     itens que não podem ter filhos agora (``_sub_blocked_reason`` — folhas,
     nível máximo, ledger fechado, em trânsito), em ordem de árvore por
@@ -2931,7 +2945,7 @@ def _parent_options(user):
 
 
 @jwt_cookie_user
-def evidences_new_view(request):
+def evidences_new_view(request: HttpRequest) -> HttpResponse:
     """Registo de nova evidência — server-rendered + POST via serializer (Fase 3).
 
     Reusa o ``EvidenceSerializer`` (validação por tipo, hash de integridade,
@@ -2996,7 +3010,7 @@ def evidences_new_view(request):
             'max_depth': Evidence.MAX_TREE_DEPTH,
         }
 
-    def _ctx(errors, data, preselect):
+    def _ctx(errors: dict[str, object], data: object, preselect: object) -> dict[str, object]:
         """Contexto único da página (antes copiado 3× — auditoria D4).
 
         ``data`` é o input cru (não validated_data), intencional: repopula o
@@ -3074,7 +3088,7 @@ def evidences_new_view(request):
     return render(request, template, _ctx({}, {}, request.GET.get('occurrence', '')))
 
 
-def _decorate_events(events):
+def _decorate_events(events: list[ChainOfCustody]) -> None:
     """Anota cada evento do ledger com rótulos PT e hash curto (apresentação)."""
     flag_m = settings.GPS_ACCURACY_FLAG_M
     for r in events:
@@ -3114,7 +3128,7 @@ def _decorate_events(events):
         r.seal_label = ' · '.join(seal_parts)
 
 
-def _chain_points(events):
+def _chain_points(events: list[ChainOfCustody]) -> list[dict[str, object]]:
     """Pontos georreferenciados do ledger (para o mapa da cadeia, modo Cadeia).
 
     Coordenadas como float → json.dumps usa ponto decimal (nunca a vírgula
@@ -3141,7 +3155,7 @@ def _chain_points(events):
 
 
 @jwt_cookie_user
-def evidence_detail_view(request, evidence_id):
+def evidence_detail_view(request: HttpRequest, evidence_id: int) -> HttpResponse:
     """Detalhe de uma evidência — hub do item, server-rendered (Fase 3)."""
     user = request.user
     ev = _readable_evidence(user, evidence_id)
@@ -3220,7 +3234,7 @@ def evidence_detail_view(request, evidence_id):
 
 
 @jwt_cookie_user
-def evidence_registered_view(request, evidence_id):
+def evidence_registered_view(request: HttpRequest, evidence_id: int) -> HttpResponse:
     """Página de CONTINUAÇÃO do registo (§6 — fluxo encadeado): o item ficou
     registado e apreendido; daqui encadeia-se, sem reencontrar contexto, o
     registo de um sub-componente deste item (``?parent=``), de outro
@@ -3250,7 +3264,7 @@ def evidence_registered_view(request, evidence_id):
 
 
 @jwt_cookie_user
-def evidence_atos_view(request, evidence_id):
+def evidence_atos_view(request: HttpRequest, evidence_id: int) -> HttpResponse:
     """Consulta READ-ONLY dos atos de autoridade de um item (badge → modal).
 
     Os badges «Validada»/«Com despacho judicial»/«Perícia até …» dizem só O QUE
@@ -3333,7 +3347,7 @@ def evidence_atos_view(request, evidence_id):
     })
 
 
-def _genesis_event_for(evidence):
+def _genesis_event_for(evidence: Evidence | None) -> EventType:
     """Evento de génese aplicável à evidência, por proveniência (ADR-0016 §2).
 
     Fina ponte para a fonte única ``custody_transitions.genesis_event_for``
@@ -3350,7 +3364,7 @@ def _genesis_event_for(evidence):
     )
 
 
-def _register_seizure_genesis(request, ev):
+def _register_seizure_genesis(request: HttpRequest, ev: Evidence) -> None:
     """Registar é apreender: o 1.º evento de génese da prova é
     criado no PRÓPRIO ato de registo do item — não há prova registada sem ficar
     sob custódia (ADR-0016 §2).
@@ -3409,7 +3423,7 @@ def _register_seizure_genesis(request, ev):
     )
 
 
-def _valid_next_events(events, evidence=None):
+def _valid_next_events(events: list[ChainOfCustody], evidence: Evidence | None = None) -> list[tuple[str, str]]:
     """(value, label) dos ``EventType`` que as guardas de ``ChainOfCustody.clean()``
     aceitariam como PRÓXIMO evento, dado o ledger atual e (na génese) a
     proveniência da evidência — ADR-0016 §2.
@@ -3437,7 +3451,7 @@ def _valid_next_events(events, evidence=None):
     ]
 
 
-def _flatten_validation_error(exc):
+def _flatten_validation_error(exc: Exception) -> list[str]:
     """Lista de mensagens legíveis a partir de um ValidationError (DRF ou Django)."""
     detail = getattr(exc, 'detail', None)
     msgs = []
@@ -3454,8 +3468,8 @@ def _flatten_validation_error(exc):
 
 
 def _append_custody_events(
-    request, base_payload, targets, *, extra_details=None, propagate=False, on_records=None
-):
+    request: HttpRequest, base_payload: dict[str, object] | Callable[[Evidence], dict[str, object]], targets: list[Evidence], *, extra_details: dict[str, object] | Callable[[ChainOfCustody], dict[str, object]] | None = None, propagate: bool = False, on_records: Callable[[list[ChainOfCustody]], None] | None = None
+) -> list[str]:
     """Regista UM evento de custódia por alvo via ``ChainOfCustodySerializer``,
     em transação atómica com auditoria por registo — esqueleto ÚNICO do registo
     em lote (handoff, formulário da timeline, génese no registo do item, receção
@@ -3477,7 +3491,7 @@ def _append_custody_events(
 
     from core.serializers import ChainOfCustodySerializer
 
-    def _run():
+    def _run() -> None:
         created = []
         for tgt in targets:
             payload = (
@@ -3515,7 +3529,7 @@ def _append_custody_events(
     return []
 
 
-def _register_custody_event(request, evidence, targets):
+def _register_custody_event(request: HttpRequest, evidence: Evidence, targets: list[Evidence]) -> list[str]:
     """Regista um evento de custódia em ``targets`` (evidência + opcionalmente
     sub-componentes) via ``ChainOfCustodySerializer``, numa transação atómica.
 
@@ -3571,7 +3585,7 @@ def _register_custody_event(request, evidence, targets):
 
 
 @jwt_cookie_user
-def custody_timeline_view(request, evidence_id):
+def custody_timeline_view(request: HttpRequest, evidence_id: int) -> HttpResponse:
     """Timeline geo-rastreável + registo de eventos de custódia (Fase 3, WI-A).
 
     GET renderiza o trajeto + ledger + formulário inline de registo (só com os
@@ -3670,7 +3684,7 @@ _CUSTODY_SORTS = {
 }
 
 
-def _readable_custody(user, pk):
+def _readable_custody(user: UserOrAnon, pk: object) -> ChainOfCustody | None:
     """Evento de custódia por ``pk`` se o utilizador pode LER o seu item na consola
     (item-level ``can_view_evidence`` OU processo da instituição —
     :func:`_readable_evidence`); ``None`` caso contrário."""
@@ -3681,20 +3695,20 @@ def _readable_custody(user, pk):
     )
 
 
-def _custody_anchor_url(rec):
+def _custody_anchor_url(rec: ChainOfCustody) -> str:
     """URL canónica de um EVENTO de custódia: a timeline do seu item, ancorada e
     realçada no próprio evento (``#evt-<seq>`` + ``:target`` no CSS) — o nível
     "evento" preserva-se sem página própria nem painel lateral."""
     return f'/evidences/{rec.evidence_id}/custody/#evt-{rec.sequence}'
 
 
-def _custody_states_memo(user, lens):
+def _custody_states_memo(user: UserOrAnon, lens: access.Lens) -> Callable[[], dict[int, str]]:
     """Estados legais derivados da lente, calculados UMA vez por request e
     partilhados entre o filtro computado e a decoração (auditoria D9) —
     devolve uma função sem argumentos com memoização."""
     memo = {}
 
-    def states():
+    def states() -> dict[int, str]:
         if 'v' not in memo:
             memo['v'] = analytics.legal_states_by_evidence(_lens_custody(user, lens))
         return memo['v']
@@ -3702,7 +3716,7 @@ def _custody_states_memo(user, lens):
     return states
 
 
-def _decorate_custody_rows(events, states):
+def _decorate_custody_rows(events: list[ChainOfCustody], states: dict[int, str]) -> None:
     """Decoração das linhas da lista de custódias: rótulos base + estado legal
     do item (badge/bolinha mobile), marcadores de pendência dos ATOS (validação
     + prazo da perícia; bulk só na página) e destino da navegação (timeline
@@ -3734,7 +3748,7 @@ def _decorate_custody_rows(events, states):
 
 
 @jwt_cookie_user
-def custody_list_view(request):
+def custody_list_view(request: HttpRequest) -> HttpResponse:
     """Lista do ledger de custódia — server-rendered (Fase 3) via gerador único.
 
     Filtros por coluna iguais às ocorrências, INCLUSIVE Instituição titular e
@@ -3742,7 +3756,7 @@ def custody_list_view(request):
     estado legal no telemóvel (mesma fonte das evidências)."""
     user = request.user
 
-    def _legacy_target(pk):
+    def _legacy_target(pk: int) -> str | None:
         rec = _readable_custody(user, pk)
         return _custody_anchor_url(rec) if rec else None
 
@@ -3759,7 +3773,7 @@ def custody_list_view(request):
 
     _lens_states = _custody_states_memo(user, lens)
 
-    def decorate_custody(events):
+    def decorate_custody(events: list[ChainOfCustody]) -> None:
         _decorate_custody_rows(events, _lens_states())
 
     columns = [
@@ -3841,7 +3855,7 @@ def custody_list_view(request):
 # instituições) e a célula do item navega para a ficha.
 # ---------------------------------------------------------------------------
 
-def _prazo_badge_of(rec, eventos, deadlines):
+def _prazo_badge_of(rec: ChainOfCustody, eventos: list[ChainOfCustody], deadlines: dict[int, dict[str, object] | None]) -> dict[str, str] | None:
     """Badge compacto da coluna «Prazo» de uma linha dos atos (None → '—').
 
     Despacho: o estatuto VIGENTE (mesma derivação dos badges por item —
@@ -3874,7 +3888,7 @@ def _prazo_badge_of(rec, eventos, deadlines):
     return None
 
 
-def _decorate_act_rows(events):
+def _decorate_act_rows(events: list[ChainOfCustody]) -> None:
     """Decoração das linhas da grelha dos atos: rótulos base do ledger
     (``_decorate_events`` — autoridade, hash curto), badge do ATO (rótulo do
     próprio enum, cor na fonte única de labels), estatuto do prazo por linha
@@ -3906,7 +3920,7 @@ def _decorate_act_rows(events):
 
 
 @jwt_cookie_user
-def authority_acts_view(request):
+def authority_acts_view(request: HttpRequest) -> HttpResponse:
     """Atos de autoridade — consulta GLOBAL, server-rendered (grupo Análise).
 
     Grelha do gerador único sobre o ledger visível à lente ativa
@@ -4008,7 +4022,7 @@ _AUDIT_SORTS = {
 
 
 @jwt_cookie_user
-def audit_console_view(request):
+def audit_console_view(request: HttpRequest) -> HttpResponse:
     """Consola de Auditoria & Integridade (UX 2026-06) — substitui o placeholder
     legado ``investigation_report``.
 
@@ -4032,7 +4046,7 @@ def audit_console_view(request):
     evidence_ids = list(_lens_evidences(user, lens).values_list('id', flat=True))
     qs = access.scope_audit_logs(user).select_related('user')
 
-    def _alvo_filter(qs_in, _request, value):
+    def _alvo_filter(qs_in: QuerySet[AuditLog], _request: HttpRequest, value: str) -> QuerySet[AuditLog]:
         # resource_id é inteiro: input não-numérico devolve vazio (honesto),
         # nunca um lookup ORM inválido (validação no fn — gate de texto do grid).
         return qs_in.filter(resource_id=int(value)) if value.isdigit() else qs_in.none()
@@ -4094,7 +4108,7 @@ def audit_console_view(request):
 
 
 @jwt_cookie_user
-def reports_view(request):
+def reports_view(request: HttpRequest) -> HttpResponse:
     """Guias de transporte (REMESSAS) — lista server-rendered via gerador único.
     Cada linha descarrega o PDF re-gerado em ``/guias/<code>/pdf/``; o Processo liga
     ao detalhe da ocorrência. Âmbito = guias das ocorrências visíveis na consola
@@ -4108,7 +4122,7 @@ def reports_view(request):
         .annotate(n_itens=Count('events', distinct=True))
     )
 
-    def decorate_guias(items):
+    def decorate_guias(items: list[GuiaTransporte]) -> None:
         for g in items:
             g.occ_label = g.occurrence.number or g.occurrence.code or f'#{g.occurrence_id}'
             g.occ_href = f'/occurrences/{g.occurrence_id}/'
@@ -4156,7 +4170,7 @@ def reports_view(request):
 
 
 @jwt_cookie_user
-def occurrence_intake_view(request, occurrence_id):
+def occurrence_intake_view(request: HttpRequest, occurrence_id: int) -> HttpResponse:
     """Página de check-list de RECEÇÃO (2.ª metade do handoff, ADR-0016 v2).
 
     Recebe a prova em trânsito: regista um ``RECEPCAO_CUSTODIA`` por item marcado,
@@ -4223,7 +4237,7 @@ def occurrence_intake_view(request, occurrence_id):
     # escrita (can_append_custody no serializer) fica intacto.
     member_inst_ids = set(access._active_institution_ids(user))
 
-    def _destino(ev, in_transit):
+    def _destino(ev: Evidence, in_transit: bool) -> Institution | None:
         """Instituição de DESTINO do encaminhamento pendente (último evento do
         item em trânsito; já em memória via ``related``) — ``None`` fora dele."""
         if not in_transit:
@@ -4281,7 +4295,7 @@ def occurrence_intake_view(request, occurrence_id):
     )
 
 
-def _intake_world(occurrence):
+def _intake_world(occurrence: Occurrence) -> tuple[list[Evidence], dict[int, str], dict[int, list[ChainOfCustody]]]:
     """Itens da ocorrência + estado legal DERIVADO (ADR-0015) + eventos agrupados.
 
     Agrupamento ledger→estado na fonte única (uma só query para TODOS os
@@ -4297,7 +4311,7 @@ def _intake_world(occurrence):
     return evidences, {ev.id: states.get(ev.id, '') for ev in evidences}, eventos_por_ev
 
 
-def _reception_institutions(evidences, state_by_evidence, eventos_por_ev):
+def _reception_institutions(evidences: list[Evidence], state_by_evidence: dict[int, str], eventos_por_ev: dict[int, list[ChainOfCustody]]) -> list[Institution]:
     """Instituição(ões) de DESTINO onde a prova é recebida — derivadas do último
     encaminhamento de cada item em trânsito. Em trânsito ⇒ o último evento É o
     ENCAMINHAMENTO_CUSTODIA (derive_legal_state), logo o seu
@@ -4316,7 +4330,7 @@ def _reception_institutions(evidences, state_by_evidence, eventos_por_ev):
     return out
 
 
-def _register_intake(request, evidences, state_by_evidence, eventos_por_ev, occurrence):
+def _register_intake(request: HttpRequest, evidences: list[Evidence], state_by_evidence: dict[int, str], eventos_por_ev: dict[int, list[ChainOfCustody]], occurrence: Occurrence) -> tuple[list[str], int]:
     """Regista a RECEÇÃO (fase 2 do handoff, ADR-0016 v2) dos itens em trânsito
     marcados no POST, em lote atómico, reusando o ChainOfCustodySerializer. O
     destino/custódio e (em instituição fixa) a coordenada são herdados do
@@ -4342,7 +4356,7 @@ def _register_intake(request, evidences, state_by_evidence, eventos_por_ev, occu
             0,
         )
 
-    def _payload(ev):
+    def _payload(ev: Evidence) -> dict[str, object]:
         # Rótulo de local = nome da instituição de destino (herdado do
         # encaminhamento). O FK custodian_institution identifica o
         # destino com precisão; location_name é só a etiqueta legível.
@@ -4388,7 +4402,7 @@ def _register_intake(request, evidences, state_by_evidence, eventos_por_ev, occu
 
 
 @jwt_cookie_user
-def stats_view(request):
+def stats_view(request: HttpRequest) -> HttpResponse:
     """Estatísticas orientadas a FLUXO (UX 2026-06): estado ATUAL derivado (stock),
     throughput por período, prazos/SLA e dwell time da custódia — em vez de
     contagens cumulativas point-in-time que não diziam quando/de quê/filtrado por
@@ -4427,7 +4441,7 @@ def stats_view(request):
 
 
 @jwt_cookie_user
-def settings_view(request):
+def settings_view(request: HttpRequest) -> HttpResponse:
     """Perfil, âmbito de acesso REAL, sessão e preferências (item 19).
 
     A página deixa de ser só-leitura: o utilizador edita os SEUS contactos
@@ -4501,12 +4515,12 @@ def settings_view(request):
 # ---------------------------------------------------------------------------
 
 
-def not_found_view(request, exception=None):
+def not_found_view(request: HttpRequest, exception: Exception | None = None) -> HttpResponse:
     """Handler 404 — página amigável em vez do default do Django."""
     return render(request, '404.html', status=404)
 
 
-def forbidden_view(request, exception=None):
+def forbidden_view(request: HttpRequest, exception: Exception | None = None) -> HttpResponse:
     """Handler 403 — página com casca em vez do texto cru do Django.
 
     A mensagem do ``raise PermissionDenied('…')`` chega ao template (as views
@@ -4515,7 +4529,7 @@ def forbidden_view(request, exception=None):
     return render(request, '403.html', {'exception_message': message}, status=403)
 
 
-def server_error_view(request):
+def server_error_view(request: HttpRequest) -> HttpResponse:
     """Handler 500 — página amigável para erros inesperados."""
     return render(request, '500.html', status=500)
 
@@ -4525,26 +4539,26 @@ def server_error_view(request):
 # ---------------------------------------------------------------------------
 
 
-def occurrence_singular_redirect(_request):
+def occurrence_singular_redirect(_request: HttpRequest) -> HttpResponsePermanentRedirect:
     """/occurrence/ → /occurrences/"""
     return HttpResponsePermanentRedirect('/occurrences/')
 
 
-def occurrence_detail_singular_redirect(_request, occurrence_id):
+def occurrence_detail_singular_redirect(_request: HttpRequest, occurrence_id: int) -> HttpResponsePermanentRedirect:
     """/occurrence/<id>/ → /occurrences/<id>/"""
     return HttpResponsePermanentRedirect(f'/occurrences/{occurrence_id}/')
 
 
-def evidence_singular_redirect(_request):
+def evidence_singular_redirect(_request: HttpRequest) -> HttpResponsePermanentRedirect:
     """/evidence/ → /evidences/"""
     return HttpResponsePermanentRedirect('/evidences/')
 
 
-def custody_singular_redirect(_request):
+def custody_singular_redirect(_request: HttpRequest) -> HttpResponsePermanentRedirect:
     """/custody/ → /custodies/"""
     return HttpResponsePermanentRedirect('/custodies/')
 
 
-def custody_evidence_redirect(_request, evidence_id):
+def custody_evidence_redirect(_request: HttpRequest, evidence_id: int) -> HttpResponsePermanentRedirect:
     """/evidence/<id>/custody/ → /evidences/<id>/custody/"""
     return HttpResponsePermanentRedirect(f'/evidences/{evidence_id}/custody/')
