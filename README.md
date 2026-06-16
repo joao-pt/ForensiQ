@@ -74,9 +74,9 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - Imutabilidade ao nível DB (PostgreSQL trigger `prevent_evidence_modification`) — UPDATE/DELETE bloqueados em Evidence e ChainOfCustody
 - Lookup IMEI (imeidb.xyz) e VIN (redirect vindecoder)
 - Validadores forenses: IMEI Luhn, VIN ISO 3779, IMSI MCC+MNC
-- PDF export forense (`/api/evidences/<id>/pdf/`) com ReportLab + declaração ISO/IEC 27037
-- DatabaseCache (PostgreSQL Neon) para `/api/stats/dashboard/` e lookups
-- Throttling (5 req/min) em endpoints sensíveis
+- Guias de transporte em PDF (`/guias/<code>/pdf/`) com manifesto de remessa (origem/destino/itens/hashes) e QR de verificação
+- DatabaseCache (PostgreSQL Neon) para `/api/stats/dashboard/`, lookups e contadores IMEIDB
+- Throttling (5 req/min login/refresh/logout, dedicado por endpoint sensível)
 
 ### Frontend (Django templates + HTMX + Leaflet)
 - Mobile-first, touch targets ≥48px (WCAG 2.1 AA)
@@ -92,7 +92,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
   - `/evidences/` — lista com badges por tipo, GPS/foto/sub indicators
   - `/evidences/new/` — formulário com selector de tipo visual, captura de foto (câmara nativa + upload), GPS, lookup IMEI/VIN, sub-componentes recursivos
   - `/evidences/<id>/` — detalhe com hash SHA-256, foto, metadados, sub-componentes integrantes, custódia actual
-  - `/evidences/<id>/custody/` — timeline cronológica do ledger de eventos, modais de acto (génese, validação, despacho, encaminhamento/receção, restituição) restritos por função e pelas guardas de transição (`core/policy`), com hashes encadeados
+  - `/evidences/<id>/custody/` — timeline cronológica do ledger de eventos, modais de acto (génese, validação, despacho, movimentação em dois tempos, restituição) restritos por função e pelas guardas de transição (`core/policy`), com hashes encadeados
   - `/custodies/` — todas as transições com filtros (mobile compacto, desktop completo)
   - `/stats/` — dashboard agregado
   - `/reports/` — guias de transporte (PDF, ADR-0012)
@@ -328,4 +328,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 13 jun 2026 (Sem. 14) · ≈967 testes de unidade/integração + 37 E2E (confirmar contagem exacta com `pytest` local) · gate de cobertura CI 80%*
+*Última actualização: 15 jun 2026 (Sem. 15) · ≈967 testes de unidade/integração + E2E (confirmar contagem exacta com `pytest` local) · gate de cobertura CI 80% · deploy Fly.io com GitHub Actions CI*

@@ -6,6 +6,8 @@ Accepted — 2026-06-01
 
 Complementa o **ADR-0016** (modelo de identificação e génese da prova/custódia) e supera o ponto em aberto #1 desse ADR (papéis). A nomenclatura dos `EventType` é a definida no ADR-0016. Substitui o modelo de **2 perfis** (`AGENT`/`EXPERT`) por um modelo de **função + credencial + instituições**, com controlo de acesso *need-to-know* **derivado do ledger** de custódia. Sem retrocompatibilidade; a demo é regerada.
 
+> **Nota de superveniência.** Os nomes dos `EventType` para movimentação foram refatorados após a data deste ADR: `TRANSFERENCIA_CUSTODIA` e `ASSUNCAO_CUSTODIA` passaram a `ENCAMINHAMENTO_CUSTODIA` e `RECEPCAO_CUSTODIA` (implementados em Sem. 15), explicitando o modelo de dois tempos (saída em trânsito / chegada com confirmação). Os valores antigos mantêm-se no enum para integridade de ledgers históricos. A semântica de *push* vs *pull* permanece válida; os nomes reais no código são `ENCAMINHAMENTO_CUSTODIA` (`src/backend/core/policy/event_states.py:74`) e `RECEPCAO_CUSTODIA` (`:75`).
+
 ## Data
 
 2026-06-01
