@@ -11,10 +11,13 @@ Entidades principais:
 Conformidade: ISO/IEC 27037 — hash SHA-256 em metadados de prova.
 """
 
+from __future__ import annotations
+
 import hashlib
 import uuid
 from datetime import UTC
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -49,8 +52,13 @@ from core.policy.event_states import (
 )
 from core.validators import validate_gps_coherence, validate_imei
 
+if TYPE_CHECKING:
+    from typing import NoReturn
 
-def gps_quantum():
+    from django.core.files.base import File
+
+
+def gps_quantum() -> Decimal:
     """Quantum de quantização GPS (ADR-0013) — ``Decimal`` derivado de
     ``settings.GPS_DECIMAL_PLACES`` (default 7 casas). Fonte ÚNICA: o valor
     quantizado ENTRA no ``record_hash``, logo o servidor e o perito têm de
@@ -59,7 +67,9 @@ def gps_quantum():
     return Decimal(1).scaleb(-settings.GPS_DECIMAL_PLACES)
 
 
-def quantize_gps_pair(lat, lng):
+def quantize_gps_pair(
+    lat: Decimal | None, lng: Decimal | None
+) -> tuple[Decimal | None, Decimal | None]:
     """Valida a coerência do par GPS e devolve-o quantizado ao quantum canónico
     (ADR-0013). Operação compósita ÚNICA dos ``clean()`` com coordenadas que
     entram (diretamente, ou copiadas na receção) na cadeia de hash — um terceiro
@@ -72,7 +82,7 @@ def quantize_gps_pair(lat, lng):
     )
 
 
-def gps_lat_field(verbose_name):
+def gps_lat_field(verbose_name: str) -> models.DecimalField:
     """``DecimalField`` canónico de LATITUDE (ADR-0013): 10 dígitos, precisão
     única ``settings.GPS_DECIMAL_PLACES``, gama ±90. Fonte única do par GPS
     declarado pelos modelos georreferenciados — a precisão vem da MESMA
@@ -87,7 +97,7 @@ def gps_lat_field(verbose_name):
     )
 
 
-def gps_lng_field(verbose_name):
+def gps_lng_field(verbose_name: str) -> models.DecimalField:
     """``DecimalField`` canónico de LONGITUDE (gama ±180); ver :func:`gps_lat_field`."""
     return models.DecimalField(
         max_digits=10,
@@ -113,7 +123,7 @@ MAX_SEQUENCE_ATTEMPTS = 10  # Audit 2026-05-18 §3 N10 — retry de AuditLog.seq
 _AUDITLOG_SEQUENCE_LOCK_KEY = 0x41554453
 
 
-def _is_unique_collision(exc, *fields):
+def _is_unique_collision(exc: Exception, *fields: str) -> bool:
     """O ``IntegrityError`` é uma colisão de unicidade num dos campos dados?
 
     Predicado único dos retry-loops de geração de código/sequência (auditoria
@@ -134,15 +144,17 @@ class AppendOnlyModel(models.Model):
     class Meta:
         abstract = True
 
-    def _assert_insert_only(self):
+    def _assert_insert_only(self) -> None:
         if self.pk is not None:
             raise ValidationError(self.immutable_save_msg)
 
-    def delete(self, *args, **kwargs):
+    def delete(self, *args, **kwargs) -> NoReturn:
         raise ValidationError(self.immutable_delete_msg)
 
 
-def _next_yearly_code(prefix, model, year, field='code', width=5):
+def _next_yearly_code(
+    prefix: str, model: type[models.Model], year: int, field: str = 'code', width: int = 5
+) -> str:
     """Gera o próximo código ``PREFIX-YYYY-N…`` para o ano indicado.
 
     A unicidade é garantida pelo constraint único no campo ``code``; em
@@ -173,7 +185,7 @@ def _next_yearly_code(prefix, model, year, field='code', width=5):
     return f'{prefix}-{year}-{seq:0{width}d}'
 
 
-def _next_local_index(evidence):
+def _next_local_index(evidence: Evidence) -> int:
     """Próximo índice local (sufixo do código hierárquico) — ADR-0016 §1.
 
     Item-raiz → posição entre os itens-raiz da ocorrência; sub-componente →
@@ -191,7 +203,7 @@ def _next_local_index(evidence):
     return (last or 0) + 1
 
 
-def _derive_evidence_code(evidence):
+def _derive_evidence_code(evidence: Evidence) -> str:
     """Código hierárquico completo do item (ADR-0016 §1).
 
     Item-raiz: ``{occurrence.code}.{local_index}``. Sub-componente:
@@ -212,7 +224,7 @@ def _derive_evidence_code(evidence):
 ALLOWED_IMAGE_FORMATS = {'JPEG', 'PNG', 'WEBP'}
 
 
-def validate_image_max_size(value):
+def validate_image_max_size(value: File) -> None:
     """
     Validação de upload conforme OWASP:
     - Tamanho <= ``settings.MAX_IMAGE_UPLOAD_BYTES`` (proteção DoS; default 25 MB).
@@ -254,7 +266,7 @@ def validate_image_max_size(value):
         )
 
 
-def _strip_exif(photo_file):
+def _strip_exif(photo_file: File) -> File:
     """Remove metadados EXIF/IPTC/XMP de uma fotografia carregada.
 
     Devolve um ``ContentFile`` com os bytes reconstruídos sem metadados,
@@ -365,19 +377,19 @@ class User(AbstractUser):
         verbose_name_plural = 'Utilizadores'
         ordering = ['username']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.get_full_name() or self.username} ({self.get_profile_display()})'
 
     @property
-    def is_agent(self):
+    def is_agent(self) -> bool:
         return self.profile == self.Profile.FIRST_RESPONDER
 
     @property
-    def is_expert(self):
+    def is_expert(self) -> bool:
         return self.profile == self.Profile.FORENSIC_EXPERT
 
     @property
-    def has_national_clearance(self):
+    def has_national_clearance(self) -> bool:
         """Habilitação de leitura nacional (credencial, não função) — ADR-0017."""
         return self.clearance == self.Clearance.NACIONAL
 
@@ -458,22 +470,22 @@ class Institution(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.short_label} ({self.get_type_display()})'
 
     @property
-    def short_label(self):
+    def short_label(self) -> str:
         """Formato CURTO canónico — sigla, senão nome. Fonte única da regra
         «sigla ou nome» (colunas, filtros, mensagens, caixa de receção)."""
         return self.sigla or self.name
 
     @property
-    def option_label(self):
+    def option_label(self) -> str:
         """Rótulo canónico dos ``<option>`` de instituição nos selects de
         destino/custódia — fonte única do formato (auditoria D65)."""
         return str(self)
 
-    def clean(self):
+    def clean(self) -> None:
         super().clean()
         # Coerência + quantização (ADR-0013) na operação compósita única — a
         # coordenada da instituição entra no hash da receção (coincide bit a bit).
@@ -509,7 +521,7 @@ class InstitutionMembership(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.user} @ {self.institution}'
 
 
@@ -561,12 +573,12 @@ class Portador(models.Model):
         verbose_name_plural = 'Portadores'
         ordering = ['apelido', 'nome']
 
-    def __str__(self):
+    def __str__(self) -> str:
         nome = f'{self.nome} {self.apelido}'.strip()
         return f'{nome} ({self.matricula})' if self.matricula else nome
 
     @property
-    def option_label(self):
+    def option_label(self) -> str:
         """Rótulo canónico dos ``<option>`` de portador (auditoria D65):
         apelido-primeiro (casa com a ordenação) + matrícula + posto."""
         out = f'{self.apelido}, {self.nome} · {self.matricula}'
@@ -604,7 +616,7 @@ class CrimeCategoria(models.Model):
         verbose_name_plural = 'Categorias de crime (N1)'
         ordering = ['codigo']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.codigo} — {self.nome}'
 
 
@@ -631,7 +643,7 @@ class CrimeSubcategoria(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.codigo} — {self.nome}'
 
 
@@ -661,12 +673,12 @@ class CrimeTipo(models.Model):
         verbose_name_plural = 'Tipos de crime (N3)'
         ordering = ['codigo']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.codigo} — {self.descritivo}'
 
 
 class PoliticaCriminalManager(models.Manager):
-    def vigente(self):
+    def vigente(self) -> PoliticaCriminalPrioridade | None:
         """Devolve a versão activa da Lei de Política Criminal, ou ``None``."""
         return self.filter(is_active=True).first()
 
@@ -705,11 +717,11 @@ class PoliticaCriminalPrioridade(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         marca = ' [activa]' if self.is_active else ''
         return f'{self.lei} ({self.biennium}){marca}'
 
-    def classifica_prioritaria(self, crime_tipo_id):
+    def classifica_prioritaria(self, crime_tipo_id: int | None) -> bool:
         """True se o tipo está no eixo INVESTIGACAO (operativo) desta versão."""
         if crime_tipo_id is None:
             return False
@@ -748,7 +760,7 @@ class PrioridadeCrimeTipo(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.politica_id} · {self.crime_tipo_id} · {self.eixo}'
 
 
@@ -834,18 +846,18 @@ class Occurrence(models.Model):
         ordering = ['-date_time']
 
     @property
-    def display_label(self):
+    def display_label(self) -> str:
         """Etiqueta de exibição do processo — «NUIPC, senão código, senão #pk»
         (fonte ÚNICA do fallback, auditoria D42; PDF e vistas consomem daqui)."""
         return self.number or self.code or f'#{self.pk}'
 
-    def __str__(self):
+    def __str__(self) -> str:
         parts = [self.number]
         if self.code and self.code != self.number:
             parts.append(self.code)
         return f'Ocorrência {" · ".join(parts)}'
 
-    def clean(self):
+    def clean(self) -> None:
         super().clean()
         # Normalizar número da ocorrência (collapse spaces + strip)
         if self.number:
@@ -859,7 +871,7 @@ class Occurrence(models.Model):
         if self.pk is None and self.crime_type_id is not None:
             self._aplicar_prioridade()
 
-    def _aplicar_prioridade(self):
+    def _aplicar_prioridade(self) -> None:
         """Deriva ``priority``/``priority_source`` do ``crime_type`` (ADR-0014).
 
         Eixo operativo = INVESTIGACAO (Art. 5.º) da versão activa da Política
@@ -880,7 +892,7 @@ class Occurrence(models.Model):
             self.priority = self.Priority.NORMAL
             self.priority_source = self.PrioritySource.LEI
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """Chama full_clean e atribui ``code`` (OC-YYYY-NNNN) na criação.
 
         O ano é o de REGISTO (``timezone.now()``), não o do crime — ADR-0016 §1;
@@ -915,7 +927,7 @@ class Occurrence(models.Model):
 class EvidenceQuerySet(models.QuerySet):
     """QuerySet de Evidence com helpers comuns."""
 
-    def with_current_state(self):
+    def with_current_state(self) -> EvidenceQuerySet:
         """Anota cada evidência com ``current_event_type`` (último evento).
 
         Com o ledger de eventos (ADR-0015) deixou de existir um campo de
@@ -937,7 +949,7 @@ class EvidenceQuerySet(models.QuerySet):
         return self.annotate(current_event_type=Subquery(latest_event))
 
 
-def evidence_photo_path(instance, filename):
+def evidence_photo_path(instance: Evidence, filename: str) -> str:
     """Caminho de upload: evidencias/<occurrence_code>/<uuid>_<filename>.
 
     Usa o ``code`` da ocorrência (formato OCC-YYYY-NNNNN, gerado pelo
@@ -949,7 +961,7 @@ def evidence_photo_path(instance, filename):
     return f'evidencias/{instance.occurrence.code}/{uuid.uuid4().hex[:8]}_{filename}'
 
 
-def _evidence_type_choices():
+def _evidence_type_choices() -> list[tuple[str, str]]:
     """Choices VIVOS do catálogo editável (``EvidenceTypeRef``, ADR-0018) para o
     campo ``Evidence.type``. Callable: ``get_type_display``/``full_clean``/admin
     reflectem a tabela sem novo deploy; o *slug* gravado mantém-se a verdade do
@@ -1243,19 +1255,19 @@ class Evidence(AppendOnlyModel):
         ]
 
     @property
-    def display_code(self):
+    def display_code(self) -> str:
         """Etiqueta de exibição do item — «código, senão #pk» (fonte ÚNICA do
         fallback, auditoria D42; PDF e vistas consomem daqui)."""
         return self.code or f'#{self.pk}'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Item {self.display_code} — {self.get_type_display()} ({self.occurrence.number})'
 
     # ------------------------------------------------------------------
     # Hierarquia pai-filho
     # ------------------------------------------------------------------
 
-    def get_depth(self):
+    def get_depth(self) -> int:
         """Devolve o nível na árvore (1 = raiz, 2 = filho de raiz, 3 = neto).
 
         Percorre `parent_evidence` para cima até à raiz. Inclui um guard
@@ -1280,7 +1292,7 @@ class Evidence(AppendOnlyModel):
             node = node.parent_evidence
         return depth
 
-    def _parent_contains_self(self):
+    def _parent_contains_self(self) -> bool:
         """Verifica se `self` aparece na cadeia ascendente do parent (ciclo)."""
         if self.parent_evidence is None or self.pk is None:
             return False
@@ -1300,7 +1312,7 @@ class Evidence(AppendOnlyModel):
     # Hash de integridade
     # ------------------------------------------------------------------
 
-    def _compute_photo_hash(self):
+    def _compute_photo_hash(self) -> str:
         """SHA-256 do conteúdo binário da fotografia (ou '' se não houver).
 
         Usa ``chunks()`` e evita fechar o stream — o ``ImageField.pre_save``
@@ -1320,7 +1332,7 @@ class Evidence(AppendOnlyModel):
             pass
         return hasher.hexdigest()
 
-    def compute_integrity_hash(self):
+    def compute_integrity_hash(self) -> str:
         """
         Calcula hash SHA-256 dos metadados + bytes da fotografia da evidência.
         Conforme ISO/IEC 27037 — integridade total (metadados e artefacto).
@@ -1360,7 +1372,7 @@ class Evidence(AppendOnlyModel):
         )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """
         Override: apenas permite criação (imutável após registo).
         Calcula o hash de integridade e atribui o ``code`` hierárquico
@@ -1409,7 +1421,7 @@ class Evidence(AppendOnlyModel):
     # Validação (clean)
     # ------------------------------------------------------------------
 
-    def clean(self):
+    def clean(self) -> None:
         super().clean()
         validate_gps_coherence(self.gps_lat, self.gps_lng)
         if self.timestamp_seizure and self.timestamp_seizure > timezone.now():
@@ -1462,7 +1474,7 @@ class Evidence(AppendOnlyModel):
         # --- Validadores específicos por tipo ---
         self._validate_type_specific_data()
 
-    def _validate_type_specific_data(self):
+    def _validate_type_specific_data(self) -> None:
         """Valida os campos de ``type_specific_data`` conforme o tipo.
 
         Fonte única: :mod:`core.evidence_field_config`. Para cada campo do tipo
@@ -1486,7 +1498,7 @@ class Evidence(AppendOnlyModel):
 # ---------------------------------------------------------------------------
 
 
-def _digital_device_imei_validator(value):
+def _digital_device_imei_validator(value: str) -> None:
     r"""Aceita string vazia (campo opcional) ou IMEI Luhn-válido.
 
     NOTA: o modelo DigitalDevice foi removido no T05 (subsumido por
@@ -1605,7 +1617,7 @@ class EvidenceFieldDef(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.evidence_type or "(transversal)"}.{self.key}'
 
 
@@ -1632,7 +1644,7 @@ class FieldOption(models.Model):
             ),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.field.key}: {self.value}'
 
 
@@ -1667,7 +1679,7 @@ class EvidenceTypeRef(models.Model):
         verbose_name_plural = 'Tipos de evidência (catálogo)'
         ordering = ['order', 'code']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'{self.code} — {self.label}'
 
 
@@ -1716,7 +1728,7 @@ GENESIS_REFUSAL_MESSAGES = {
 GENESIS_HASH = '0' * 64
 
 
-def _hash_escape(value):
+def _hash_escape(value: str | None) -> str:
     r"""Escapa separadores do hash em campos de texto livre (ADR-0013).
 
     Ordem fixa e irreversível: backslash PRIMEIRO, depois os separadores
@@ -1726,7 +1738,7 @@ def _hash_escape(value):
     return (value or '').replace('\\', '\\\\').replace('|', '\\|').replace(',', '\\,')
 
 
-def _hash_str(value):
+def _hash_str(value: object) -> str:
     """Serializa um campo do hash: None → '' (dado em falta), determinístico."""
     return '' if value is None else str(value)
 
@@ -2007,7 +2019,7 @@ class ChainOfCustody(AppendOnlyModel):
         'Registos de cadeia de custódia são imutáveis. Não é permitido eliminar registos.'
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         # Flag DERIVADA (não-coluna): assinala VALIDACAO fora do prazo de 72h.
         # Calculada em clean() (facto juridicamente relevante, não bloqueia).
@@ -2015,13 +2027,13 @@ class ChainOfCustody(AppendOnlyModel):
         # para que cada registo do ledger tenha a sua própria flag.
         self.validation_overdue = False
 
-    def __str__(self):
+    def __str__(self) -> str:
         ev_label = self.evidence.code if self.evidence_id else f'#{self.evidence_id}'
         evento = self.get_event_type_display() if self.event_type else '(evento)'
         custodio = self.get_custodian_type_display() if self.custodian_type else '—'
         return f'Item {ev_label}: {evento} → {custodio}'
 
-    def clean(self):
+    def clean(self) -> None:
         """Guardas mínimas do ledger de eventos (ADR-0015) + quantização GPS.
 
         Não é um grafo de transições: aplica apenas as restrições legais
@@ -2061,7 +2073,7 @@ class ChainOfCustody(AppendOnlyModel):
         if self.act_declared_at is not None:
             self.act_declared_at = self.act_declared_at.astimezone(UTC)
 
-    def _clean_genesis(self, prior):
+    def _clean_genesis(self, prior: list[ChainOfCustody]) -> None:
         """Génese (1.º evento): exatamente um evento de génese, na posição 1,
         coerente com a proveniência da evidência (ADR-0016 §2). A coerência é
         por igualdade estrita com ``genesis_event_for`` — a fonte única decide
@@ -2117,7 +2129,7 @@ class ChainOfCustody(AppendOnlyModel):
                 {'event_type': 'Um evento de génese só pode ser o primeiro evento.'}
             )
 
-    def _clean_terminal_fecha_ledger(self, prior_types):
+    def _clean_terminal_fecha_ledger(self, prior_types: list[str]) -> None:
         """Terminais fecham o ledger — nenhum evento depois de
         RESTITUICAO/DESTRUICAO, em QUALQUER posição (semântica de presença,
         ADR-0015; robusto a sequences fora de ordem hipotéticas)."""
@@ -2131,7 +2143,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def _clean_validacao(self, prior, prior_types):
+    def _clean_validacao(self, prior: list[ChainOfCustody], prior_types: list[str]) -> None:
         """VALIDACAO_APREENSAO: exige apreensão prévia, uma vez, ≤72h (assinalado
         na flag derivada ``validation_overdue`` — facto relevante, não bloqueia)."""
         if self.event_type != EventType.VALIDACAO_APREENSAO:
@@ -2152,7 +2164,7 @@ class ChainOfCustody(AppendOnlyModel):
         ts = self.act_declared_at or self.timestamp or timezone.now()
         self.validation_overdue = validation_acted_late(seizure.timestamp, ts)
 
-    def _clean_despacho(self, prior_types):
+    def _clean_despacho(self, prior_types: list[str]) -> None:
         """DESPACHO_PERICIA: a apreensão tem de estar VALIDADA (CPP art.
         178.º/5-6). A jurisprudência admite a validação IMPLÍCITA no ato da
         autoridade que ordena a perícia — num ledger forense esse ato fica
@@ -2174,7 +2186,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def _clean_inicio_pericia(self, prior_types):
+    def _clean_inicio_pericia(self, prior_types: list[str]) -> None:
         """INICIO_PERICIA: exige DESPACHO_PERICIA anterior (CPP Art. 154.º/158.º)."""
         if (
             self.event_type == EventType.INICIO_PERICIA
@@ -2189,7 +2201,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def _clean_encaminhamento(self, prior_types):
+    def _clean_encaminhamento(self, prior_types: list[str]) -> None:
         """ENCAMINHAMENTO (1.º tempo da movimentação, ADR-0016 v2): a origem
         entrega a prova a um portador, com destino; a prova fica EM TRÂNSITO
         (sem GPS — a coordenada regista-se na receção).
@@ -2243,7 +2255,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def _clean_rececao(self, prior, prior_types):
+    def _clean_rececao(self, prior: list[ChainOfCustody], prior_types: list[str]) -> None:
         """RECEPCAO (2.º tempo): o destino confirma a chegada de uma prova em
         trânsito. Herda o destino/custódio do encaminhamento e, em instituição
         fixa, a coordenada vem do registo da instituição (não há captura no
@@ -2274,7 +2286,7 @@ class ChainOfCustody(AppendOnlyModel):
                 self.gps_lat = inst.gps_lat
                 self.gps_lng = inst.gps_lng
 
-    def _clean_seal(self):
+    def _clean_seal(self) -> None:
         """Selo VIOLADO exige observação (parecer UX item 12).
 
         Um selo violado é um facto probatório grave: o registo tem de
@@ -2295,7 +2307,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def _clean_receiver(self):
+    def _clean_receiver(self) -> None:
         """Recetor (hv3): identidade de quem recebe a prova fora do sistema.
 
         A RESTITUICAO (CPP art. 186.º — termo de entrega) EXIGE identificar quem
@@ -2345,7 +2357,7 @@ class ChainOfCustody(AppendOnlyModel):
                     }
                 )
 
-    def _clean_authority(self, prior):
+    def _clean_authority(self, prior: list[ChainOfCustody]) -> None:
         """Autoridade do ato certificado (hv4): a validação da apreensão (CPP
         art. 178.º/5-6) e o despacho para perícia (CPP art. 154.º) EXIGEM a
         identificação estruturada de quem os proferiu — nome, cargo e data
@@ -2431,7 +2443,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def _clean_lab_gate(self, prior_types):
+    def _clean_lab_gate(self, prior_types: list[str]) -> None:
         """Gate de laboratório (CPP Art. 154.º): encaminhar/entregar prova a um
         laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já no ledger — o
         laboratório não admite prova sem despacho, nem que seja para arquivo.
@@ -2447,7 +2459,7 @@ class ChainOfCustody(AppendOnlyModel):
                 }
             )
 
-    def compute_record_hash(self, previous_hash=None):
+    def compute_record_hash(self, previous_hash: str | None = None) -> str:
         """
         Calcula o ``record_hash`` SHA-256 encadeado (fórmula única, ADR-0013).
 
@@ -2560,7 +2572,7 @@ class ChainOfCustody(AppendOnlyModel):
             )
         return hashlib.sha256(data.encode('utf-8')).hexdigest()
 
-    def _lookup_previous_hash(self):
+    def _lookup_previous_hash(self) -> str:
         """Lê o hash do registo anterior na DB. Não puro — apenas usado
         como fallback de legacy callers sem `previous_hash` explícito."""
         previous_record = (
@@ -2568,7 +2580,7 @@ class ChainOfCustody(AppendOnlyModel):
         )
         return previous_record.record_hash if previous_record else GENESIS_HASH
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """
         Override: apenas permite criação (append-only).
         O ``sequence`` é determinado automaticamente a partir do último
@@ -2716,7 +2728,7 @@ class ProvaEmTransito(models.Model):
             models.Index(fields=['destino_institution', 'acknowledged_at']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         estado = 'recebida' if self.acknowledged_at else 'a chegar'
         return f'{self.evidence_id} → {self.destino_institution_id} ({estado})'
 
@@ -2759,15 +2771,15 @@ class GuiaTransporte(models.Model):
         verbose_name_plural = 'Guias de transporte'
         ordering = ['-created_at']
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.code or f'GT#{self.pk}'
 
     @property
-    def anchor_event(self):
+    def anchor_event(self) -> ChainOfCustody | None:
         """Evento representativo da remessa (todos partilham destino/portador/data)."""
         return self.events.order_by('evidence_id').first()
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         if self.pk is None and not self.code:
             year = timezone.now().year
             for _ in range(CODE_MAX_ATTEMPTS):
@@ -2936,13 +2948,13 @@ class AuditLog(AppendOnlyModel):
             models.Index(fields=['correlation_id']),
         ]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return (
             f'{self.action} {self.resource_type}({self.resource_id}) '
             f'por {self.user or "anónimo"} em {self.timestamp}'
         )
 
-    def save(self, *args, **kwargs):
+    def save(self, *args, **kwargs) -> None:
         """
         Override: AuditLog é append-only com sequence global monótona.
 
