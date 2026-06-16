@@ -13,7 +13,10 @@ MP que aparece na cadeia), pois a ``Occurrence`` é imutável e não admite um c
 de atribuição mutável (ADR-0017 §6b — ponto materializado por derivação).
 """
 
+from __future__ import annotations
+
 import contextlib
+from typing import TYPE_CHECKING
 
 from django.db.models import Q
 
@@ -25,6 +28,17 @@ from core.models import (
     ProvaEmTransito,
     User,
 )
+
+if TYPE_CHECKING:
+    from django.contrib.auth.models import AnonymousUser
+    from django.db.models import QuerySet
+    from django.http import HttpRequest
+
+    # Tipo aceite por todas as funções deste módulo: o ``User`` do projeto OU o
+    # utilizador anónimo. O acesso a atributos específicos do ``User``
+    # (``profile``, ``clearance``, ``institution_memberships``) é sempre
+    # defendido por ``getattr``/early-return contra o ``AnonymousUser``.
+    UserOrAnon = User | AnonymousUser
 
 # Atos de despacho que a autoridade do caso (MP) pode praticar (ADR-0017 §5).
 CASE_AUTHORITY_EVENTS = frozenset(
@@ -45,7 +59,7 @@ READ_ONLY_PROFILES = frozenset({User.Profile.CHEFE_SERVICO, User.Profile.AUDITOR
 # ---------------------------------------------------------------------------
 
 
-def _active_institution_ids(user):
+def _active_institution_ids(user: UserOrAnon) -> list[int]:
     """IDs das instituições ativas a que o utilizador pertence.
 
     Memoizado na instância do utilizador para não repetir a query nos vários pontos
@@ -69,7 +83,7 @@ def _active_institution_ids(user):
     return ids
 
 
-def has_national_read(user):
+def has_national_read(user: UserOrAnon) -> bool:
     """Tem visibilidade nacional de leitura? (credencial NACIONAL ou staff)."""
     return bool(
         getattr(user, 'is_staff', False)
@@ -77,11 +91,11 @@ def has_national_read(user):
     )
 
 
-def _profile(user):
+def _profile(user: UserOrAnon) -> str | None:
     return getattr(user, 'profile', None)
 
 
-def has_full_read(user):
+def has_full_read(user: UserOrAnon) -> bool:
     """Leitura TOTAL — toda a prova e todos os processos.
 
     Inclui a leitura nacional (staff / credencial NACIONAL) e — por decisão do
@@ -96,12 +110,12 @@ def has_full_read(user):
     return has_national_read(user) or _profile(user) == User.Profile.FORENSIC_EXPERT
 
 
-def is_read_only_profile(user):
+def is_read_only_profile(user: UserOrAnon) -> bool:
     """Papel só-leitura (CHEFE_SERVICO/AUDITOR)? Nunca escreve (ADR-0017 §5)."""
     return _profile(user) in READ_ONLY_PROFILES
 
 
-def can_register_records(user):
+def can_register_records(user: UserOrAnon) -> bool:
     """Pode REGISTAR ocorrências/itens de prova? Primeiro interveniente ou staff
     (a génese da prova capta-se no terreno — ADR-0016 §2). Os papéis só-leitura
     nunca registam, mesmo com is_staff — «só-leitura é só-leitura» (os campos
@@ -114,7 +128,7 @@ def can_register_records(user):
     )
 
 
-def is_expert_or_staff(user):
+def is_expert_or_staff(user: UserOrAnon) -> bool:
     """Perito forense ou staff — portão das ferramentas de laboratório
     (verificações, consultas a APIs externas)."""
     return bool(
@@ -123,7 +137,7 @@ def is_expert_or_staff(user):
     )
 
 
-def can_manage_institutions(user):
+def can_manage_institutions(user: UserOrAnon) -> bool:
     """Gerir instituições (pontos de controlo) é ato de administração — a regra
     da leitura nacional (staff ou credencial NACIONAL), EXCETO os papéis
     só-leitura: criar/editar instituições é escrita e «só-leitura é só-leitura»
@@ -139,7 +153,9 @@ def can_manage_institutions(user):
 # ---------------------------------------------------------------------------
 
 
-def scope_audit_logs(user, base_qs=None):
+def scope_audit_logs(
+    user: UserOrAnon, base_qs: QuerySet[AuditLog] | None = None
+) -> QuerySet[AuditLog]:
     """Eventos do trilho de auditoria que o utilizador pode LER (ADR-0017).
 
     Só leitura nacional (staff ou credencial NACIONAL) vê TODO o registo;
@@ -156,7 +172,9 @@ def scope_audit_logs(user, base_qs=None):
     return qs.filter(user_id=user.id)
 
 
-def scope_evidences(user, base_qs=None):
+def scope_evidences(
+    user: UserOrAnon, base_qs: QuerySet[Evidence] | None = None
+) -> QuerySet[Evidence]:
     """Evidências que o utilizador pode LER — *need-to-know* item-level (ADR-0017 §5).
 
     Verdadeiro (item visível) se: credencial NACIONAL · titular/recolhedor ·
@@ -175,7 +193,9 @@ def scope_evidences(user, base_qs=None):
     return qs.filter(cond).distinct()
 
 
-def scope_occurrences(user, base_qs=None):
+def scope_occurrences(
+    user: UserOrAnon, base_qs: QuerySet[Occurrence] | None = None
+) -> QuerySet[Occurrence]:
     """Ocorrências que o utilizador pode LER (âmbito de ocorrência, mais amplo).
 
     Reservado ao titular, à credencial nacional e à autoridade do caso. Quem só
@@ -196,7 +216,9 @@ def scope_occurrences(user, base_qs=None):
     return qs.filter(cond).distinct()
 
 
-def scope_custody(user, base_qs=None):
+def scope_custody(
+    user: UserOrAnon, base_qs: QuerySet[ChainOfCustody] | None = None
+) -> QuerySet[ChainOfCustody]:
     """Eventos de custódia dos itens que o utilizador pode LER."""
     qs = ChainOfCustody.objects.all() if base_qs is None else base_qs
     if not getattr(user, 'is_authenticated', False):
@@ -213,7 +235,9 @@ def scope_custody(user, base_qs=None):
 # ---------------------------------------------------------------------------
 
 
-def scope_evidences_custodial(user, base_qs=None):
+def scope_evidences_custodial(
+    user: UserOrAnon, base_qs: QuerySet[Evidence] | None = None
+) -> QuerySet[Evidence]:
     """Itens à guarda do utilizador/instituição — ramo *custodial* de
     :func:`scope_evidences`, isolado por DETENÇÃO/custódia.
 
@@ -236,7 +260,9 @@ def scope_evidences_custodial(user, base_qs=None):
     return qs.filter(cond).distinct()
 
 
-def scope_custody_custodial(user, base_qs=None):
+def scope_custody_custodial(
+    user: UserOrAnon, base_qs: QuerySet[ChainOfCustody] | None = None
+) -> QuerySet[ChainOfCustody]:
     """Eventos de custódia dos itens à guarda do utilizador/instituição
     (espelha :func:`scope_custody` sobre o subconjunto custodial)."""
     qs = ChainOfCustody.objects.all() if base_qs is None else base_qs
@@ -245,7 +271,9 @@ def scope_custody_custodial(user, base_qs=None):
     return qs.filter(evidence__in=scope_evidences_custodial(user).values('pk'))
 
 
-def scope_inbound_transit(user, base_qs=None):
+def scope_inbound_transit(
+    user: UserOrAnon, base_qs: QuerySet[ProvaEmTransito] | None = None
+) -> QuerySet[ProvaEmTransito]:
     """Provas a chegar À INSTITUIÇÃO do utilizador (caixa-de-entrada — ADR-0016 v2).
 
     Avisos ``ProvaEmTransito`` por reconhecer cuja ``destino_institution`` é uma
@@ -263,7 +291,7 @@ def scope_inbound_transit(user, base_qs=None):
     return qs.filter(destino_institution_id__in=inst_ids, acknowledged_at__isnull=True)
 
 
-def has_inbound_for_occurrence(user, occurrence):
+def has_inbound_for_occurrence(user: UserOrAnon, occurrence: Occurrence | None) -> bool:
     """O utilizador tem prova A CHEGAR (encaminhamento pendente) NESTA ocorrência?
 
     Verdadeiro se algum aviso ``ProvaEmTransito`` por reconhecer desta ocorrência
@@ -285,7 +313,9 @@ def has_inbound_for_occurrence(user, occurrence):
     ).exists()
 
 
-def scope_occurrences_institutional(user, base_qs=None):
+def scope_occurrences_institutional(
+    user: UserOrAnon, base_qs: QuerySet[Occurrence] | None = None
+) -> QuerySet[Occurrence]:
     """Ocorrências DA INSTITUIÇÃO do utilizador — a zona "Instituição" da consola.
 
     A instituição é DONA do processo: vê a ocorrência INTEIRA (sem filtro por
@@ -347,7 +377,7 @@ _LENS_ORDER = (Lens.MINE, Lens.INSTITUTION)
 CONSOLE_SESSION_KEY = 'console_mode'
 
 
-def can_use_lens(user, lens):
+def can_use_lens(user: UserOrAnon, lens: str) -> bool:
     """A zona da consola é utilizável pelo utilizador? (gate server-side).
 
     ``MINE`` está sempre disponível a quem está autenticado (é a vista-base).
@@ -362,13 +392,13 @@ def can_use_lens(user, lens):
     return False
 
 
-def available_lenses(user):
+def available_lenses(user: UserOrAnon) -> list[str]:
     """Zonas utilizáveis pelo utilizador, em ordem fixa de apresentação. Quem não
     pertence a nenhuma instituição só tem ``MINE`` (a UI esconde o seletor)."""
     return [lens for lens in _LENS_ORDER if can_use_lens(user, lens)]
 
 
-def default_lens(user):
+def default_lens(user: UserOrAnon) -> str:
     """Zona inicial. Para a generalidade dos perfis é "as minhas" (a vista-base/
     home; a zona Instituição é uma escolha explícita que muda a cor da página).
 
@@ -383,20 +413,20 @@ def default_lens(user):
     return Lens.MINE
 
 
-def mine_label(user):
+def mine_label(user: UserOrAnon) -> str:
     """Rótulo HONESTO da zona "as minhas": quem tem leitura total vê de facto
     TODAS as ocorrências nesta zona (por função/credencial — ADR-0017), pelo que
     o chip diz "Todas"; os restantes veem só as suas."""
     return 'Todas as ocorrências' if has_full_read(user) else 'As minhas ocorrências'
 
 
-def lens_label(user, lens):
+def lens_label(user: UserOrAnon, lens: str) -> str:
     """Rótulo PT de uma zona da consola (fonte única — casca, chips e carimbos
     de página concordam sempre no nome da zona)."""
     return 'Instituição' if lens == Lens.INSTITUTION else mine_label(user)
 
 
-def resolve_lens(user, requested):
+def resolve_lens(user: UserOrAnon, requested: str | None) -> str:
     """Resolve a zona pedida pelo cliente (query param ou memória de sessão)
     contra o que o utilizador pode usar. Valor inválido/proibido/ausente →
     :func:`default_lens` (fallback silencioso). Aceita os valores antigos
@@ -408,7 +438,7 @@ def resolve_lens(user, requested):
     return default_lens(user)
 
 
-def console_mode(request, user):
+def console_mode(request: HttpRequest, user: UserOrAnon) -> str:
     """Zona ativa da consola para este pedido: ``?lens=`` explícito → senão a
     memória de sessão → senão a default — sempre validada contra o utilizador.
 
@@ -423,7 +453,7 @@ def console_mode(request, user):
     return resolve_lens(user, requested)
 
 
-def remember_console_mode(request, mode):
+def remember_console_mode(request: HttpRequest, mode: str) -> None:
     """Memoriza a zona na sessão quando o pedido trouxe um ``?lens=`` EXPLÍCITO que
     foi de facto HONRADO (a navegação seguinte mantém o modo sem repetir o param).
 
@@ -439,7 +469,7 @@ def remember_console_mode(request, mode):
         session[CONSOLE_SESSION_KEY] = mode
 
 
-def active_console_mode(request, user):
+def active_console_mode(request: HttpRequest, user: UserOrAnon) -> str:
     """Resolve a zona de consola ativa E memoriza-a, num só passo — o par
     ``console_mode`` + ``remember_console_mode`` que todas as vistas de lista
     invocam (fonte única do protocolo; antes colado verbatim em 7 vistas)."""
@@ -453,7 +483,7 @@ def active_console_mode(request, user):
 # ---------------------------------------------------------------------------
 
 
-def can_view_evidence(user, evidence):
+def can_view_evidence(user: UserOrAnon, evidence: Evidence) -> bool:
     """Pode LER este item + cadeia? (object-level — ADR-0017 §5)."""
     if not getattr(user, 'is_authenticated', False):
         return False
@@ -477,7 +507,7 @@ def can_view_evidence(user, evidence):
     ).exists()
 
 
-def is_occurrence_institutional(user, occurrence):
+def is_occurrence_institutional(user: UserOrAnon, occurrence: Occurrence) -> bool:
     """Object-level da zona "Instituição": o utilizador é MEMBRO de uma instituição
     que é/foi dona do processo (aparece como ``custodian_institution`` no ledger da
     ocorrência)? Espelha :func:`scope_occurrences_institutional` ao nível do objeto.
@@ -497,7 +527,7 @@ def is_occurrence_institutional(user, occurrence):
     ).exists()
 
 
-def can_access_occurrence(user, occurrence):
+def can_access_occurrence(user: UserOrAnon, occurrence: Occurrence) -> bool:
     """Pode aceder à OCORRÊNCIA inteira? (titular / leitura total / autoridade do caso).
 
     Leitura total = staff, credencial NACIONAL ou perito forense (ver
@@ -523,7 +553,7 @@ def can_access_occurrence(user, occurrence):
 # ---------------------------------------------------------------------------
 
 
-def current_holder(evidence):
+def current_holder(evidence: Evidence) -> tuple[int | None, int | None]:
     """(custodian_user_id, custodian_institution_id) do ÚLTIMO evento do item.
 
     ``(None, None)`` se ainda não há eventos (génese por abrir).
@@ -538,7 +568,7 @@ def current_holder(evidence):
     return (last['custodian_user_id'], last['custodian_institution_id'])
 
 
-def can_append_custody(user, evidence, event_type=None):
+def can_append_custody(user: UserOrAnon, evidence: Evidence, event_type: str | None = None) -> bool:
     """Pode registar um evento de custódia neste item? (ADR-0017 §5).
 
     Verdadeiro se: é o ``custodian_user`` atual (detém-no) · o item está em

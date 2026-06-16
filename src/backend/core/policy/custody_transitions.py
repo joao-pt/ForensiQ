@@ -17,6 +17,8 @@ sítio e o ecrã não pode contrariar o modelo. Este módulo não toca ORM nem l
 ``ValidationError``: recebe primitivos e devolve decisões.
 """
 
+from __future__ import annotations
+
 from core.policy.event_states import (
     GENESIS_EVENTS,
     LAB_CUSTODIANS,
@@ -47,7 +49,7 @@ CUSTODIAN_TYPE_BY_INSTITUTION = {
 }
 
 
-def genesis_event_for(*, has_parent, is_digital_file):
+def genesis_event_for(*, has_parent: bool, is_digital_file: bool) -> EventType:
     """Evento de génese aplicável por proveniência (ADR-0016 §2).
 
     - sub-componente (tem evidência-pai) → ``DERIVACAO_ITEM``;
@@ -61,7 +63,7 @@ def genesis_event_for(*, has_parent, is_digital_file):
     return EventType.APREENSAO_OBJETO
 
 
-def genesis_violation(event_type, *, has_parent, is_digital_file):
+def genesis_violation(event_type: str, *, has_parent: bool, is_digital_file: bool) -> str | None:
     """Por que razão ``event_type`` é recusado como génese desta proveniência?
 
     Devolve um código de recusa (que o ``clean()`` traduz na mensagem legal —
@@ -91,28 +93,28 @@ def genesis_violation(event_type, *, has_parent, is_digital_file):
     return 'objeto_para_dados'
 
 
-def ledger_has_terminal(prior_types):
+def ledger_has_terminal(prior_types: list[str]) -> bool:
     """Há um evento terminal (restituição/destruição) no ledger? Fecha-o — nenhum
     evento é aceite depois, em qualquer posição (semântica de presença, ADR-0015)."""
     return any(t in TERMINAL_EVENTS for t in prior_types)
 
 
-def has_prior_seizure(prior_types):
+def has_prior_seizure(prior_types: list[str]) -> bool:
     """Há uma apreensão validável (objeto/dados) no ledger? (CPP art. 178.º/6)."""
     return any(t in SEIZURE_GENESIS_EVENTS for t in prior_types)
 
 
-def validation_done(prior_types):
+def validation_done(prior_types: list[str]) -> bool:
     """A apreensão já foi validada? (só pode ser validada uma vez — CPP art. 178.º/6)."""
     return EventType.VALIDACAO_APREENSAO in prior_types
 
 
-def despacho_done(prior_types):
+def despacho_done(prior_types: list[str]) -> bool:
     """Há um DESPACHO_PERICIA prévio no ledger? (CPP Art. 154.º/158.º)."""
     return EventType.DESPACHO_PERICIA in prior_types
 
 
-def despacho_sem_validacao(prior_types):
+def despacho_sem_validacao(prior_types: list[str]) -> bool:
     """O DESPACHO_PERICIA está bloqueado por apreensão POR VALIDAR?
 
     A apreensão por OPC exige validação da autoridade judiciária (CPP art.
@@ -125,12 +127,12 @@ def despacho_sem_validacao(prior_types):
     return has_prior_seizure(prior_types) and not validation_done(prior_types)
 
 
-def is_in_transit(prior_types):
+def is_in_transit(prior_types: list[str]) -> bool:
     """A prova está em trânsito? (último evento = encaminhamento, ADR-0016 v2)."""
     return bool(prior_types) and prior_types[-1] == EventType.ENCAMINHAMENTO_CUSTODIA
 
 
-def lab_gate_blocks(custodian_type, prior_types):
+def lab_gate_blocks(custodian_type: str, prior_types: list[str]) -> bool:
     """O gate de laboratório bloqueia este evento? (CPP Art. 154.º).
 
     Entregar prova a um laboratório (custódio LAB_*) exige um DESPACHO_PERICIA já
@@ -143,7 +145,9 @@ def lab_gate_blocks(custodian_type, prior_types):
     )
 
 
-def next_events(prior_types, *, has_parent=False, is_digital_file=False):
+def next_events(
+    prior_types: list[str], *, has_parent: bool = False, is_digital_file: bool = False
+) -> list[EventType]:
     """Os ``EventType`` que as guardas de transição aceitam como PRÓXIMO evento.
 
     Fonte única (ADR-0019 §3): o ``clean()`` valida com as mesmas guardas/predicados

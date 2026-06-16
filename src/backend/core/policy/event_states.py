@@ -18,11 +18,33 @@ nenhuma camada a pode contrariar (ver ``feedback_policy_single_source``; CPP
 art. 154.º/158.º/178.º; ADR-0015/0016).
 """
 
-from datetime import timedelta
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from typing import Protocol
+
+    class LedgerRecord(Protocol):
+        """Forma estrutural mínima de um registo do ledger lido por este módulo.
+
+        Tipa as funções SEM criar uma dependência (mesmo só-de-tipagem) sobre
+        ``core.models``: o módulo fica no FUNDO do grafo e qualquer objeto com
+        estes campos serve (na prática, um ``ChainOfCustody``). Em runtime,
+        ``event_type``/``custodian_type`` são strings (TextChoices), comparáveis
+        com os membros de :class:`EventType`/:class:`CustodianType`.
+        """
+
+        event_type: str
+        custodian_type: str
+        timestamp: datetime
+        act_declared_at: datetime | None
+        act_deadline_days: int | None
 
 # Prazo legal de validação da apreensão (CPP art. 178.º/6; default 72h via
 # settings) — fonte ÚNICA da regra processual (auditoria D50): o ledger
@@ -157,7 +179,7 @@ HANDOFF_EVENTS = frozenset(
 )
 
 
-def derive_legal_state(eventos_ordenados):
+def derive_legal_state(eventos_ordenados: list[LedgerRecord]) -> str:
     """Estado legal DERIVADO da sequência de eventos (ADR-0015 §6).
 
     Função pura — única fonte das strings de estado em todo o backend
@@ -286,7 +308,7 @@ STATES_AT_OR_PAST_LAB = (
 DISPOSAL_EVENTS = TERMINAL_EVENTS | {EventType.PERDA_FAVOR_ESTADO}
 
 
-def validation_status(eventos_ordenados, now):
+def validation_status(eventos_ordenados: list[LedgerRecord], now: datetime) -> str | None:
     """Estatuto da VALIDAÇÃO da apreensão — eixo ORTOGONAL ao estado de custódia.
 
     A validação (CPP art. 178.º/6, prazo de 72h em ``VALIDATION_DEADLINE``) é um
@@ -318,7 +340,7 @@ def validation_status(eventos_ordenados, now):
     return 'por_validar'
 
 
-def seizure_of(eventos_ordenados):
+def seizure_of(eventos_ordenados: list[LedgerRecord]) -> LedgerRecord | None:
     """O evento de APREENSÃO que constitui a génese validável do item
     (``SEIZURE_GENESIS_EVENTS``), ou ``None``.
 
@@ -331,7 +353,7 @@ def seizure_of(eventos_ordenados):
     )
 
 
-def validation_due_at(seizure_at):
+def validation_due_at(seizure_at: datetime) -> datetime:
     """Limite legal da validação da apreensão: instante da apreensão +
     ``VALIDATION_DEADLINE`` (CPP art. 178.º/6).
 
@@ -344,7 +366,7 @@ def validation_due_at(seizure_at):
     return seizure_at + VALIDATION_DEADLINE
 
 
-def validation_acted_late(seizure_at, acted_at):
+def validation_acted_late(seizure_at: datetime, acted_at: datetime) -> bool:
     """O ato de validação foi praticado FORA do prazo legal (CPP art. 178.º/6)?
 
     Compara o instante do ato contra :func:`validation_due_at` — usada pela
@@ -370,7 +392,7 @@ VALIDATION_PENDING_STATUSES = frozenset({'por_validar', 'em_atraso'})
 PERICIA_DEADLINE_WARNING_DAYS = settings.PERICIA_DEADLINE_WARNING_DAYS
 
 
-def pericia_due_date(despacho):
+def pericia_due_date(despacho: LedgerRecord) -> date | None:
     """Data-limite da perícia derivada de UM evento de despacho (hv4) — uma
     DATA de calendário (``datetime.date``) no fuso ativo.
 
@@ -390,7 +412,9 @@ def pericia_due_date(despacho):
     return timezone.localtime(base).date() + timedelta(days=despacho.act_deadline_days)
 
 
-def pericia_prazo_resolucao(eventos_ordenados):
+def pericia_prazo_resolucao(
+    eventos_ordenados: list[LedgerRecord],
+) -> tuple[LedgerRecord | None, LedgerRecord | None]:
     """O despacho VIGENTE e o evento que lhe RESOLVEU o prazo, se algum.
 
     Fonte única da regra POSICIONAL do eixo (CPP art. 154.º/158.º): vários
@@ -418,7 +442,9 @@ def pericia_prazo_resolucao(eventos_ordenados):
     return despacho, resolucao
 
 
-def pericia_deadline(eventos_ordenados, now):
+def pericia_deadline(
+    eventos_ordenados: list[LedgerRecord], now: datetime
+) -> dict[str, object] | None:
     """Prazo da perícia ordenada por despacho — eixo derivado do ledger.
 
     O despacho fixa um prazo em dias para a CONCLUSÃO da perícia (CPP art.
