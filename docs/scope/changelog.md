@@ -4,6 +4,27 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 16 · 16 jun 2026 (backlog de correções da revisão + correção do deploy)
+
+**Feito:**
+- fix(security): aplicado o backlog de uma **revisão multi-agente** ao backend. **IDOR** na timeline de custódia fechado (404 fora de âmbito via `scope_evidences` + auditoria `VIEW`); cookies de auth com `Secure` por defeito em produção (`AUTH_COOKIE_SECURE`); `QR_VERIFY_SECRET` obrigatório em produção (deixa de cair em silêncio na `SECRET_KEY`); **allowlist anti-SSRF** no lookup IMEI (`_ALLOWED_IMEIDB_HOSTS`, fail-closed); resolução de QR O(1) com cache (fecha varrimento DoS)
+- feat(integrity): migração **`0037_protect_auditlog`** — trigger `BEFORE UPDATE` append-only no AuditLog (PostgreSQL; no-op em SQLite; **DELETE** deliberadamente preservado para o expurgo RGPD); advisory lock transaccional na atribuição de `sequence`; isolamento `REPEATABLE READ` nas estatísticas do dashboard
+- perf: `prefetch_related` em custódias/evidências; derivação de estado legal *prefetch-aware*; filtro de estado legal colapsado numa subquery única
+- refactor(quality): `legal_states_by_evidence` deixa de ter retorno polimórfico — separada em `legal_states_by_evidence` (dict) + `legal_states_with_events` (tuplo) com helper único de agrupamento e *type hints*; `ChainOfCustody.validation_overdue` passa a estado de instância; `LookupError` → `ImeiLookupError` (deixa de sombrear o builtin); comentário a documentar a ordem GZip/CSRF (BREACH — decisão de não reordenar)
+- fix(frontend): `X-CSRFToken` injetado em **todos** os pedidos HTMX via `htmx:configRequest` (`static/js/htmx-csrf.js`, IIFE CSP-safe, carregado em `_grid_scripts.html`)
+- fix(deploy): `Dockerfile` passa um `QR_VERIFY_SECRET` efémero ao `collectstatic` — o novo guard fail-closed quebrava o build do Fly
+- **Processo:** 5 commits convencionais (só em nome de João Rodrigues), *hooks* pre-commit a passar; push para `main`
+
+**Bloqueou:**
+- ⚠️ `fly deploy` falhou no `collectstatic` (`ImproperlyConfigured: QR_VERIFY_SECRET`) — corrigido no Dockerfile. **Runtime ainda exige** `fly secrets set QR_VERIFY_SECRET=...`; sem isso, o `release_command` (`migrate`) e o arranque da app falham com o mesmo guard
+
+**Próxima semana / pendente:**
+- `fly secrets set QR_VERIFY_SECRET=<valor forte>` antes do próximo deploy — o `release_command` aplica então a migração `0037` ao Neon automaticamente (não há migração manual de produção)
+- **Type hints sistémicos** (passagem gradual por módulo) — único item do backlog ainda por fazer
+- Correr a suite `pytest` local; rever README/ADRs mexidos pelo doc-updater
+
+---
+
 ## Sem. 15 · 14 jun 2026 (guia de transporte redesenhada — por movimento)
 
 **Feito:**
