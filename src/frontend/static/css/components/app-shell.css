@@ -310,6 +310,18 @@ body.app-body {
 @media (min-width: 1024px) {
     .app-sidebar {
         padding-top: var(--sp-3);
+        /* Mantém a navegação SEMPRE visível em páginas altas: a sidebar
+           fixa-se logo abaixo do header (mesmo mecanismo `position: sticky`
+           do `.app-top`) em vez de acompanhar o scroll do documento e sair do
+           ecrã. `align-self: start` impede o item da grelha de esticar à
+           altura total do conteúdo — sem isto o sticky não teria folga para
+           agarrar. O `max-height` (viewport menos o header) faz a navegação
+           rolar DENTRO da própria sidebar quando há grupos a mais, sem nunca
+           empurrar o resto da página. */
+        position: sticky;
+        top: var(--app-top-h);
+        align-self: start;
+        max-height: calc(100dvh - var(--app-top-h));
     }
     .app-sidebar__head {
         display: none;
