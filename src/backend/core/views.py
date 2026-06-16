@@ -17,11 +17,14 @@ Endpoints:
 - /api/reverse-geocode/    — geocodificação inversa (proxy Nominatim, GDPR)
 """
 
+from __future__ import annotations
+
 import logging
 import math
 import mimetypes
 from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
 from django.conf import settings
@@ -90,6 +93,20 @@ from .services.vin_lookup import build_vindecoder_url
 from .throttles import HealthcheckRateThrottle
 from .validators import validate_imei, validate_vin
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from django.contrib.auth.base_user import AbstractBaseUser
+    from django.contrib.auth.models import AnonymousUser
+    from django.db.models import QuerySet
+    from rest_framework.permissions import BasePermission
+    from rest_framework.request import Request
+    from rest_framework.throttling import BaseThrottle
+
+    # request.user é sempre o utilizador autenticado OU o anónimo; os gates
+    # (em core.access) degradam com getattr/early-return no AnonymousUser.
+    UserOrAnon = AbstractBaseUser | AnonymousUser
+
 User = get_user_model()
 
 log = logging.getLogger(__name__)
@@ -100,7 +117,7 @@ log = logging.getLogger(__name__)
 _LOOKUP_CACHE_TTL_SECONDS = 60 * 60 * 24 * 30
 
 
-def _user_can_lookup(user) -> bool:
+def _user_can_lookup(user: UserOrAnon) -> bool:
     """Só FIRST_RESPONDER / FORENSIC_EXPERT (ou staff) consultam APIs externas
     (portões de papel numa fonte única — core.access)."""
     if user is None or not user.is_authenticated:
@@ -108,7 +125,7 @@ def _user_can_lookup(user) -> bool:
     return access.can_register_records(user) or access.is_expert_or_staff(user)
 
 
-def _evidence_ids_in_legal_state(custody_qs, state):
+def _evidence_ids_in_legal_state(custody_qs: QuerySet[ChainOfCustody], state: str) -> list[int]:
     """IDs das evidências cujo estado legal DERIVADO (ADR-0015) é ``state``.
 
     O estado legal não é coluna — o agrupamento ledger→estado vive na fonte
@@ -122,7 +139,7 @@ def _evidence_ids_in_legal_state(custody_qs, state):
     ]
 
 
-def _evidence_ids_for_state_param(user, state):
+def _evidence_ids_for_state_param(user: UserOrAnon, state: str) -> list[int]:
     """Resolve o query param ``?state=`` (auditoria D15): valida contra
     ``LEGAL_STATES`` com a mensagem de erro canónica e devolve os IDs das
     evidências nesse estado derivado, no âmbito *need-to-know* do utilizador.
@@ -139,7 +156,9 @@ def _evidence_ids_for_state_param(user, state):
     return _evidence_ids_in_legal_state(access.scope_custody(user), state)
 
 
-def _lookup_gate_or_error(request, validator, value, invalid_msg):
+def _lookup_gate_or_error(
+    request: Request, validator: Callable[[str], None], value: str, invalid_msg: str
+) -> Response | None:
     """Par gate-403 + validador-400 partilhado pelos lookups externos
     (IMEI/VIN — auditoria D18). ``None`` = pode prosseguir."""
     if not _user_can_lookup(request.user):
@@ -174,18 +193,18 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.action in ('create', 'update', 'partial_update', 'destroy'):
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type[drf_serializers.BaseSerializer]:
         if self.action == 'create':
             return UserCreateSerializer
         return UserSerializer
 
     @action(detail=False, methods=['get'], url_path='me')
-    def me(self, request):
+    def me(self, request: Request) -> Response:
         """Retorna o perfil do utilizador autenticado (inclui email e phone)."""
         serializer = UserDetailSerializer(request.user, context={'request': request})
         return Response(serializer.data)
@@ -221,7 +240,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['date_time', 'created_at', 'number']
     ordering = ['-date_time']
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Occurrence]:
         qs = super().get_queryset()
         user = self.request.user
         qs = access.scope_occurrences(user, base_qs=qs)
@@ -240,7 +259,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(id__in=list(occ_ids))
         return qs
 
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Override: auditoria de visualização."""
         occurrence = self.get_object()
         log_access(
@@ -251,7 +270,7 @@ class OccurrenceViewSet(viewsets.ModelViewSet):
         )
         return super().retrieve(request, *args, **kwargs)
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: drf_serializers.BaseSerializer) -> None:
         occurrence = serializer.save(agent=self.request.user)
         log_access(
             request=self.request,
@@ -299,13 +318,13 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['timestamp_seizure', 'created_at', 'code', 'type']
     ordering = ['-timestamp_seizure']
 
-    def get_throttles(self):
+    def get_throttles(self) -> list[BaseThrottle]:
         if self.action == 'create':
             self.throttle_scope = 'evidence_upload'
             return [ScopedRateThrottle()]
         return super().get_throttles()
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Evidence]:
         """Aplica sempre o filtro de ownership antes do filtro por query param.
 
         Nota: é crítico que este método seja a ÚNICA porta de entrada para o
@@ -329,7 +348,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
             qs = qs.filter(id__in=_evidence_ids_for_state_param(user, state))
         return qs
 
-    def retrieve(self, request, *args, **kwargs):
+    def retrieve(self, request: Request, *args, **kwargs) -> Response:
         """Override: auditoria de visualização."""
         evidence = self.get_object()
         log_access(
@@ -341,7 +360,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
         )
         return super().retrieve(request, *args, **kwargs)
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: drf_serializers.BaseSerializer) -> None:
         evidence = serializer.save(agent=self.request.user)
         log_access(
             request=self.request,
@@ -402,7 +421,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     # recente primeiro (ex: listagem global) passa ?ordering=-timestamp.
     ordering = ['sequence']
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[ChainOfCustody]:
         qs = super().get_queryset()
         user = self.request.user
         qs = access.scope_custody(user, base_qs=qs)
@@ -411,7 +430,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
             qs = qs.filter(evidence_id=evidence_id)
         return qs
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: drf_serializers.BaseSerializer) -> None:
         # Gate de ESCRITA (ADR-0017 §5) na fonte única: o próprio
         # ChainOfCustodySerializer.validate (fail-closed) já aplicou
         # access.can_append_custody — o re-check que existia aqui era a 2.ª
@@ -422,7 +441,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         log_custody_create(self.request, custody_record)
 
     @action(detail=False, methods=['get'], url_path='evidence/(?P<evidence_id>[0-9]+)/timeline')
-    def timeline(self, request, evidence_id=None):
+    def timeline(self, request: Request, evidence_id: str | None = None) -> Response:
         """Retorna a timeline completa de custódia para uma evidência.
 
         Need-to-know (ADR-0017 §5): o queryset passa por ``get_queryset()``
@@ -454,7 +473,7 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=False, methods=['post'], url_path='cascade')
-    def cascade(self, request):
+    def cascade(self, request: Request) -> Response:
         """POST /api/custody/cascade/ — evento atómico em várias evidências.
 
         Permite ao utilizador registar o mesmo evento num item-pai e nos seus
@@ -497,7 +516,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         return self._cascade_create(request, evidences, data)
 
     @staticmethod
-    def _cascade_denied(user, evidences, event_type):
+    def _cascade_denied(
+        user: UserOrAnon, evidences: list[Evidence], event_type: str
+    ) -> Response | None:
         """Gate de ESCRITA item-level (ADR-0017 §5) — o MESMO que perform_create.
 
         Antes usava _user_can_access_occurrence (acesso de LEITURA à ocorrência),
@@ -519,7 +540,9 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
         return None
 
     @staticmethod
-    def _cascade_create(request, evidences, data):
+    def _cascade_create(
+        request: Request, evidences: list[Evidence], data: dict[str, object]
+    ) -> Response:
         """Caminho de ESCRITA canónico (auditoria D20): em vez de construir o
         modelo à mão (que contornava o serializer e exigia validação GPS e
         normalização de erros próprias), instancia-se o ChainOfCustodySerializer
@@ -607,7 +630,7 @@ class EvidenceIMEILookupView(APIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'imei_lookup'
 
-    def get(self, request, imei: str):
+    def get(self, request: Request, imei: str) -> Response:
         err = _lookup_gate_or_error(request, validate_imei, imei, 'IMEI inválido.')
         if err is not None:
             return err
@@ -675,7 +698,7 @@ class EvidenceVINLookupView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, vin: str):
+    def get(self, request: Request, vin: str) -> Response:
         err = _lookup_gate_or_error(request, validate_vin, vin, 'VIN inválido.')
         if err is not None:
             return err
@@ -715,15 +738,15 @@ class GeoProxyAPIView(APIView):
     unavailable_detail = 'Serviço indisponível.'
 
     @staticmethod
-    def _bad_request(detail):
+    def _bad_request(detail: str) -> Response:
         return Response({'detail': detail}, status=status.HTTP_400_BAD_REQUEST)
 
-    def _unavailable(self):
+    def _unavailable(self) -> Response:
         return Response(
             {'detail': self.unavailable_detail}, status=status.HTTP_502_BAD_GATEWAY
         )
 
-    def parse_latlon(self, request):
+    def parse_latlon(self, request: Request) -> tuple[float | None, float | None, Response | None]:
         """``(lat, lon, None)`` ou ``(None, None, Response 400 canónica)``."""
         lat_raw = request.query_params.get('lat')
         lon_raw = request.query_params.get('lon')
@@ -740,7 +763,9 @@ class GeoProxyAPIView(APIView):
             return None, None, self._bad_request('"lon" deve estar entre -180 e 180.')
         return lat, lon, None
 
-    def fetch_upstream(self, do_request):
+    def fetch_upstream(
+        self, do_request: Callable[[], httpx.Response]
+    ) -> tuple[httpx.Response | None, Response | None]:
         """Corre o pedido httpx; falha de rede/HTTP → ``(None, Response 502)``."""
         try:
             resp = do_request()
@@ -758,7 +783,7 @@ class ReverseGeocodeView(GeoProxyAPIView):
     upstream_name = 'Nominatim'
     unavailable_detail = 'Serviço de geocodificação indisponível.'
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         lat, lon, err = self.parse_latlon(request)
         if err is not None:
             return err
@@ -839,7 +864,7 @@ class NearbyPOIsView(GeoProxyAPIView):
         'townhall',
     }
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         lat, lon, err = self.parse_latlon(request)
         if err is not None:
             return err
@@ -903,7 +928,7 @@ class NearbyPOIsView(GeoProxyAPIView):
         return Response(pois[: self._MAX_RESULTS])
 
 
-def _haversine_m(lat1, lon1, lat2, lon2):
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Distância em metros entre dois pontos (fórmula de Haversine)."""
     r = 6371000.0  # raio médio da Terra (m)
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -934,7 +959,7 @@ class CrimeSubcategoryListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = None
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[CrimeSubcategoria]:
         qs = CrimeSubcategoria.objects.order_by('codigo')
         categoria = self.request.query_params.get('categoria')
         if categoria:
@@ -955,14 +980,14 @@ class CrimeTypeListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = None
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[CrimeTipo]:
         qs = CrimeTipo.objects.filter(is_active=True).order_by('codigo')
         subcategoria = self.request.query_params.get('subcategoria')
         if subcategoria:
             qs = qs.filter(subcategoria_id=subcategoria)
         return qs
 
-    def get_serializer_context(self):
+    def get_serializer_context(self) -> dict[str, object]:
         context = super().get_serializer_context()
         vigente = PoliticaCriminalPrioridade.objects.vigente()
         prioritaria_ids = set()
@@ -1000,7 +1025,7 @@ class StatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         # Honra a "transacção coerente" prometida na docstring: REPEATABLE
         # READ para que os counts/agregados reflictam o mesmo instante (ver
         # nota equivalente em DashboardStatsView). No-op fora de PostgreSQL.
@@ -1058,7 +1083,7 @@ class DashboardStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @transaction.atomic
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         # Snapshot coerente do painel: as 6+ agregações abaixo correm numa
         # única transação com isolamento REPEATABLE READ, para que todos os
         # totais reflictam o MESMO instante. Sob READ COMMITTED (o default)
@@ -1133,7 +1158,9 @@ class DashboardStatsView(APIView):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _deltas_24h(occ_qs, ev_qs, coc_qs):
+    def _deltas_24h(
+        occ_qs: QuerySet[Occurrence], ev_qs: QuerySet[Evidence], coc_qs: QuerySet[ChainOfCustody]
+    ) -> dict[str, dict[str, int]]:
         """Variação das últimas 24h vs as 24h anteriores (T07).
 
         Compara a janela [agora-24h, agora] (``last_24h``) com a janela
@@ -1147,7 +1174,7 @@ class DashboardStatsView(APIView):
         h24 = now - timedelta(hours=24)
         h48 = now - timedelta(hours=48)
 
-        def janelas(qs, campo):
+        def janelas(qs: QuerySet, campo: str) -> dict[str, int]:
             last_n = qs.filter(**{f'{campo}__gte': h24, f'{campo}__lte': now}).count()
             prev_n = qs.filter(**{f'{campo}__gte': h48, f'{campo}__lt': h24}).count()
             return {'last_24h': last_n, 'prev_24h': prev_n, 'delta': last_n - prev_n}
@@ -1159,7 +1186,7 @@ class DashboardStatsView(APIView):
         }
 
     @staticmethod
-    def _total_active(states_by_ev, total_evidences):
+    def _total_active(states_by_ev: dict[int, str], total_evidences: int) -> int:
         """Nº de evidências cujo estado legal derivado NÃO é terminal (T07).
 
         Terminalidade pelo ESTADO LEGAL DERIVADO (``TERMINAL_LEGAL_STATES`` —
@@ -1175,7 +1202,7 @@ class DashboardStatsView(APIView):
         return total_evidences - terminais
 
     @staticmethod
-    def _occurrences_series_7d(occ_qs):
+    def _occurrences_series_7d(occ_qs: QuerySet[Occurrence]) -> list[dict[str, object]]:
         """Série diária de ocorrências criadas nos últimos 7 dias (T07).
 
         Devolve 7 objectos ``{"date": "YYYY-MM-DD", "count": N}`` do mais
@@ -1224,7 +1251,7 @@ class ActivityFeedView(generics.ListAPIView):
     serializer_class = ActivityFeedSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[AuditLog]:
         # Âmbito need-to-know do trilho numa fonte única (access.scope_audit_logs,
         # partilhada com o feed server-rendered); aqui só ordenação/joins locais.
         return (
@@ -1233,7 +1260,7 @@ class ActivityFeedView(generics.ListAPIView):
             .order_by('-timestamp')
         )
 
-    def get_serializer_context(self):
+    def get_serializer_context(self) -> dict[str, object]:
         """Pré-carrega os ids de ocorrências prioritárias da página (sem N+1).
 
         Resolve, numa só query, quais das ocorrências referenciadas pelos
@@ -1260,7 +1287,7 @@ class ActivityFeedView(generics.ListAPIView):
         context['priority_occurrence_ids'] = priority_ids
         return context
 
-    def paginate_queryset(self, queryset):
+    def paginate_queryset(self, queryset: QuerySet) -> list | None:
         """Guarda a página materializada para o contexto resolver prioridades."""
         page = super().paginate_queryset(queryset)
         # Quando há paginação, ``page`` é a lista da página corrente; caso
@@ -1295,7 +1322,7 @@ class MediaServeView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, path):
+    def get(self, request: Request, path: str) -> FileResponse | Response:
         media_root = Path(settings.MEDIA_ROOT).resolve()
         try:
             target = (media_root / path).resolve(strict=True)
@@ -1372,7 +1399,7 @@ class MediaServeView(APIView):
 @authentication_classes([])
 @permission_classes([AllowAny])
 @throttle_classes([HealthcheckRateThrottle])
-def healthcheck(request):
+def healthcheck(request: Request) -> Response:
     """GET /api/health/ — 200 se a DB responde, 503 caso contrário.
 
     Alinha com a convenção do Fly.io / Kubernetes (``/healthz`` equivalente).
