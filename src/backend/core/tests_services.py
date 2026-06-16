@@ -702,8 +702,11 @@ class AuthCookieHelpersTest(TestCase):
         # Em DEBUG, secure=False
         self.assertEqual(response.cookies[ACCESS_COOKIE_NAME]['secure'], '')
 
-    @override_settings(DEBUG=False)
+    @override_settings(AUTH_COOKIE_SECURE=True)
     def test_cookie_secure_in_production(self):
+        # _cookie_kwargs lê settings.AUTH_COOKIE_SECURE (knob env-overridável,
+        # default `not DEBUG`, avaliado no import). Override directo do setting
+        # — overriding DEBUG não o recalcula porque já foi avaliado no import.
         from django.http import HttpResponse
 
         from core.auth import ACCESS_COOKIE_NAME, set_auth_cookies
