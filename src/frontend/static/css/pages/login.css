@@ -131,32 +131,6 @@
     letter-spacing: 0.01em;
 }
 
-.lp-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-2);
-}
-
-.lp-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-1);
-    padding: var(--sp-1) var(--sp-3);
-    border-radius: var(--r-pill);
-    background: var(--surface-hover);
-    border: 1px solid var(--border);
-    font-size: var(--fs-micro);
-    font-weight: var(--fw-medium);
-    letter-spacing: 0.02em;
-    color: var(--text-muted);
-}
-
-.lp-chip svg {
-    width: 12px;
-    height: 12px;
-    color: var(--accent);
-}
-
 /* =============================================================
    PAINEL DIREITO — FORMULÁRIO (usa .card + .form-*)
    ============================================================= */
@@ -431,23 +405,6 @@
     padding-top: var(--sp-5);
     border-top: 1px solid var(--divider);
     text-align: center;
-}
-
-.lp-secure {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-2);
-    font-size: var(--fs-micro);
-    font-weight: var(--fw-medium);
-    color: var(--text-muted);
-    letter-spacing: 0.015em;
-    margin-bottom: var(--sp-2);
-}
-
-/* Ponto "vivo": componente único .live-dot em main.css (auditoria D87) — o
-   template emite class="live-dot lp-dot"; aqui fica só o halo próprio do login. */
-.lp-dot {
-    box-shadow: 0 0 6px var(--success-tint);
 }
 
 .lp-version {
