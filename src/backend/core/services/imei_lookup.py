@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from urllib.parse import urlparse
 
 import httpx
 from django.conf import settings
@@ -62,7 +63,7 @@ _CACHE_KEY_LAST_429 = 'imeidb:last_429_at'
 _CACHE_TTL_24H = 60 * 60 * 24
 
 
-class LookupError(Exception):
+class ImeiLookupError(Exception):
     """Falha normalizada da consulta a imeidb.xyz.
 
     A mensagem é escrita em PT-PT e é segura para ser exposta ao cliente
@@ -76,9 +77,36 @@ class LookupError(Exception):
 # ---------------------------------------------------------------------------
 
 
+# Hosts externos autorizados para o lookup IMEI. Guarda anti-SSRF por
+# configuração: a consulta envia o token da API num header; se
+# ``IMEIDB_BASE_URL`` fosse apontada (por erro ou adulteração do ambiente)
+# para um host interno (169.254.169.254, localhost, …) o token seria
+# exfiltrado e a rede interna varrível. A allowlist vive em CÓDIGO — não em
+# settings — para que a configuração via ambiente nunca possa alargar o
+# alvo permitido (só uma alteração de código revista o pode fazer).
+_ALLOWED_IMEIDB_HOSTS = frozenset({'imeidb.xyz'})
+
+
 def _base_url() -> str:
-    """URL base configurada, com default seguro."""
-    return getattr(settings, 'IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
+    """URL base configurada, validada contra SSRF (https + host autorizado).
+
+    Força esquema ``https`` e um host da allowlist ``_ALLOWED_IMEIDB_HOSTS``.
+    Se a configuração violar a guarda, falha fechado (``ImeiLookupError``, sem
+    qualquer pedido de saída) e regista erro para visibilidade operacional —
+    o agente preenche manualmente, como em qualquer outra falha de lookup.
+    """
+    raw = getattr(settings, 'IMEIDB_BASE_URL', 'https://imeidb.xyz/api')
+    parsed = urlparse(raw)
+    host = (parsed.hostname or '').lower()
+    if parsed.scheme != 'https' or host not in _ALLOWED_IMEIDB_HOSTS:
+        log.error(
+            'IMEIDB_BASE_URL inseguro/inesperado (scheme=%s host=%s) — '
+            'lookup IMEI bloqueado pela guarda anti-SSRF.',
+            parsed.scheme or '∅',
+            host or '∅',
+        )
+        raise ImeiLookupError('Serviço de consulta IMEI mal configurado. Preenche manualmente.')
+    return raw
 
 
 def _api_token() -> str:
@@ -195,13 +223,13 @@ def lookup_imei(imei: str) -> dict:
         ``raw`` (subset do payload original para auditoria ISO 27037).
 
     Raises:
-        LookupError: em qualquer falha de rede, HTTP não-2xx, JSON
+        ImeiLookupError: em qualquer falha de rede, HTTP não-2xx, JSON
             inválido ou saldo esgotado. A mensagem é em PT-PT e pode
             ser exposta ao cliente.
     """
     token = _api_token()
     if not token:
-        raise LookupError('Serviço de consulta IMEI não está configurado. Preenche manualmente.')
+        raise ImeiLookupError('Serviço de consulta IMEI não está configurado. Preenche manualmente.')
 
     url = f"{_base_url().rstrip('/')}/imei/{imei}"
     headers = {
@@ -218,10 +246,10 @@ def lookup_imei(imei: str) -> dict:
             response = client.get(url, headers=headers)
     except httpx.TimeoutException:
         log.warning('imeidb timeout imei=%s', mask_imei(imei))
-        raise LookupError('Tempo esgotado ao consultar imeidb.xyz. Preenche manualmente.')
+        raise ImeiLookupError('Tempo esgotado ao consultar imeidb.xyz. Preenche manualmente.')
     except httpx.RequestError as exc:
         log.warning('imeidb network error imei=%s err=%s', mask_imei(imei), exc)
-        raise LookupError('Erro de rede ao consultar imeidb.xyz. Preenche manualmente.')
+        raise ImeiLookupError('Erro de rede ao consultar imeidb.xyz. Preenche manualmente.')
 
     _raise_for_status(response.status_code, imei=imei)
 
@@ -229,7 +257,7 @@ def lookup_imei(imei: str) -> dict:
         payload = response.json()
     except ValueError:
         log.warning('imeidb non-json body imei=%s', mask_imei(imei))
-        raise LookupError('Resposta de imeidb.xyz não é JSON válido.')
+        raise ImeiLookupError('Resposta de imeidb.xyz não é JSON válido.')
 
     if not isinstance(payload, dict):
         log.warning(
@@ -237,7 +265,7 @@ def lookup_imei(imei: str) -> dict:
             mask_imei(imei),
             type(payload).__name__,
         )
-        raise LookupError('Resposta de imeidb.xyz em formato inesperado.')
+        raise ImeiLookupError('Resposta de imeidb.xyz em formato inesperado.')
 
     # A API por vezes responde 200 OK mas com success:false + code próprio.
     if payload.get('success') is False:
@@ -256,7 +284,7 @@ def lookup_imei(imei: str) -> dict:
         event = _API_CODES[api_code][0] if api_code in _API_CODES else None
         if event:
             _record_critical_event(event, imei, http_status=200, api_code=api_code)
-        raise LookupError(_message_for_api_code(api_code, api_msg))
+        raise ImeiLookupError(_message_for_api_code(api_code, api_msg))
 
     return _normalize(payload)
 
@@ -286,7 +314,7 @@ def _raise_for_status(status_code: int, imei: str = '') -> None:
 
     Em códigos críticos operacionais (401/402/429), regista entrada
     SYSTEM_ALERT no AuditLog via `_record_critical_event` antes de
-    levantar a `LookupError` (auditoria 2026-05-18 §3 N9 — fechado em Sem.12).
+    levantar a `ImeiLookupError` (auditoria 2026-05-18 §3 N9 — fechado em Sem.12).
     """
     if 200 <= status_code < 300:
         return
@@ -294,10 +322,10 @@ def _raise_for_status(status_code: int, imei: str = '') -> None:
         event, msg = _API_CODES[status_code]
         if event:
             _record_critical_event(event, imei, http_status=status_code)
-        raise LookupError(msg)
+        raise ImeiLookupError(msg)
     if status_code >= 500:
-        raise LookupError(f'imeidb.xyz indisponível (HTTP {status_code}). Tenta mais tarde.')
-    raise LookupError(f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).')
+        raise ImeiLookupError(f'imeidb.xyz indisponível (HTTP {status_code}). Tenta mais tarde.')
+    raise ImeiLookupError(f'Resposta inesperada de imeidb.xyz (HTTP {status_code}).')
 
 
 def _message_for_api_code(code, fallback_msg: str) -> str:

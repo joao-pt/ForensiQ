@@ -43,6 +43,13 @@ ALLOWED_HOSTS = [
     if h.strip()
 ]
 
+# Flag `Secure` dos cookies de autenticação (JWT). Default: ligada fora de
+# DEBUG. Explícita e sobreponível por env (`AUTH_COOKIE_SECURE=true`) para
+# forçar cookies só-HTTPS mesmo num staging com DEBUG ligado por engano.
+AUTH_COOKIE_SECURE = (
+    os.environ.get('AUTH_COOKIE_SECURE', str(not DEBUG)).lower() == 'true'
+)
+
 # --- Aplicações ---
 INSTALLED_APPS = [
     # Django core
@@ -67,6 +74,14 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # Servir estáticos em produção
+    # GZip ANTES do CSRF: a ordem na lista NÃO é o vetor BREACH. O BREACH
+    # explora a compressão de respostas que reflitam, juntos, um segredo e
+    # input controlado pelo atacante — reordenar o middleware não o mitiga. O
+    # token CSRF do Django é mascarado por render (salt aleatório a cada
+    # pedido), o que neutraliza o BREACH contra o CSRF; com TLS e sem páginas
+    # que reflitam segredo+input, o risco residual é baixo. Mantido aqui para
+    # comprimir HTML/JSON; se algum dia houver uma página que reflita um
+    # segredo + input, desligar a compressão NESSA resposta (não reordenar).
     'django.middleware.gzip.GZipMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -217,7 +232,18 @@ AUDIT_LOG_RETENTION_DAYS = int(os.environ.get('AUDIT_LOG_RETENTION_DAYS', 365))
 # sessões/JWT). Em produção: `fly secrets set QR_VERIFY_SECRET=...`.
 # Default (fallback) usa SECRET_KEY — aceitável em dev, deve ser
 # substituído em produção.
-QR_VERIFY_SECRET = os.environ.get('QR_VERIFY_SECRET', SECRET_KEY)
+QR_VERIFY_SECRET = os.environ.get('QR_VERIFY_SECRET')
+if not QR_VERIFY_SECRET:
+    if DEBUG or TESTING:
+        # Em dev/teste, fallback para SECRET_KEY (a rotação independente dos QR
+        # não é crítica fora de produção).
+        QR_VERIFY_SECRET = SECRET_KEY
+    else:
+        raise ImproperlyConfigured(
+            'QR_VERIFY_SECRET tem de estar definida em produção (isolada da '
+            'SECRET_KEY para permitir rotação independente dos QR codes). '
+            'Defina com: fly secrets set QR_VERIFY_SECRET=...'
+        )
 # Comprimento do hash curto em hex chars. 12 chars = 48 bits de
 # entropia, suficiente para resistir a enumeração casual (4 mil
 # milhões de combinações) e curto o bastante para QR denso.

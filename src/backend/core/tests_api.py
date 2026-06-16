@@ -556,6 +556,58 @@ class AuthorizationIDORTest(BaseAPITestCase):
         results = response.data.get('results', [])
         self.assertEqual(len(results), 0)
 
+    def test_agent_a_cannot_access_agent_b_custody_timeline(self):
+        """IDOR (regressão): a action ``timeline`` não pode expor a cadeia de
+        custódia de uma evidência fora do âmbito need-to-know do utilizador.
+
+        Antes da correcção, ``timeline`` consultava ``ChainOfCustody.objects``
+        directamente, ignorando ``access.scope_custody`` (ADR-0017 §5) e
+        devolvendo 200 com toda a cadeia (GPS, portador, autoridade). Agora
+        devolve 404 — sem confirmar sequer a existência do item.
+        """
+        # Génese de custódia na evidência do Agent B (dados a proteger).
+        ChainOfCustody(
+            evidence=self.evidence_b,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
+            agent=self.agent_b,
+        ).save()
+
+        self.authenticate_as(self.agent)
+        url = reverse('core:custody-timeline', kwargs={'evidence_id': self.evidence_b.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_agent_a_can_access_own_custody_timeline(self):
+        """Controlo positivo: o dono continua a ver a sua própria timeline."""
+        ChainOfCustody(
+            evidence=self.evidence_a,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
+            agent=self.agent,
+        ).save()
+
+        self.authenticate_as(self.agent)
+        url = reverse('core:custody-timeline', kwargs={'evidence_id': self.evidence_a.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_expert_can_access_any_custody_timeline(self):
+        """Controlo positivo: EXPERT (leitura nacional) vê qualquer timeline."""
+        ChainOfCustody(
+            evidence=self.evidence_b,
+            event_type=ChainOfCustody.EventType.APREENSAO_OBJETO,
+            custodian_type=ChainOfCustody.CustodianType.OPC,
+            agent=self.agent_b,
+        ).save()
+
+        self.authenticate_as(self.expert)
+        url = reverse('core:custody-timeline', kwargs={'evidence_id': self.evidence_b.pk})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
     def test_expert_can_see_all_occurrences(self):
         """EXPERT consegue ver ocorrências de todos os agentes."""
         self.authenticate_as(self.expert)

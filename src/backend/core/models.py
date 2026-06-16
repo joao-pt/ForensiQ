@@ -20,7 +20,7 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import IntegrityError, models, transaction
+from django.db import IntegrityError, connection, models, transaction
 from django.db.models import OuterRef, Subquery
 from django.utils import timezone
 
@@ -105,6 +105,12 @@ def gps_lng_field(verbose_name):
 
 CODE_MAX_ATTEMPTS = 5
 MAX_SEQUENCE_ATTEMPTS = 10  # Audit 2026-05-18 §3 N10 — retry de AuditLog.sequence
+
+# Chave aplicacional do advisory lock que serializa a atribuição de
+# AuditLog.sequence em PostgreSQL (ver AuditLog.save). Valor arbitrário mas
+# estável; é o único advisory lock da app, logo não há risco de colisão de
+# chave. 0x41554453 = 'AUDS' (audit sequence).
+_AUDITLOG_SEQUENCE_LOCK_KEY = 0x41554453
 
 
 def _is_unique_collision(exc, *fields):
@@ -2001,9 +2007,13 @@ class ChainOfCustody(AppendOnlyModel):
         'Registos de cadeia de custódia são imutáveis. Não é permitido eliminar registos.'
     )
 
-    # Flag DERIVADA (não-coluna): assinala VALIDACAO fora do prazo de 72h.
-    # Calculada em clean(); facto juridicamente relevante, não bloqueia.
-    validation_overdue = False
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Flag DERIVADA (não-coluna): assinala VALIDACAO fora do prazo de 72h.
+        # Calculada em clean() (facto juridicamente relevante, não bloqueia).
+        # Estado de INSTÂNCIA — inicializada aqui, não como atributo de classe,
+        # para que cada registo do ledger tenha a sua própria flag.
+        self.validation_overdue = False
 
     def __str__(self):
         ev_label = self.evidence.code if self.evidence_id else f'#{self.evidence_id}'
@@ -2938,12 +2948,16 @@ class AuditLog(AppendOnlyModel):
 
         Permite apenas inserts (pk é None). Bloqueia atualizações.
 
-        A sequence é atribuída atomicamente como `max(sequence) + 1`.
-        Em caso de race condition (dois inserts concorrentes a calcular
-        a mesma sequence), a constraint unique levanta IntegrityError e
-        re-tentamos até MAX_SEQUENCE_ATTEMPTS. Para o nível de carga do
-        AuditLog (não é hot path) o retry é suficientemente raro para
-        dispensar advisory lock. Auditoria 2026-05-18 §3 N10.
+        A sequence é atribuída como `max(sequence) + 1` dentro de uma
+        secção crítica serializada. Em PostgreSQL, um advisory lock
+        transaccional (``pg_advisory_xact_lock``, auto-libertado no
+        commit/rollback) garante que dois inserts concorrentes nunca leem
+        o mesmo `max(sequence)` — eliminando a race que, sob contenção,
+        podia esgotar MAX_SEQUENCE_ATTEMPTS e *perder* um registo de
+        auditoria (RuntimeError). O retry por colisão unique mantém-se como
+        rede de segurança e cobre o SQLite dos testes, onde o advisory lock
+        é no-op (sem concorrência real). Auditoria 2026-05-18 §3 N10
+        (revisto: advisory lock adoptado em vez do retry isolado).
         """
         self._assert_insert_only()
 
@@ -2952,6 +2966,14 @@ class AuditLog(AppendOnlyModel):
         for _ in range(MAX_SEQUENCE_ATTEMPTS):
             try:
                 with transaction.atomic():
+                    # Serializa a atribuição da sequence entre escritores
+                    # concorrentes; no-op fora de PostgreSQL (ex.: SQLite).
+                    if connection.vendor == 'postgresql':
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                'SELECT pg_advisory_xact_lock(%s)',
+                                [_AUDITLOG_SEQUENCE_LOCK_KEY],
+                            )
                     last_seq = AuditLog.objects.aggregate(m=Max('sequence'))['m'] or 0
                     self.sequence = last_seq + 1
                     super().save(*args, **kwargs)

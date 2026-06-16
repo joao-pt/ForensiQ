@@ -4285,13 +4285,13 @@ def _intake_world(occurrence):
     """Itens da ocorrência + estado legal DERIVADO (ADR-0015) + eventos agrupados.
 
     Agrupamento ledger→estado na fonte única (uma só query para TODOS os
-    eventos da ocorrência); ``with_events`` devolve também os registos
-    agrupados, de onde se lê o destino do último encaminhamento de cada item.
+    eventos da ocorrência); :func:`analytics.legal_states_with_events` devolve
+    também os registos agrupados, de onde se lê o destino do último
+    encaminhamento de cada item.
     """
     evidences = sorted(Evidence.objects.filter(occurrence=occurrence), key=_tree_sort_key)
-    states, eventos_por_ev = analytics.legal_states_by_evidence(
+    states, eventos_por_ev = analytics.legal_states_with_events(
         ChainOfCustody.objects.filter(evidence__occurrence=occurrence),
-        with_events=True,
         related=('custodian_institution',),
     )
     return evidences, {ev.id: states.get(ev.id, '') for ev in evidences}, eventos_por_ev

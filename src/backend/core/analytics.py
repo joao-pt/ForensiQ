@@ -61,50 +61,77 @@ def resolve_window(raw):
     return days if days in WINDOW_CHOICES else DEFAULT_WINDOW_DAYS
 
 
-def legal_states_by_evidence(custody_qs, *, with_events=False, related=()):
-    """``{evidence_id: estado_legal_derivado}`` numa ÚNICA query (WI-E).
+# Colunas mínimas de cada derivação em lote (modo leve, sem ``related``): só o
+# que a função pura respectiva lê do registo. Evita materializar a linha inteira.
+_STATE_ONLY_FIELDS = ('evidence_id', 'event_type', 'custodian_type', 'sequence')
+_VALIDATION_ONLY_FIELDS = ('evidence_id', 'event_type', 'sequence', 'timestamp')
 
-    Fonte única do agrupamento ledger→estado: agrupa os eventos do ledger
-    (âmbito *need-to-know*/lente JÁ imposto pelo chamador) por ``evidence_id``
-    — uma só passagem, suportada pelo índice ``coc_ev_seq_idx`` — e deriva o
-    estado uma vez por item com a função pura :func:`derive_legal_state`.
-    Consumida pelo frontend, pela API, pelos filtros e pelo intake; nenhuma
-    camada re-implementa o agrupamento.
 
-    ``with_events=True`` devolve ``(states, eventos_por_evidencia)`` para os
-    consumidores que também precisam dos registos agrupados (ex.: o intake lê o
-    destino do último encaminhamento) sem repetir a passagem; ``related``
-    acrescenta ``select_related`` nesse modo (no modo leve usa-se ``only`` com
-    os campos mínimos da derivação).
+def _group_events_by_evidence(custody_qs, *, related=(), only_fields=None) -> dict[int, list]:
+    """``{evidence_id: [eventos ordenados por sequence]}`` numa ÚNICA passagem.
+
+    Fonte única do agrupamento ledger→evidência: as três derivações em lote
+    deste módulo (estado de custódia, estado+eventos, estatuto de validação)
+    partilham esta passagem — nenhuma a re-implementa. O âmbito
+    *need-to-know*/lente já vem imposto pelo chamador no ``custody_qs``. A ordem
+    por ``(evidence_id, sequence)`` é suportada pelo índice ``coc_ev_seq_idx``.
+
+    ``related`` acrescenta ``select_related`` aos registos (carrega a linha
+    completa, para quem lê campos relacionados); ``only_fields`` restringe as
+    colunas (modo leve). Mutuamente exclusivos: com ``related`` ignora-se
+    ``only_fields`` e carrega-se a linha inteira.
     """
     qs = custody_qs.select_related(None).order_by('evidence_id', 'sequence')
-    if with_events:
-        if related:
-            qs = qs.select_related(*related)
-    else:
-        qs = qs.only('evidence_id', 'event_type', 'custodian_type', 'sequence')
-    eventos = {}
+    if related:
+        qs = qs.select_related(*related)
+    elif only_fields:
+        qs = qs.only(*only_fields)
+    eventos: dict[int, list] = {}
     for rec in qs:
         eventos.setdefault(rec.evidence_id, []).append(rec)
+    return eventos
+
+
+def legal_states_by_evidence(custody_qs) -> dict[int, str]:
+    """``{evidence_id: estado_legal_derivado}`` numa ÚNICA query (WI-E).
+
+    Agrupa o ledger por ``evidence_id`` (fonte única
+    :func:`_group_events_by_evidence`) e deriva o estado uma vez por item com a
+    função pura :func:`derive_legal_state`. Consumida pelo frontend, pela API,
+    pelos filtros e pelo intake.
+
+    Para também obter os registos agrupados (ex.: o intake lê o destino do
+    último encaminhamento) sem repetir a passagem, usar
+    :func:`legal_states_with_events`.
+    """
+    eventos = _group_events_by_evidence(custody_qs, only_fields=_STATE_ONLY_FIELDS)
+    return {ev_id: derive_legal_state(evs) for ev_id, evs in eventos.items()}
+
+
+def legal_states_with_events(
+    custody_qs, *, related=()
+) -> tuple[dict[int, str], dict[int, list]]:
+    """Como :func:`legal_states_by_evidence`, mas devolve também os eventos
+    agrupados: ``(states, eventos_por_evidencia)``.
+
+    Mesma passagem única; para os consumidores que, além do estado, precisam
+    dos próprios registos do ledger (ex.: o intake lê o destino do último
+    encaminhamento). ``related`` acrescenta ``select_related`` aos registos
+    devolvidos (carrega a linha completa, não o subconjunto leve da derivação).
+    """
+    eventos = _group_events_by_evidence(custody_qs, related=related)
     states = {ev_id: derive_legal_state(evs) for ev_id, evs in eventos.items()}
-    return (states, eventos) if with_events else states
+    return states, eventos
 
 
-def validation_statuses_by_evidence(custody_qs, now=None):
+def validation_statuses_by_evidence(custody_qs, now=None) -> dict[int, object]:
     """Estatuto de VALIDAÇÃO por evidência (eixo ortogonal ao estado de custódia
     — CPP art. 178.º/6), em LOTE: agrupa o ledger visível por ``evidence_id``
-    numa só passagem e aplica a função pura :func:`validation_status` uma vez
-    por item. Espelho de :func:`legal_states_by_evidence` para o outro eixo —
-    nenhuma camada re-implementa o agrupamento. ``None`` = não aplicável."""
+    numa só passagem (fonte única :func:`_group_events_by_evidence`) e aplica a
+    função pura :func:`validation_status` uma vez por item. Espelho de
+    :func:`legal_states_by_evidence` para o outro eixo. ``None`` = não aplicável."""
     now = now or timezone.now()
-    qs = (
-        custody_qs.select_related(None)
-        .order_by('evidence_id', 'sequence')
-        .only('evidence_id', 'event_type', 'sequence', 'timestamp')
-    )
-    eventos = {}
-    for rec in qs:
-        eventos.setdefault(rec.evidence_id, []).append(rec)
+    eventos = _group_events_by_evidence(custody_qs, only_fields=_VALIDATION_ONLY_FIELDS)
     return {ev_id: validation_status(evs, now) for ev_id, evs in eventos.items()}
 
 

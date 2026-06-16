@@ -66,7 +66,7 @@ def _cookie_kwargs(max_age, path='/'):
     return {
         'max_age': max_age,
         'httponly': True,
-        'secure': not settings.DEBUG,
+        'secure': settings.AUTH_COOKIE_SECURE,
         'samesite': 'Strict',
         'path': path,
     }

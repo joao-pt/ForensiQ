@@ -184,6 +184,10 @@ def generate_guia_transporte(guia):
         )
         .order_by('evidence_id')
     )
+    if not events:
+        raise ValueError(
+            f'Guia {guia.code} sem eventos de custódia — não é possível gerar o PDF.'
+        )
     anchor = events[0]
     items = [e.evidence for e in events]
     occ = anchor.evidence.occurrence

@@ -462,10 +462,19 @@ def can_view_evidence(user, evidence):
     if evidence.agent_id == user.id or evidence.occurrence.agent_id == user.id:
         return True
     inst_ids = set(_active_institution_ids(user))
-    for rec in evidence.custody_chain.all():
-        if rec.agent_id == user.id or rec.custodian_institution_id in inst_ids:
-            return True
-    return False
+    # Prefetch-aware: num detalhe/lista que já trouxe ``custody_chain``
+    # (Prefetch sem ``to_attr`` → cache em ``_prefetched_objects_cache``),
+    # reaproveita a cache em Python (0 queries). Sem prefetch, um único
+    # ``.exists()`` filtrado evita materializar a cadeia inteira só para um
+    # teste de pertença. Mesmo predicado nos dois ramos.
+    if 'custody_chain' in getattr(evidence, '_prefetched_objects_cache', {}):
+        return any(
+            rec.agent_id == user.id or rec.custodian_institution_id in inst_ids
+            for rec in evidence.custody_chain.all()
+        )
+    return evidence.custody_chain.filter(
+        Q(agent_id=user.id) | Q(custodian_institution_id__in=inst_ids)
+    ).exists()
 
 
 def is_occurrence_institutional(user, occurrence):

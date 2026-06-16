@@ -20,7 +20,7 @@ from django.test import TestCase
 from core.models import AuditLog
 from core.services.imei_lookup import (
     _CACHE_KEY_CALLS_24H,
-    LookupError,
+    ImeiLookupError,
     lookup_imei,
 )
 from core.tests_base import mock_httpx_client, mock_httpx_response
@@ -66,7 +66,7 @@ class ImeiLookupCallCounterTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_call_counter_incrementa_em_falha(self, mock_client, _token):
         mock_client.return_value = _mock_httpx_response(500)
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         # Contador conta TENTATIVAS, não sucessos.
         self.assertEqual(cache.get(_CACHE_KEY_CALLS_24H), 1)
@@ -82,7 +82,7 @@ class ImeiLookupCriticalAlertTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_http_402_cria_alerta_quota_exhausted(self, mock_client, _token):
         mock_client.return_value = _mock_httpx_response(402)
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         alert = AuditLog.objects.get(action=AuditLog.Action.SYSTEM_ALERT)
         self.assertEqual(alert.details['event'], 'quota_exhausted')
@@ -96,7 +96,7 @@ class ImeiLookupCriticalAlertTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_http_401_cria_alerta_token_invalid(self, mock_client, _token):
         mock_client.return_value = _mock_httpx_response(401)
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         alert = AuditLog.objects.get(action=AuditLog.Action.SYSTEM_ALERT)
         self.assertEqual(alert.details['event'], 'token_invalid')
@@ -106,7 +106,7 @@ class ImeiLookupCriticalAlertTest(TestCase):
     @patch('core.services.imei_lookup.httpx.Client')
     def test_http_429_cria_alerta_rate_limited(self, mock_client, _token):
         mock_client.return_value = _mock_httpx_response(429)
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         alert = AuditLog.objects.get(action=AuditLog.Action.SYSTEM_ALERT)
         self.assertEqual(alert.details['event'], 'rate_limited')
@@ -120,7 +120,7 @@ class ImeiLookupCriticalAlertTest(TestCase):
             200,
             {'success': False, 'code': 402, 'message': 'no balance'},
         )
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         alert = AuditLog.objects.get(action=AuditLog.Action.SYSTEM_ALERT)
         self.assertEqual(alert.details['event'], 'quota_exhausted')
@@ -132,7 +132,7 @@ class ImeiLookupCriticalAlertTest(TestCase):
     def test_http_404_nao_cria_alerta(self, mock_client, _token):
         """404 (IMEI não encontrado) é cenário normal — sem alerta."""
         mock_client.return_value = _mock_httpx_response(404)
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         self.assertFalse(AuditLog.objects.filter(action=AuditLog.Action.SYSTEM_ALERT).exists())
 
@@ -141,6 +141,6 @@ class ImeiLookupCriticalAlertTest(TestCase):
     def test_http_500_nao_cria_alerta(self, mock_client, _token):
         """5xx upstream é problema deles, não da nossa quota."""
         mock_client.return_value = _mock_httpx_response(500)
-        with self.assertRaises(LookupError):
+        with self.assertRaises(ImeiLookupError):
             lookup_imei(_VALID_IMEI)
         self.assertFalse(AuditLog.objects.filter(action=AuditLog.Action.SYSTEM_ALERT).exists())

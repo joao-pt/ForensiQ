@@ -85,7 +85,7 @@ from .serializers import (
     UserDetailSerializer,
     UserSerializer,
 )
-from .services.imei_lookup import LookupError as ImeiLookupError, lookup_imei, mask_imei
+from .services.imei_lookup import ImeiLookupError, lookup_imei, mask_imei
 from .services.vin_lookup import build_vindecoder_url
 from .throttles import HealthcheckRateThrottle
 from .validators import validate_imei, validate_vin
@@ -279,7 +279,7 @@ class EvidenceViewSet(viewsets.ModelViewSet):
 
     queryset = (
         Evidence.objects.select_related('occurrence', 'agent')
-        .prefetch_related('sub_components')
+        .prefetch_related('sub_components', 'custody_chain')
         .all()
     )
     serializer_class = EvidenceSerializer
@@ -371,7 +371,11 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
     - Filtragem por evidência: ?evidence=<id>
     """
 
-    queryset = ChainOfCustody.objects.select_related('evidence', 'agent').all()
+    queryset = (
+        ChainOfCustody.objects.select_related('evidence', 'agent')
+        .prefetch_related('evidence__custody_chain')
+        .all()
+    )
     serializer_class = ChainOfCustodySerializer
     # CanAccessCustodyApi (não IsAgentOrExpert): admite os perfis que o modelo de
     # acesso autoriza a escrever (inclui CASE_AUTHORITY e EVIDENCE_CUSTODIAN) e
@@ -419,10 +423,31 @@ class ChainOfCustodyViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='evidence/(?P<evidence_id>[0-9]+)/timeline')
     def timeline(self, request, evidence_id=None):
-        """Retorna a timeline completa de custódia para uma evidência."""
+        """Retorna a timeline completa de custódia para uma evidência.
+
+        Need-to-know (ADR-0017 §5): o queryset passa por ``get_queryset()``
+        para herdar ``access.scope_custody``. Uma ``@action`` que consultasse
+        ``ChainOfCustody.objects`` directamente ignoraria esse filtro e abriria
+        IDOR — o mesmo padrão que ``get_queryset`` documenta (corrigido no
+        ``export_pdf`` em 2026-04-19). Itens fora do âmbito devolvem 404, para
+        não confirmar a existência de prova a que o utilizador não tem acesso.
+        """
+        evidence = (
+            access.scope_evidences(request.user).filter(pk=evidence_id).first()
+        )
+        if evidence is None:
+            raise Http404
+        log_access(
+            request=request,
+            action=AuditLog.Action.VIEW,
+            resource_type=AuditLog.ResourceType.EVIDENCE,
+            resource_id=evidence.pk,
+            details={'hash': evidence.integrity_hash},
+        )
         records = (
-            ChainOfCustody.objects.select_related('agent', 'evidence__occurrence')
+            self.get_queryset()
             .filter(evidence_id=evidence_id)
+            .select_related('evidence__occurrence')
             .order_by('sequence')
         )
         serializer = self.get_serializer(records, many=True)
@@ -974,7 +999,15 @@ class StatsView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def get(self, request):
+        # Honra a "transacção coerente" prometida na docstring: REPEATABLE
+        # READ para que os counts/agregados reflictam o mesmo instante (ver
+        # nota equivalente em DashboardStatsView). No-op fora de PostgreSQL.
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+
         user = request.user
         occ_qs = access.scope_occurrences(user)
         ev_qs = access.scope_evidences(user)
@@ -1024,7 +1057,20 @@ class DashboardStatsView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @transaction.atomic
     def get(self, request):
+        # Snapshot coerente do painel: as 6+ agregações abaixo correm numa
+        # única transação com isolamento REPEATABLE READ, para que todos os
+        # totais reflictam o MESMO instante. Sob READ COMMITTED (o default)
+        # uma escrita concorrente entre dois counts deixaria os agregados
+        # mutuamente inconsistentes. O SET tem de ser a 1.ª instrução SQL da
+        # transação (por isso vem antes de qualquer queryset); sendo read-only,
+        # REPEATABLE READ nunca gera erro de serialização (dispensa retry).
+        # No-op fora de PostgreSQL (ex.: SQLite nos testes).
+        if connection.vendor == 'postgresql':
+            with connection.cursor() as cursor:
+                cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
+
         user = request.user
         occ_qs = access.scope_occurrences(user)
         ev_qs = access.scope_evidences(user)

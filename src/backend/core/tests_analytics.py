@@ -123,8 +123,8 @@ class LegalStatesByEvidenceTest(TestCase):
         self.assertEqual(states[self.ev2.id], 'a_guarda_opc')
 
     def test_with_events_devolve_registos_agrupados_por_ordem_canonica(self):
-        states, eventos = analytics.legal_states_by_evidence(
-            ChainOfCustody.objects.all(), with_events=True
+        states, eventos = analytics.legal_states_with_events(
+            ChainOfCustody.objects.all()
         )
         self.assertEqual(states[self.ev1.id], 'a_guarda_opc')
         self.assertEqual(

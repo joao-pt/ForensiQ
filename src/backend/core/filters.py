@@ -95,13 +95,24 @@ class CustodyFilter(filters.FilterSet):
 
     def filter_legal_state(self, queryset, name, value):
         # Estado legal derivado não é coluna — agrupa+deriva numa PASSAGEM única
-        # (fonte única analytics.legal_states_by_evidence; antes: uma query por
-        # evidência, N+1) sobre as cadeias COMPLETAS das evidências presentes.
+        # (fonte única analytics.legal_states_by_evidence) sobre as cadeias
+        # COMPLETAS das evidências presentes.
+        #
+        # NÃO se passa ``queryset`` directamente a legal_states_by_evidence: o
+        # filtro ``event_type`` é declarado ANTES deste, logo já pode ter
+        # reduzido o queryset a um subconjunto dos eventos — derivar o estado
+        # daí daria um valor errado (o estado é função da sequência inteira).
+        # Refazemos por isso a query sobre o ledger completo das evidências em
+        # âmbito, alimentada por uma SUBQUERY de ``evidence_id`` (uma só
+        # passagem ao ledger, em vez do antigo set materializado + 2.ª query).
+        # Sem fuga de scope: ``scope_custody`` autoriza por evidência (tudo ou
+        # nada), e os ids vêm do queryset já restringido pela lente.
         if not value:
             return queryset
-        evidence_ids = set(queryset.values_list('evidence_id', flat=True))
         states = analytics.legal_states_by_evidence(
-            ChainOfCustody.objects.filter(evidence_id__in=evidence_ids)
+            ChainOfCustody.objects.filter(
+                evidence_id__in=queryset.order_by().values('evidence_id')
+            )
         )
         matched = [ev_id for ev_id, st in states.items() if st == value]
         return queryset.filter(evidence_id__in=matched)

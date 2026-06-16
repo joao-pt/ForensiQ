@@ -51,9 +51,9 @@ class IMEILookupNoTokenTest(TestCase):
 
     @override_settings(IMEIDB_API_TOKEN='')
     def test_no_token_raises_lookup_error(self):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('não está configurado', str(ctx.exception))
 
@@ -66,12 +66,12 @@ class IMEILookupNetworkErrorsTest(TestCase):
     def test_timeout_raises_lookup_error(self, mock_client_cls):
         import httpx
 
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         # Duplo do httpx.Client na fonte unica (tests_base.mock_httpx_client - D107).
         mock_client_cls.return_value = mock_httpx_client(side_effect=httpx.TimeoutException('timeout'))
 
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('Tempo esgotado', str(ctx.exception))
 
@@ -80,11 +80,11 @@ class IMEILookupNetworkErrorsTest(TestCase):
     def test_network_error_raises_lookup_error(self, mock_client_cls):
         import httpx
 
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         mock_client_cls.return_value = mock_httpx_client(side_effect=httpx.RequestError('connection failed'))
 
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('Erro de rede', str(ctx.exception))
 
@@ -103,70 +103,70 @@ class IMEILookupHTTPErrorsTest(TestCase):
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_401_raises_invalid_token(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(401))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('Token', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_402_raises_balance_exhausted(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(402))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('Saldo', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_429_raises_rate_limit(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(429))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('Limite', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_404_raises_not_found(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(404))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('não encontrado', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_460_raises_not_found(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(460))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('não encontrado', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_500_raises_unavailable(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(500))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('indisponível', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_unexpected_status_raises(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         self._setup_client_mock(mock_client_cls, self._make_mock_response(418))
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('418', str(ctx.exception))
 
@@ -215,40 +215,40 @@ class IMEILookupSuccessTest(TestCase):
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_success_false_raises(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         payload = {'success': False, 'code': 402, 'message': 'No credits'}
         self._setup_client_mock(mock_client_cls, self._make_success_response(payload))
 
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('Saldo', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_non_json_raises(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         resp = MagicMock()
         resp.status_code = 200
         resp.json.side_effect = ValueError('not json')
         self._setup_client_mock(mock_client_cls, resp)
 
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('JSON', str(ctx.exception))
 
     @override_settings(IMEIDB_API_TOKEN='test-token')
     @patch('core.services.imei_lookup.httpx.Client')
     def test_non_dict_payload_raises(self, mock_client_cls):
-        from core.services.imei_lookup import LookupError, lookup_imei
+        from core.services.imei_lookup import ImeiLookupError, lookup_imei
 
         resp = MagicMock()
         resp.status_code = 200
         resp.json.return_value = ['not', 'a', 'dict']
         self._setup_client_mock(mock_client_cls, resp)
 
-        with self.assertRaises(LookupError) as ctx:
+        with self.assertRaises(ImeiLookupError) as ctx:
             lookup_imei(VALID_IMEI)
         self.assertIn('formato inesperado', str(ctx.exception))
 
@@ -336,11 +336,28 @@ class IMEILookupHelpersTest(TestCase):
         url = _base_url()
         self.assertIn('imeidb.xyz', url)
 
-    @override_settings(IMEIDB_BASE_URL='https://custom.api.com/v2')
-    def test_base_url_custom(self):
+    @override_settings(IMEIDB_BASE_URL='https://imeidb.xyz/v2')
+    def test_base_url_custom_path_no_host_autorizado(self):
+        """Override de path/versão no host autorizado é aceite."""
         from core.services.imei_lookup import _base_url
 
-        self.assertEqual(_base_url(), 'https://custom.api.com/v2')
+        self.assertEqual(_base_url(), 'https://imeidb.xyz/v2')
+
+    @override_settings(IMEIDB_BASE_URL='http://169.254.169.254/latest/meta-data')
+    def test_base_url_recusa_host_interno(self):
+        """Guarda anti-SSRF: host interno / esquema http é recusado (fail-closed)."""
+        from core.services.imei_lookup import ImeiLookupError, _base_url
+
+        with self.assertRaises(ImeiLookupError):
+            _base_url()
+
+    @override_settings(IMEIDB_BASE_URL='https://custom.api.com/v2')
+    def test_base_url_recusa_host_fora_da_allowlist(self):
+        """Host externo fora da allowlist é recusado mesmo em https."""
+        from core.services.imei_lookup import ImeiLookupError, _base_url
+
+        with self.assertRaises(ImeiLookupError):
+            _base_url()
 
     def test_timeout_default(self):
         from core.services.imei_lookup import _timeout

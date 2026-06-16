@@ -371,7 +371,11 @@ class EvidenceSerializer(serializers.ModelSerializer):
         deve acompanhar o pai na cadeia de custódia — aqui expomos essa
         relação para o frontend renderizar a árvore no detalhe do item.
         """
-        children = obj.sub_components.select_related('agent').order_by('id')
+        # Reutiliza a cache de ``prefetch_related('sub_components')`` do
+        # EvidenceViewSet (ordenar via ``.all()`` + sorted em Python evita
+        # uma query nova por evidência; ``agent`` não é exposto, logo sem
+        # select_related). Degrada bem onde não houver prefetch.
+        children = sorted(obj.sub_components.all(), key=lambda c: c.id)
         return [
             {
                 'id': c.id,
