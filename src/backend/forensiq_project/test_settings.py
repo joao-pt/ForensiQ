@@ -8,20 +8,23 @@ Utilização:
     python manage.py test --settings=forensiq_project.test_settings
 """
 
+import os as _os
 import tempfile as _tempfile
 from pathlib import Path as _Path
+
+import dj_database_url as _dj_database_url
 
 from .settings import *  # noqa: F401, F403
 
 # Remover whitenoise do middleware (não necessário em testes e não instalado neste ambiente)
 MIDDLEWARE = [m for m in MIDDLEWARE if 'whitenoise' not in m.lower()]
 
-# Base de dados SQLite em memória (sem necessidade de Neon.tech)
+# Base de dados: PostgreSQL (paridade total com produção). O projecto é
+# PostgreSQL-only --- sem fallback SQLite. A BD vem de DATABASE_URL (carregado
+# de .env por load_dotenv em settings.py); o Django cria/destrói a base de
+# teste ``test_<NOME>`` automaticamente, sem tocar nos dados de desenvolvimento.
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
-    }
+    'default': _dj_database_url.config(default=_os.environ['DATABASE_URL']),
 }
 
 # Ficheiros estáticos sem manifesto (evita erro 'Missing staticfiles manifest')

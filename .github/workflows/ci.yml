@@ -2,7 +2,9 @@ name: CI — Testes Django
 
 # Pipeline de integração contínua do ForensiQ.
 # Executa a suite de testes Django em cada push/PR para main.
-# Usa SQLite em memória (test_settings) — sem necessidade de PostgreSQL externo.
+# PostgreSQL-only: a suite corre contra um serviço PostgreSQL (paridade total
+# com produção); sem SQLite. Os triggers de imutabilidade (ISO/IEC 27037) são
+# exercitados pela própria suite — já não há job separado só para eles.
 
 on:
   push:
@@ -15,7 +17,7 @@ permissions:
 
 jobs:
   test:
-    name: Django tests (Python ${{ matrix.python-version }})
+    name: Django tests + cobertura (PostgreSQL, Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -23,13 +25,29 @@ jobs:
       matrix:
         python-version: ['3.12']
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: forensiq
+          POSTGRES_PASSWORD: forensiq
+          POSTGRES_DB: forensiq_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       # SECRET_KEY dummy — exigida pelo settings.py mas não sensível em CI
       SECRET_KEY: ci-dummy-secret-key-not-used-in-production
       DEBUG: 'True'
       ALLOWED_HOSTS: 'localhost,127.0.0.1'
-      # DATABASE_URL dummy — test_settings.py usa SQLite em memória
-      DATABASE_URL: 'sqlite:///dummy.sqlite3'
+      # PostgreSQL-only: test_settings lê DATABASE_URL (sem SQLite). O Django
+      # cria/destrói a base de teste test_<NOME> no serviço postgres acima.
+      DATABASE_URL: 'postgres://forensiq:forensiq@localhost:5432/forensiq_ci'
       ADMIN_URL_PREFIX: 'admin'
 
     steps:
@@ -49,9 +67,8 @@ jobs:
           python -m pip install --upgrade pip
           # `requirements-dev.txt` traz factory-boy (usado por tests_factories.py
           # e importado por toda a suite) e pypdf (usado pela extracção em
-          # tests_coverage.py::PDFContentValidationTest desde o commit 21e402c).
-          # Sem ele, o runner falha com ModuleNotFoundError mesmo que pytest e
-          # coverage estejam disponíveis.
+          # tests_coverage.py::PDFContentValidationTest). Sem ele, o runner falha
+          # com ModuleNotFoundError mesmo que pytest e coverage estejam disponíveis.
           pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Verificar configurações de deploy (Django check)
@@ -59,13 +76,15 @@ jobs:
         run: |
           python manage.py check --settings=forensiq_project.test_settings
 
-      - name: Correr testes com cobertura
+      - name: Correr a suite completa com cobertura (PostgreSQL)
         working-directory: src/backend
         run: |
+          # A suite inteira corre contra PostgreSQL: os triggers de imutabilidade
+          # (migrations 0002/0013/0037) são instalados na criação da base de teste
+          # e exercitados de facto — ImmutabilityTriggerTest já NÃO faz skip.
           # `--source` alinhado com pyproject [tool.coverage.run] (core +
-          # forensiq_project). `coverage report` lê `fail_under = 80` do
-          # pyproject e FALHA o build se a cobertura descer abaixo (T13) —
-          # gate único, em vez de três números divergentes.
+          # forensiq_project). `coverage report` lê `fail_under = 80` do pyproject
+          # e FALHA o build se a cobertura descer abaixo (T13) — gate único.
           coverage run --source='core,forensiq_project' manage.py test core \
             --settings=forensiq_project.test_settings \
             --verbosity=2
@@ -101,12 +120,15 @@ jobs:
       - name: ruff check
         run: ruff check src/backend
 
-  test-postgres:
-    name: Triggers PG (camada 3 de imutabilidade)
+  e2e:
+    name: E2E browser (Playwright)
     runs-on: ubuntu-latest
-    # Exercita os triggers PostgreSQL reais (prevent_*_modification), que não
-    # existem em SQLite — daí ImmutabilityTriggerTest fazer skip no job `test`.
-    # Sem este job a 3.ª camada de imutabilidade só seria validada em produção.
+    # Suite de browser (src/backend/e2e/): fluxos reais, interação HTMX, CSP,
+    # acessibilidade (axe, temas claro+escuro), teclado, viewport móvel e
+    # orçamentos de rapidez. Corre com o seu próprio settings (e2e_settings, que
+    # herda test_settings → PostgreSQL) e arranca o servidor via live_server.
+    # Exclui o marcador `visual` — a baseline de regressão visual é específica do
+    # ambiente de render (ver docs/testing/).
     services:
       postgres:
         image: postgres:16
@@ -126,52 +148,9 @@ jobs:
       SECRET_KEY: ci-dummy-secret-key-not-used-in-production
       DEBUG: 'True'
       ALLOWED_HOSTS: 'localhost,127.0.0.1'
+      # e2e_settings herda test_settings (PostgreSQL); o live_server vê os dados
+      # porque o PostgreSQL é um servidor partilhado entre threads.
       DATABASE_URL: 'postgres://forensiq:forensiq@localhost:5432/forensiq_ci'
-      ADMIN_URL_PREFIX: 'admin'
-
-    steps:
-      - name: Checkout do repositório
-        uses: actions/checkout@v6
-
-      - name: Configurar Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-          cache-dependency-path: src/backend/requirements.txt
-
-      - name: Instalar dependências
-        working-directory: src/backend
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt -r requirements-dev.txt
-
-      - name: Correr testes de trigger contra PostgreSQL
-        working-directory: src/backend
-        # ci_postgres_settings herda test_settings (sem WhiteNoise/throttles)
-        # e só troca a BD para o serviço postgres acima. As migrations
-        # 0002/0013 instalam os triggers ao criar a BD de teste, pelo que
-        # ImmutabilityTriggerTest deixa de fazer skip e valida-os de facto.
-        run: |
-          python manage.py test core.tests.ImmutabilityTriggerTest \
-            --settings=forensiq_project.ci_postgres_settings \
-            --verbosity=2
-
-  e2e:
-    name: E2E browser (Playwright)
-    runs-on: ubuntu-latest
-    # Suite de browser (src/backend/e2e/): fluxos reais, interação HTMX, CSP,
-    # acessibilidade (axe, temas claro+escuro), teclado, viewport móvel e
-    # orçamentos de rapidez. Corre com o seu próprio settings (e2e_settings) e
-    # arranca o servidor via live_server. Exclui o marcador `visual` — a baseline
-    # de regressão visual é específica do ambiente de render (ver docs/testing/).
-    env:
-      SECRET_KEY: ci-dummy-secret-key-not-used-in-production
-      DEBUG: 'True'
-      ALLOWED_HOSTS: 'localhost,127.0.0.1'
-      # e2e_settings usa SQLite em ficheiro (tempdir); DATABASE_URL dummy só
-      # porque o settings.py base a parseia no import.
-      DATABASE_URL: 'sqlite:///dummy.sqlite3'
       ADMIN_URL_PREFIX: 'admin'
 
     steps:

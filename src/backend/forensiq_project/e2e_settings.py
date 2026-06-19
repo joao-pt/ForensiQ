@@ -1,14 +1,15 @@
 """
 ForensiQ — Configurações para testes E2E de browser (Playwright + live_server).
 
-Herda de ``test_settings`` (SQLite, DEBUG=True, throttling desligado) e ajusta o
+Herda de ``test_settings`` (PostgreSQL, DEBUG=True, throttling desligado) e ajusta o
 estritamente necessário para servir a aplicação REAL a um browser headless:
 
   * **Estáticos do frontend repostos** — ``test_settings`` faz
     ``STATICFILES_DIRS = []`` (irrelevante para testes de unidade, mas fatal
     para um browser, que precisa do CSS/JS para renderizar e interagir);
-  * **SQLite em ficheiro** (não ``:memory:``) — o ``live_server`` corre noutra
-    thread e tem de ver os dados que os factories cometem (``transactional_db``);
+  * **PostgreSQL** (herdado de ``test_settings``) — o ``live_server`` corre
+    noutra thread e vê os dados porque o PostgreSQL é um servidor partilhado
+    (``transactional_db``);
   * **MEDIA_ROOT isolado** — para os uploads de fotografia dos testes.
 
 Os cookies JWT já saem não-``Secure`` porque ``DEBUG=True`` (ver ``core.auth``),
@@ -28,16 +29,10 @@ from .test_settings import *  # noqa: F401,F403
 #    declaração de produção (auditoria D116), em vez de re-escrever o caminho.
 STATICFILES_DIRS = _PROD_STATICFILES_DIRS
 
-# 2) Base de dados em ficheiro, partilhada entre a thread de teste e a do
-#    servidor live. O :memory: do test_settings não é fiável com o live_server.
-_E2E_DB = str(_Path(_tempfile.gettempdir()) / 'forensiq_e2e.sqlite3')
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': _E2E_DB,
-        'TEST': {'NAME': _E2E_DB},
-    }
-}
+# 2) Base de dados: PostgreSQL herdado de ``test_settings`` (paridade total com
+#    produção; projecto PostgreSQL-only). O ``live_server`` corre noutra thread
+#    mas vê os dados porque o PostgreSQL é um servidor partilhado (ao contrário
+#    do SQLite ``:memory:``, que era por-ligação). Não se redefine DATABASES.
 
 # 3) Media isolada (uploads de fotografia dos testes E2E).
 MEDIA_ROOT = str(_Path(_tempfile.gettempdir()) / 'forensiq_e2e_media')

@@ -26,10 +26,12 @@ Factories de evidência seguem a taxonomia digital-first (ADR-0010):
 - :class:`EvidenceSimCardFactory`  — SIM_CARD (sub-componente típico).
 """
 
+from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal
 
 import factory
+from django.db import connection
 from django.utils import timezone
 
 from core.models import (
@@ -472,11 +474,37 @@ def make_chain(evidence, *events, agent=None):
     return records
 
 
+@contextmanager
+def without_immutability_triggers(*tables):
+    """Desliga temporariamente os triggers da sessão (incluindo os de
+    imutabilidade ISO/IEC 27037) via ``session_replication_role = replica`` —
+    instrumentação de teste para retrodatar ou forçar estados que o caminho de
+    produção (append-only) não permite. PostgreSQL-only.
+
+    Ao contrário de ``ALTER TABLE ... DISABLE TRIGGER``, funciona mesmo com
+    linhas já inseridas na transação (não dá o erro ``pending trigger events``);
+    requer um utilizador *superuser* (o ``postgres`` local e o ``POSTGRES_USER``
+    do Docker de CI são-no). As *constraints* (unique, FK por índice) continuam a
+    ser validadas. ``tables`` é aceite por compatibilidade da assinatura, mas o
+    efeito é ao nível da sessão (todas as tabelas)."""
+    with connection.cursor() as cursor:
+        cursor.execute("SET session_replication_role = 'replica'")
+        try:
+            yield
+        finally:
+            cursor.execute("SET session_replication_role = 'origin'")
+
+
 def backdate(obj, **delta):
     """Retrodata ``timestamp`` (``auto_now_add``) via ``.update()`` — o ÚNICO
-    caminho que não dispara o ``save()`` imutável (auditoria D108). ``delta``
-    são kwargs de ``timedelta`` (``days=3``, ``hours=2``, …)."""
-    type(obj).objects.filter(pk=obj.pk).update(timestamp=timezone.now() - timedelta(**delta))
+    caminho que não dispara o ``save()`` imutável (auditoria D108). Em PostgreSQL
+    os triggers de imutabilidade (ISO/IEC 27037) bloqueiam qualquer UPDATE, pelo
+    que se desligam SÓ durante a retrodatação (instrumentação de teste, nunca
+    caminho de produção). ``delta`` são kwargs de ``timedelta`` (``days=3``, …)."""
+    model = type(obj)
+    new_ts = timezone.now() - timedelta(**delta)
+    with without_immutability_triggers(model._meta.db_table):
+        model.objects.filter(pk=obj.pk).update(timestamp=new_ts)
     obj.refresh_from_db()
     return obj
 
@@ -511,4 +539,5 @@ __all__ = [
     'make_event',
     'make_chain',
     'backdate',
+    'without_immutability_triggers',
 ]

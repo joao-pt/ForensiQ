@@ -1028,8 +1028,12 @@ class StatsView(APIView):
     def get(self, request: Request) -> Response:
         # Honra a "transacção coerente" prometida na docstring: REPEATABLE
         # READ para que os counts/agregados reflictam o mesmo instante (ver
-        # nota equivalente em DashboardStatsView). No-op fora de PostgreSQL.
-        if connection.vendor == 'postgresql':
+        # nota equivalente em DashboardStatsView). O SET tem de ser a 1.ª
+        # instrução SQL da transação, pelo que só o emitimos quando esta vista é
+        # dona da transação de topo (sem savepoints); sob uma transação exterior
+        # já iniciada (harness de teste; ATOMIC_REQUESTS) o isolamento ambiente
+        # é suficiente. PostgreSQL-only.
+        if not connection.savepoint_ids:
             with connection.cursor() as cursor:
                 cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
 
@@ -1089,10 +1093,11 @@ class DashboardStatsView(APIView):
         # totais reflictam o MESMO instante. Sob READ COMMITTED (o default)
         # uma escrita concorrente entre dois counts deixaria os agregados
         # mutuamente inconsistentes. O SET tem de ser a 1.ª instrução SQL da
-        # transação (por isso vem antes de qualquer queryset); sendo read-only,
-        # REPEATABLE READ nunca gera erro de serialização (dispensa retry).
-        # No-op fora de PostgreSQL (ex.: SQLite nos testes).
-        if connection.vendor == 'postgresql':
+        # transação; por isso só o emitimos quando esta vista é dona da
+        # transação de topo (sem savepoints). Sob uma transação exterior já
+        # iniciada (harness de teste; ATOMIC_REQUESTS) o isolamento ambiente é
+        # suficiente (não há concorrência a proteger). PostgreSQL-only.
+        if not connection.savepoint_ids:
             with connection.cursor() as cursor:
                 cursor.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
 

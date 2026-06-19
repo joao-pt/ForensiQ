@@ -17,9 +17,11 @@ T07 — GET /api/stats/dashboard/ (chaves aditivas):
 Nota: ``created_at`` (``auto_now_add``) e ``ChainOfCustody.timestamp`` (forçado
 ao relógio do servidor no ``save()``) não são definíveis na criação; para
 posicionar registos em janelas temporais específicas usamos ``.update()``, que
-escreve directamente na BD (em SQLite de teste não há triggers de
-imutabilidade — ver a documentação de arquitectura). Isto NÃO é caminho de produção: é apenas
-instrumentação de teste para datar registos.
+escreve directamente na BD. Em PostgreSQL os triggers de imutabilidade bloqueiam
+o UPDATE, pelo que essa instrumentação se faz dentro de
+``without_immutability_triggers`` (ou desligando os triggers no ``setUp``, antes
+de criar dados). Isto NÃO é caminho de produção: é apenas instrumentação de
+teste para datar registos.
 """
 
 from datetime import timedelta
@@ -37,6 +39,7 @@ from core.tests_factories import (
     AUTHORITY_PRAZO_DIAS,
     AuditLogFactory,
     UserFactory,
+    without_immutability_triggers,
 )
 
 from .models import AuditLog, ChainOfCustody, Evidence, Occurrence, User
@@ -118,9 +121,13 @@ class ActivityFeedTest(DashboardBaseTestCase):
         c = self._log(self.expert, AuditLog.Action.EXPORT_PDF, AuditLog.ResourceType.EVIDENCE, 3)
         # Forçar timestamps distintos e crescentes.
         now = timezone.now()
-        AuditLog.objects.filter(pk=a.pk).update(timestamp=now - timedelta(minutes=30))
-        AuditLog.objects.filter(pk=b.pk).update(timestamp=now - timedelta(minutes=20))
-        AuditLog.objects.filter(pk=c.pk).update(timestamp=now - timedelta(minutes=10))
+        # UPDATE directo de instrumentação: em PostgreSQL o trigger de
+        # imutabilidade bloqueia-o, pelo que se desligam os triggers da sessão
+        # só durante a datação (nunca caminho de produção).
+        with without_immutability_triggers('core_auditlog'):
+            AuditLog.objects.filter(pk=a.pk).update(timestamp=now - timedelta(minutes=30))
+            AuditLog.objects.filter(pk=b.pk).update(timestamp=now - timedelta(minutes=20))
+            AuditLog.objects.filter(pk=c.pk).update(timestamp=now - timedelta(minutes=10))
 
         self.authenticate_as(self.expert)
         url = reverse('core:activity-feed')

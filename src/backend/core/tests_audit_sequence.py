@@ -14,12 +14,13 @@ Cobertura:
   do AuditLog (defesa pré-existente).
 """
 
+from django.db import transaction
 from django.db.utils import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 
 from core.models import AuditLog
-from core.tests_factories import AuditLogFactory
+from core.tests_factories import AuditLogFactory, without_immutability_triggers
 
 
 def _create_log(action=AuditLog.Action.VIEW):
@@ -58,7 +59,16 @@ class AuditLogSequenceUniqueTest(TestCase):
         # Tentar criar registo com sequence duplicado via update directo
         # (simula corruption / código bypass) — DB deve rejeitar.
         other = _create_log()
-        with self.assertRaises(IntegrityError):
+        # Em PostgreSQL o trigger de imutabilidade bloquearia o UPDATE antes de a
+        # constraint única ser avaliada; desligamo-lo só aqui para que seja a
+        # UniqueConstraint (e não o trigger) a rejeitar o sequence duplicado. O
+        # savepoint interno (transaction.atomic) isola o IntegrityError, para a
+        # transação exterior continuar utilizável e o reset dos triggers correr.
+        with (
+            without_immutability_triggers('core_auditlog'),
+            self.assertRaises(IntegrityError),
+            transaction.atomic(),
+        ):
             AuditLog.objects.filter(pk=other.pk).update(sequence=log.sequence)
 
 

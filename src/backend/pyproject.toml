@@ -91,8 +91,9 @@ extend-exclude = '''
 DJANGO_SETTINGS_MODULE = "forensiq_project.test_settings"
 python_files = ["tests.py", "test_*.py", "tests_*.py"]
 # `pytest` (sem argumentos) recolhe SÓ core/ — a suite unitária/integração com
-# test_settings (SQLite :memory:). Os testes E2E de browser vivem em e2e/ e
-# correm em separado, com o seu próprio settings e o browser instalado:
+# test_settings (PostgreSQL via DATABASE_URL; projecto PostgreSQL-only, sem
+# SQLite). Os testes E2E de browser vivem em e2e/ e correm em separado, com o
+# seu próprio settings e o browser instalado:
 #     pytest e2e/ --ds=forensiq_project.e2e_settings
 # Assim o `manage.py test core` do CI e um `pytest` simples nunca tentam
 # arrancar o Playwright. Ver docs/testing/.

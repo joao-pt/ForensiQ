@@ -2967,8 +2967,7 @@ class AuditLog(AppendOnlyModel):
         o mesmo `max(sequence)` — eliminando a race que, sob contenção,
         podia esgotar MAX_SEQUENCE_ATTEMPTS e *perder* um registo de
         auditoria (RuntimeError). O retry por colisão unique mantém-se como
-        rede de segurança e cobre o SQLite dos testes, onde o advisory lock
-        é no-op (sem concorrência real). Auditoria 2026-05-18 §3 N10
+        rede de segurança contra a corrida residual. Auditoria 2026-05-18 §3 N10
         (revisto: advisory lock adoptado em vez do retry isolado).
         """
         self._assert_insert_only()
@@ -2979,13 +2978,13 @@ class AuditLog(AppendOnlyModel):
             try:
                 with transaction.atomic():
                     # Serializa a atribuição da sequence entre escritores
-                    # concorrentes; no-op fora de PostgreSQL (ex.: SQLite).
-                    if connection.vendor == 'postgresql':
-                        with connection.cursor() as cursor:
-                            cursor.execute(
-                                'SELECT pg_advisory_xact_lock(%s)',
-                                [_AUDITLOG_SEQUENCE_LOCK_KEY],
-                            )
+                    # concorrentes (PostgreSQL-only): advisory lock transaccional,
+                    # auto-libertado no commit/rollback.
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            'SELECT pg_advisory_xact_lock(%s)',
+                            [_AUDITLOG_SEQUENCE_LOCK_KEY],
+                        )
                     last_seq = AuditLog.objects.aggregate(m=Max('sequence'))['m'] or 0
                     self.sequence = last_seq + 1
                     super().save(*args, **kwargs)
