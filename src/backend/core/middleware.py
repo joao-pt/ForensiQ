@@ -91,7 +91,8 @@ class ContentSecurityPolicyMiddleware:
     Middleware que adiciona o header Content-Security-Policy a todas as respostas.
 
     Política CSP (hardened, sem unsafe-inline/unsafe-eval em script-src nem style-src):
-    - default-src 'self': bloqueia todos os recursos externos por defeito
+    - default-src 'none': deny-by-default (recomendação OWASP/Mozilla); só
+      carrega o explicitamente permitido pelas directivas seguintes
     - script-src 'self' 'nonce-{nonce}': scripts só correm do próprio domínio
       ou quando têm o nonce emitido por request. Sem 'unsafe-inline' nem
       'unsafe-eval' — mitiga XSS reflectido/armazenado (CWE-79). O Leaflet é
@@ -106,6 +107,8 @@ class ContentSecurityPolicyMiddleware:
     - connect-src: AJAX ao próprio domínio e geocoding OSM (Nominatim)
     - img-src: imagens do domínio, data URIs e tiles OSM
     - font-src 'self': IBM Plex é self-hosted (css/fonts.css); sem Google Fonts
+    - worker-src 'self': service worker (sw.js) — exigido com default-src 'none'
+    - manifest-src 'self': manifesto PWA (manifest.webmanifest) — idem
     - base-uri 'self': bloqueia <base> injection
     - frame-ancestors 'none': anti-clickjacking (CWE-1021)
     - form-action 'self': restringe destino de formulários
@@ -141,15 +144,21 @@ class ContentSecurityPolicyMiddleware:
         Report-Only — incluímo-lo apenas no header enforced.
         """
         directives = [
-            "default-src 'self'",
-            # Sem origens externas para script/style/font: o Leaflet é self-hosted
-            # (T08), a swagger usa drf-spectacular-sidecar local, e o IBM Plex passou
-            # a self-hosted (css/fonts.css). Já não há Google Fonts — CSP mais apertada.
+            "default-src 'none'",
+            # Deny-by-default (recomendação OWASP/Mozilla Observatory): nada é
+            # carregado salvo o explicitamente permitido abaixo. Sem origens
+            # externas para script/style/font: o Leaflet é self-hosted (T08), a
+            # swagger usa drf-spectacular-sidecar local, e o IBM Plex passou a
+            # self-hosted (css/fonts.css). Já não há Google Fonts.
             f"script-src 'self' 'nonce-{nonce}'",
             f"style-src 'self' 'nonce-{nonce}'",
             "connect-src 'self' https://nominatim.openstreetmap.org",
             "img-src 'self' data: https://*.tile.openstreetmap.org",
             "font-src 'self'",
+            # OBRIGATÓRIAS com default-src 'none': sem elas o service worker
+            # (sw.js) e o manifesto PWA (manifest.webmanifest) deixariam de carregar.
+            "worker-src 'self'",
+            "manifest-src 'self'",
             "object-src 'none'",
             "frame-src 'none'",
             "base-uri 'self'",

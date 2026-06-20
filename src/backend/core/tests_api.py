@@ -1458,7 +1458,7 @@ class CSPHeaderTest(BaseAPITestCase):
         csp = response.get('Content-Security-Policy-Report-Only', '') or response.get(
             'Content-Security-Policy', ''
         )
-        self.assertIn("default-src 'self'", csp)
+        self.assertIn("default-src 'none'", csp)
 
     def test_csp_header_contains_frame_ancestors(self):
         """CSP header deve conter frame-ancestors 'none' (anti-clickjacking)."""
