@@ -730,8 +730,6 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    Secção (blocos em páginas de detalhe)
    ============================================================ */
 .section { border: 1px solid var(--border); border-radius: var(--r-3); margin-bottom: var(--sp-4); overflow: hidden; }
-/* .section--form (form_page.html): o único delta vive no mobile — reserva
-   espaço em baixo para a barra de ações fixa (ver .form-actions--sticky). */
 .section__head {
     /* wrap: chips/navegação (filtro ativo, janela do fluxo) quebram linha em
        vez de serem cortados pelo overflow:hidden da .section. */
@@ -1080,32 +1078,20 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
 /* Modo terreno: a barra de ações acompanha o teclado virtual no telemóvel
    (queixa do João: o teclado tapava os botões). --kb é medido por
-   field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal.
-
-   position: FIXED (era sticky): o sticky prendia-se ao ancestral de scroll mais
-   próximo — o .app-main (overflow-y:auto) — que em mobile NUNCA rola (rola a
-   janela). Resultado: o sticky ficava inerte, a barra caía no fim do formulário
-   longo e os botões ficavam fora do ecrã/atrás do teclado (não se clicavam).
-   O fixed prende ao viewport, independentemente dos overflow dos ancestrais, e
-   bottom:var(--kb) levanta-o acima do teclado. A .section--form reserva o espaço
-   em baixo para o último campo não ficar tapado pela barra. */
+   field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal. */
 @media (max-width: 767px) {
     .form-actions--sticky {
-        position: fixed;
-        left: 0;
-        right: 0;
+        position: sticky;
         bottom: var(--kb, 0px);
         margin-top: var(--sp-4);
         padding: var(--sp-3) var(--sp-4);
         padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom));
         background: var(--surface);
         border-top: 1px solid var(--border);
-        z-index: 40;   /* acima do conteúdo; os <dialog> modais (top-layer) ficam por cima */
+        z-index: 5;
     }
     .form-actions--sticky .btn-accent,
     .form-actions--sticky .btn-ghost { flex: 1; min-height: var(--min-touch); }
-    /* Espaço para a barra fixa (altura do botão + paddings + safe-area). */
-    .section--form { padding-bottom: calc(var(--min-touch) + 2 * var(--sp-4) + env(safe-area-inset-bottom)); }
 }
 .form-inline { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .form-check { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text); text-transform: none; letter-spacing: 0; cursor: pointer; }
