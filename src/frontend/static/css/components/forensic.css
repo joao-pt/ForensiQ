@@ -124,7 +124,12 @@
     cursor: pointer;
     transition: background var(--t-fast) var(--ease);
 }
-.btn-accent:hover { background: var(--accent-hover); }
+/* color: explícito no hover — quando o .btn-accent é um <a> (ex.: "Registar
+   item" em occurrence_detail), o a:hover global (color: --accent-hover, 0,1,1)
+   vencia o .btn-accent (color: --on-accent, 0,1,0) e pintava o TEXTO da mesma
+   cor que o fundo passa a ter → texto invisível. Reafirmar a cor aqui (0,2,0)
+   ganha a cascata. O botão de login não sofria por ser <button>, não <a>. */
+.btn-accent:hover { background: var(--accent-hover); color: var(--on-accent); }
 .btn-accent:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-accent svg { width: 16px; height: 16px; }
 
@@ -149,7 +154,9 @@
     cursor: pointer;
     transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
-.btn-ghost:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--accent); }
+/* color explícito: igual ao .btn-accent — sendo <a> (Cancelar, "Ver cadeia",
+   ações da grelha), o a:hover global pintava o texto de âmbar. Manter --text. */
+.btn-ghost:hover:not(:disabled) { background: var(--surface-hover); border-color: var(--accent); color: var(--text); }
 .btn-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn-ghost svg { width: 15px; height: 15px; }
 /* Alvo de toque >=44px nas ações de página em mobile (uso de campo, luvas) */
@@ -723,6 +730,8 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
    Secção (blocos em páginas de detalhe)
    ============================================================ */
 .section { border: 1px solid var(--border); border-radius: var(--r-3); margin-bottom: var(--sp-4); overflow: hidden; }
+/* .section--form (form_page.html): o único delta vive no mobile — reserva
+   espaço em baixo para a barra de ações fixa (ver .form-actions--sticky). */
 .section__head {
     /* wrap: chips/navegação (filtro ativo, janela do fluxo) quebram linha em
        vez de serem cortados pelo overflow:hidden da .section. */
@@ -794,6 +803,26 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .fq-chain-pin--active .fq-chain-pin__num {
     box-shadow: 0 0 0 3px var(--accent), 0 1px 6px rgba(0, 0, 0, 0.55);
 }
+
+/* Pino de localização ÚNICO (FQMap.pinIcon): geo-field (nova ocorrência/item),
+   picker de instituição e mapa de detalhe. divIcon SVG estilizado AQUI em vez do
+   PNG default do Leaflet — o hashing do WhiteNoise parte o caminho do PNG em
+   produção (imagem partida); ver nota em map-helpers.js. Cor de marca, reativo
+   ao tema, ponta exata sobre a coordenada (iconAnchor). Sem style inline (CSP).
+   O drop-shadow dá-lhe relevo sobre tiles de qualquer cor. */
+.fq-pin { background: transparent; border: 0; }
+.fq-pin__svg {
+    width: 30px;
+    height: 30px;
+    display: block;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45));
+}
+.fq-pin__shape {
+    fill: var(--accent);
+    stroke: var(--surface);   /* contorno que separa o pino dos tiles */
+    stroke-width: 1.1;
+}
+.fq-pin__core { fill: var(--surface); }   /* "furo" central no tom da casca */
 
 /* Lista COMPACTA de eventos da cadeia (detalhe do item, sob o mapa) — consulta
    interativa [data-chain-evt]; o ledger oficial (hash + âncoras) é /custody/. */
@@ -1051,20 +1080,32 @@ meter.bar::-moz-meter-bar { background: var(--accent); border-radius: var(--r-1)
 .form-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; margin-top: var(--sp-4); }
 /* Modo terreno: a barra de ações acompanha o teclado virtual no telemóvel
    (queixa do João: o teclado tapava os botões). --kb é medido por
-   field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal. */
+   field-keyboard.js (Visual Viewport). No desktop mantém o fluxo normal.
+
+   position: FIXED (era sticky): o sticky prendia-se ao ancestral de scroll mais
+   próximo — o .app-main (overflow-y:auto) — que em mobile NUNCA rola (rola a
+   janela). Resultado: o sticky ficava inerte, a barra caía no fim do formulário
+   longo e os botões ficavam fora do ecrã/atrás do teclado (não se clicavam).
+   O fixed prende ao viewport, independentemente dos overflow dos ancestrais, e
+   bottom:var(--kb) levanta-o acima do teclado. A .section--form reserva o espaço
+   em baixo para o último campo não ficar tapado pela barra. */
 @media (max-width: 767px) {
     .form-actions--sticky {
-        position: sticky;
+        position: fixed;
+        left: 0;
+        right: 0;
         bottom: var(--kb, 0px);
         margin-top: var(--sp-4);
         padding: var(--sp-3) var(--sp-4);
         padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom));
         background: var(--surface);
         border-top: 1px solid var(--border);
-        z-index: 5;
+        z-index: 40;   /* acima do conteúdo; os <dialog> modais (top-layer) ficam por cima */
     }
     .form-actions--sticky .btn-accent,
     .form-actions--sticky .btn-ghost { flex: 1; min-height: var(--min-touch); }
+    /* Espaço para a barra fixa (altura do botão + paddings + safe-area). */
+    .section--form { padding-bottom: calc(var(--min-touch) + 2 * var(--sp-4) + env(safe-area-inset-bottom)); }
 }
 .form-inline { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 .form-check { display: flex; align-items: center; gap: var(--sp-2); font-family: var(--font-sans); font-size: var(--fs-sm); color: var(--text); text-transform: none; letter-spacing: 0; cursor: pointer; }

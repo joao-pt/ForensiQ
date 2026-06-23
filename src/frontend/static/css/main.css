@@ -705,6 +705,10 @@ hr {
 .btn-primary:hover:not(:disabled) {
     background: var(--accent-hover);
     border-color: var(--accent-hover);
+    /* color explícito: nas páginas de erro o .btn-primary é um <a> ("Voltar ao
+       painel"); sem isto o a:hover global (--accent-hover) vencia e o texto
+       ficava igual ao fundo. Ver nota em forensic.css .btn-accent:hover. */
+    color: var(--on-accent);
 }
 
 /* Modificador do sistema .btn LEGADO (diálogos da casca, 404/500, login).
@@ -719,6 +723,7 @@ hr {
 .btn.btn-ghost:hover:not(:disabled) {
     background: var(--surface-hover);
     border-color: var(--border-strong);
+    color: var(--text);   /* idem: blinda o texto contra o a:hover global */
 }
 
 /* Ação destrutiva (terminar sessão, eliminar) — vermelho sólido, texto claro. */

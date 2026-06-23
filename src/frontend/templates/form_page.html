@@ -35,7 +35,9 @@
   {% endblock %}
 
   {% block page_body %}
-  <section class="section">
+  {# section--form: overflow visível para o sticky das ações funcionar (o
+     overflow:hidden da .section, p/ recortar cantos, tornava-o inerte em mobile). #}
+  <section class="section section--form">
     <div class="section__body">
       {% block form_body %}{% endblock %}
     </div>

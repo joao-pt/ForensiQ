@@ -20,6 +20,33 @@
     // geo-field.js e map-picker.js — auditoria D98).
     var DEFAULT_VIEW = { center: [39.5, -8.0], zoom: 6 };
 
+    /**
+     * Pino ÚNICO da app (divIcon SVG, classe .fq-pin) — substitui o ícone PNG
+     * por omissão do Leaflet. Motivo: em produção o STORAGES usa
+     * CompressedManifestStaticFilesStorage (WhiteNoise), que põe hash no nome de
+     * `marker-icon.png`; a auto-deteção do caminho do Leaflet (L.Icon.Default)
+     * espera o nome literal, parte o URL e o pino aparecia como "imagem partida"
+     * (em local, sem hash, funcionava). Um divIcon estilizado por CSS elimina
+     * essa dependência E dá um pino na cor da marca, reativo ao tema. O SVG usa
+     * classes (sem style inline) por causa da CSP estrita. Memoizado: o mesmo
+     * objeto serve todos os marcadores.
+     */
+    var _pinIcon = null;
+    function pinIcon() {
+        if (_pinIcon) return _pinIcon;
+        _pinIcon = L.divIcon({
+            className: 'fq-pin',
+            html: '<svg viewBox="0 0 24 24" class="fq-pin__svg" aria-hidden="true" focusable="false">' +
+                  '<path class="fq-pin__shape" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>' +
+                  '<circle class="fq-pin__core" cx="12" cy="9" r="2.6"/></svg>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 28],   // ponta do pino (≈ y22/24·30) sobre a coordenada
+            popupAnchor: [0, -26],
+            tooltipAnchor: [0, -24],
+        });
+        return _pinIcon;
+    }
+
     /** Cria um mapa Leaflet com a camada OSM padrão. `opts` é passado a L.map.
      * A atribuição © OpenStreetMap é obrigatória pela licença ODbL; vive aqui
      * (fonte única) para nenhum mapa a perder. Quem a esconder (insets
@@ -57,7 +84,7 @@
         var lng = parseFloat(el.dataset.lng);
         if (isNaN(lat) || isNaN(lng)) return false;
         map.setView([lat, lng], DEFAULT_ZOOM);
-        L.marker([lat, lng]).addTo(map).bindTooltip(el.dataset.label || '', { permanent: false });
+        L.marker([lat, lng], { icon: pinIcon() }).addTo(map).bindTooltip(el.dataset.label || '', { permanent: false });
         return true;
     }
 
@@ -74,7 +101,7 @@
         var marker = null;
         function place(lat, lng, source) {
             if (marker) marker.setLatLng([lat, lng]);
-            else marker = L.marker([lat, lng]).addTo(map);
+            else marker = L.marker([lat, lng], { icon: pinIcon() }).addTo(map);
             if (opts.latEl) opts.latEl.value = lat.toFixed(opts.decimals);
             if (opts.lngEl) opts.lngEl.value = lng.toFixed(opts.decimals);
             if (opts.onPlace) opts.onPlace(lat, lng, source || 'api');
@@ -123,6 +150,7 @@
         destroy: destroy,
         pinFromDataset: pinFromDataset,
         bindPinPicker: bindPinPicker,
+        pinIcon: pinIcon,
         OSM_TILE_URL: OSM_TILE_URL,
         OSM_MAX_ZOOM: OSM_MAX_ZOOM,
         DEFAULT_ZOOM: DEFAULT_ZOOM,
