@@ -12,7 +12,7 @@ repos:
       - id: check-yaml
       - id: check-toml
       - id: check-added-large-files
-        args: ["--maxkb=1024"]
+        args: ["--maxkb=5120"]   # 5 MB: acomoda o relatório final (docs/report/final.pdf, ~4 MB)
       - id: check-merge-conflict
       - id: detect-private-key
       - id: mixed-line-ending
