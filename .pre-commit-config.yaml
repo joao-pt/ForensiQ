@@ -19,7 +19,7 @@ repos:
         args: ["--fix=lf"]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.13          # alinhado com o ruff do CI (.github/workflows/ci.yml)
+    rev: v0.15.17          # alinhado com o ruff do CI (.github/workflows/ci.yml)
     hooks:
       - id: ruff
         args: ["--fix"]

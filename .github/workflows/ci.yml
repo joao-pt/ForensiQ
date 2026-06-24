@@ -115,7 +115,7 @@ jobs:
           python-version: '3.12'
 
       - name: Instalar ruff (versão fixa, reprodutível)
-        run: pip install ruff==0.15.13
+        run: pip install ruff==0.15.17
 
       - name: ruff check
         run: ruff check src/backend
