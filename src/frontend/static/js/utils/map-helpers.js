@@ -84,7 +84,12 @@
         var lng = parseFloat(el.dataset.lng);
         if (isNaN(lat) || isNaN(lng)) return false;
         map.setView([lat, lng], DEFAULT_ZOOM);
-        L.marker([lat, lng], { icon: pinIcon() }).addTo(map).bindTooltip(el.dataset.label || '', { permanent: false });
+        // keyboard:false — o pino e informativo, nao um controlo. Por omissao o
+        // Leaflet poe role="button"+tabindex no marker; como o divIcon so tem um
+        // <svg aria-hidden>, esse botao ficava sem nome acessivel (axe
+        // aria-command-name, impacto serious). A localizacao ja esta no texto da
+        // pagina, logo o pino nao precisa de ser focavel.
+        L.marker([lat, lng], { icon: pinIcon(), keyboard: false }).addTo(map).bindTooltip(el.dataset.label || '', { permanent: false });
         return true;
     }
 
@@ -101,7 +106,9 @@
         var marker = null;
         function place(lat, lng, source) {
             if (marker) marker.setLatLng([lat, lng]);
-            else marker = L.marker([lat, lng], { icon: pinIcon() }).addTo(map);
+            // keyboard:false — ver nota em pinFromDataset: pino sem role="button"
+            // (divIcon sem nome acessivel falhava o axe aria-command-name).
+            else marker = L.marker([lat, lng], { icon: pinIcon(), keyboard: false }).addTo(map);
             if (opts.latEl) opts.latEl.value = lat.toFixed(opts.decimals);
             if (opts.lngEl) opts.lngEl.value = lng.toFixed(opts.decimals);
             if (opts.onPlace) opts.onPlace(lat, lng, source || 'api');
