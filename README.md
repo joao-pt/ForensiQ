@@ -13,12 +13,13 @@
 **UC:** 21184 — Projecto de Engenharia Informática · Universidade Aberta · 2025/26
 **Repositório:** <https://github.com/joao-pt/ForensiQ>
 **Produção:** <https://forensiq.pt>
+**Relatório final:** [`docs/report/final.pdf`](docs/report/final.pdf) · também [proposta](docs/report/proposta.pdf) e [intercalar](docs/report/intercalar.pdf)
 
 ---
 
 ## Estado actual
 
-🟢 **Estado: verde.** MVP funcional em produção · Sem. 14 (recta final do relatório). Relatório Intercalar aprovado em 5 mai 2026. Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019).
+🟢 **Estado: relatório final entregue (24 jun 2026).** Âmbito de desenvolvimento da UC 21184 fechado; a aguardar a defesa pública. MVP funcional em produção. Relatório Intercalar aprovado em 5 mai 2026. Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019).
 
 - Backend Django 6 + DRF com ≈967 métodos de teste na suite `core/` + 37 testes E2E (Playwright); *gate* de cobertura CI a 80%.
 - 19 ADRs; RBAC de 6 perfis + 2 credenciais com acesso *need-to-know* por instituição (ADR-0017); custódia como ledger de eventos *append-only* (ADR-0015).
@@ -328,4 +329,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 15 jun 2026 (Sem. 15) · ≈967 testes de unidade/integração + E2E (confirmar contagem exacta com `pytest` local) · gate de cobertura CI 80% · deploy Fly.io com GitHub Actions CI*
+*Última actualização: 24 jun 2026 (entrega final) · ≈967 testes de unidade/integração + E2E · gate de cobertura CI 80% · deploy Fly.io com GitHub Actions CI*

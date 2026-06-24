@@ -8,7 +8,7 @@ Esta pasta contém as versões PDF dos relatórios formais.
 |---------|---------|------|
 | `proposta.pdf` | Proposta inicial | (entregue, aprovada) |
 | `intercalar.pdf` | Relatório intercalar | 6 de maio (entregue, aprovado) |
-| `final.pdf` | Relatório final (34 págs.) | 24 de junho |
+| `final.pdf` | Relatório final (57 págs.) | 24 de junho |
 
 ## Notas
 

@@ -4,6 +4,25 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
+## Sem. 17 · 17–24 jun 2026 (encerramento: polimento final e publicação do relatório)
+
+**Feito:**
+- refactor(test): suite e CI passam a correr **exclusivamente em PostgreSQL** (removido o caminho SQLite) — paridade total test/produção; os *triggers* de imutabilidade (ISO/IEC 27037) passam a ser exercitados de facto, sem `skip`
+- feat(security): **CSP deny-by-default** (`default-src 'none'`) no middleware — superfície de injeção minimizada
+- fix(a11y): **pino do mapa** corrigido em produção (divIcon SVG, robusto ao *hash* do WhiteNoise) e **sem `role="button"`** — resolve o achado axe `aria-command-name` na suite E2E
+- fix(ux móvel): barra de ações dos formulários reposta (sem flutuar); título e botões do ecrã «item registado» corrigidos; *hover* dos botões
+- chore(deps): subidos os pisos de `httpx`, `pypdf`, `pytest` e `ruff`; `actions/checkout` actualizado para v7 (CI + Security)
+- chore(ci): **keep-alive** do Fly.io activado a 17 jun (08:00–00:00) e **desligado a 24 jun** no encerramento; histórico de execuções *keep-alive* limpo do Actions
+- chore: **Dependabot desligado** (`dependabot.yml` removido) — sem mais ondas de dependências no projecto encerrado; PRs pendentes integrados (pisos seguros) ou fechados (#42 `django-filter` *major*, não integrado) e *branches* apagados
+- docs(report): **publicado o relatório final** (`docs/report/final.pdf`, 57 págs., 5 capítulos + 4 anexos); README com secção de entregáveis e estado de entrega; contagem de páginas alinhada
+- **Processo:** *commits* convencionais só em nome de João Rodrigues; CI verde (testes + E2E + *lint* + segurança)
+
+**Bloqueou:** Nada.
+
+**Próxima semana:** Defesa pública perante o júri. Após a defesa, **arquivar o repositório** (read-only) no GitHub.
+
+---
+
 ## Sem. 16 · 16 jun 2026 (backlog de correções da revisão + correção do deploy)
 
 **Feito:**
