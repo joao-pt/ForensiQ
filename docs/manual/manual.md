@@ -2,6 +2,10 @@
 
 > Guia completo da plataforma ForensiQ — cadeia de custódia de prova digital.
 
+**Estudante:** João M. M. Rodrigues · 2203474 \
+**Orientador:** Professor Pedro Duarte Pestana \
+**UC:** 21184 — Projeto de Engenharia Informática · Universidade Aberta · 2025/26
+
 **Índice**
 
 1. [Introdução](#introdução)
