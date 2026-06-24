@@ -40,7 +40,7 @@ Durante o desenvolvimento usa-se o plano gratuito do Neon (*Free Tier*), com *co
 | **Aiven** | Tecnicamente válida, com suporte completo a PostgreSQL. Rejeitada por menor documentação de integração com Django e plano gratuito mais restritivo. Reavaliável em produção futura. |
 | **ElephantSQL** | Encerrado em janeiro de 2025. Indisponível. |
 | **Railway** | Não oferece *tier* permanente sem custos; requer cartão de crédito e cobra após os créditos iniciais. |
-| **SQLite** | Adequado apenas para desenvolvimento local. Não suporta `BEFORE UPDATE`/`DELETE` *triggers* nem acesso concorrente multi-utilizador — incompatível com os requisitos forenses. (Os 6 testes de imutabilidade ao nível da BD correm apenas em PostgreSQL, no *job* dedicado do CI.) |
+| **SQLite** | Adequado apenas para desenvolvimento local. Não suporta `BEFORE UPDATE`/`DELETE` *triggers* nem acesso concorrente multi-utilizador — incompatível com os requisitos forenses. (Os testes de imutabilidade ao nível da BD correm apenas em PostgreSQL — exercitados pela suite completa no CI, já sem *skip*.) |
 
 ## Consequences
 

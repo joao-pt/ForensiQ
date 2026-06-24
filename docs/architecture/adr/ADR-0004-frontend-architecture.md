@@ -1,7 +1,7 @@
 # ADR-0004: Arquitectura do Frontend — HTML/CSS/JS Vanilla com Django Templates
 
 ## Status
-Superseded
+Superseded — frontend server-rendered (Django Templates + HTMX + Leaflet); autenticação por cookies HttpOnly em ADR-0009. Ver nota abaixo.
 
 > **Nota de superseding (Fase 3 — reconstrução do frontend):**
 > Esta decisão foi substituída. O frontend deixou de ser uma camada vanilla que consome a API REST via JWT a partir do browser e passou a ser **server-rendered** com **Django Templates + HTMX + Leaflet**, com autenticação por **cookies HttpOnly** servidos pelo Django (ver ADR-0009). A renderização passou a ser feita no servidor (ORM → template), eliminando o *drift* entre o contrato da API e a UI.

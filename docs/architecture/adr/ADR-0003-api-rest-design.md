@@ -38,7 +38,7 @@ Com os modelos de dados definidos (ADR-0002), é necessário expor uma API REST 
 >
 > A geração de PDF da ocorrência (ADR-0012) é exposta como uma `@action` de detalhe no `OccurrenceViewSet` — `/api/occurrences/<id>/pdf/` — e não como rota standalone independente.
 
-> `Occurrence` e `Evidence` são imutáveis na BD após criação (ADR-0014, triggers 0013): os ViewSets restringem `http_method_names` a `GET`/`POST`, pelo que não há `PUT`/`PATCH`/`DELETE`. Correções fazem-se por novo registo/evento, não por edição.
+> `Occurrence` e `Evidence` são imutáveis na BD após criação (triggers PostgreSQL: 0002 para Evidence/ChainOfCustody, 0013 para Occurrence): os ViewSets restringem `http_method_names` a `GET`/`POST`, pelo que não há `PUT`/`PATCH`/`DELETE`. Correções fazem-se por novo registo/evento, não por edição.
 
 ### Permissões
 - `IsAgent` — escrita apenas para perfil AGENT, leitura para todos autenticados.
@@ -60,7 +60,7 @@ Com os modelos de dados definidos (ADR-0002), é necessário expor uma API REST 
 - API consistente e previsível (convenções REST).
 - Permissões granulares por perfil, testadas automaticamente.
 - Swagger UI disponível em `/api/docs/` para documentação interativa.
-- `tests_api.py` cobre os cenários principais (>60 casos); a suite total do core ronda os ~537 testes.
+- `tests_api.py` cobre os cenários principais (>60 casos); a suite total do core ronda os ~967 testes.
 
 ### Negativas
 - Sem versionamento de API (v1/) — a considerar se houver alterações breaking.

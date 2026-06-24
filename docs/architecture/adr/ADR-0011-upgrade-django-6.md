@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — **actualiza ADR-0002 §2** ("Framework: Django 5.x + Django REST Framework"). Pin de versão alterado; modelos, URLs, middleware e DRF mantêm-se sem alteração.
+Accepted — **actualiza ADR-0002 §1** ("Framework: Django 5.x + Django REST Framework"). Pin de versão alterado; modelos, URLs, middleware e DRF mantêm-se sem alteração.
 
 ## Data
 
@@ -60,7 +60,7 @@ A migração foi proposta por Dependabot (PR #8) no dia 17 mai 2026 às 03:54 UT
 - **Pequena pressão sobre dependências terceiras.** Bibliotecas que ainda não declararam suporte explícito a Django 6 (alguns pacotes minor do ecossistema DRF) podem precisar de ser substituídas se aparecer regressão. Mitigação: pipeline Security (`security.yml`) corre `pip-audit` semanalmente; qualquer drift aparece em < 7 dias.
 
 ### Impactos noutros documentos
-- **ADR-0002 §2** — referência a "Django 5.x" passa a "Django 6.x (LTS)".
+- **ADR-0002 §1** — referência a "Django 5.x" passa a "Django 6.x (LTS)".
 - **`docs/scope/changelog.md`** — entrada Sem.9 (17 mai 2026) regista o upgrade e os CVE refs (`changelog.md`, concluído).
 - **`README.md`** — badge actualizado para "Django 6" (`README.md:7`, concluído).
 - **`.github/workflows/ci.yml`** — sem alterações (a versão Django vem do `requirements.txt`); o fix de `requirements-dev.txt` em `e2e9a54` é tratado como bug-fix de CI, não como decisão arquitectural.

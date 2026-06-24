@@ -88,9 +88,10 @@ on-device (Tesseract WASM), nada enviado para serviços externos.
 
 ## Decisão actual
 
-Mantém-se o componente simples até **6 mai 2026** (Fase 2). As
-melhorias acima são listadas no backlog do Relatório Intercalar e
-priorizadas para a Fase 3 (24 jun 2026) ou para a defesa pública.
+O componente simples manteve-se em produção (Fase 2). As melhorias
+acima ficaram **fora do âmbito entregue a 24 jun 2026** e estão
+assumidas como trabalho pós-projeto (ver «Roadmap pós-entrega final»
+do `README.md`).
 
 A escolha de **não imprimir etiquetas físicas** é deliberada: as
 forças policiais portuguesas raramente têm impressoras térmicas em
