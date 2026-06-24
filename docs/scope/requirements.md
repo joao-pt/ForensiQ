@@ -4,7 +4,7 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 1.0 · 22 mar 2026 (Markdown) — fonte autoritativa neste repositório; fonte LaTeX arquivada fora do repositório |
+| Versão | 1.1-md · 13 jun 2026 (Markdown) — fonte autoritativa neste repositório; fonte LaTeX arquivada fora do repositório |
 | Referência | [productplan.com/glossary/moscow-prioritization](https://www.productplan.com/glossary/moscow-prioritization/) |
 
 ---
@@ -123,7 +123,7 @@ Verificação detalhada por requisito está no Capítulo 3 do [Relatório Interc
 | RNF02 | ✅ | WCAG 2.1 AA (axe) · *touch targets* 48px · *mobile-first* |
 | RNF03 | ✅ | *Append-only* (Python + *trigger* PG) · *hash* encadeado · consola de auditoria de integridade |
 | RNF04 | ✅ | < 2s nas operações principais em produção (`forensiq.pt`) |
-| RNF05 | ✅ | **≈967 métodos de teste** na suite `core/` + **36 testes E2E** (Playwright). *Coverage* com *gate* CI a 80%. **Confirmar com `pytest` local** antes da entrega final |
+| RNF05 | ✅ | **≈967 métodos de teste** na suite `core/` + **38 testes E2E** (Playwright). *Coverage* com *gate* CI a 80% (verificado na entrega final) |
 | RNF06 | ✅ | `forensiq.pt` em produção (Fly.io · *region* fra) + plano de *disaster recovery* documentado |
 
 **Âmbito que excedeu a proposta (extensões, Guia §6).** Para além de RF10/RF11/RF13: ledger de

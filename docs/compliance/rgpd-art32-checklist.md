@@ -1,8 +1,8 @@
 # RGPD Art.º 32 — Checklist de Conformidade ForensiQ
 
 **Documento:** mapeamento entre o Regulamento (UE) 2016/679 (RGPD), Artigo 32.º "Segurança do tratamento", e a implementação técnica da aplicação ForensiQ.
-**Versão:** 1.0
-**Data:** 2026-04-18
+**Versão:** 1.1
+**Data:** 2026-06-24 (revisão de encerramento — incorpora o delta de 2026-05-18 e o plano de DR de 2026-05-27)
 **Âmbito:** aplicação web ForensiQ (backend Django 6 + DRF, frontend server-rendered (Django templates + HTMX + Leaflet), infra Fly.io + Neon).
 **Referências cruzadas:**
 - Auditoria técnica: [`docs/AUDIT_2026-04-16.md`](../AUDIT_2026-04-16.md)
@@ -105,15 +105,15 @@ A ForensiQ trata **dados pessoais sensíveis** enquanto sistema de gestão de pr
 |---|---|---|---|---|
 | c.1 | Backups automáticos da BD | Neon: *point-in-time recovery* até 7 dias (plano base) | Neon platform | ✅ (via provider) |
 | c.2 | Backups de ficheiros de evidência | **Não implementado** — ficheiros em `FileSystemStorage` (`MEDIA_ROOT` configurável para volume persistente do Fly.io, `settings.py:324`); falta object storage com versionamento/backup | — | ❌ **Lacuna crítica** |
-| c.3 | Procedimento documentado de restauro | **Não documentado** | — | ❌ Lacuna |
+| c.3 | Procedimento documentado de restauro | Runbooks por cenário (BD/media/segredos/região) | [`disaster-recovery.md`](../operations/disaster-recovery.md) §3 | ✅ Documentado |
 | c.4 | Teste periódico de restauro | **Não realizado** | — | ❌ Lacuna |
-| c.5 | RTO/RPO definidos | **Não definidos** | — | ❌ Lacuna |
+| c.5 | RTO/RPO definidos | RTO ≤ 1h (app/código), RPO ≤ 24h (BD/media) | `disaster-recovery.md` §1 | ✅ Definidos |
 
 **Ações pendentes para cumprir a alínea c):**
-1. Migrar `media/` para objeto storage com versionamento (S3/R2). (`AUDIT#A4`)
-2. Escrever `docs/operations/disaster-recovery.md` com procedimento de restauro.
-3. Definir RTO (ex: 4h) e RPO (ex: 1h) coerentes com o contexto forense.
-4. Agendar teste trimestral de restauro completo.
+1. Migrar `media/` para objeto storage com versionamento (S3/R2). (`AUDIT#A4`) — em aberto.
+2. ✅ Procedimento de restauro documentado em [`disaster-recovery.md`](../operations/disaster-recovery.md) (27 mai 2026).
+3. ✅ RTO/RPO definidos (RTO ≤ 1h, RPO ≤ 24h) — ver `disaster-recovery.md` §1.
+4. Executar/agendar teste trimestral de restauro completo — em aberto (`disaster-recovery.md` §6).
 
 ---
 
@@ -121,7 +121,7 @@ A ForensiQ trata **dados pessoais sensíveis** enquanto sistema de gestão de pr
 
 | # | Requisito | Implementação | Evidência | Estado |
 |---|---|---|---|---|
-| d.1 | Suite de testes automatizados | Suite distribuída por 43 ficheiros `tests*.py` em `core/` (≈967 métodos + 36 E2E Playwright; `tests_api.py`, `access`, `pdf`, `modelo_v2`, `public_verify`, `taxonomy`, `despacho`, `validar`, `subequipamentos`, etc.); gate de cobertura em CI; `pytest-django` | `src/backend/core/tests*.py` | ✅ Cobertura quantitativa boa (`AUDIT#T1`) |
+| d.1 | Suite de testes automatizados | Suite distribuída por 43 ficheiros `tests*.py` em `core/` (≈967 métodos + 38 E2E Playwright; `tests_api.py`, `access`, `pdf`, `modelo_v2`, `public_verify`, `taxonomy`, `despacho`, `validar`, `subequipamentos`, etc.); gate de cobertura em CI; `pytest-django` | `src/backend/core/tests*.py` | ✅ Cobertura quantitativa boa (`AUDIT#T1`) |
 | d.2 | Testes de regressão de segurança | Testes de need-to-know/authz item-level (`tests_access.py:111-188`), CSP e rate-limit de auth (`tests_api.py:1387+`); falta DAST/fuzzing | `src/backend/core/tests_access.py`; `src/backend/core/tests_api.py` | ✅ Parcial |
 | d.3 | Auditoria de código periódica | Sim — `docs/AUDIT_2026-04-16.md`, `docs/code-review-2026-04-11.md` | `docs/` | ✅ (ad-hoc; falta cadência fixa) |
 | d.4 | *Pentest* externo | **Não realizado** | — | ❌ Lacuna |
@@ -142,13 +142,13 @@ A ForensiQ trata **dados pessoais sensíveis** enquanto sistema de gestão de pr
 |---|---|---|---|
 | a) | Pseudonimização e cifra | 🟡 **Parcial** | Cifra de ficheiros de evidência em repouso (`A4`); *hash* da foto e *hash-chain* determinística fechados (ver `AUDIT_2026-05-18-delta.md` §1, S5/S6) |
 | b) | CIA-R | 🟡 **Parcial** | S1/S2/S4/B7 fechados (ver `AUDIT_2026-05-18-delta.md` §1); permanecem EXPERT vê tudo (`S17`), obscuridade do Admin (`S11`), throttling anónimo (`S8`), sem APM externo |
-| c) | Restabelecimento | 🔴 **Não conforme** | Sem backups de evidências, sem RTO/RPO, sem teste de restauro |
+| c) | Restabelecimento | 🟡 **Parcial** | Plano de DR documentado com RTO/RPO; faltam backup dedicado de evidências (volume Fly free) e teste de restauro validado |
 | d) | Avaliação regular | 🟡 **Parcial** | SAST/SCA em CI implementados (`security.yml` + pre-commit); falta *pentest* externo e cadência formalizada |
 
 **Conclusão:** a ForensiQ tem os *building blocks* certos (cifra em trânsito, HSTS, RBAC + ABAC + need-to-know, JWT em cookies HttpOnly, CSP com *nonce*, *hash-chain* determinística, *hash* da foto, audit log com IP fidedigno, imutabilidade tripla, SAST/SCA em CI), mas **não é ainda conforme com o Art.º 32** para operação em ambiente de produção real com dados reais. Dos 10 itens do Top-10 de abril, 9 estão fechados (ver `AUDIT_2026-05-18-delta.md` §8); permanecem em aberto, por opção arquitectural, N4 (PDF assíncrono) e P5 (PurgeCSS). As lacunas reais que faltam encerrar são:
 
 1. **Cifra de ficheiros de evidência em repouso** + object storage com versionamento, para a alínea a)/c).
-2. **Plano de DR/BC documentado e testado** com RTO/RPO, para a alínea c).
+2. **Teste de restauro validado** do plano de DR já documentado (`disaster-recovery.md`, com RTO/RPO definidos), para encerrar a alínea c).
 3. **Pentest externo** antes de *go-live*.
 
 Para fins **académicos** (TFM UC 21184, Universidade Aberta), o estado atual é **defensável** desde que se apresente este checklist como análise honesta das lacunas e plano de mitigação, e não como declaração de conformidade.
@@ -162,7 +162,7 @@ Priorização para o plano de mitigação pós-TFM. As entradas do Top-10 de abr
 | # | Risco RGPD Art.º 32 | Mitigação | Esforço | Prioridade |
 |---|---|---|---|---|
 | 1 | Evidência sem cifra em repouso nem backup (a.4, c.2) | Migrar `media/` para S3/R2 com SSE-KMS + versionamento | M | 🔴 |
-| 2 | Sem DR testado (c.4) | Escrever runbook + agendar teste trimestral | M | 🟠 |
+| 2 | Sem teste de DR validado (c.4) | Executar/agendar teste trimestral de restauro (runbook já escrito) | M | 🟠 |
 
 Legenda: S = ≤1 dia; M = 1-3 dias; L = >3 dias.
 

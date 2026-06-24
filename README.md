@@ -19,9 +19,9 @@
 
 ## Estado actual
 
-🟢 **Estado: relatório final entregue (24 jun 2026).** Âmbito de desenvolvimento da UC 21184 fechado; a aguardar a defesa pública. MVP funcional em produção. Relatório Intercalar aprovado em 5 mai 2026. Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019).
+🟢 **Estado: relatório final entregue (24 jun 2026).** Âmbito de desenvolvimento da UC 21184 fechado; a aguardar a defesa pública. MVP funcional em produção. Relatório Intercalar entregue a 6 mai 2026 (aprovado). Refactor de fundo da Fase 2/3 concluído (ADR-0015 a ADR-0019).
 
-- Backend Django 6 + DRF com ≈967 métodos de teste na suite `core/` + 37 testes E2E (Playwright); *gate* de cobertura CI a 80%.
+- Backend Django 6 + DRF com ≈967 métodos de teste na suite `core/` + 38 testes E2E (Playwright); *gate* de cobertura CI a 80%.
 - 19 ADRs; RBAC de 6 perfis + 2 credenciais com acesso *need-to-know* por instituição (ADR-0017); custódia como ledger de eventos *append-only* (ADR-0015).
 - Cadeia de custódia imutável com hash SHA-256 encadeado + *cascade endpoint* para transições atómicas.
 - 18 tipos taxonómicos de evidência digital com sub-componentes (parent_evidence) e validação anti-ciclos.
@@ -135,7 +135,7 @@ Evidence, ChainOfCustody e AuditLog mantêm `has_change_permission=False` no adm
 - **A11y**: `aria-busy` em listas, `aria-pressed` no theme toggle, live region para anúncios, roving tabindex em radiogroups (type-btn, occurrences tabs)
 - **Acessibilidade WCAG 2.1 AA**: contraste 4.5:1+, touch targets 48px, focus rings consistentes, redução de movimento respeitada
 
-### Testes (≈967 unidade/integração + 37 E2E · gate CI 80%)
+### Testes (≈967 unidade/integração + 38 E2E · gate CI 80%)
 
 Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real corre `pytest -q`.
 
@@ -160,7 +160,7 @@ Snapshot não-exaustivo (há mais ficheiros `tests_*.py`); para o total real cor
 ```bash
 cd src/backend
 ../../.venv/Scripts/python.exe -m pytest -q
-# ~967 testes recolhidos (confirmar com pytest); o job postgres do CI exercita os triggers
+# ≈967 testes recolhidos; o job test do CI (PostgreSQL) exercita os triggers
 ../../.venv/Scripts/python.exe -m pytest --cov=core --cov-report=term-missing
 # Gate de cobertura CI: fail_under=80 (pyproject.toml); confirmar a % exacta com a execução local
 ```
@@ -182,14 +182,14 @@ ForensiQ/
 │   │   ├── proposta.md              # Sinopse, MVP, critérios de aceitação
 │   │   ├── requirements.md          # MoSCoW (RF01-17, RNF01-06)
 │   │   ├── risks.md                 # R01-R10 + matriz de controlos forenses
-│   │   ├── changelog.md             # Uma entrada por semana (Sem 1-14)
+│   │   ├── changelog.md             # Uma entrada por semana (Sem 1-17)
 │   │   └── iso27037-traceability.pdf      # Mapeamento à norma
 │   ├── architecture/                # § 5 do guia: design
 │   │   ├── c4-context.png           # C4 nv 1
 │   │   ├── c4-containers.png        # C4 nv 2
 │   │   ├── data-model.png           # ER PostgreSQL
 │   │   ├── adr/                     # ADRs 0001-0019
-│   │   └── diagrams/                # C4 + ER + custody event ledger + hash-chain-flow + immutability-3-layers (Mermaid)
+│   │   └── diagrams/                # C4 + ER (núcleo/acesso/crimes) + hash-chain-flow + immutability-3-layers (Mermaid/DOT)
 │   ├── design/                      # § 5 do guia: interface
 │   │   ├── wireframes.pdf           # Protótipo de navegação (pós-implementação, abordagem code-first justificada via § 7)
 │   │   └── screens/                 # Capturas usadas no wireframes.pdf
@@ -276,8 +276,8 @@ python -m pytest --cov=core           # com coverage
 | 0003 | API REST | DRF + ViewSets + permissões custom + Spectacular OpenAPI |
 | 0004 | Frontend | Server-rendered (Django templates + HTMX + Leaflet), mobile-first |
 | 0005 | Deployment | Fly.io (Frankfurt), HTTPS automático, volume persistente |
-| 0006 | Sub-componentes | `Evidence.parent_evidence` self-FK; profundidade ≤3 |
-| 0007 | SRI + Referrer-Policy | Subresource Integrity em CDN; strict-origin-when-cross-origin |
+| 0006 | Extensibilidade modular | Apps Django + modelos agnósticos em `core`; novos módulos forenses por FK (roadmap) |
+| 0007 | Integridade de estáticos | Leaflet self-hosted sob WhiteNoise (SRI em CDN superseded); Referrer-Policy strict-origin-when-cross-origin |
 | 0008 | Cache | DatabaseCache em Neon (sem Redis adicional) |
 | 0009 | JWT cookies | HttpOnly cookies + CSRF (Wave 2d) — substitui Authorization Bearer + localStorage |
 | 0010 | Taxonomia | 18 tipos digitais hierárquicos (Wave 2c); IMEI/VIN lookups |
@@ -329,4 +329,4 @@ O desenvolvimento foi assistido por modelos de IA generativa (assistentes comerc
 
 ---
 
-*Última actualização: 24 jun 2026 (entrega final) · ≈967 testes de unidade/integração + E2E · gate de cobertura CI 80% · deploy Fly.io com GitHub Actions CI*
+*Última actualização: 24 jun 2026 (entrega final) · ≈967 testes de unidade/integração + 38 E2E · gate de cobertura CI 80% · deploy manual Fly.io (`fly deploy`) + GitHub Actions (CI/segurança)*

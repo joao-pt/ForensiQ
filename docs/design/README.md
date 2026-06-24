@@ -6,14 +6,13 @@ Esta pasta contém os artefactos de design de interface.
 
 | Ficheiro | Descrição |
 |---------|-----------|
+| [`wireframes.pdf`](./wireframes.pdf) | Protótipo de navegação (pós-implementação); fonte `wireframes.tex`. |
+| `screens/` | Capturas das vistas-chave usadas no `wireframes.pdf`. |
 | [`login-design-credits.md`](./login-design-credits.md) | Créditos e referências do redesign da página de login. |
 
-## Conteúdo esperado (template original)
+## Abordagem
 
-| Ficheiro | Descrição | Obrigatório |
-|---------|-----------|------------|
-| `wireframes.pdf` | Wireframes ou protótipo Figma exportado | Projectos com interface |
-| `user-flows.png` | Fluxos de navegação principais (opcional) | Não |
+O protótipo de navegação (`wireframes.pdf`) foi produzido **após** a implementação, como mapa de navegação do sistema construído — abordagem *code-first* justificada via §7 do guia da UC. As capturas em `screens/` derivam da aplicação real.
 
 ## Nível de detalhe esperado
 

@@ -104,12 +104,14 @@
 
 **Estado actual:** sem exercício de DR formalizado (limitação académica reconhecida).
 
-**Mínimo viável a fazer antes da entrega final (Sem.15):**
+**Procedimento mínimo de validação (assumido como trabalho pós-entrega — ver §6 e o «Roadmap pós-entrega final» do `README.md`):**
 
 1. Criar branch experimental no Neon a partir de snapshot de ontem.
 2. Apontar instância local de desenvolvimento para esse branch via env var.
 3. Correr suite de testes contra esse DB de restauro.
 4. Documentar resultado (tempo + sucesso) em entrada de `changelog.md`.
+
+> **Nota (encerramento, 24 jun 2026):** este exercício **não foi executado** no âmbito da UC 21184; fica como limitação assumida (§6) e trabalho pós-entrega. O runbook acima é teórico.
 
 ## 5. Retenção e RGPD
 

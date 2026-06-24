@@ -14,7 +14,9 @@ Uma entrada por semana, até domingo à noite.
 - chore(deps): subidos os pisos de `httpx`, `pypdf`, `pytest` e `ruff`; `actions/checkout` actualizado para v7 (CI + Security)
 - chore(ci): **keep-alive** do Fly.io activado a 17 jun (08:00–00:00) e **desligado a 24 jun** no encerramento; histórico de execuções *keep-alive* limpo do Actions
 - chore: **Dependabot desligado** (`dependabot.yml` removido) — sem mais ondas de dependências no projecto encerrado; PRs pendentes integrados (pisos seguros) ou fechados (#42 `django-filter` *major*, não integrado) e *branches* apagados
+- chore(ci): subido o limite do hook `check-added-large-files` (1→5 MB) para acomodar `docs/report/final.pdf` (~4 MB) [0759a15]; pin do `ruff` alinhado entre CI, pre-commit e `requirements-dev` (0.15.17)
 - docs(report): **publicado o relatório final** (`docs/report/final.pdf`, 57 págs., 5 capítulos + 4 anexos); README com secção de entregáveis e estado de entrega; contagem de páginas alinhada
+- docs: **revisão de coerência de encerramento** — README/changelog/requirements/risks/testing/disaster-recovery/RGPD alinhados (contagem E2E = 38; data do intercalar 6 mai; jobs de CI reais; plano de DR refletido na checklist RGPD)
 - **Processo:** *commits* convencionais só em nome de João Rodrigues; CI verde (testes + E2E + *lint* + segurança)
 
 **Bloqueou:** Nada.
@@ -46,13 +48,15 @@ Uma entrada por semana, até domingo à noite.
 
 ---
 
-## Sem. 15 · 14 jun 2026 (guia de transporte redesenhada — por movimento)
+## Sem. 15 · 14–15 jun 2026 (guia de transporte por movimento + manual de utilizador + i18n pt-PT)
 
 **Feito:**
 - feat(guia): **guia de transporte redesenhada de raiz** — passa a ser o manifesto de uma **REMESSA** (movimento), não um relatório por item/processo. Camada reutilizável `core/documents/` (casca `chrome` + `DocumentBuilder` + conteúdo `guia_transporte`); identidade de documento monocromática (formulário oficial), distinta da app. Conteúdo: **REMESSA** (origem→destino, portador, remetente, receção) · **ITENS** (só identificadores inequívocos — marca/modelo/série/IMEI/VIN, via flag `EvidenceFieldDef.is_identifier`) · **PROCESSO** mínimo · **PERCURSO** físico. Sem morada/GPS/descrição, sem *hashes* no corpo, sem declaração
 - feat(guia): modelo **`GuiaTransporte`** (companheira do ledger, **fora da cadeia de custódia** — histórico operacional, re-gerável, apagável no admin) criado no encaminhamento em lote; nº `GT-YYYY-NNNN`; servida em `/guias/<code>/pdf/`. Listada no detalhe da ocorrência e em `/reports/` (repurposado)
 - feat(guia): **QR de verificação por remessa** (`/v/g/<hash>/`) — à chegada confirma os itens DAQUELA remessa (códigos + *hashes* SHA-256) e o destino, sem expor o resto do caso
 - refactor(guia): removidos os geradores e *endpoints* antigos (`generate_evidence_pdf`/`generate_occurrence_pdf`, `/api/.../pdf/`, botões «Guia PDF»); `core/pdf_export.py` eliminado; `ADR-0012` atualizado (secção «Atualização»)
+- docs(manual): **manual de utilizador** em Markdown (`docs/manual/`) com fluxos do agente e do perito, capturas em qualidade nativa (cf72c65); notas internas de trabalho retiradas do repositório público (6a8deb4)
+- feat(i18n): **mensagens de erro de bibliotecas em pt-PT** sobre a base `gettext` (49f100c); item de i18n do *roadmap* do README corrigido (d83f356)
 
 ---
 

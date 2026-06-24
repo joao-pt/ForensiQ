@@ -115,15 +115,17 @@ src/backend/
     test_smoke.py      # gate de fundação
     test_auth.py  test_occurrences.py  test_evidences.py
     test_lists.py test_custody.py test_intake.py test_public_verify.py
-    test_accessibility.py  test_performance.py
+    test_institutions.py test_accessibility.py test_performance.py
+    test_keyboard.py test_mobile.py test_visual.py
 scripts/run_lighthouse.ps1
 docs/testing/                        # esta documentação
 ```
 
 **`e2e_settings.py`** herda de `test_settings` e ajusta o necessário para servir
 a app REAL a um browser: repõe `STATICFILES_DIRS` (o `test_settings` esvazia-os),
-usa SQLite em **ficheiro** (o `live_server` corre noutra thread e tem de ver os
-dados cometidos) e isola o `MEDIA_ROOT`.
+usa **PostgreSQL** (herdado de `test_settings`; o `live_server` corre noutra
+thread e vê os dados porque o PostgreSQL é um servidor partilhado entre threads,
+ao contrário do SQLite `:memory:` que era por-ligação) e isola o `MEDIA_ROOT`.
 
 **`conftest.py`** fornece os fixtures:
 - `auth_as(user)` — injeta o cookie JWT (autenticação rápida, sem passar pela
@@ -144,11 +146,11 @@ Playwright (ver `pyproject.toml` → `testpaths = ["core"]`).
 
 ---
 
-## 5. Cobertura atual (36 testes E2E)
+## 5. Cobertura atual (38 testes E2E · 48 casos com parametrização de viewport/tema)
 
 | Módulo | Testes | O que cobre |
 |---|---:|---|
-| `test_smoke.py` | 4 | Login pela UI real; **todas** as páginas autenticadas renderizam (CSS servido, sem erros JS); **zero violações de CSP**; captura de GPS preenche coordenadas. |
+| `test_smoke.py` | 5 | Login pela UI real; **todas** as páginas autenticadas renderizam (CSS servido, sem erros JS); **zero violações de CSP**; captura de GPS preenche coordenadas; *smoke* de fundação. |
 | `test_auth.py` | 4 | Redireccionamento de página protegida → login; erro de credenciais visível; portão de perfil ADR-0017 (agente bloqueado da receção = 403; perito = 200). |
 | `test_occurrences.py` | 4 | Criação completa com **cascata de crime N1→N2→N3**; dica de prioridade; validação nativa de campos; **erro server-side renderizado visível** (regressão do bug crítico anterior). |
 | `test_evidences.py` | 4 | Campos específicos por tipo (mostrar/ativar só os do tipo escolhido); **upload de fotografia** (o fluxo que deu 500 em produção); required. |
@@ -160,7 +162,7 @@ Playwright (ver `pyproject.toml` → `testpaths = ["core"]`).
 | `test_accessibility.py` | 2 | **Zero** violações graves/críticas de a11y (incl. contraste WCAG AA) — testado no tema **claro E escuro** (parametrizado); login. |
 | `test_performance.py` | 3 | Orçamento de render do servidor; latência da cascata; latência do filtro HTMX. |
 | `test_keyboard.py` | 3 | A11y de teclado: skip link → conteúdo; login submetido com Enter; abrir o drawer com Enter numa linha. |
-| `test_mobile.py` | 1 | Responsivo: o off-canvas da sidebar abre/fecha em viewport móvel (incl. Escape). |
+| `test_mobile.py` | 2 | Responsivo: o off-canvas da sidebar abre/fecha em viewport móvel (incl. Escape); sem *overflow* horizontal do cabeçalho em viewports móveis. |
 | `test_visual.py` | 1 | Regressão visual do formulário de nova ocorrência (screenshot + diff; marcador `visual`, fora do CI). |
 
 ---
@@ -190,8 +192,10 @@ Conhecimento ganho a montar isto — poupa horas a quem voltar ao tema.
 7. **Browsers do Playwright** instalam-se em `%LOCALAPPDATA%\ms-playwright`. NÃO
    usar `PLAYWRIGHT_BROWSERS_PATH=0` (instala dentro do pacote e o runtime não os
    encontra).
-8. **SQLite em ficheiro, não `:memory:`**, para o `live_server` (noutra thread)
-   ver os dados cometidos pelos factories (`transactional_db`).
+8. **PostgreSQL partilhado, não SQLite `:memory:`** — o `live_server` corre
+   noutra thread e só vê os dados dos factories (`transactional_db`) porque o
+   PostgreSQL é um servidor partilhado entre ligações (o `:memory:` do SQLite
+   era por-ligação).
 9. **Lighthouse no Windows** termina com `EPERM` ao limpar o perfil temporário
    do Chrome — é **cosmético**: o relatório já foi gerado antes do erro.
 10. **Servir o browser:** usar sempre o `live_server` do pytest (isolado), não o
@@ -203,7 +207,7 @@ Conhecimento ganho a montar isto — poupa horas a quem voltar ao tema.
 ## 7. Integração contínua
 
 A suite E2E corre no CI no **job `e2e`** de `.github/workflows/ci.yml` (a par dos
-jobs `test`, `lint` e `test-postgres`), em cada push/PR para `main`. O job instala
+jobs `test` e `lint`), em cada push/PR para `main`. O job instala
 o browser do Playwright (`playwright install --with-deps chromium`) e corre:
 
 ```bash
